@@ -15,7 +15,7 @@ import time
 
 import requests
 
-from config import WIKIPEDIA_API, BATCH_SIZE, REQUEST_DELAY_SECONDS
+from config import WIKIPEDIA_API, BATCH_SIZE, REQUEST_DELAY_SECONDS, REQUEST_HEADERS
 from supabase_client import get_client
 
 PROGRESS_FILE = "wikipedia_progress.json"
@@ -49,13 +49,14 @@ def fetch_all_titles():
             "action": "query",
             "list": "allpages",
             "apnamespace": 0,
+            "apfilterredir": "nonredirects",  # לא כולל הפניות - רק ערכים בפועל
             "aplimit": BATCH_SIZE,
             "format": "json",
         }
         if apcontinue:
             params["apcontinue"] = apcontinue
 
-        response = requests.get(WIKIPEDIA_API, params=params, timeout=30)
+        response = requests.get(WIKIPEDIA_API, params=params, headers=REQUEST_HEADERS, timeout=30)
         response.raise_for_status()
         data = response.json()
 

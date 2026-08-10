@@ -17,7 +17,7 @@ from datetime import datetime, timedelta, timezone
 
 import requests
 
-from config import WIKIPEDIA_API, REQUEST_DELAY_SECONDS
+from config import WIKIPEDIA_API, REQUEST_DELAY_SECONDS, REQUEST_HEADERS
 from supabase_client import get_client
 import time
 
@@ -42,7 +42,7 @@ def save_last_checked(timestamp_iso):
 
 def api_get(params):
     params = {**params, "format": "json"}
-    response = requests.get(WIKIPEDIA_API, params=params, timeout=30)
+    response = requests.get(WIKIPEDIA_API, params=params, headers=REQUEST_HEADERS, timeout=30)
     response.raise_for_status()
     time.sleep(REQUEST_DELAY_SECONDS)
     return response.json()

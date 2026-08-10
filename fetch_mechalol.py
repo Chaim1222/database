@@ -26,6 +26,7 @@ from config import (
     MECHALOL_API,
     BATCH_SIZE,
     REQUEST_DELAY_SECONDS,
+    REQUEST_HEADERS,
     CATEGORY_CREATED_IN_MECHALOL,
     CATEGORY_MISSING_SORT_TEMPLATE,
     LAST_UPDATE_CATEGORY_PREFIX,
@@ -45,7 +46,7 @@ HEBREW_MONTHS = {
 
 def api_get(params):
     params = {**params, "format": "json"}
-    response = requests.get(MECHALOL_API, params=params, timeout=30)
+    response = requests.get(MECHALOL_API, params=params, headers=REQUEST_HEADERS, timeout=30)
     response.raise_for_status()
     time.sleep(REQUEST_DELAY_SECONDS)
     return response.json()
@@ -153,6 +154,7 @@ def fetch_all_titles():
             "action": "query",
             "list": "allpages",
             "apnamespace": 0,
+            "apfilterredir": "nonredirects",  # לא כולל הפניות - רק ערכים בפועל
             "aplimit": BATCH_SIZE,
         }
         if apcontinue:

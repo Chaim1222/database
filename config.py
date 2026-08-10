@@ -12,6 +12,11 @@ WIKIPEDIA_API = "https://he.wikipedia.org/w/api.php"
 # כתובת ה-API של המכלול
 MECHALOL_API = "https://www.hamichlol.org.il/w/api.php"
 
+# כותרת User-Agent מזהה - נדרשת על ידי שרתי ויקימדיה, אחרת מוחזרת שגיאת 403.
+# לפי מדיניות ויקימדיה יש לכלול פרטי קשר; מומלץ להחליף לכתובת רלוונטית אצלך.
+USER_AGENT = "MechalolWikipediaCompareBot/1.0 (https://www.hamichlol.org.il/; admin@hamichlol.org.il)"
+REQUEST_HEADERS = {"User-Agent": USER_AGENT}
+
 # פרטי חיבור לסופרבייס
 SUPABASE_URL = os.environ["SUPABASE_URL"]
 SUPABASE_KEY = os.environ["SUPABASE_SERVICE_KEY"]
