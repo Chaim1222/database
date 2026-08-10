@@ -1,0 +1,61 @@
+name: הרצה ראשונית - איסוף מלא
+
+# מופעל ידנית בלבד. ריצה יחידה עלולה לא להספיק להיקף מלא (הגבלת זמן ריצה של גיטהאב אקשנס),
+# ולכן קובצי ההתקדמות (progress) נשמרים בענף state ומאפשרים המשכה בהרצה חוזרת.
+on:
+  workflow_dispatch:
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - name: שחזור קוד
+        uses: actions/checkout@v4
+
+      - name: שחזור קובצי התקדמות קודמים
+        uses: actions/cache@v4
+        with:
+          path: |
+            wikipedia_progress.json
+            mechalol_progress.json
+          key: import-progress-${{ github.run_id }}
+          restore-keys: |
+            import-progress-
+
+      - name: התקנת פייתון
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: התקנת ספריות
+        run: pip install -r requirements.txt
+
+      - name: שליפת כותרות ויקיפדיה
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python fetch_wikipedia.py
+
+      - name: שליפת נתוני המכלול
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          MECHALOL_API_URL: ${{ secrets.MECHALOL_API_URL }}
+        run: python fetch_mechalol.py
+
+      - name: התאמה בין הכותרות
+        if: success()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python match.py
+
+      - name: שמירת התקדמות (אם הריצה נעצרה באמצע)
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            wikipedia_progress.json
+            mechalol_progress.json
+          key: import-progress-${{ github.run_id }}
