@@ -214,8 +214,8 @@ def main():
                 "last_update_month": last_update_month,
                 # match_type ייקבע בשלב ההתאמה מול ויקיפדיה (match.py), לא כאן
                 "match_type": "ללא_התאמה",
-                "דף_לטיפול": title in pages_to_open,
-                "מילוני": title in dictionary_entries,
+                "needs_attention": title in pages_to_open,
+                "is_dictionary_entry": title in dictionary_entries,
             })
 
         client.table("mechalol_pages").upsert(rows, on_conflict="page_id").execute()
