@@ -22,28 +22,25 @@ PROGRESS_FILE = "wikipedia_progress.json"
 
 
 def load_progress():
+    """
+    מחזיר טאפל: (הושלם_בעבר, נקודת_המשך)
+    """
     if os.path.exists(PROGRESS_FILE):
         with open(PROGRESS_FILE, "r", encoding="utf-8") as f:
-            return json.load(f).get("apcontinue")
-    return None
+            data = json.load(f)
+        return data.get("done", False), data.get("apcontinue")
+    return False, None
 
 
-def save_progress(apcontinue):
+def save_progress(apcontinue, done=False):
     with open(PROGRESS_FILE, "w", encoding="utf-8") as f:
-        json.dump({"apcontinue": apcontinue}, f)
+        json.dump({"apcontinue": apcontinue, "done": done}, f)
 
 
-def clear_progress():
-    if os.path.exists(PROGRESS_FILE):
-        os.remove(PROGRESS_FILE)
-
-
-def fetch_all_titles():
+def fetch_all_titles(apcontinue):
     """
     ג'נרטור שמחזיר רשימות של (כותרת, מזהה_עמוד) בעימוד, עד סיום כל מרחב השם הראשי.
     """
-    apcontinue = load_progress()
-
     while True:
         params = {
             "action": "query",
@@ -64,7 +61,7 @@ def fetch_all_titles():
         yield [(p["title"], p["pageid"]) for p in pages]
 
         apcontinue = data.get("continue", {}).get("apcontinue")
-        save_progress(apcontinue)
+        save_progress(apcontinue, done=False)
 
         if not apcontinue:
             break
@@ -80,15 +77,21 @@ def upsert_batch(client, batch):
 
 
 def main():
+    done, apcontinue = load_progress()
+
+    if done:
+        print("שליפת ויקיפדיה כבר הושלמה בעבר - מדלג. (למחוק את wikipedia_progress.json כדי לאלץ שליפה מחדש)")
+        return
+
     client = get_client()
     total = 0
 
-    for batch in fetch_all_titles():
+    for batch in fetch_all_titles(apcontinue):
         upsert_batch(client, batch)
         total += len(batch)
         print(f"נטענו {total} כותרות עד כה")
 
-    clear_progress()
+    save_progress(None, done=True)
     print(f"סיום. סה\"כ {total} כותרות נטענו מוויקיפדיה העברית")
 
 
