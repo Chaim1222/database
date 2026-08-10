@@ -39,7 +39,6 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          MECHALOL_API_URL: ${{ secrets.MECHALOL_API_URL }}
         run: python fetch_mechalol.py
 
       - name: התאמה בין הכותרות
