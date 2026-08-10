@@ -9,8 +9,8 @@ import os
 # כתובת ה-API של ויקיפדיה העברית
 WIKIPEDIA_API = "https://he.wikipedia.org/w/api.php"
 
-# כתובת ה-API של המכלול -- יש לוודא שזו הכתובת הנכונה לפני הרצה
-MECHALOL_API = os.environ.get("MECHALOL_API_URL", "https://www.hamichlol.org.il/w/api.php")
+# כתובת ה-API של המכלול
+MECHALOL_API = "https://www.hamichlol.org.il/w/api.php"
 
 # פרטי חיבור לסופרבייס
 SUPABASE_URL = os.environ["SUPABASE_URL"]
