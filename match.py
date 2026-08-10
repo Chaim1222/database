@@ -89,7 +89,7 @@ def main():
                 "id": row["id"],
                 "wikipedia_id": wikipedia_id,
                 "match_type": match_type,
-                "אולי_נמחק_בוויקיפדיה": maybe_deleted,
+                "maybe_deleted_from_wikipedia": maybe_deleted,
             })
 
         # upsert לפי id: מעדכן רק את השדות שסופקו, בבקשה אחת לכל המנה
