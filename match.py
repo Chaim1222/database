@@ -1,26 +1,22 @@
 """
-Match Hamichlol titles against Wikipedia titles.
+התאמת כותרות מכלול מול ויקיפדיה.
 
-Matching order:
+סדר ההתאמה:
+1. manual_match - קובע, לא נוגעים.
+2. היגיינת טקסט (השוואה אחרי ניקוי תווי כיווניות/גרשיים/מקפים - לא משנה
+   את הכותרת המאוחסנת).
+3. נרמול סמנטי (מכלול -> ויקיפדיה בלבד, ראו normalize.py).
+4. {{מיון ויקיפדיה|דף=...}} - קריאת API באצוות, מוצא אחרון בלבד.
 
-1. Manual matches are authoritative and are never modified.
-2. Exact title match.
-3. Text hygiene normalization.
-4. Semantic normalization.
-5. {{מיון ויקיפדיה|דף=...}} fallback.
+normalization_checked=true אומר שהשורה כבר עברה את כל התהליך (בין אם
+נמצאה התאמה ובין אם לא) - ריצות עתידיות ידלגו עליה ויבדקו רק שורות חדשות.
 
-Normalization never changes the stored title.
-
-Progress:
-- normalization_checked=true means the normalization pipeline has already
-  been completed for that row.
-- Therefore, interrupted runs can safely continue without repeating expensive
-  normalization/API work.
+חשוב: fetch_mechalol.py לא שולח match_type בעדכונים שוטפים (רק ב-INSERT
+ראשוני), כדי לא לדרוס התאמות שכבר בוצעו כאן.
 """
 
 import re
 import time
-import unicodedata
 from datetime import datetime, timezone
 
 import requests
@@ -30,7 +26,12 @@ from config import (
     MECHALOL_API,
     REQUEST_DELAY_SECONDS,
     REQUEST_HEADERS,
+    API_BATCH_SIZE_TEMPLATE_CHECK,
+    STATUS_CREATED_IN_MECHALOL,
+    MATCH_TYPE_IMPORTED,
+    MATCH_TYPE_SAME_TITLE_UNRELATED,
 )
+from normalize import hygiene, normalize_title
 from supabase_client import get_client
 
 
@@ -41,58 +42,30 @@ session = requests.Session()
 session.headers.update(REQUEST_HEADERS)
 
 
-# ---------------------------------------------------------------------------
-# Logging
-# ---------------------------------------------------------------------------
-
 def log(message):
-    now = datetime.now(timezone.utc).strftime(
-        "%Y-%m-%d %H:%M:%S UTC"
-    )
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     print(f"[{now}] {message}", flush=True)
 
-
-# ---------------------------------------------------------------------------
-# Retry wrapper
-# ---------------------------------------------------------------------------
 
 def execute_with_retry(operation, description):
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             return operation()
-
         except Exception as exc:
             if attempt >= MAX_RETRIES:
-                log(
-                    f"ERROR | {description} | "
-                    f"failed after {MAX_RETRIES} attempts: {exc}"
-                )
+                log(f"ERROR | {description} | נכשל אחרי {MAX_RETRIES} ניסיונות: {exc}")
                 raise
-
-            log(
-                f"WARNING | {description} | "
-                f"attempt {attempt}/{MAX_RETRIES} failed: {exc}. "
-                f"retrying in {RETRY_DELAY}s..."
-            )
-
+            log(f"WARNING | {description} | ניסיון {attempt}/{MAX_RETRIES} נכשל: {exc}. ניסיון חוזר בעוד {RETRY_DELAY}ש")
             time.sleep(RETRY_DELAY)
 
 
 # ---------------------------------------------------------------------------
-# Wikipedia
+# ויקיפדיה - טעינת מפת כותרות (מפתח = אחרי hygiene)
 # ---------------------------------------------------------------------------
 
-def load_wikipedia_title_map(client):
-    """
-    Load all Wikipedia titles into memory.
-
-    Returns:
-        {
-            "Wikipedia title": wikipedia_pages.id
-        }
-    """
-
+def load_wikipedia_map(client):
     title_map = {}
+    collisions = 0
     offset = 0
     batch_number = 0
 
@@ -103,546 +76,158 @@ def load_wikipedia_title_map(client):
             lambda: (
                 client.table("wikipedia_pages")
                 .select("id, title")
-                .range(
-                    offset,
-                    offset + BATCH_SIZE - 1,
-                )
+                .range(offset, offset + BATCH_SIZE - 1)
                 .execute()
             ),
             f"WIKIPEDIA batch={batch_number} offset={offset}",
         )
 
         rows = result.data or []
-
         if not rows:
             break
 
         for row in rows:
             title = row.get("title")
+            if not title:
+                continue
 
-            if title:
-                title_map[title] = row["id"]
+            key = hygiene(title)
+
+            if key in title_map and title_map[key] != row["id"]:
+                collisions += 1
+                continue
+
+            title_map[key] = row["id"]
 
         offset += len(rows)
-
-        log(
-            f"WIKIPEDIA | batch={batch_number} | "
-            f"loaded={len(title_map):,}"
-        )
+        log(f"WIKIPEDIA | batch={batch_number} | נטענו={len(title_map):,}")
 
         if len(rows) < BATCH_SIZE:
             break
+
+    if collisions:
+        log(f"WARNING | {collisions:,} התנגשויות מפתח היגיינה בוויקיפדיה (דולגו)")
 
     return title_map
 
 
 # ---------------------------------------------------------------------------
-# Text hygiene
+# {{מיון ויקיפדיה|דף=...}} - אצוות
 # ---------------------------------------------------------------------------
 
-def hygiene(title):
-    """
-    Cheap text-only normalization.
+TEMPLATE_RE = re.compile(
+    r"\{\{\s*מיון\s+ויקיפדיה\s*\|\s*דף\s*=\s*([^|}\n]+)"
+)
 
-    This is deliberately conservative.
-    It does not perform semantic substitutions.
-    It does not change the stored title.
-    """
 
-    value = unicodedata.normalize("NFC", title)
+def clean_template_value(raw):
+    value = raw.strip()
 
-    # LRM / RLM / bidi control characters.
-    value = value.replace("\u200e", "")
-    value = value.replace("\u200f", "")
-    value = value.replace("\u202a", "")
-    value = value.replace("\u202b", "")
-    value = value.replace("\u202c", "")
-    value = value.replace("\u202d", "")
-    value = value.replace("\u202e", "")
+    # קישור פנימי [[...]] בתוך דף= - מסיר את הסוגריים המרובעים.
+    value = re.sub(r"^\[\[(.+)\]\]$", r"\1", value).strip()
 
-    # Non-breaking space.
-    value = value.replace("\u00a0", " ")
+    # קו תחתון - MediaWiki משתמש בו כמקביל לרווח בכותרות.
+    value = value.replace("_", " ")
 
-    # Hebrew quotation marks / apostrophes.
-    value = value.replace("״", '"')
-    value = value.replace("׳", "'")
-
-    # Hebrew maqaf -> ASCII hyphen.
-    value = value.replace("־", "-")
-
-    # Trim surrounding whitespace.
-    value = value.strip()
+    value = re.sub(r"\s+", " ", value).strip()
 
     return value
 
 
-def hygiene_key(title):
-    return hygiene(title)
-
-
-# ---------------------------------------------------------------------------
-# Candidate handling
-# ---------------------------------------------------------------------------
-
-def add_candidate(candidates, title, method):
-    if not title:
-        return
-
-    candidates.setdefault(title, set()).add(method)
-
-
-# ---------------------------------------------------------------------------
-# Hebrew year handling
-# ---------------------------------------------------------------------------
-
-def fix_hebrew_year_final_letter(value):
+def fetch_template_titles(titles):
     """
-    Convert a Hebrew final-letter case where a year notation has a
-    non-final letter immediately before the apostrophe.
-
-    Example:
-        תשפג' -> תשפג/appropriate final form where applicable
+    שולף תוכן דפים באצווה אחת, מחפש {{מיון ויקיפדיה|דף=...}}.
+    מחזיר {title: template_value_or_None}.
     """
-
-    replacements = {
-        "כ": "ך",
-        "מ": "ם",
-        "נ": "ן",
-        "פ": "ף",
-        "צ": "ץ",
-    }
-
-    if not value:
-        return value
-
-    last = value[-1]
-
-    return value[:-1] + replacements.get(last, last)
-
-
-# ---------------------------------------------------------------------------
-# Semantic normalization
-# ---------------------------------------------------------------------------
-
-def semantic_candidates(title):
-    """
-    Return all possible semantic variants for a Hamichlol title.
-
-    Multiple rules may generate candidates.
-
-    The original title is never modified in the database.
-    """
-
-    candidates = {}
-
-    base = hygiene(title)
-
-    # ---------------------------------------------------------------
-    # 1. "קדוש" / "קדושה" / "קדושים"
-    # ---------------------------------------------------------------
-
-    value = re.sub(
-        r'(?<!\w)"(קדוש|קדושה|קדושים)"',
-        r"\1",
-        base,
-    )
-
-    value = re.sub(
-        r'"(קדוש|קדושה|קדושים)"',
-        r"\1",
-        value,
-    )
-
-    if value != base:
-        add_candidate(
-            candidates,
-            value,
-            "הסרת_מירכאות_קדוש",
-        )
-
-    # ---------------------------------------------------------------
-    # 2. אותו האיש <-> ישו
-    # ---------------------------------------------------------------
-
-    if "אותו האיש" in base:
-        add_candidate(
-            candidates,
-            base.replace(
-                "אותו האיש",
-                "ישו",
-            ),
-            "אותו_האיש_לישו",
-        )
-
-    if "ישו" in base:
-        add_candidate(
-            candidates,
-            base.replace(
-                "ישו",
-                "אותו האיש",
-            ),
-            "ישו_לאותו_האיש",
-        )
-
-    # ---------------------------------------------------------------
-    # 3. המרכז ה... -> בית הכנסת ה...
-    #
-    # Only the requested four streams.
-    # ---------------------------------------------------------------
-
-    value = re.sub(
-        r"^המרכז ה(נאולוגי|רפורמי|קראי|קונסרבטיבי)",
-        r"בית הכנסת ה\1",
-        base,
-    )
-
-    if value != base:
-        add_candidate(
-            candidates,
-            value,
-            "מרכז_לבית_כנסת",
-        )
-
-    # ---------------------------------------------------------------
-    # 4. קרבן / קרבנות -> קורבן / קורבנות
-    # ---------------------------------------------------------------
-
-    value = re.sub(
-        r"\bקרבנות\b",
-        "קורבנות",
-        base,
-    )
-
-    value = re.sub(
-        r"\bקרבן\b",
-        "קורבן",
-        value,
-    )
-
-    if value != base:
-        add_candidate(
-            candidates,
-            value,
-            "קרבן_לקורבן",
-        )
-
-    # ---------------------------------------------------------------
-    # 5. אלוהים spelling
-    # ---------------------------------------------------------------
-
-    value = base
-
-    value = value.replace(
-        "א-לוהים",
-        "אלוהים",
-    )
-
-    value = value.replace(
-        "א־לוהים",
-        "אלוהים",
-    )
-
-    value = value.replace(
-        "אלוקים",
-        "אלוהים",
-    )
-
-    if value != base:
-        add_candidate(
-            candidates,
-            value,
-            "כתיב_אלוהים",
-        )
-
-    # ---------------------------------------------------------------
-    # 6. י-ה -> יה
-    # ---------------------------------------------------------------
-
-    value = (
-        base
-        .replace("י-ה", "יה")
-        .replace("י־ה", "יה")
-    )
-
-    if value != base:
-        add_candidate(
-            candidates,
-            value,
-            "יה",
-        )
-
-    # ---------------------------------------------------------------
-    # 7. (אישיות מהתנ"ך) <-> (דמות מקראית)
-    # ---------------------------------------------------------------
-
-    value = base.replace(
-        '(אישיות מהתנ"ך)',
-        "(דמות מקראית)",
-    )
-
-    if value != base:
-        add_candidate(
-            candidates,
-            value,
-            "אישיות_מהתנך_לדמות_מקראית",
-        )
-
-    value = base.replace(
-        "(דמות מקראית)",
-        '(אישיות מהתנ"ך)',
-    )
-
-    if value != base:
-        add_candidate(
-            candidates,
-            value,
-            "דמות_מקראית_לאישיות_מהתנך",
-        )
-
-    # ---------------------------------------------------------------
-    # 8. אליל -> אל
-    #
-    # Explicit common inflections first.
-    # ---------------------------------------------------------------
-
-    value = base
-
-    value = re.sub(
-        r"\bאלילי\b",
-        "אלי",
-        value,
-    )
-
-    value = re.sub(
-        r"\bאלילים\b",
-        "אלים",
-        value,
-    )
-
-    value = re.sub(
-        r"\bאליל(?:ים|י|ות)?\b",
-        "אל",
-        value,
-    )
-
-    if value != base:
-        add_candidate(
-            candidates,
-            value,
-            "אליל_לאל",
-        )
-
-    # ---------------------------------------------------------------
-    # 9. Hebrew year apostrophe
-    # ---------------------------------------------------------------
-
-    value = re.sub(
-        r"\b([א-ת]{2,5})['׳]$",
-        lambda m: fix_hebrew_year_final_letter(
-            m.group(1)
-        ),
-        base,
-    )
-
-    if value != base:
-        add_candidate(
-            candidates,
-            value,
-            "שנת_עברי_אות_סופית",
-        )
-
-    return candidates
-
-
-# ---------------------------------------------------------------------------
-# Normalized Wikipedia map
-# ---------------------------------------------------------------------------
-
-def build_normalized_map(wikipedia_titles):
-    """
-    Build:
-
-        hygiene(title) ->
-            [(original_title, wikipedia_id), ...]
-
-    Lists are intentional because multiple Wikipedia titles can theoretically
-    collapse to the same hygiene key.
-    """
-
-    result = {}
-
-    for title, page_id in wikipedia_titles.items():
-        key = hygiene_key(title)
-
-        result.setdefault(
-            key,
-            [],
-        ).append(
-            (title, page_id)
-        )
-
-    return result
-
-
-# ---------------------------------------------------------------------------
-# Hygiene matching
-# ---------------------------------------------------------------------------
-
-def find_hygiene_match(title, normalized_map):
-    key = hygiene_key(title)
-
-    matches = normalized_map.get(
-        key,
-        [],
-    )
-
-    # Only accept an unambiguous match.
-    if len(matches) != 1:
-        return None
-
-    original_title, page_id = matches[0]
-
-    # Exact match should already have been handled before this function.
-    return (
-        original_title,
-        page_id,
-        "טקסט_היגיינה",
-    )
-
-
-# ---------------------------------------------------------------------------
-# Semantic matching
-# ---------------------------------------------------------------------------
-
-def find_semantic_matches(title, normalized_map):
-    candidates = semantic_candidates(title)
-
-    matches = []
-
-    for candidate, methods in candidates.items():
-        key = hygiene_key(candidate)
-
-        for original_title, page_id in normalized_map.get(
-            key,
-            [],
-        ):
-            matches.append(
-                (
-                    original_title,
-                    page_id,
-                    sorted(methods),
-                )
-            )
-
-    # Deduplicate.
-    unique = {
-        (matched_title, page_id): tuple(methods)
-        for matched_title, page_id, methods in matches
-    }
-
-    # Exactly one distinct Wikipedia target is required.
-    if len(unique) != 1:
-        return None
-
-    (
-        matched_title,
-        page_id,
-    ), methods = next(
-        iter(unique.items())
-    )
-
-    return (
-        matched_title,
-        page_id,
-        "+".join(methods),
-    )
-
-
-# ---------------------------------------------------------------------------
-# Wikipedia sorting template
-# ---------------------------------------------------------------------------
-
-def get_template_title(title):
-    """
-    Read {{מיון ויקיפדיה|דף=...}} from the Hamichlol page.
-
-    This is intentionally a last-resort API call because it is expensive.
-    """
+    result = {title: None for title in titles}
 
     params = {
-        "action": "parse",
-        "page": title,
-        "prop": "wikitext",
+        "action": "query",
+        "prop": "revisions",
+        "rvprop": "content",
+        "rvslots": "main",
+        "formatversion": "2",
+        "titles": "|".join(titles),
         "format": "json",
     }
 
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            response = session.get(
-                MECHALOL_API,
-                params=params,
-                timeout=(15, 60),
-            )
-
+            response = session.get(MECHALOL_API, params=params, timeout=(15, 60))
             response.raise_for_status()
-
             data = response.json()
-
-            wikitext = (
-                data.get("parse", {})
-                .get("wikitext", {})
-                .get("*", "")
-            )
-
-            match = re.search(
-                r"\{\{\s*מיון\s+ויקיפדיה\s*"
-                r"\|\s*דף\s*=\s*([^|}\n]+)",
-                wikitext,
-            )
-
-            if match:
-                return hygiene(
-                    match.group(1)
-                )
-
-            return None
-
-        except (
-            requests.RequestException,
-            ValueError,
-        ) as exc:
-
+            break
+        except (requests.RequestException, ValueError) as exc:
             if attempt >= MAX_RETRIES:
-                log(
-                    f"ERROR | template lookup | "
-                    f"title={title} | "
-                    f"failed after {MAX_RETRIES}: {exc}"
-                )
+                log(f"ERROR | template batch | נכשל אחרי {MAX_RETRIES}: {exc}")
                 raise
-
-            log(
-                f"WARNING | template lookup | "
-                f"title={title} | "
-                f"attempt={attempt}/{MAX_RETRIES}"
-            )
-
+            log(f"WARNING | template batch | ניסיון {attempt}/{MAX_RETRIES}: {exc}")
             time.sleep(RETRY_DELAY)
+    else:
+        return result
 
-    return None
+    pages = data.get("query", {}).get("pages", [])
+
+    for page in pages:
+        title = page.get("title")
+        revisions = page.get("revisions") or []
+
+        if not revisions:
+            continue
+
+        content = revisions[0].get("slots", {}).get("main", {}).get("content", "")
+
+        match = TEMPLATE_RE.search(content)
+        if match:
+            result[title] = clean_template_value(match.group(1))
+
+    if REQUEST_DELAY_SECONDS:
+        time.sleep(REQUEST_DELAY_SECONDS)
+
+    return result
+
+
+def resolve_pending_via_template(pending, wikipedia_map):
+    """
+    pending: [(row, title), ...]
+    מחזיר {row_id: (wikipedia_id, matched_title) or None}
+    """
+    resolved = {}
+
+    titles = [title for _, title in pending]
+
+    for i in range(0, len(titles), API_BATCH_SIZE_TEMPLATE_CHECK):
+        chunk = titles[i:i + API_BATCH_SIZE_TEMPLATE_CHECK]
+
+        template_values = fetch_template_titles(chunk)
+
+        for row, title in pending:
+            if title not in chunk:
+                continue
+
+            template_value = template_values.get(title)
+            if not template_value:
+                resolved[row["id"]] = None
+                continue
+
+            key = hygiene(template_value)
+            wikipedia_id = wikipedia_map.get(key)
+
+            if wikipedia_id is not None:
+                resolved[row["id"]] = (wikipedia_id, template_value)
+            else:
+                resolved[row["id"]] = None
+
+        log(f"TEMPLATE API | אצווה {i // API_BATCH_SIZE_TEMPLATE_CHECK + 1} | {len(chunk)} כותרות נבדקו")
+
+    return resolved
 
 
 # ---------------------------------------------------------------------------
-# Hamichlol rows
+# מכלול - איטרציה
 # ---------------------------------------------------------------------------
 
 def iter_mechalol_rows(client):
-    """
-    Iterate over the entire mechalol_pages table.
-
-    We deliberately select all columns because the upsert writes back the
-    complete existing row.
-    """
-
     offset = 0
     batch_number = 0
 
@@ -653,464 +238,178 @@ def iter_mechalol_rows(client):
             lambda: (
                 client.table("mechalol_pages")
                 .select("*")
-                .range(
-                    offset,
-                    offset + BATCH_SIZE - 1,
-                )
+                .range(offset, offset + BATCH_SIZE - 1)
                 .execute()
             ),
             f"MECHALOL batch={batch_number} offset={offset}",
         )
 
         rows = result.data or []
-
         if not rows:
             break
 
         yield rows
 
         offset += len(rows)
-
         if len(rows) < BATCH_SIZE:
             break
 
 
-# ---------------------------------------------------------------------------
-# Match type
-# ---------------------------------------------------------------------------
-
 def get_match_type(row):
-    """
-    Determine the match_type based on the source status.
-
-    Translated pages are intentionally treated according to their status
-    supplied by fetch_mechalol.py.
-
-    Only pages explicitly marked as created in Hamichlol get the special
-    "same title without import relation" value.
-    """
-
-    if row.get("status") == "נוצר_במכלול":
-        return "כותרת_זהה_בלי_קשר"
-
-    return "מיובא"
+    if row.get("status") == STATUS_CREATED_IN_MECHALOL:
+        return MATCH_TYPE_SAME_TITLE_UNRELATED
+    return MATCH_TYPE_IMPORTED
 
 
 # ---------------------------------------------------------------------------
-# Main
+# עיקרי
 # ---------------------------------------------------------------------------
 
 def main():
     started = time.monotonic()
-
     client = get_client()
 
     log("=" * 80)
     log("START | match.py")
     log("=" * 80)
 
-    # ---------------------------------------------------------------
-    # Load Wikipedia once.
-    # ---------------------------------------------------------------
-
-    log("STAGE 1 | loading Wikipedia titles...")
-
-    wikipedia_titles = load_wikipedia_title_map(
-        client
-    )
-
-    log(
-        f"STAGE 1 DONE | "
-        f"Wikipedia titles={len(wikipedia_titles):,}"
-    )
-
-    # ---------------------------------------------------------------
-    # Build hygiene lookup.
-    # ---------------------------------------------------------------
-
-    log("STAGE 2 | building normalized Wikipedia map...")
-
-    normalized_map = build_normalized_map(
-        wikipedia_titles
-    )
-
-    log(
-        f"STAGE 2 DONE | "
-        f"normalized keys={len(normalized_map):,}"
-    )
-
-    # ---------------------------------------------------------------
-    # Counters.
-    # ---------------------------------------------------------------
+    log("שלב 1 | טוען כותרות ויקיפדיה...")
+    wikipedia_map = load_wikipedia_map(client)
+    log(f"שלב 1 הושלם | כותרות={len(wikipedia_map):,}")
 
     total = 0
     exact_matches = 0
-    hygiene_matches = 0
-    semantic_matches = 0
+    normalization_matches = 0
     template_matches = 0
     unmatched = 0
     manual_skipped = 0
     already_checked_skipped = 0
 
-    # ---------------------------------------------------------------
-    # Process Hamichlol.
-    # ---------------------------------------------------------------
+    log("שלב 2 | מתאים כותרות מכלול...")
 
-    log("STAGE 3 | matching Hamichlol titles...")
-
-    for batch_number, batch in enumerate(
-        iter_mechalol_rows(client),
-        1,
-    ):
+    for batch_number, batch in enumerate(iter_mechalol_rows(client), 1):
         updates = []
-
-        batch_exact = 0
-        batch_hygiene = 0
-        batch_semantic = 0
-        batch_template = 0
-        batch_unmatched = 0
+        pending = []  # [(row, title)] - דורש בדיקת תבנית מיון
 
         for row in batch:
             total += 1
-
             title = row.get("title")
 
             if not title:
-                log(
-                    f"WARNING | row id={row.get('id')} "
-                    f"has no title; skipped"
-                )
+                log(f"WARNING | שורה id={row.get('id')} ללא כותרת - דולגה")
                 continue
-
-            # -------------------------------------------------------
-            # Manual match is authoritative.
-            # -------------------------------------------------------
 
             if row.get("manual_match"):
                 manual_skipped += 1
                 continue
 
-            # -------------------------------------------------------
-            # 1. Exact match.
-            #
-            # IMPORTANT:
-            # Do not reset normalization columns here.
-            # A previous normalization result must not be erased.
-            # -------------------------------------------------------
-
-            wikipedia_id = wikipedia_titles.get(
-                title
-            )
+            # 1. היגיינת טקסט (כולל התאמה מדויקת - אם הכותרת נקייה, hygiene(title)==title)
+            key = hygiene(title)
+            wikipedia_id = wikipedia_map.get(key)
 
             if wikipedia_id is not None:
                 updated = dict(row)
+                updated["wikipedia_id"] = wikipedia_id
+                updated["match_type"] = get_match_type(row)
+                updated["maybe_deleted_from_wikipedia"] = False
 
-                updated["wikipedia_id"] = (
-                    wikipedia_id
-                )
-
-                updated["match_type"] = (
-                    get_match_type(row)
-                )
-
-                updated[
-                    "maybe_deleted_from_wikipedia"
-                ] = False
+                if key != title:
+                    updated["normalization_checked"] = True
+                    updated["normalization_match"] = True
+                    updated["normalization_method"] = "היגיינת_טקסט"
+                    updated["title_normalized"] = key
 
                 updates.append(updated)
-
                 exact_matches += 1
-                batch_exact += 1
-
                 continue
-
-            # -------------------------------------------------------
-            # If normalization was already completed and no exact
-            # match exists, there is nothing more to do.
-            # -------------------------------------------------------
 
             if row.get("normalization_checked"):
                 already_checked_skipped += 1
                 continue
 
-            # -------------------------------------------------------
-            # 2. Text hygiene.
-            # -------------------------------------------------------
+            # 2. נרמול סמנטי
+            candidate, applied = normalize_title(title)
 
-            hygiene_match = find_hygiene_match(
-                title,
-                normalized_map,
-            )
+            if applied:
+                candidate_id = wikipedia_map.get(hygiene(candidate))
 
-            if hygiene_match:
-                (
-                    matched_title,
-                    wikipedia_id,
-                    method,
-                ) = hygiene_match
-
-                updated = dict(row)
-
-                updated["wikipedia_id"] = (
-                    wikipedia_id
-                )
-
-                updated["match_type"] = (
-                    get_match_type(row)
-                )
-
-                updated[
-                    "normalization_checked"
-                ] = True
-
-                updated[
-                    "normalization_match"
-                ] = True
-
-                updated[
-                    "normalization_method"
-                ] = method
-
-                updated[
-                    "title_normalized"
-                ] = matched_title
-
-                updated[
-                    "maybe_deleted_from_wikipedia"
-                ] = False
-
-                updates.append(updated)
-
-                hygiene_matches += 1
-                batch_hygiene += 1
-
-                continue
-
-            # -------------------------------------------------------
-            # 3. Semantic normalization.
-            # -------------------------------------------------------
-
-            semantic_match = find_semantic_matches(
-                title,
-                normalized_map,
-            )
-
-            if semantic_match:
-                (
-                    matched_title,
-                    wikipedia_id,
-                    method,
-                ) = semantic_match
-
-                updated = dict(row)
-
-                updated["wikipedia_id"] = (
-                    wikipedia_id
-                )
-
-                updated["match_type"] = (
-                    get_match_type(row)
-                )
-
-                updated[
-                    "normalization_checked"
-                ] = True
-
-                updated[
-                    "normalization_match"
-                ] = True
-
-                updated[
-                    "normalization_method"
-                ] = method
-
-                updated[
-                    "title_normalized"
-                ] = matched_title
-
-                updated[
-                    "maybe_deleted_from_wikipedia"
-                ] = False
-
-                updates.append(updated)
-
-                semantic_matches += 1
-                batch_semantic += 1
-
-                continue
-
-            # -------------------------------------------------------
-            # 4. {{מיון ויקיפדיה}}
-            #
-            # API request only happens here.
-            # -------------------------------------------------------
-
-            template_title = get_template_title(
-                title
-            )
-
-            if template_title:
-                template_key = hygiene_key(
-                    template_title
-                )
-
-                template_candidates = (
-                    normalized_map.get(
-                        template_key,
-                        [],
-                    )
-                )
-
-                if len(template_candidates) == 1:
-                    (
-                        matched_title,
-                        wikipedia_id,
-                    ) = template_candidates[0]
-
+                if candidate_id is not None:
                     updated = dict(row)
-
-                    updated[
-                        "wikipedia_id"
-                    ] = wikipedia_id
-
-                    updated[
-                        "match_type"
-                    ] = get_match_type(row)
-
-                    updated[
-                        "normalization_checked"
-                    ] = True
-
-                    updated[
-                        "normalization_match"
-                    ] = True
-
-                    updated[
-                        "normalization_method"
-                    ] = "תבנית_מיון"
-
-                    updated[
-                        "title_normalized"
-                    ] = matched_title
-
-                    updated[
-                        "maybe_deleted_from_wikipedia"
-                    ] = False
+                    updated["wikipedia_id"] = candidate_id
+                    updated["match_type"] = get_match_type(row)
+                    updated["normalization_checked"] = True
+                    updated["normalization_match"] = True
+                    updated["normalization_method"] = "+".join(applied)
+                    updated["title_normalized"] = candidate
+                    updated["maybe_deleted_from_wikipedia"] = False
 
                     updates.append(updated)
-
-                    template_matches += 1
-                    batch_template += 1
-
+                    normalization_matches += 1
                     continue
 
-            # -------------------------------------------------------
-            # No match.
-            #
-            # Mark normalization as completed.
-            # Preserve all other existing fields.
-            # -------------------------------------------------------
+            # 3. אין התאמה עד כה - ממתין לבדיקת {{מיון ויקיפדיה}}
+            pending.append((row, title))
 
-            updated = dict(row)
+        # -------------------------------------------------------------
+        # 4. בדיקת תבנית מיון - באצוות
+        # -------------------------------------------------------------
 
-            updated[
-                "normalization_checked"
-            ] = True
+        if pending:
+            resolved = resolve_pending_via_template(pending, wikipedia_map)
 
-            updated[
-                "normalization_match"
-            ] = False
+            for row, title in pending:
+                result = resolved.get(row["id"])
+                updated = dict(row)
 
-            updated[
-                "normalization_method"
-            ] = None
+                if result:
+                    wikipedia_id, matched_title = result
+                    updated["wikipedia_id"] = wikipedia_id
+                    updated["match_type"] = get_match_type(row)
+                    updated["normalization_checked"] = True
+                    updated["normalization_match"] = True
+                    updated["normalization_method"] = "תבנית_מיון"
+                    updated["title_normalized"] = matched_title
+                    updated["maybe_deleted_from_wikipedia"] = False
+                    template_matches += 1
+                else:
+                    updated["normalization_checked"] = True
+                    updated["normalization_match"] = False
+                    updated["normalization_method"] = None
+                    updated["title_normalized"] = None
+                    unmatched += 1
 
-            updated[
-                "title_normalized"
-            ] = None
-
-            updates.append(updated)
-
-            unmatched += 1
-            batch_unmatched += 1
-
-        # -----------------------------------------------------------
-        # Write complete rows back.
-        # -----------------------------------------------------------
+                updates.append(updated)
 
         if updates:
             execute_with_retry(
                 lambda: (
-                    client.table(
-                        "mechalol_pages"
-                    )
-                    .upsert(
-                        updates,
-                        on_conflict="id",
-                    )
+                    client.table("mechalol_pages")
+                    .upsert(updates, on_conflict="id")
                     .execute()
                 ),
                 f"UPDATE batch={batch_number}",
             )
 
-        # -----------------------------------------------------------
-        # Progress log.
-        # -----------------------------------------------------------
-
-        matched_total = (
-            exact_matches
-            + hygiene_matches
-            + semantic_matches
-            + template_matches
-        )
+        matched_total = exact_matches + normalization_matches + template_matches
 
         log(
-            f"PROGRESS | "
-            f"batch={batch_number} | "
-            f"checked={total:,} | "
-            f"matched={matched_total:,} | "
-            f"exact={exact_matches:,} | "
-            f"hygiene={hygiene_matches:,} | "
-            f"normalization={semantic_matches:,} | "
-            f"template={template_matches:,} | "
-            f"unmatched={unmatched:,} | "
-            f"manual_skipped={manual_skipped:,} | "
-            f"already_checked={already_checked_skipped:,}"
+            f"התקדמות | אצווה={batch_number} | נבדקו={total:,} | "
+            f"הותאמו={matched_total:,} | מדויק={exact_matches:,} | "
+            f"נרמול={normalization_matches:,} | תבנית={template_matches:,} | "
+            f"ללא_התאמה={unmatched:,} | manual={manual_skipped:,} | "
+            f"כבר_נבדק={already_checked_skipped:,}"
         )
 
-    # ---------------------------------------------------------------
-    # Finish.
-    # ---------------------------------------------------------------
-
-    elapsed = int(
-        time.monotonic() - started
-    )
-
-    matched_total = (
-        exact_matches
-        + hygiene_matches
-        + semantic_matches
-        + template_matches
-    )
+    elapsed = int(time.monotonic() - started)
+    matched_total = exact_matches + normalization_matches + template_matches
 
     log("=" * 80)
-
     log(
-        f"DONE | "
-        f"checked={total:,} | "
-        f"matched={matched_total:,} | "
-        f"exact={exact_matches:,} | "
-        f"hygiene={hygiene_matches:,} | "
-        f"normalization={semantic_matches:,} | "
-        f"template={template_matches:,} | "
-        f"unmatched={unmatched:,}"
+        f"סיום | נבדקו={total:,} | הותאמו={matched_total:,} | "
+        f"מדויק={exact_matches:,} | נרמול={normalization_matches:,} | "
+        f"תבנית={template_matches:,} | ללא_התאמה={unmatched:,}"
     )
-
-    log(
-        f"TIME | "
-        f"{elapsed // 60}m {elapsed % 60}s"
-    )
-
+    log(f"זמן ריצה | {elapsed // 60} דק' {elapsed % 60} שנ'")
     log("=" * 80)
 
 
