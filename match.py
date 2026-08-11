@@ -135,8 +135,10 @@ def main():
             title = row.get("title")
             status = row.get("status")
 
-            # הגנה מפני נתונים פגומים בבסיס הנתונים.
-            # title אמור להיות NOT NULL, אבל לא ניתן לבצע התאמה בלעדיו.
+            # שיוך שנקבע ידנית - לא נוגעים בו, גם אם הכותרות לא זהות
+            if row.get("manual_match"):
+                continue
+
             if not title:
                 log(
                     f"WARNING | batch {batch_number} | נמצאה רשומת id={row.get('id')} ללא title. "
@@ -159,7 +161,6 @@ def main():
             if maybe_deleted:
                 deleted_candidates += 1
 
-            # משמרים את כל השדות הקיימים ומעדכנים רק את שדות ההתאמה.
             updated_row = dict(row)
             updated_row["wikipedia_id"] = wikipedia_id
             updated_row["match_type"] = match_type
