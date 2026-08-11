@@ -24,6 +24,10 @@ SUPABASE_KEY = os.environ["SUPABASE_SERVICE_KEY"]
 CATEGORY_CREATED_IN_MECHALOL = "קטגוריה:המכלול: ערכים שנוצרו במכלול"
 CATEGORY_MISSING_SORT_TEMPLATE = "קטגוריה:המכלול: ערכים מוויקיפדיה ללא תבנית מיון ויקיפדיה"
 
+# קטגוריות נוספות שהוספו לפי בקשת המשתמש
+CATEGORY_PIRUSHONIM_CREATED_IN_MECHALOL = "קטגוריה:המכלול: פירושונים שנוצרו במכלול"
+CATEGORY_TRANSLATED_IN_MECHALOL = "קטגוריה:המכלול: ערכים שתורגמו במכלול"
+
 # תבנית שם קטגוריית "עודכן לאחרונה ב-חודש שנה", לשימוש בסריקת חברי כל תת-קטגוריה
 LAST_UPDATE_CATEGORY_PREFIX = "קטגוריה:המכלול: ערכים שעודכנו לאחרונה ב"
 
