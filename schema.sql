@@ -1,5 +1,9 @@
 -- סכימת מסד הנתונים להשוואת ערכים בין ויקיפדיה העברית למכלול
--- להרצה חד-פעמית בעורך ה-SQL של סופרבייס
+-- להרצה חד-פעמית בעורך ה-SQL של סופרבייס, על טבלאות חדשות/ריקות.
+--
+-- הערה: קובץ זה עודכן כדי לשקף את המבנה החי בפועל (לאחר שינוי שמות
+-- העמודות לאנגלית ואחרי migration_status_labels.sql). אם אתה מריץ את
+-- זה מחדש על סביבה קיימת - אין בכך צורך, הטבלה כבר במצב הזה.
 
 create table if not exists wikipedia_pages (
     id bigserial primary key,
@@ -13,34 +17,54 @@ create table if not exists mechalol_pages (
     title text not null unique,
     page_id bigint not null unique,
 
-    -- נוצר_במכלול / מיובא_מתועד / מיובא_ללא_תיעוד
-    status text not null check (status in ('נוצר_במכלול', 'מיובא_מתועד', 'מיובא_ללא_תיעוד')),
+    -- נוצר במכלול / מיובא ומתועד / מיובא ללא תיעוד
+    status text not null check (status in ('נוצר במכלול', 'מיובא ומתועד', 'מיובא ללא תיעוד')),
 
-    -- רק כאשר status = מיובא_מתועד, בפורמט YYYY-MM (נגזר מקטגוריית "עודכן לאחרונה ב-X")
+    -- רק כאשר status = מיובא ומתועד, בפורמט YYYY-MM (נגזר מקטגוריית "עודכן לאחרונה ב-X")
     last_update_month text,
 
     -- מפתח זר לטבלת ויקיפדיה, אם נמצאה התאמת כותרת
     wikipedia_id bigint references wikipedia_pages(id),
 
-    -- מיובא / כותרת_זהה_בלי_קשר / ללא_התאמה
-    match_type text not null check (match_type in ('מיובא', 'כותרת_זהה_בלי_קשר', 'ללא_התאמה')),
+    -- יובא מוויקיפדיה / כותרת זהה ללא קשר / ללא התאמה
+    -- ברירת מחדל בלבד ל-INSERT חדש - fetch_mechalol.py לא שולח ערך זה,
+    -- כדי לא לדרוס תוצאות התאמה שכבר חושבו ב-match.py.
+    match_type text not null default 'ללא התאמה'
+        check (match_type in ('יובא מוויקיפדיה', 'כותרת זהה ללא קשר', 'ללא התאמה')),
 
     -- הכותרת קיימת אך אין תוכן בדף (קטגוריית "ערכים לפתיחה")
-    דף_לטיפול boolean not null default false,
+    needs_attention boolean not null default false,
 
     -- תקציר מיובא מוויקיפדיה, לא ערך מלא (קטגוריית "ערכים מילוניים")
-    מילוני boolean not null default false,
-
-    -- הערך מסומן כמיובא, אך לא נמצאה עבורו כותרת תואמת בטבלת wikipedia_pages הנוכחית
-    -- (חוסר-התאמה בלבד - ייתכן שהערך נמחק, אך גם ייתכנו סיבות אחרות כמו פער תזמון)
-    אולי_נמחק_בוויקיפדיה boolean not null default false,
-
-    -- אושר ודאית מיומן המחיקות/ההעברות של ויקיפדיה: הערך המקורי נמחק שם, או הועבר ממרחב הערכים למרחב אחר
-    נמחק_בוויקיפדיה boolean not null default false,
+    is_dictionary_entry boolean not null default false,
 
     -- הערך מסומן כמיובא, אך כותרתו לא נמצאה בריצה הנוכחית של רשימת ויקיפדיה
     -- (סימון בלבד לבדיקה ידנית - לא גורר מחיקה אוטומטית בשום מקום)
-    אולי_נמחק_מוויקיפדיה boolean not null default false,
+    maybe_deleted_from_wikipedia boolean not null default false,
+
+    -- אושר ודאית מיומן המחיקות/ההעברות של ויקיפדיה: הערך המקורי נמחק שם,
+    -- או הועבר ממרחב הערכים למרחב אחר
+    deleted_from_wikipedia boolean not null default false,
+
+    -- שידוך ידני - אם true, match.py מדלג לגמרי על השורה ולא נוגע בה
+    manual_match boolean not null default false,
+
+    -- האם שורה זו כבר עברה את שלב הנרמול/תבנית המיון (בין אם נמצאה
+    -- התאמה ובין אם לא) - כדי שריצות עתידיות ידלגו עליה
+    normalization_checked boolean not null default false,
+
+    -- ההתאמה נמצאה דרך נרמול/תבנית מיון, לא כותרת זהה במדויק
+    normalization_match boolean not null default false,
+
+    -- שם הכלל/כללים שהובילו להתאמה (למשל 'כתיב_אלוהים+קרבן_לקורבן',
+    -- או 'תבנית_מיון')
+    normalization_method text,
+
+    -- הכותרת המנורמלת שנמצאה עבורה התאמה בוויקיפדיה
+    title_normalized text,
+
+    -- מקור השורה: created / translated / pirushon / unknown
+    source_type text not null default 'unknown',
 
     checked_at timestamptz not null default now()
 );
@@ -55,4 +79,4 @@ create index if not exists idx_mechalol_wikipedia_id on mechalol_pages(wikipedia
 -- where m.id is null;
 
 -- שאילתה לדוגמה: מה קיים במכלול וייחודי לו (לא נמצאה התאמה בוויקיפדיה)
--- select * from mechalol_pages where match_type = 'ללא_התאמה';
+-- select * from mechalol_pages where match_type = 'ללא התאמה';
