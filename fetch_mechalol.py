@@ -1,425 +1,384 @@
 """
-התאמת כותרות מכלול מול ויקיפדיה.
+Fetch Wikipedia-derived metadata from Hamichlol into Supabase.
 
-סדר ההתאמה:
-1. manual_match - קובע, לא נוגעים.
-2. היגיינת טקסט (השוואה אחרי ניקוי תווי כיווניות/גרשיים/מקפים - לא משנה
-   את הכותרת המאוחסנת).
-3. נרמול סמנטי (מכלול -> ויקיפדיה בלבד, ראו normalize.py).
-4. {{מיון ויקיפדיה|דף=...}} - קריאת API באצוות, מוצא אחרון בלבד.
-
-normalization_checked=true אומר שהשורה כבר עברה את כל התהליך (בין אם
-נמצאה התאמה ובין אם לא) - ריצות עתידיות ידלגו עליה ויבדקו רק שורות חדשות.
-
-חשוב: fetch_mechalol.py לא שולח match_type בעדכונים שוטפים (רק ב-INSERT
-ראשוני), כדי לא לדרוס התאמות שכבר בוצעו כאן.
+חשוב: match_type לא נשלח כאן בכלל. יש לו ברירת מחדל ברמת הטבלה
+(ALTER TABLE ... SET DEFAULT), כדי שרק INSERT של שורה חדשה יקבל אותה,
+ולא ידרוס תוצאות התאמה שכבר חושבו ב-match.py. אם עמודה זו נדרשת
+ב-INSERT ידני, ראו migration_status_labels.sql.
 """
 
+import json
+import logging
+import os
 import re
+import sys
 import time
 from datetime import datetime, timezone
 
 import requests
 
 from config import (
-    BATCH_SIZE,
     MECHALOL_API,
+    BATCH_SIZE,
     REQUEST_DELAY_SECONDS,
     REQUEST_HEADERS,
-    API_BATCH_SIZE_TEMPLATE_CHECK,
+    CATEGORY_CREATED_IN_MECHALOL,
+    CATEGORY_PIRUSHONIM_CREATED_IN_MECHALOL,
+    CATEGORY_TRANSLATED_IN_MECHALOL,
+    CATEGORY_MISSING_SORT_TEMPLATE,
+    CATEGORY_PAGES_TO_OPEN,
+    CATEGORY_DICTIONARY_ENTRIES,
     STATUS_CREATED_IN_MECHALOL,
-    MATCH_TYPE_IMPORTED,
-    MATCH_TYPE_SAME_TITLE_UNRELATED,
+    STATUS_IMPORTED_DOCUMENTED,
+    STATUS_IMPORTED_UNDOCUMENTED,
 )
-from normalize import hygiene, normalize_title
 from supabase_client import get_client
 
 
-MAX_RETRIES = 5
-RETRY_DELAY = 3
+PROGRESS_FILE = "mechalol_progress.json"
+LOG_FILE = "mechalol.log"
+
+MAX_API_RETRIES = 5
+MAX_SUPABASE_RETRIES = 5
+HEARTBEAT_SECONDS = 60
+LOG_EVERY_ITEMS = 5000
+LOG_EVERY_API_REQUESTS = 100
+
+HEBREW_MONTHS = {
+    "ינואר": "01", "פברואר": "02", "מרץ": "03", "אפריל": "04",
+    "מאי": "05", "יוני": "06", "יולי": "07", "אוגוסט": "08",
+    "ספטמבר": "09", "אוקטובר": "10", "נובמבר": "11", "דצמבר": "12",
+}
+
+logger = logging.getLogger("fetch_mechalol")
+logger.setLevel(logging.INFO)
+logger.handlers.clear()
+
+formatter = logging.Formatter(
+    "%(asctime)s | %(levelname)s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+)
+
+file_handler = logging.FileHandler(LOG_FILE, encoding="utf-8")
+file_handler.setFormatter(formatter)
+logger.addHandler(file_handler)
+
+stream_handler = logging.StreamHandler(sys.stdout)
+stream_handler.setFormatter(formatter)
+logger.addHandler(stream_handler)
+
+start_time = time.monotonic()
+last_heartbeat = start_time
+api_requests = 0
+api_failures = 0
 
 session = requests.Session()
 session.headers.update(REQUEST_HEADERS)
 
 
-def log(message):
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-    print(f"[{now}] {message}", flush=True)
+def log(message, level=logging.INFO):
+    logger.log(level, message)
 
 
-def execute_with_retry(operation, description):
-    for attempt in range(1, MAX_RETRIES + 1):
-        try:
-            return operation()
-        except Exception as exc:
-            if attempt >= MAX_RETRIES:
-                log(f"ERROR | {description} | נכשל אחרי {MAX_RETRIES} ניסיונות: {exc}")
-                raise
-            log(f"WARNING | {description} | ניסיון {attempt}/{MAX_RETRIES} נכשל: {exc}. ניסיון חוזר בעוד {RETRY_DELAY}ש")
-            time.sleep(RETRY_DELAY)
+def format_duration(seconds):
+    seconds = int(seconds)
+    hours, remainder = divmod(seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    if hours:
+        return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+    return f"{minutes:02d}:{seconds:02d}"
 
 
-# ---------------------------------------------------------------------------
-# ויקיפדיה - טעינת מפת כותרות (מפתח = אחרי hygiene)
-# ---------------------------------------------------------------------------
-
-def load_wikipedia_map(client):
-    title_map = {}
-    collisions = 0
-    offset = 0
-    batch_number = 0
-
-    while True:
-        batch_number += 1
-
-        result = execute_with_retry(
-            lambda: (
-                client.table("wikipedia_pages")
-                .select("id, title")
-                .range(offset, offset + BATCH_SIZE - 1)
-                .execute()
-            ),
-            f"WIKIPEDIA batch={batch_number} offset={offset}",
+def heartbeat(force=False):
+    global last_heartbeat
+    now = time.monotonic()
+    if force or now - last_heartbeat >= HEARTBEAT_SECONDS:
+        log(
+            f"HEARTBEAT | התהליך עדיין פעיל | "
+            f"זמן ריצה: {format_duration(now - start_time)} | "
+            f"בקשות API: {api_requests}"
         )
-
-        rows = result.data or []
-        if not rows:
-            break
-
-        for row in rows:
-            title = row.get("title")
-            if not title:
-                continue
-
-            key = hygiene(title)
-
-            if key in title_map and title_map[key] != row["id"]:
-                collisions += 1
-                continue
-
-            title_map[key] = row["id"]
-
-        offset += len(rows)
-        log(f"WIKIPEDIA | batch={batch_number} | נטענו={len(title_map):,}")
-
-        if len(rows) < BATCH_SIZE:
-            break
-
-    if collisions:
-        log(f"WARNING | {collisions:,} התנגשויות מפתח היגיינה בוויקיפדיה (דולגו)")
-
-    return title_map
+        last_heartbeat = now
 
 
-# ---------------------------------------------------------------------------
-# {{מיון ויקיפדיה|דף=...}} - אצוות
-# ---------------------------------------------------------------------------
-
-TEMPLATE_RE = re.compile(
-    r"\{\{\s*מיון\s+ויקיפדיה\s*\|\s*דף\s*=\s*([^|}\n]+)"
-)
+def utc_now():
+    return datetime.now(timezone.utc).isoformat()
 
 
-def clean_template_value(raw):
-    value = raw.strip()
+def api_get(params, description="בקשת API"):
+    global api_requests, api_failures
+    params = {**params, "format": "json"}
 
-    # קישור פנימי [[...]] בתוך דף= - מסיר את הסוגריים המרובעים.
-    value = re.sub(r"^\[\[(.+)\]\]$", r"\1", value).strip()
+    for attempt in range(1, MAX_API_RETRIES + 1):
+        heartbeat()
+        api_requests += 1
 
-    # קו תחתון - MediaWiki משתמש בו כמקביל לרווח בכותרות.
-    value = value.replace("_", " ")
-
-    value = re.sub(r"\s+", " ", value).strip()
-
-    return value
-
-
-def fetch_template_titles(titles):
-    """
-    שולף תוכן דפים באצווה אחת, מחפש {{מיון ויקיפדיה|דף=...}}.
-    מחזיר {title: template_value_or_None}.
-    """
-    result = {title: None for title in titles}
-
-    params = {
-        "action": "query",
-        "prop": "revisions",
-        "rvprop": "content",
-        "rvslots": "main",
-        "formatversion": "2",
-        "titles": "|".join(titles),
-        "format": "json",
-    }
-
-    for attempt in range(1, MAX_RETRIES + 1):
         try:
             response = session.get(MECHALOL_API, params=params, timeout=(15, 60))
             response.raise_for_status()
             data = response.json()
-            break
+
+            if api_requests % LOG_EVERY_API_REQUESTS == 0:
+                log(f"API | בוצעו {api_requests} בקשות עד כה")
+
+            if REQUEST_DELAY_SECONDS:
+                time.sleep(REQUEST_DELAY_SECONDS)
+
+            return data
+
         except (requests.RequestException, ValueError) as exc:
-            if attempt >= MAX_RETRIES:
-                log(f"ERROR | template batch | נכשל אחרי {MAX_RETRIES}: {exc}")
+            api_failures += 1
+            log(
+                f"שגיאת API | {description} | ניסיון {attempt}/{MAX_API_RETRIES} | "
+                f"{type(exc).__name__}: {exc}",
+                logging.WARNING,
+            )
+            if attempt < MAX_API_RETRIES:
+                time.sleep(min(2 ** (attempt - 1), 30))
+            else:
                 raise
-            log(f"WARNING | template batch | ניסיון {attempt}/{MAX_RETRIES}: {exc}")
-            time.sleep(RETRY_DELAY)
-    else:
-        return result
 
-    pages = data.get("query", {}).get("pages", [])
 
-    for page in pages:
-        title = page.get("title")
-        revisions = page.get("revisions") or []
+def load_progress():
+    if not os.path.exists(PROGRESS_FILE):
+        return {}
+    try:
+        with open(PROGRESS_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return data if isinstance(data, dict) else {}
+    except Exception as exc:
+        log(f"אזהרת התקדמות | לא ניתן לקרוא {PROGRESS_FILE}: {exc}", logging.WARNING)
+        return {}
 
-        if not revisions:
+
+def save_progress(progress):
+    temp_file = PROGRESS_FILE + ".tmp"
+    with open(temp_file, "w", encoding="utf-8") as f:
+        json.dump(progress, f, ensure_ascii=False, indent=2)
+    os.replace(temp_file, PROGRESS_FILE)
+
+
+def clear_progress():
+    if os.path.exists(PROGRESS_FILE):
+        os.remove(PROGRESS_FILE)
+
+
+def get_category_members(category_title, member_type="page"):
+    """חברים ישירים בלבד. ללא רקורסיביות."""
+    cmcontinue = None
+
+    while True:
+        params = {
+            "action": "query",
+            "list": "categorymembers",
+            "cmtitle": category_title,
+            "cmtype": member_type,
+            "cmlimit": BATCH_SIZE,
+        }
+        if cmcontinue:
+            params["cmcontinue"] = cmcontinue
+
+        data = api_get(params, f"חברי קטגוריה | {category_title}")
+        members = data.get("query", {}).get("categorymembers", [])
+
+        for member in members:
+            yield member["title"], member["pageid"]
+
+        cmcontinue = data.get("continue", {}).get("cmcontinue")
+        if not cmcontinue:
+            break
+
+
+def collect_direct_titles(category_title, label):
+    stage_start = time.monotonic()
+    log("=" * 80)
+    log(f"תחילת שלב | {label}")
+    log(f"קטגוריה | {category_title}")
+
+    titles = set()
+    for title, _ in get_category_members(category_title, "page"):
+        titles.add(title)
+
+    log(
+        f"סוף שלב | {label} | {len(titles):,} חברים ישירים | "
+        f"זמן: {format_duration(time.monotonic() - stage_start)}"
+    )
+    return titles
+
+
+def parse_month_from_category(category_title):
+    match = re.search(r"ב([א-ת]+)\s+(\d{4})", category_title)
+    if not match:
+        return None
+    month_name, year = match.groups()
+    month_num = HEBREW_MONTHS.get(month_name)
+    if not month_num:
+        return None
+    return f"{year}-{month_num}"
+
+
+def get_last_update_map():
+    stage_start = time.monotonic()
+    result = {}
+    root = "קטגוריה:המכלול: ערכים לפי תאריך עדכון"
+
+    log("=" * 80)
+    log("תחילת שלב | מיפוי תאריכי עדכון אחרון")
+
+    subcats = list(get_category_members(root, "subcat"))
+    valid_months = 0
+    pages = 0
+
+    for index, (subcat_title, _) in enumerate(subcats, 1):
+        month = parse_month_from_category(subcat_title)
+        if not month:
             continue
 
-        content = revisions[0].get("slots", {}).get("main", {}).get("content", "")
+        valid_months += 1
 
-        match = TEMPLATE_RE.search(content)
-        if match:
-            result[title] = clean_template_value(match.group(1))
+        for page_title, _ in get_category_members(subcat_title, "page"):
+            result[page_title] = month
+            pages += 1
 
-    if REQUEST_DELAY_SECONDS:
-        time.sleep(REQUEST_DELAY_SECONDS)
+            if pages % LOG_EVERY_ITEMS == 0:
+                log(f"התקדמות מיפוי תאריכים | {pages:,} ערכים מופו")
+                heartbeat(force=True)
 
+        log(f"מיפוי תאריכים | [{index}/{len(subcats)}] {subcat_title} -> {month}")
+
+    log(f"סוף שלב | מיפוי תאריכים | {len(result):,} ערכים | {valid_months:,} חודשים")
     return result
 
 
-def resolve_pending_via_template(pending, wikipedia_map):
-    """
-    pending: [(row, title), ...]
-    מחזיר {row_id: (wikipedia_id, matched_title) or None}
-    """
-    resolved = {}
-
-    titles = [title for _, title in pending]
-
-    for i in range(0, len(titles), API_BATCH_SIZE_TEMPLATE_CHECK):
-        chunk = titles[i:i + API_BATCH_SIZE_TEMPLATE_CHECK]
-
-        template_values = fetch_template_titles(chunk)
-
-        for row, title in pending:
-            if title not in chunk:
-                continue
-
-            template_value = template_values.get(title)
-            if not template_value:
-                resolved[row["id"]] = None
-                continue
-
-            key = hygiene(template_value)
-            wikipedia_id = wikipedia_map.get(key)
-
-            if wikipedia_id is not None:
-                resolved[row["id"]] = (wikipedia_id, template_value)
-            else:
-                resolved[row["id"]] = None
-
-        log(f"TEMPLATE API | אצווה {i // API_BATCH_SIZE_TEMPLATE_CHECK + 1} | {len(chunk)} כותרות נבדקו")
-
-    return resolved
-
-
-# ---------------------------------------------------------------------------
-# מכלול - איטרציה
-# ---------------------------------------------------------------------------
-
-def iter_mechalol_rows(client):
-    offset = 0
-    batch_number = 0
+def fetch_all_titles(progress):
+    apcontinue = progress.get("allpages_apcontinue")
+    total = progress.get("allpages_count", 0)
 
     while True:
-        batch_number += 1
+        params = {
+            "action": "query",
+            "list": "allpages",
+            "apnamespace": 0,
+            "apfilterredir": "nonredirects",
+            "aplimit": BATCH_SIZE,
+        }
+        if apcontinue:
+            params["apcontinue"] = apcontinue
 
-        result = execute_with_retry(
-            lambda: (
-                client.table("mechalol_pages")
-                .select("*")
-                .range(offset, offset + BATCH_SIZE - 1)
-                .execute()
-            ),
-            f"MECHALOL batch={batch_number} offset={offset}",
-        )
+        data = api_get(params, "כל הדפים")
+        pages = data.get("query", {}).get("allpages", [])
+        total += len(pages)
 
-        rows = result.data or []
-        if not rows:
+        yield [(page["title"], page["pageid"]) for page in pages]
+
+        apcontinue = data.get("continue", {}).get("apcontinue")
+        progress["allpages_apcontinue"] = apcontinue
+        progress["allpages_count"] = total
+        progress["last_update"] = utc_now()
+        save_progress(progress)
+
+        if not apcontinue:
             break
 
-        yield rows
+        heartbeat(force=True)
 
-        offset += len(rows)
-        if len(rows) < BATCH_SIZE:
-            break
+    log(f"כל הדפים | הסריקה הסתיימה | {total:,}")
 
 
-def get_match_type(row):
-    if row.get("status") == STATUS_CREATED_IN_MECHALOL:
-        return MATCH_TYPE_SAME_TITLE_UNRELATED
-    return MATCH_TYPE_IMPORTED
+def upsert_rows(client, rows, batch_number, total):
+    if not rows:
+        return
 
+    for attempt in range(1, MAX_SUPABASE_RETRIES + 1):
+        try:
+            client.table("mechalol_pages").upsert(rows, on_conflict="page_id").execute()
+            log(f"Supabase | אצווה #{batch_number:,} | {len(rows):,} שורות | סה״כ {total:,}")
+            return
+        except Exception as exc:
+            log(
+                f"שגיאת Supabase | אצווה #{batch_number:,} | "
+                f"ניסיון {attempt}/{MAX_SUPABASE_RETRIES}: {exc}",
+                logging.WARNING,
+            )
+            if attempt < MAX_SUPABASE_RETRIES:
+                time.sleep(min(2 ** (attempt - 1), 30))
+            else:
+                raise
 
-# ---------------------------------------------------------------------------
-# עיקרי
-# ---------------------------------------------------------------------------
 
 def main():
-    started = time.monotonic()
+    progress = load_progress()
     client = get_client()
 
     log("=" * 80)
-    log("START | match.py")
-    log("=" * 80)
+    log("התחלה | fetch_mechalol.py")
 
-    log("שלב 1 | טוען כותרות ויקיפדיה...")
-    wikipedia_map = load_wikipedia_map(client)
-    log(f"שלב 1 הושלם | כותרות={len(wikipedia_map):,}")
+    created = collect_direct_titles(CATEGORY_CREATED_IN_MECHALOL, "ערכים שנוצרו במכלול")
+    translated = collect_direct_titles(CATEGORY_TRANSLATED_IN_MECHALOL, "ערכים שתורגמו במכלול")
+    pirushonim = collect_direct_titles(CATEGORY_PIRUSHONIM_CREATED_IN_MECHALOL, "פירושונים שנוצרו במכלול")
+    missing_sort = collect_direct_titles(CATEGORY_MISSING_SORT_TEMPLATE, "ערכים מוויקיפדיה ללא תבנית מיון")
+    pages_to_open = collect_direct_titles(CATEGORY_PAGES_TO_OPEN, "ערכים לפתיחה")
+    dictionary_entries = collect_direct_titles(CATEGORY_DICTIONARY_ENTRIES, "ערכים מילוניים")
 
-    total = 0
-    exact_matches = 0
-    normalization_matches = 0
-    template_matches = 0
-    unmatched = 0
-    manual_skipped = 0
-    already_checked_skipped = 0
+    last_update_map = get_last_update_map()
 
-    log("שלב 2 | מתאים כותרות מכלול...")
+    created_sources = created | translated | pirushonim
 
-    for batch_number, batch in enumerate(iter_mechalol_rows(client), 1):
-        updates = []
-        pending = []  # [(row, title)] - דורש בדיקת תבנית מיון
+    log(
+        f"סיכום | נוצרו={len(created):,} | תורגמו={len(translated):,} | "
+        f"פירושונים={len(pirushonim):,} | חסרי_מיון={len(missing_sort):,}"
+    )
 
-        for row in batch:
-            total += 1
-            title = row.get("title")
+    total = progress.get("uploaded_count", 0)
+    batch_number = progress.get("upload_batch", 0)
 
-            if not title:
-                log(f"WARNING | שורה id={row.get('id')} ללא כותרת - דולגה")
-                continue
+    for batch in fetch_all_titles(progress):
+        if not batch:
+            continue
 
-            if row.get("manual_match"):
-                manual_skipped += 1
-                continue
+        rows = []
 
-            # 1. היגיינת טקסט (כולל התאמה מדויקת - אם הכותרת נקייה, hygiene(title)==title)
-            key = hygiene(title)
-            wikipedia_id = wikipedia_map.get(key)
+        for title, page_id in batch:
+            if title in created:
+                status, source_type = STATUS_CREATED_IN_MECHALOL, "created"
+            elif title in translated:
+                status, source_type = STATUS_CREATED_IN_MECHALOL, "translated"
+            elif title in pirushonim:
+                status, source_type = STATUS_CREATED_IN_MECHALOL, "pirushon"
+            elif title in missing_sort:
+                status, source_type = STATUS_IMPORTED_UNDOCUMENTED, "unknown"
+            else:
+                status, source_type = STATUS_IMPORTED_DOCUMENTED, "unknown"
 
-            if wikipedia_id is not None:
-                updated = dict(row)
-                updated["wikipedia_id"] = wikipedia_id
-                updated["match_type"] = get_match_type(row)
-                updated["maybe_deleted_from_wikipedia"] = False
-
-                if key != title:
-                    updated["normalization_checked"] = True
-                    updated["normalization_match"] = True
-                    updated["normalization_method"] = "היגיינת_טקסט"
-                    updated["title_normalized"] = key
-
-                updates.append(updated)
-                exact_matches += 1
-                continue
-
-            if row.get("normalization_checked"):
-                already_checked_skipped += 1
-
-                # הגנה: אם בעבר נמצאה התאמה (wikipedia_id קיים) אבל
-                # הדגל הישן "אולי נמחק" נשאר דלוק מריצה קודמת יותר
-                # (למשל מגרסה ישנה של match.py) - מתקנים תוך כדי.
-                if row.get("wikipedia_id") is not None and row.get("maybe_deleted_from_wikipedia"):
-                    updated = dict(row)
-                    updated["maybe_deleted_from_wikipedia"] = False
-                    updates.append(updated)
-
-                continue
-
-            # 2. נרמול סמנטי
-            candidate, applied = normalize_title(title)
-
-            if applied:
-                candidate_id = wikipedia_map.get(hygiene(candidate))
-
-                if candidate_id is not None:
-                    updated = dict(row)
-                    updated["wikipedia_id"] = candidate_id
-                    updated["match_type"] = get_match_type(row)
-                    updated["normalization_checked"] = True
-                    updated["normalization_match"] = True
-                    updated["normalization_method"] = "+".join(applied)
-                    updated["title_normalized"] = candidate
-                    updated["maybe_deleted_from_wikipedia"] = False
-
-                    updates.append(updated)
-                    normalization_matches += 1
-                    continue
-
-            # 3. אין התאמה עד כה - ממתין לבדיקת {{מיון ויקיפדיה}}
-            pending.append((row, title))
-
-        # -------------------------------------------------------------
-        # 4. בדיקת תבנית מיון - באצוות
-        # -------------------------------------------------------------
-
-        if pending:
-            resolved = resolve_pending_via_template(pending, wikipedia_map)
-
-            for row, title in pending:
-                result = resolved.get(row["id"])
-                updated = dict(row)
-
-                if result:
-                    wikipedia_id, matched_title = result
-                    updated["wikipedia_id"] = wikipedia_id
-                    updated["match_type"] = get_match_type(row)
-                    updated["normalization_checked"] = True
-                    updated["normalization_match"] = True
-                    updated["normalization_method"] = "תבנית_מיון"
-                    updated["title_normalized"] = matched_title
-                    updated["maybe_deleted_from_wikipedia"] = False
-                    template_matches += 1
-                else:
-                    updated["normalization_checked"] = True
-                    updated["normalization_match"] = False
-                    updated["normalization_method"] = None
-                    updated["title_normalized"] = None
-                    unmatched += 1
-
-                updates.append(updated)
-
-        if updates:
-            execute_with_retry(
-                lambda: (
-                    client.table("mechalol_pages")
-                    .upsert(updates, on_conflict="id")
-                    .execute()
-                ),
-                f"UPDATE batch={batch_number}",
+            last_update_month = (
+                None if title in created_sources or title in missing_sort
+                else last_update_map.get(title)
             )
 
-        matched_total = exact_matches + normalization_matches + template_matches
+            rows.append({
+                "title": title,
+                "page_id": page_id,
+                "status": status,
+                "source_type": source_type,
+                "last_update_month": last_update_month,
+                # match_type לא נשלח - ברירת מחדל בטבלה בלבד (ראו הערת מודול).
+                "needs_attention": title in pages_to_open,
+                "is_dictionary_entry": title in dictionary_entries,
+            })
 
-        log(
-            f"התקדמות | אצווה={batch_number} | נבדקו={total:,} | "
-            f"הותאמו={matched_total:,} | מדויק={exact_matches:,} | "
-            f"נרמול={normalization_matches:,} | תבנית={template_matches:,} | "
-            f"ללא_התאמה={unmatched:,} | manual={manual_skipped:,} | "
-            f"כבר_נבדק={already_checked_skipped:,}"
-        )
+        batch_number += 1
+        total += len(rows)
 
-    elapsed = int(time.monotonic() - started)
-    matched_total = exact_matches + normalization_matches + template_matches
+        upsert_rows(client, rows, batch_number, total)
 
-    log("=" * 80)
-    log(
-        f"סיום | נבדקו={total:,} | הותאמו={matched_total:,} | "
-        f"מדויק={exact_matches:,} | נרמול={normalization_matches:,} | "
-        f"תבנית={template_matches:,} | ללא_התאמה={unmatched:,}"
-    )
-    log(f"זמן ריצה | {elapsed // 60} דק' {elapsed % 60} שנ'")
-    log("=" * 80)
+        progress["upload_batch"] = batch_number
+        progress["uploaded_count"] = total
+        progress["last_update"] = utc_now()
+        save_progress(progress)
+        heartbeat(force=True)
+
+    clear_progress()
+
+    log(f"הצלחה | הועלו/עודכנו {total:,} ערכים | בקשות API: {api_requests:,}")
 
 
 if __name__ == "__main__":
