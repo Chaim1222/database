@@ -66,7 +66,7 @@ def execute_with_retry(operation, description):
 def load_wikipedia_map(client):
     title_map = {}
     collisions = 0
-    offset = 0
+    last_id = 0
     batch_number = 0
 
     while True:
@@ -76,10 +76,12 @@ def load_wikipedia_map(client):
             lambda: (
                 client.table("wikipedia_pages")
                 .select("id, title")
-                .range(offset, offset + BATCH_SIZE - 1)
+                .gt("id", last_id)
+                .order("id")
+                .limit(BATCH_SIZE)
                 .execute()
             ),
-            f"WIKIPEDIA batch={batch_number} offset={offset}",
+            f"WIKIPEDIA batch={batch_number} after_id={last_id}",
         )
 
         rows = result.data or []
@@ -99,7 +101,7 @@ def load_wikipedia_map(client):
 
             title_map[key] = row["id"]
 
-        offset += len(rows)
+        last_id = rows[-1]["id"]
         log(f"WIKIPEDIA | batch={batch_number} | נטענו={len(title_map):,}")
 
         if len(rows) < BATCH_SIZE:
@@ -228,7 +230,7 @@ def resolve_pending_via_template(pending, wikipedia_map):
 # ---------------------------------------------------------------------------
 
 def iter_mechalol_rows(client):
-    offset = 0
+    last_id = 0
     batch_number = 0
 
     while True:
@@ -238,10 +240,12 @@ def iter_mechalol_rows(client):
             lambda: (
                 client.table("mechalol_pages")
                 .select("*")
-                .range(offset, offset + BATCH_SIZE - 1)
+                .gt("id", last_id)
+                .order("id")
+                .limit(BATCH_SIZE)
                 .execute()
             ),
-            f"MECHALOL batch={batch_number} offset={offset}",
+            f"MECHALOL batch={batch_number} after_id={last_id}",
         )
 
         rows = result.data or []
@@ -250,7 +254,7 @@ def iter_mechalol_rows(client):
 
         yield rows
 
-        offset += len(rows)
+        last_id = rows[-1]["id"]
         if len(rows) < BATCH_SIZE:
             break
 
@@ -325,6 +329,15 @@ def main():
 
             if row.get("normalization_checked"):
                 already_checked_skipped += 1
+
+                # הגנה: אם בעבר נמצאה התאמה (wikipedia_id קיים) אבל
+                # הדגל הישן "אולי נמחק" נשאר דלוק מריצה קודמת יותר
+                # (למשל מגרסה ישנה של match.py) - מתקנים תוך כדי.
+                if row.get("wikipedia_id") is not None and row.get("maybe_deleted_from_wikipedia"):
+                    updated = dict(row)
+                    updated["maybe_deleted_from_wikipedia"] = False
+                    updates.append(updated)
+
                 continue
 
             # 2. נרמול סמנטי
