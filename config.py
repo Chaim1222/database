@@ -34,6 +34,9 @@ LAST_UPDATE_CATEGORY_PREFIX = (
 )
 CATEGORY_PAGES_TO_OPEN = "קטגוריה:ערכים לפתיחה"
 CATEGORY_DICTIONARY_ENTRIES = "קטגוריה:המכלול: ערכים מילוניים"
+CATEGORY_IMPORTED_FROM_CHABADPEDIA = (
+    'קטגוריה:המכלול: דפים שיובאו מחב"דפדיה'
+)
 
 BATCH_SIZE = 500
 REQUEST_DELAY_SECONDS = 0.2
@@ -44,9 +47,20 @@ REQUEST_DELAY_SECONDS = 0.2
 API_BATCH_SIZE_TEMPLATE_CHECK = 50
 
 # תוויות סטטוס - עברית מדוברת רשמית, ללא קווים תחתונים.
+# חשוב: אלה חייבות להיות תואמות בדיוק ל-CHECK constraint על העמודה
+# בסופרבייס (ראו migration_add_chabadpedia_status.sql). כל שינוי כאן
+# דורש מיגרציה מקבילה ב-DB, אחרת ה-INSERT/UPDATE ייכשל.
 STATUS_CREATED_IN_MECHALOL = "נוצר במכלול"
 STATUS_IMPORTED_DOCUMENTED = "מיובא ומתועד"
 STATUS_IMPORTED_UNDOCUMENTED = "מיובא ללא תיעוד"
+STATUS_IMPORTED_FROM_CHABADPEDIA = 'ייבוא מחב"דפדיה'
+
+# סטטוסים שבהם כותרת זהה לוויקיפדיה היא צירוף מקרים בלבד, לא עדות
+# לייבוא אמיתי - נוצר עצמאית במכלול, או יובא ממקור אחר (חב"דפדיה).
+# מקור אמת יחיד: גם match.py (get_match_type) וגם
+# check_wikipedia_deletions.py (החרגה מ-deleted_from_wikipedia) קוראים
+# מכאן, כדי שלא יתפצלו שוב כמו שקרה עם התווית הישנה בקו תחתון.
+NOT_REALLY_IMPORTED_STATUSES = (STATUS_CREATED_IN_MECHALOL, STATUS_IMPORTED_FROM_CHABADPEDIA)
 
 MATCH_TYPE_IMPORTED = "יובא מוויקיפדיה"
 MATCH_TYPE_SAME_TITLE_UNRELATED = "כותרת זהה ללא קשר"

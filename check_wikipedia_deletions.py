@@ -2,7 +2,8 @@
 בדיקה שוטפת של יומן המחיקות וההעברות-למרחב-אחר בוויקיפדיה העברית, מאז הבדיקה הקודמת.
 
 לכל כותרת שנמחקה או הועברה החוצה ממרחב הערכים הראשי:
-- אם קיים ערך תואם במכלול שסטטוסו "מיובא" (לא "נוצר_במכלול") ->
+- אם קיים ערך תואם במכלול שסטטוסו מעיד על ייבוא אמיתי מוויקיפדיה
+  (לא NOT_REALLY_IMPORTED_STATUSES - ראו config.py) ->
   מסומן דגל deleted_from_wikipedia = true (עובדה ודאית מהיומן, לא ניחוש). לא נמחק שום דבר.
 - אם אין ערך תואם במכלול -> השורה המתאימה נמחקת מטבלת wikipedia_pages בלבד
   (אין טעם להמשיך לעקוב אחרי כותרת שלא רלוונטית לאף ערך אצלנו).
@@ -17,7 +18,12 @@ from datetime import datetime, timedelta, timezone
 
 import requests
 
-from config import WIKIPEDIA_API, REQUEST_DELAY_SECONDS, REQUEST_HEADERS
+from config import (
+    WIKIPEDIA_API,
+    REQUEST_DELAY_SECONDS,
+    REQUEST_HEADERS,
+    NOT_REALLY_IMPORTED_STATUSES,
+)
 from supabase_client import get_client
 import time
 
@@ -138,7 +144,7 @@ def main():
 
         if rows:
             row = rows[0]
-            if row["status"] != "נוצר_במכלול":
+            if row["status"] not in NOT_REALLY_IMPORTED_STATUSES:
                 client.table("mechalol_pages").update(
                     {"deleted_from_wikipedia": True}
                 ).eq("id", row["id"]).execute()

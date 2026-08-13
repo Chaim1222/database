@@ -28,9 +28,11 @@ from config import (
     CATEGORY_MISSING_SORT_TEMPLATE,
     CATEGORY_PAGES_TO_OPEN,
     CATEGORY_DICTIONARY_ENTRIES,
+    CATEGORY_IMPORTED_FROM_CHABADPEDIA,
     STATUS_CREATED_IN_MECHALOL,
     STATUS_IMPORTED_DOCUMENTED,
     STATUS_IMPORTED_UNDOCUMENTED,
+    STATUS_IMPORTED_FROM_CHABADPEDIA,
 )
 from supabase_client import get_client
 
@@ -284,6 +286,42 @@ def fetch_all_titles(progress):
     log(f"כל הדפים | הסריקה הסתיימה | {total:,}")
 
 
+# ponytail: כותרת שהייתה שייכת ל-page_id ישן (שונה/נמחק/הועבר בוויקי)
+# ונתפסה כעת ע"י page_id חדש. הסריקה היא תמונת מצב חיה של הוויקי - אין
+# שני page_id חיים עם אותה כותרת בו-זמנית - אז כל שורה קיימת בטבלה עם
+# אותה כותרת ו-page_id שונה מהחדש היא בהכרח מיושנת, ואפשר למחוק אותה
+# בבטחון. תקרה: לא מטפל במקרה של שתי שורות *חדשות* באותה אצווה
+# שמתחרות על אותה כותרת בו-זמנית - לא אמור לקרות (MediaWiki לא מאפשר
+# שתי כותרות חיות זהות), ולא נצפה בפועל.
+def find_stale_title_collisions(existing_rows, new_rows):
+    new_page_ids = {r["page_id"] for r in new_rows}
+    return [row["id"] for row in existing_rows if row["page_id"] not in new_page_ids]
+
+
+def resolve_title_collisions(client, rows):
+    titles = [r["title"] for r in rows]
+
+    existing = (
+        client.table("mechalol_pages")
+        .select("id, title, page_id")
+        .in_("title", titles)
+        .execute()
+        .data
+    )
+
+    stale_ids = find_stale_title_collisions(existing, rows)
+
+    if stale_ids:
+        log(f"WARNING | התנגשות כותרת/page_id | מוחק {len(stale_ids)} שורות מיושנות: {stale_ids}")
+        client.table("mechalol_pages").delete().in_("id", stale_ids).execute()
+
+    return bool(stale_ids)
+
+
+def _is_title_collision(exc):
+    return getattr(exc, "code", None) == "23505" and "mechalol_pages_title_key" in str(exc)
+
+
 def upsert_rows(client, rows, batch_number, total):
     if not rows:
         return
@@ -294,6 +332,10 @@ def upsert_rows(client, rows, batch_number, total):
             log(f"Supabase | אצווה #{batch_number:,} | {len(rows):,} שורות | סה״כ {total:,}")
             return
         except Exception as exc:
+            if _is_title_collision(exc) and resolve_title_collisions(client, rows):
+                log(f"Supabase | אצווה #{batch_number:,} | טופלה התנגשות כותרת, מנסה שוב")
+                continue
+
             log(
                 f"שגיאת Supabase | אצווה #{batch_number:,} | "
                 f"ניסיון {attempt}/{MAX_SUPABASE_RETRIES}: {exc}",
@@ -318,14 +360,18 @@ def main():
     missing_sort = collect_direct_titles(CATEGORY_MISSING_SORT_TEMPLATE, "ערכים מוויקיפדיה ללא תבנית מיון")
     pages_to_open = collect_direct_titles(CATEGORY_PAGES_TO_OPEN, "ערכים לפתיחה")
     dictionary_entries = collect_direct_titles(CATEGORY_DICTIONARY_ENTRIES, "ערכים מילוניים")
+    chabadpedia = collect_direct_titles(CATEGORY_IMPORTED_FROM_CHABADPEDIA, "דפים שיובאו מחב\"דפדיה")
 
     last_update_map = get_last_update_map()
 
-    created_sources = created | translated | pirushonim
+    # מקור מכלולי-פנימי לעניין last_update_month (אין להם קטגוריית עדכון
+    # חודשי רלוונטית) - כמו created/translated/pirushonim.
+    created_sources = created | translated | pirushonim | chabadpedia
 
     log(
         f"סיכום | נוצרו={len(created):,} | תורגמו={len(translated):,} | "
-        f"פירושונים={len(pirushonim):,} | חסרי_מיון={len(missing_sort):,}"
+        f"פירושונים={len(pirushonim):,} | חסרי_מיון={len(missing_sort):,} | "
+        f"חב\"דפדיה={len(chabadpedia):,}"
     )
 
     total = progress.get("uploaded_count", 0)
@@ -344,10 +390,20 @@ def main():
                 status, source_type = STATUS_CREATED_IN_MECHALOL, "translated"
             elif title in pirushonim:
                 status, source_type = STATUS_CREATED_IN_MECHALOL, "pirushon"
+            elif title in chabadpedia:
+                status, source_type = STATUS_IMPORTED_FROM_CHABADPEDIA, "chabadpedia"
             elif title in missing_sort:
                 status, source_type = STATUS_IMPORTED_UNDOCUMENTED, "unknown"
             else:
-                status, source_type = STATUS_IMPORTED_DOCUMENTED, "unknown"
+                # ponytail: אין קטגוריית "יש תבנית מיון" חיובית - זה עדיין
+                # ניחוש, רק בכיוון הבטוח יותר (undocumented). ערכים ישנים
+                # שיובאו לפני שהנוהג של {{מיון ויקיפדיה}}/missing_sort
+                # הונהג נופלים לכאן ואין דרך זולה להבדיל "יש תבנית" מ
+                # "מעולם לא נבדק". שדרוג: match.py כבר בודק בפועל אם יש
+                # תבנית (שלב 4, pending בלבד) - אפשר להרחיב את הבדיקה
+                # לכל השורות ולעדכן status בדיעבד לפי
+                # normalization_method=='תבנית_מיון' לעומת לא-נמצא.
+                status, source_type = STATUS_IMPORTED_UNDOCUMENTED, "unknown"
 
             last_update_month = (
                 None if title in created_sources or title in missing_sort

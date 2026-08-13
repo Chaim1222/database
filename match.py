@@ -27,7 +27,7 @@ from config import (
     REQUEST_DELAY_SECONDS,
     REQUEST_HEADERS,
     API_BATCH_SIZE_TEMPLATE_CHECK,
-    STATUS_CREATED_IN_MECHALOL,
+    NOT_REALLY_IMPORTED_STATUSES,
     MATCH_TYPE_IMPORTED,
     MATCH_TYPE_SAME_TITLE_UNRELATED,
 )
@@ -260,7 +260,7 @@ def iter_mechalol_rows(client):
 
 
 def get_match_type(row):
-    if row.get("status") == STATUS_CREATED_IN_MECHALOL:
+    if row.get("status") in NOT_REALLY_IMPORTED_STATUSES:
         return MATCH_TYPE_SAME_TITLE_UNRELATED
     return MATCH_TYPE_IMPORTED
 
