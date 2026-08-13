@@ -22,6 +22,7 @@ from config import (
     BATCH_SIZE,
     REQUEST_DELAY_SECONDS,
     REQUEST_HEADERS,
+    API_BATCH_SIZE_TEMPLATE_CHECK,
     CATEGORY_CREATED_IN_MECHALOL,
     CATEGORY_PIRUSHONIM_CREATED_IN_MECHALOL,
     CATEGORY_TRANSLATED_IN_MECHALOL,
@@ -301,13 +302,20 @@ def find_stale_title_collisions(existing_rows, new_rows):
 def resolve_title_collisions(client, rows):
     titles = [r["title"] for r in rows]
 
-    existing = (
-        client.table("mechalol_pages")
-        .select("id, title, page_id")
-        .in_("title", titles)
-        .execute()
-        .data
-    )
+    # ponytail: .in_() נשלח כ-GET עם הכותרות ב-URL (percent-encoded) -
+    # מאות כותרות בעברית באצווה אחת חורגות ממגבלת אורך URL של השרת
+    # ומחזירות 400 גנרי. פיצול לצ'אנקים קטנים (כמו שכבר נעשה בבדיקת
+    # תבנית המיון ב-match.py) פותר את זה.
+    existing = []
+    for i in range(0, len(titles), API_BATCH_SIZE_TEMPLATE_CHECK):
+        chunk = titles[i:i + API_BATCH_SIZE_TEMPLATE_CHECK]
+        result = (
+            client.table("mechalol_pages")
+            .select("id, title, page_id")
+            .in_("title", chunk)
+            .execute()
+        )
+        existing.extend(result.data)
 
     stale_ids = find_stale_title_collisions(existing, rows)
 
