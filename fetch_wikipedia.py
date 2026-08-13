@@ -1,501 +1,98 @@
 """
-Fetch Wikipedia-derived metadata from Hamichlol into Supabase.
+שליפת כל כותרות הערכים ממרחב השם הראשי בוויקיפדיה העברית,
+והכנסתן/עדכונן בטבלת wikipedia_pages בסופרבייס.
+
+שימוש (הרצה ראשונית ומלאה):
+    python fetch_wikipedia.py
+
+הסקריפט תומך בהמשכה: אם הריצה נקטעת (למשל בגלל מגבלת זמן של גיטהאב אקשנס),
+הרצה חוזרת תמשיך מנקודת ההמשך האחרונה שנשמרה בקובץ progress.
 """
 
 import json
-import logging
 import os
-import re
-import sys
 import time
-from datetime import datetime, timezone
 
 import requests
 
-from config import (
-    MECHALOL_API,
-    BATCH_SIZE,
-    REQUEST_DELAY_SECONDS,
-    REQUEST_HEADERS,
-    CATEGORY_CREATED_IN_MECHALOL,
-    CATEGORY_PIRUSHONIM_CREATED_IN_MECHALOL,
-    CATEGORY_TRANSLATED_IN_MECHALOL,
-    CATEGORY_MISSING_SORT_TEMPLATE,
-    CATEGORY_PAGES_TO_OPEN,
-    CATEGORY_DICTIONARY_ENTRIES,
-)
+from config import WIKIPEDIA_API, BATCH_SIZE, REQUEST_DELAY_SECONDS, REQUEST_HEADERS
 from supabase_client import get_client
 
-
-PROGRESS_FILE = "mechalol_progress.json"
-LOG_FILE = "mechalol.log"
-
-MAX_API_RETRIES = 5
-MAX_SUPABASE_RETRIES = 5
-HEARTBEAT_SECONDS = 60
-LOG_EVERY_ITEMS = 5000
-LOG_EVERY_API_REQUESTS = 100
-
-HEBREW_MONTHS = {
-    "ינואר": "01",
-    "פברואר": "02",
-    "מרץ": "03",
-    "אפריל": "04",
-    "מאי": "05",
-    "יוני": "06",
-    "יולי": "07",
-    "אוגוסט": "08",
-    "ספטמבר": "09",
-    "אוקטובר": "10",
-    "נובמבר": "11",
-    "דצמבר": "12",
-}
-
-
-logger = logging.getLogger("fetch_mechalol")
-logger.setLevel(logging.INFO)
-logger.handlers.clear()
-
-formatter = logging.Formatter(
-    "%(asctime)s | %(levelname)s | %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
-
-file_handler = logging.FileHandler(LOG_FILE, encoding="utf-8")
-file_handler.setFormatter(formatter)
-logger.addHandler(file_handler)
-
-stream_handler = logging.StreamHandler(sys.stdout)
-stream_handler.setFormatter(formatter)
-logger.addHandler(stream_handler)
-
-start_time = time.monotonic()
-last_heartbeat = start_time
-api_requests = 0
-api_failures = 0
-
-session = requests.Session()
-session.headers.update(REQUEST_HEADERS)
-
-
-def log(message, level=logging.INFO):
-    logger.log(level, message)
-
-
-def format_duration(seconds):
-    seconds = int(seconds)
-    hours, remainder = divmod(seconds, 3600)
-    minutes, seconds = divmod(remainder, 60)
-
-    if hours:
-        return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
-
-    return f"{minutes:02d}:{seconds:02d}"
-
-
-def heartbeat(force=False):
-    global last_heartbeat
-
-    now = time.monotonic()
-
-    if force or now - last_heartbeat >= HEARTBEAT_SECONDS:
-        log(
-            f"HEARTBEAT | התהליך עדיין פעיל | "
-            f"זמן ריצה: {format_duration(now - start_time)} | "
-            f"API requests: {api_requests}"
-        )
-        last_heartbeat = now
-
-
-def utc_now():
-    return datetime.now(timezone.utc).isoformat()
-
-
-def api_get(params, description="API request"):
-    global api_requests, api_failures
-
-    params = {**params, "format": "json"}
-
-    for attempt in range(1, MAX_API_RETRIES + 1):
-        heartbeat()
-        api_requests += 1
-
-        try:
-            response = session.get(
-                MECHALOL_API,
-                params=params,
-                timeout=(15, 60),
-            )
-            response.raise_for_status()
-            data = response.json()
-
-            if api_requests % LOG_EVERY_API_REQUESTS == 0:
-                log(f"API | בוצעו {api_requests} בקשות עד כה")
-
-            if REQUEST_DELAY_SECONDS:
-                time.sleep(REQUEST_DELAY_SECONDS)
-
-            return data
-
-        except (requests.RequestException, ValueError) as exc:
-            api_failures += 1
-
-            log(
-                f"API ERROR | {description} | "
-                f"ניסיון {attempt}/{MAX_API_RETRIES} | "
-                f"{type(exc).__name__}: {exc}",
-                logging.WARNING,
-            )
-
-            if attempt < MAX_API_RETRIES:
-                wait = min(2 ** (attempt - 1), 30)
-                time.sleep(wait)
-            else:
-                raise
+PROGRESS_FILE = "wikipedia_progress.json"
 
 
 def load_progress():
-    if not os.path.exists(PROGRESS_FILE):
-        return {}
-
-    try:
+    """
+    מחזיר טאפל: (הושלם_בעבר, נקודת_המשך)
+    """
+    if os.path.exists(PROGRESS_FILE):
         with open(PROGRESS_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
-            return data if isinstance(data, dict) else {}
-    except Exception as exc:
-        log(
-            f"PROGRESS WARNING | לא ניתן לקרוא {PROGRESS_FILE}: {exc}",
-            logging.WARNING,
-        )
-        return {}
+        return data.get("done", False), data.get("apcontinue")
+    return False, None
 
 
-def save_progress(progress):
-    temp_file = PROGRESS_FILE + ".tmp"
-
-    with open(temp_file, "w", encoding="utf-8") as f:
-        json.dump(progress, f, ensure_ascii=False, indent=2)
-
-    os.replace(temp_file, PROGRESS_FILE)
+def save_progress(apcontinue, done=False):
+    with open(PROGRESS_FILE, "w", encoding="utf-8") as f:
+        json.dump({"apcontinue": apcontinue, "done": done}, f)
 
 
-def clear_progress():
-    if os.path.exists(PROGRESS_FILE):
-        os.remove(PROGRESS_FILE)
-
-
-def get_category_members(category_title, member_type="page"):
+def fetch_all_titles(apcontinue):
     """
-    Direct members only.
-    No recursion.
+    ג'נרטור שמחזיר רשימות של (כותרת, מזהה_עמוד) בעימוד, עד סיום כל מרחב השם הראשי.
     """
-    cmcontinue = None
-
-    while True:
-        params = {
-            "action": "query",
-            "list": "categorymembers",
-            "cmtitle": category_title,
-            "cmtype": member_type,
-            "cmlimit": BATCH_SIZE,
-        }
-
-        if cmcontinue:
-            params["cmcontinue"] = cmcontinue
-
-        data = api_get(
-            params,
-            f"categorymembers | {category_title}",
-        )
-
-        members = data.get("query", {}).get("categorymembers", [])
-
-        for member in members:
-            yield member["title"], member["pageid"]
-
-        cmcontinue = data.get("continue", {}).get("cmcontinue")
-
-        if not cmcontinue:
-            break
-
-
-def collect_direct_titles(category_title, label):
-    stage_start = time.monotonic()
-
-    log("=" * 80)
-    log(f"START STAGE | {label}")
-    log(f"CATEGORY | {category_title}")
-
-    titles = set()
-
-    for title, _ in get_category_members(category_title, "page"):
-        titles.add(title)
-
-    log(
-        f"END STAGE | {label} | "
-        f"{len(titles):,} direct members | "
-        f"זמן: {format_duration(time.monotonic() - stage_start)}"
-    )
-
-    return titles
-
-
-def parse_month_from_category(category_title):
-    match = re.search(r"ב([א-ת]+)\s+(\d{4})", category_title)
-
-    if not match:
-        return None
-
-    month_name, year = match.groups()
-    month_num = HEBREW_MONTHS.get(month_name)
-
-    if not month_num:
-        return None
-
-    return f"{year}-{month_num}"
-
-
-def get_last_update_map():
-    stage_start = time.monotonic()
-    result = {}
-
-    root = "קטגוריה:המכלול: ערכים לפי תאריך עדכון"
-
-    log("=" * 80)
-    log("START STAGE | מיפוי תאריכי עדכון אחרון")
-
-    subcats = list(get_category_members(root, "subcat"))
-
-    valid_months = 0
-    pages = 0
-
-    for index, (subcat_title, _) in enumerate(subcats, 1):
-        month = parse_month_from_category(subcat_title)
-
-        if not month:
-            continue
-
-        valid_months += 1
-
-        for page_title, _ in get_category_members(
-            subcat_title,
-            "page",
-        ):
-            result[page_title] = month
-            pages += 1
-
-            if pages % LOG_EVERY_ITEMS == 0:
-                log(
-                    f"UPDATE MAP PROGRESS | "
-                    f"{pages:,} ערכים מופו"
-                )
-                heartbeat(force=True)
-
-        log(
-            f"UPDATE MAP | "
-            f"[{index}/{len(subcats)}] "
-            f"{subcat_title} -> {month}"
-        )
-
-    log(
-        f"END STAGE | מיפוי תאריכים | "
-        f"{len(result):,} ערכים | "
-        f"{valid_months:,} חודשים"
-    )
-
-    return result
-
-
-def fetch_all_titles(progress):
-    apcontinue = progress.get("allpages_apcontinue")
-    total = progress.get("allpages_count", 0)
-
     while True:
         params = {
             "action": "query",
             "list": "allpages",
             "apnamespace": 0,
-            "apfilterredir": "nonredirects",
+            "apfilterredir": "nonredirects",  # לא כולל הפניות - רק ערכים בפועל
             "aplimit": BATCH_SIZE,
+            "format": "json",
         }
-
         if apcontinue:
             params["apcontinue"] = apcontinue
 
-        data = api_get(params, "allpages")
+        response = requests.get(WIKIPEDIA_API, params=params, headers=REQUEST_HEADERS, timeout=30)
+        response.raise_for_status()
+        data = response.json()
+
         pages = data.get("query", {}).get("allpages", [])
-
-        total += len(pages)
-
-        yield [
-            (page["title"], page["pageid"])
-            for page in pages
-        ]
+        yield [(p["title"], p["pageid"]) for p in pages]
 
         apcontinue = data.get("continue", {}).get("apcontinue")
-
-        progress["allpages_apcontinue"] = apcontinue
-        progress["allpages_count"] = total
-        progress["last_update"] = utc_now()
-
-        save_progress(progress)
+        save_progress(apcontinue, done=False)
 
         if not apcontinue:
             break
 
-        heartbeat(force=True)
-
-    log(f"ALLPAGES | הסריקה הסתיימה | {total:,}")
+        time.sleep(REQUEST_DELAY_SECONDS)
 
 
-def upsert_rows(client, rows, batch_number, total):
-    if not rows:
+def upsert_batch(client, batch):
+    if not batch:
         return
-
-    for attempt in range(1, MAX_SUPABASE_RETRIES + 1):
-        try:
-            client.table("mechalol_pages").upsert(
-                rows,
-                on_conflict="page_id",
-            ).execute()
-
-            log(
-                f"SUPABASE | batch #{batch_number:,} | "
-                f"{len(rows):,} שורות | סה״כ {total:,}"
-            )
-            return
-
-        except Exception as exc:
-            log(
-                f"SUPABASE ERROR | batch #{batch_number:,} | "
-                f"ניסיון {attempt}/{MAX_SUPABASE_RETRIES}: {exc}",
-                logging.WARNING,
-            )
-
-            if attempt < MAX_SUPABASE_RETRIES:
-                time.sleep(min(2 ** (attempt - 1), 30))
-            else:
-                raise
+    rows = [{"title": title, "page_id": page_id} for title, page_id in batch]
+    client.table("wikipedia_pages").upsert(rows, on_conflict="page_id").execute()
 
 
 def main():
-    progress = load_progress()
+    done, apcontinue = load_progress()
+
+    if done:
+        print("שליפת ויקיפדיה כבר הושלמה בעבר - מדלג. (למחוק את wikipedia_progress.json כדי לאלץ שליפה מחדש)")
+        return
+
     client = get_client()
+    total = 0
 
-    log("=" * 80)
-    log("START | fetch_mechalol.py")
+    for batch in fetch_all_titles(apcontinue):
+        upsert_batch(client, batch)
+        total += len(batch)
+        print(f"נטענו {total} כותרות עד כה")
 
-    created = collect_direct_titles(
-        CATEGORY_CREATED_IN_MECHALOL,
-        "ערכים שנוצרו במכלול",
-    )
-
-    translated = collect_direct_titles(
-        CATEGORY_TRANSLATED_IN_MECHALOL,
-        "ערכים שתורגמו במכלול",
-    )
-
-    pirushonim = collect_direct_titles(
-        CATEGORY_PIRUSHONIM_CREATED_IN_MECHALOL,
-        "פירושונים שנוצרו במכלול",
-    )
-
-    missing_sort = collect_direct_titles(
-        CATEGORY_MISSING_SORT_TEMPLATE,
-        "ערכים מוויקיפדיה ללא תבנית מיון",
-    )
-
-    pages_to_open = collect_direct_titles(
-        CATEGORY_PAGES_TO_OPEN,
-        "ערכים לפתיחה",
-    )
-
-    dictionary_entries = collect_direct_titles(
-        CATEGORY_DICTIONARY_ENTRIES,
-        "ערכים מילוניים",
-    )
-
-    last_update_map = get_last_update_map()
-
-    # ponytail: translated/pirushonim are treated as locally-created.
-    created_sources = created | translated | pirushonim
-
-    log(
-        f"SUMMARY | created={len(created):,} | "
-        f"translated={len(translated):,} | "
-        f"pirushonim={len(pirushonim):,} | "
-        f"missing_sort={len(missing_sort):,}"
-    )
-
-    total = progress.get("uploaded_count", 0)
-    batch_number = progress.get("upload_batch", 0)
-
-    for batch in fetch_all_titles(progress):
-        if not batch:
-            continue
-
-        rows = []
-
-        for title, page_id in batch:
-            if title in created:
-                status = "נוצר_במכלול"
-                source_type = "created"
-                last_update_month = None
-
-            elif title in translated:
-                status = "נוצר_במכלול"
-                source_type = "translated"
-                last_update_month = None
-
-            elif title in pirushonim:
-                status = "נוצר_במכלול"
-                source_type = "pirushon"
-                last_update_month = None
-
-            elif title in missing_sort:
-                status = "מיובא_ללא_תיעוד"
-                source_type = "unknown"
-                last_update_month = None
-
-            else:
-                status = "מיובא_מתועד"
-                source_type = "unknown"
-                last_update_month = last_update_map.get(title)
-
-            rows.append({
-                "title": title,
-                "page_id": page_id,
-                "status": status,
-                "source_type": source_type,
-                "last_update_month": last_update_month,
-                "match_type": "ללא_התאמה",
-                "needs_attention": title in pages_to_open,
-                "is_dictionary_entry": title in dictionary_entries,
-            })
-
-        batch_number += 1
-        total += len(rows)
-
-        upsert_rows(
-            client,
-            rows,
-            batch_number,
-            total,
-        )
-
-        progress["upload_batch"] = batch_number
-        progress["uploaded_count"] = total
-        progress["last_update"] = utc_now()
-
-        save_progress(progress)
-        heartbeat(force=True)
-
-    clear_progress()
-
-    log(
-        f"SUCCESS | הועלו/עודכנו {total:,} ערכים | "
-        f"API requests: {api_requests:,}"
-    )
+    save_progress(None, done=True)
+    print(f"סיום. סה\"כ {total} כותרות נטענו מוויקיפדיה העברית")
 
 
 if __name__ == "__main__":
