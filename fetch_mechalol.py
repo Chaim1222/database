@@ -30,10 +30,14 @@ from config import (
     CATEGORY_PAGES_TO_OPEN,
     CATEGORY_DICTIONARY_ENTRIES,
     CATEGORY_IMPORTED_FROM_CHABADPEDIA,
+    CATEGORY_IMPORTED_FROM_WIKISHIVA,
+    CATEGORY_DELETED_ON_WIKIPEDIA_KEPT,
     STATUS_CREATED_IN_MECHALOL,
     STATUS_IMPORTED_DOCUMENTED,
     STATUS_IMPORTED_UNDOCUMENTED,
     STATUS_IMPORTED_FROM_CHABADPEDIA,
+    STATUS_IMPORTED_FROM_WIKISHIVA,
+    STATUS_KEPT_AFTER_WIKIPEDIA_DELETION,
 )
 from supabase_client import get_client
 
@@ -165,8 +169,14 @@ def clear_progress():
         os.remove(PROGRESS_FILE)
 
 
-def get_category_members(category_title, member_type="page"):
-    """חברים ישירים בלבד. ללא רקורסיביות."""
+def get_category_members(category_title, member_type="page", namespace=None):
+    """
+    חברים ישירים בלבד. ללא רקורסיביות.
+    namespace=0 (ברירת המחדל בקריאות לתוכן) מגביל לערכים במרחב הראשי
+    בלבד - קטגוריות תוכן לפעמים כוללות גם דפי שיחה/משתמש/תבנית שתויגו
+    בהן בטעות, ואלה לא אמורים להיכנס לטבלת mechalol_pages כלל.
+    namespace=None (בשימוש לתת-קטגוריות, member_type="subcat") לא מסנן.
+    """
     cmcontinue = None
 
     while True:
@@ -177,6 +187,8 @@ def get_category_members(category_title, member_type="page"):
             "cmtype": member_type,
             "cmlimit": BATCH_SIZE,
         }
+        if namespace is not None:
+            params["cmnamespace"] = namespace
         if cmcontinue:
             params["cmcontinue"] = cmcontinue
 
@@ -198,7 +210,7 @@ def collect_direct_titles(category_title, label):
     log(f"קטגוריה | {category_title}")
 
     titles = set()
-    for title, _ in get_category_members(category_title, "page"):
+    for title, _ in get_category_members(category_title, "page", namespace=0):
         titles.add(title)
 
     log(
@@ -238,7 +250,7 @@ def get_last_update_map():
 
         valid_months += 1
 
-        for page_title, _ in get_category_members(subcat_title, "page"):
+        for page_title, _ in get_category_members(subcat_title, "page", namespace=0):
             result[page_title] = month
             pages += 1
 
@@ -355,8 +367,84 @@ def upsert_rows(client, rows, batch_number, total):
                 raise
 
 
+def get_existing_page_ids(client):
+    """שולף (page_id, id) עבור כל השורות הקיימות כרגע ב-mechalol_pages, בעימוד."""
+    pairs = set()
+    last_id = 0
+
+    while True:
+        for attempt in range(1, MAX_SUPABASE_RETRIES + 1):
+            try:
+                result = (
+                    client.table("mechalol_pages")
+                    .select("id, page_id")
+                    .gt("id", last_id)
+                    .order("id")
+                    .limit(BATCH_SIZE)
+                    .execute()
+                )
+                break
+            except Exception as exc:
+                if attempt >= MAX_SUPABASE_RETRIES:
+                    raise
+                log(
+                    f"שגיאת Supabase | שליפת page_id קיימים | ניסיון {attempt}/{MAX_SUPABASE_RETRIES}: {exc}",
+                    logging.WARNING,
+                )
+                time.sleep(min(2 ** (attempt - 1), 30))
+
+        rows = result.data or []
+        if not rows:
+            break
+
+        for row in rows:
+            pairs.add((row["page_id"], row["id"]))
+
+        last_id = rows[-1]["id"]
+        if len(rows) < BATCH_SIZE:
+            break
+
+    return pairs
+
+
+def cleanup_deleted_from_mechalol(client, current_page_ids):
+    """
+    מוחק שורות שה-page_id שלהן לא הופיע בסריקה המלאה הנוכחית - כלומר
+    הדף כבר לא קיים במכלול (נמחק). קריאה למחיקה, בלי שמירת תיעוד
+    היסטורי, לפי בקשה מפורשת. חייבים לקרוא לפונקציה הזו רק אחרי סריקה
+    מלאה ורצופה (לא מחודשת מ-initial_run שנעצר) - ראו main().
+    """
+    existing = get_existing_page_ids(client)
+    stale_ids = [row_id for page_id, row_id in existing if page_id not in current_page_ids]
+
+    if not stale_ids:
+        log("ניקוי | לא נמצאו שורות שנמחקו מהמכלול")
+        return 0
+
+    log(f"ניקוי | {len(stale_ids):,} שורות עם page_id שלא נמצא בסריקה הנוכחית - נמחקות")
+
+    for i in range(0, len(stale_ids), BATCH_SIZE):
+        chunk = stale_ids[i:i + BATCH_SIZE]
+        for attempt in range(1, MAX_SUPABASE_RETRIES + 1):
+            try:
+                client.table("mechalol_pages").delete().in_("id", chunk).execute()
+                break
+            except Exception as exc:
+                if attempt >= MAX_SUPABASE_RETRIES:
+                    raise
+                log(
+                    f"שגיאת Supabase | מחיקת שורות שנעלמו מהמכלול | "
+                    f"ניסיון {attempt}/{MAX_SUPABASE_RETRIES}: {exc}",
+                    logging.WARNING,
+                )
+                time.sleep(min(2 ** (attempt - 1), 30))
+
+    return len(stale_ids)
+
+
 def main():
     progress = load_progress()
+    is_resumed = bool(progress)
     client = get_client()
 
     log("=" * 80)
@@ -369,21 +457,27 @@ def main():
     pages_to_open = collect_direct_titles(CATEGORY_PAGES_TO_OPEN, "ערכים לפתיחה")
     dictionary_entries = collect_direct_titles(CATEGORY_DICTIONARY_ENTRIES, "ערכים מילוניים")
     chabadpedia = collect_direct_titles(CATEGORY_IMPORTED_FROM_CHABADPEDIA, "דפים שיובאו מחב\"דפדיה")
+    wikishiva = collect_direct_titles(CATEGORY_IMPORTED_FROM_WIKISHIVA, "דפים שיובאו מויקישיבה")
+    deleted_on_wikipedia_kept = collect_direct_titles(
+        CATEGORY_DELETED_ON_WIKIPEDIA_KEPT, "ערכים שנמחקו בוויקיפדיה ונשמרו"
+    )
 
     last_update_map = get_last_update_map()
 
-    # מקור מכלולי-פנימי לעניין last_update_month (אין להם קטגוריית עדכון
-    # חודשי רלוונטית) - כמו created/translated/pirushonim.
-    created_sources = created | translated | pirushonim | chabadpedia
+    # מקור מכלולי-פנימי/חיצוני-לא-ויקיפדי, או ויקיפדי-היסטורי-בלבד,
+    # לעניין last_update_month (אין להם קטגוריית עדכון חודשי רלוונטית)
+    created_sources = created | translated | pirushonim | chabadpedia | wikishiva | deleted_on_wikipedia_kept
 
     log(
         f"סיכום | נוצרו={len(created):,} | תורגמו={len(translated):,} | "
         f"פירושונים={len(pirushonim):,} | חסרי_מיון={len(missing_sort):,} | "
-        f"חב\"דפדיה={len(chabadpedia):,}"
+        f"חב\"דפדיה={len(chabadpedia):,} | ויקישיבה={len(wikishiva):,} | "
+        f"נמחקו_בוויקיפדיה_ונשמרו={len(deleted_on_wikipedia_kept):,}"
     )
 
     total = progress.get("uploaded_count", 0)
     batch_number = progress.get("upload_batch", 0)
+    seen_page_ids = set()
 
     for batch in fetch_all_titles(progress):
         if not batch:
@@ -392,6 +486,8 @@ def main():
         rows = []
 
         for title, page_id in batch:
+            seen_page_ids.add(page_id)
+
             if title in created:
                 status, source_type = STATUS_CREATED_IN_MECHALOL, "created"
             elif title in translated:
@@ -400,6 +496,10 @@ def main():
                 status, source_type = STATUS_CREATED_IN_MECHALOL, "pirushon"
             elif title in chabadpedia:
                 status, source_type = STATUS_IMPORTED_FROM_CHABADPEDIA, "chabadpedia"
+            elif title in wikishiva:
+                status, source_type = STATUS_IMPORTED_FROM_WIKISHIVA, "wikishiva"
+            elif title in deleted_on_wikipedia_kept:
+                status, source_type = STATUS_KEPT_AFTER_WIKIPEDIA_DELETION, "wikipedia_deleted_kept"
             elif title in missing_sort:
                 status, source_type = STATUS_IMPORTED_UNDOCUMENTED, "unknown"
             else:
@@ -443,6 +543,15 @@ def main():
     clear_progress()
 
     log(f"הצלחה | הועלו/עודכנו {total:,} ערכים | בקשות API: {api_requests:,}")
+
+    # ניקוי דפים שנמחקו מהמכלול - רק אם הסריקה בוצעה ברצף אחד בתהליך
+    # הזה (לא המשך של initial_run שנעצר), כי אחרת seen_page_ids לא
+    # מכיל את הכותרות שכבר נסרקו בתהליכים קודמים ותהיה מחיקה שגויה.
+    if is_resumed:
+        log("ניקוי | דולג - זו המשך ריצה שהתחילה בתהליך קודם (seen_page_ids חלקי)")
+    else:
+        deleted = cleanup_deleted_from_mechalol(client, seen_page_ids)
+        log(f"ניקוי | נמחקו {deleted:,} שורות שלא קיימות עוד במכלול")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,74 @@
+name: הרצה ראשונית - איסוף מלא
+
+# מופעל ידנית בלבד.
+# ניתן לבחור אם להריץ הכול, רק את המכלול, או רק את שלב ההתאמה.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "מה להריץ?"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - mechalol_only
+          - match_only
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+
+    steps:
+      - name: שחזור קוד
+        uses: actions/checkout@v4
+
+      - name: שחזור קובצי התקדמות קודמים
+        if: ${{ inputs.mode != 'match_only' }}
+        uses: actions/cache@v4
+        with:
+          path: |
+            wikipedia_progress.json
+            mechalol_progress.json
+          key: import-progress-${{ github.run_id }}
+          restore-keys: |
+            import-progress-
+
+      - name: התקנת פייתון
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: התקנת ספריות
+        run: pip install -r requirements.txt
+
+      - name: שליפת כותרות ויקיפדיה
+        if: ${{ inputs.mode == 'all' }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python fetch_wikipedia.py
+
+      - name: שליפת נתוני המכלול
+        if: ${{ inputs.mode == 'all' || inputs.mode == 'mechalol_only' }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python fetch_mechalol.py
+
+      - name: התאמה בין הכותרות
+        if: ${{ inputs.mode == 'match_only' || (inputs.mode == 'all' && success()) }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python match.py
+
+      - name: שמירת התקדמות (אם הריצה נעצרה באמצע)
+        if: ${{ always() && inputs.mode != 'match_only' }}
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            wikipedia_progress.json
+            mechalol_progress.json
+          key: import-progress-${{ github.run_id }}

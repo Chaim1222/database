@@ -1,9 +1,10 @@
 -- סכימת מסד הנתונים להשוואת ערכים בין ויקיפדיה העברית למכלול
 -- להרצה חד-פעמית בעורך ה-SQL של סופרבייס, על טבלאות חדשות/ריקות.
 --
--- הערה: קובץ זה עודכן כדי לשקף את המבנה החי בפועל (לאחר שינוי שמות
--- העמודות לאנגלית ואחרי migration_status_labels.sql). אם אתה מריץ את
--- זה מחדש על סביבה קיימת - אין בכך צורך, הטבלה כבר במצב הזה.
+-- הערה: קובץ זה מעודכן ידנית מול הסכימה החיה בפועל בסופרבייס (כולל
+-- ערך ה-status הרביעי לחב"דפדיה, עמודת matched_title, וערך ה-status
+-- החמישי לוויקישיבה). אם אתה מריץ את זה מחדש על סביבה קיימת - אין בכך
+-- צורך, הטבלה כבר במצב הזה.
 
 create table if not exists wikipedia_pages (
     id bigserial primary key,
@@ -17,8 +18,18 @@ create table if not exists mechalol_pages (
     title text not null unique,
     page_id bigint not null unique,
 
-    -- נוצר במכלול / מיובא ומתועד / מיובא ללא תיעוד
-    status text not null check (status in ('נוצר במכלול', 'מיובא ומתועד', 'מיובא ללא תיעוד')),
+    -- נוצר במכלול / מיובא ומתועד / מיובא ללא תיעוד / ייבוא מחב"דפדיה /
+    -- ייבוא מוויקישיבה / נשמר במכלול למרות מחיקה בוויקיפדיה
+    status text not null check (
+        status in (
+            'נוצר במכלול',
+            'מיובא ומתועד',
+            'מיובא ללא תיעוד',
+            'ייבוא מחב"דפדיה',
+            'ייבוא מוויקישיבה',
+            'נשמר במכלול למרות מחיקה בוויקיפדיה'
+        )
+    ),
 
     -- רק כאשר status = מיובא ומתועד, בפורמט YYYY-MM (נגזר מקטגוריית "עודכן לאחרונה ב-X")
     last_update_month text,
@@ -38,8 +49,10 @@ create table if not exists mechalol_pages (
     -- תקציר מיובא מוויקיפדיה, לא ערך מלא (קטגוריית "ערכים מילוניים")
     is_dictionary_entry boolean not null default false,
 
-    -- הערך מסומן כמיובא, אך כותרתו לא נמצאה בריצה הנוכחית של רשימת ויקיפדיה
-    -- (סימון בלבד לבדיקה ידנית - לא גורר מחיקה אוטומטית בשום מקום)
+    -- מקור השורה ודאי-ויקיפדי או לא-ידוע, ולא נמצאה לו התאמה בטבלת
+    -- wikipedia_pages בריצה הנוכחית של match.py (סימון לבדיקה ידנית -
+    -- לא גורר מחיקה אוטומטית בשום מקום). לא מסומן על שורות שמקורן ודאי
+    -- לא-ויקיפדי (נוצר במכלול/חב"דפדיה/ויקישיבה).
     maybe_deleted_from_wikipedia boolean not null default false,
 
     -- אושר ודאית מיומן המחיקות/ההעברות של ויקיפדיה: הערך המקורי נמחק שם,
@@ -50,7 +63,8 @@ create table if not exists mechalol_pages (
     manual_match boolean not null default false,
 
     -- האם שורה זו כבר עברה את שלב הנרמול/תבנית המיון (בין אם נמצאה
-    -- התאמה ובין אם לא) - כדי שריצות עתידיות ידלגו עליה
+    -- התאמה ובין אם לא) - נבדק יחד עם matched_title/status כדי לקבוע אם
+    -- ריצות עתידיות ידלגו עליה או יבדקו אותה מחדש (ראו match.py)
     normalization_checked boolean not null default false,
 
     -- ההתאמה נמצאה דרך נרמול/תבנית מיון, לא כותרת זהה במדויק
@@ -63,7 +77,12 @@ create table if not exists mechalol_pages (
     -- הכותרת המנורמלת שנמצאה עבורה התאמה בוויקיפדיה
     title_normalized text,
 
-    -- מקור השורה: created / translated / pirushon / unknown
+    -- כותרת המכלול (title) כפי שהייתה בזמן שההתאמה הנוכחית (wikipedia_id)
+    -- נקבעה. אם title הנוכחי שונה מזה - סימן שהדף הועבר לשם אחר במכלול
+    -- מאז ההתאמה, וצריך לבדוק אותה מחדש (ראו should_reexamine ב-match.py)
+    matched_title text,
+
+    -- מקור השורה: created / translated / pirushon / chabadpedia / wikishiva / unknown
     source_type text not null default 'unknown',
 
     checked_at timestamptz not null default now()
