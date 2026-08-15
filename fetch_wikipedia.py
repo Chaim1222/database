@@ -60,7 +60,12 @@ def fetch_all_titles(apcontinue):
         if apcontinue:
             params["apcontinue"] = apcontinue
 
-        response = requests.get(WIKIPEDIA_API, params=params, headers=REQUEST_HEADERS, timeout=30)
+        response = requests.get(
+            WIKIPEDIA_API,
+            params=params,
+            headers=REQUEST_HEADERS,
+            timeout=30,
+        )
         response.raise_for_status()
         data = response.json()
 
@@ -86,7 +91,11 @@ def find_stale_title_collisions(existing_rows, new_rows):
     לנקות את השורה הישנה.
     """
     new_page_ids = {page_id for _, page_id in new_rows}
-    return [row["id"] for row in existing_rows if row["page_id"] not in new_page_ids]
+    return [
+        row["id"]
+        for row in existing_rows
+        if row["page_id"] not in new_page_ids
+    ]
 
 
 def resolve_title_collisions(client, batch):
@@ -109,14 +118,17 @@ def resolve_title_collisions(client, batch):
     stale_ids = find_stale_title_collisions(existing, batch)
 
     if stale_ids:
-        print(f"WARNING | התנגשות כותרת/page_id | מוחק {len(stale_ids)} שורות מיושנות: {stale_ids}")
+        print(
+            f"WARNING | התנגשות כותרת/page_id | מוחק "
+            f"{len(stale_ids)} שורות מיושנות: {stale_ids}"
+        )
         client.table("wikipedia_pages").delete().in_("id", stale_ids).execute()
 
     return bool(stale_ids)
 
 
 def _is_title_collision(exc):
-    return getattr(exc, "code", None) == "23505" and "wikipedia_pages_title_key" in str(exc)
+    return "23505" in str(exc) and "wikipedia_pages_title_key" in str(exc)
 
 
 def upsert_batch(client, batch):
@@ -127,14 +139,20 @@ def upsert_batch(client, batch):
 
     for attempt in range(1, MAX_SUPABASE_RETRIES + 1):
         try:
-            client.table("wikipedia_pages").upsert(rows, on_conflict="page_id").execute()
+            client.table("wikipedia_pages").upsert(
+                rows,
+                on_conflict="page_id"
+            ).execute()
             return
         except Exception as exc:
             if _is_title_collision(exc) and resolve_title_collisions(client, batch):
                 print("WARNING | טופלה התנגשות כותרת, מנסה שוב")
                 continue
 
-            print(f"שגיאת Supabase | ניסיון {attempt}/{MAX_SUPABASE_RETRIES}: {exc}")
+            print(
+                f"שגיאת Supabase | ניסיון "
+                f"{attempt}/{MAX_SUPABASE_RETRIES}: {exc}"
+            )
             if attempt < MAX_SUPABASE_RETRIES:
                 time.sleep(min(2 ** (attempt - 1), 30))
             else:
@@ -145,7 +163,10 @@ def main():
     done, apcontinue = load_progress()
 
     if done:
-        print("שליפת ויקיפדיה כבר הושלמה בעבר - מדלג. (למחוק את wikipedia_progress.json כדי לאלץ שליפה מחדש)")
+        print(
+            "שליפת ויקיפדיה כבר הושלמה בעבר - מדלג. "
+            "(למחוק את wikipedia_progress.json כדי לאלץ שליפה מחדש)"
+        )
         return
 
     client = get_client()
@@ -157,7 +178,9 @@ def main():
         print(f"נטענו {total} כותרות עד כה")
 
     save_progress(None, done=True)
-    print(f"סיום. סה\"כ {total} כותרות נטענו מוויקיפדיה העברית")
+    print(
+        f"סיום. סה\"כ {total} כותרות נטענו מוויקיפדיה העברית"
+    )
 
 
 if __name__ == "__main__":
