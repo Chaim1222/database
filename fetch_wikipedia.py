@@ -60,12 +60,7 @@ def fetch_all_titles(apcontinue):
         if apcontinue:
             params["apcontinue"] = apcontinue
 
-        response = requests.get(
-            WIKIPEDIA_API,
-            params=params,
-            headers=REQUEST_HEADERS,
-            timeout=30,
-        )
+        response = requests.get(WIKIPEDIA_API, params=params, headers=REQUEST_HEADERS, timeout=30)
         response.raise_for_status()
         data = response.json()
 
@@ -81,21 +76,43 @@ def fetch_all_titles(apcontinue):
         time.sleep(REQUEST_DELAY_SECONDS)
 
 
+def dedupe_batch_titles(batch):
+    """
+    לפעמים (ככל הנראה שינוי שם חי בוויקיפדיה בדיוק תוך כדי הסריקה) אותה
+    כותרת מגיעה פעמיים באצווה אחת עם page_id שונה - זו לא התנגשות מול
+    שורה קיימת בטבלה (resolve_title_collisions לא יכול לעזור פה, אין
+    שום דבר "ישן" למחוק) אלא התנגשות בין שתי שורות חדשות בתוך אותה
+    בקשת API עצמה. postgres לא יכול לקלוט את שתיהן יחד גם עם
+    on_conflict="page_id", כי title ייחודי גם הוא. שומרים רק את
+    המופע האחרון (העדכני יותר, לפי סדר ההופעה בתשובת ה-API).
+    """
+    by_title = {}
+    for title, page_id in batch:
+        if title in by_title and by_title[title] != page_id:
+            print(
+                f"WARNING | כותרת כפולה באותה אצווה | '{title}' - "
+                f"page_id {by_title[title]} ו-{page_id} - נשמר רק האחרון"
+            )
+        by_title[title] = page_id
+    return list(by_title.items())
+
+
 def find_stale_title_collisions(existing_rows, new_rows):
     """
-    שורות קיימות ב-wikipedia_pages שהכותרת שלהן מתנגשת עם אחת הכותרות
-    באצווה החדשה, אבל ה-page_id שלהן שונה מכל page_id באצווה - כלומר
-    זו שורה ישנה/מיושנת (page_id אחר, אולי כבר נמחק בוויקיפדיה) שתפסה
-    את הכותרת לפני שהיא שוחררה. קורה למשל כשדף מועבר לכותרת שהייתה
-    שייכת לדף אחר שנמחק, לפני ש-check_wikipedia_deletions.py הספיק
-    לנקות את השורה הישנה.
+    כל שורה קיימת ב-wikipedia_pages שהכותרת שלה מופיעה גם באצווה
+    החדשה - נמחקת בלי תנאי, גם אם ה-page_id שלה עצמו נמצא באצווה.
+
+    חשוב: בכוונה *לא* מחריגים שורה רק כי ה-page_id שלה מופיע באצווה.
+    אם page_id זהה, השורה תוחדר מחדש מייד באותו upsert עם הנתונים
+    המעודכנים - אין סיכון לאובדן מידע. ההחרגה הזו הייתה הבאג המקורי:
+    היא פספסה בדיוק את מקרה "החלפת כותרות" - עמוד A זז מהכותרת X
+    (לכותרת חדשה, עדיין באותה אצווה), ועמוד B זז *אל* הכותרת X (גם הוא
+    באותה אצווה). ה-page_id של A כן מופיע באצווה (עם כותרת אחרת) -
+    בדיקה לפי page_id הייתה מדלגת עליו ומשאירה את השורה הישנה שלו עם
+    הכותרת X, מתנגשת עם B, בלי שום דרך לפתור את זה בניסיון חוזר.
     """
-    new_page_ids = {page_id for _, page_id in new_rows}
-    return [
-        row["id"]
-        for row in existing_rows
-        if row["page_id"] not in new_page_ids
-    ]
+    new_titles = {title for title, _ in new_rows}
+    return [row["id"] for row in existing_rows if row["title"] in new_titles]
 
 
 def resolve_title_collisions(client, batch):
@@ -118,41 +135,33 @@ def resolve_title_collisions(client, batch):
     stale_ids = find_stale_title_collisions(existing, batch)
 
     if stale_ids:
-        print(
-            f"WARNING | התנגשות כותרת/page_id | מוחק "
-            f"{len(stale_ids)} שורות מיושנות: {stale_ids}"
-        )
+        print(f"WARNING | התנגשות כותרת/page_id | מוחק {len(stale_ids)} שורות מיושנות: {stale_ids}")
         client.table("wikipedia_pages").delete().in_("id", stale_ids).execute()
 
     return bool(stale_ids)
 
 
 def _is_title_collision(exc):
-    return "23505" in str(exc) and "wikipedia_pages_title_key" in str(exc)
+    return getattr(exc, "code", None) == "23505" and "wikipedia_pages_title_key" in str(exc)
 
 
 def upsert_batch(client, batch):
     if not batch:
         return
 
+    batch = dedupe_batch_titles(batch)
     rows = [{"title": title, "page_id": page_id} for title, page_id in batch]
 
     for attempt in range(1, MAX_SUPABASE_RETRIES + 1):
         try:
-            client.table("wikipedia_pages").upsert(
-                rows,
-                on_conflict="page_id"
-            ).execute()
+            client.table("wikipedia_pages").upsert(rows, on_conflict="page_id").execute()
             return
         except Exception as exc:
             if _is_title_collision(exc) and resolve_title_collisions(client, batch):
                 print("WARNING | טופלה התנגשות כותרת, מנסה שוב")
                 continue
 
-            print(
-                f"שגיאת Supabase | ניסיון "
-                f"{attempt}/{MAX_SUPABASE_RETRIES}: {exc}"
-            )
+            print(f"שגיאת Supabase | ניסיון {attempt}/{MAX_SUPABASE_RETRIES}: {exc}")
             if attempt < MAX_SUPABASE_RETRIES:
                 time.sleep(min(2 ** (attempt - 1), 30))
             else:
@@ -163,10 +172,7 @@ def main():
     done, apcontinue = load_progress()
 
     if done:
-        print(
-            "שליפת ויקיפדיה כבר הושלמה בעבר - מדלג. "
-            "(למחוק את wikipedia_progress.json כדי לאלץ שליפה מחדש)"
-        )
+        print("שליפת ויקיפדיה כבר הושלמה בעבר - מדלג. (למחוק את wikipedia_progress.json כדי לאלץ שליפה מחדש)")
         return
 
     client = get_client()
@@ -178,9 +184,7 @@ def main():
         print(f"נטענו {total} כותרות עד כה")
 
     save_progress(None, done=True)
-    print(
-        f"סיום. סה\"כ {total} כותרות נטענו מוויקיפדיה העברית"
-    )
+    print(f"סיום. סה\"כ {total} כותרות נטענו מוויקיפדיה העברית")
 
 
 if __name__ == "__main__":
