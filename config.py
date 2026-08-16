@@ -43,6 +43,9 @@ CATEGORY_IMPORTED_FROM_WIKISHIVA = (
 CATEGORY_DELETED_ON_WIKIPEDIA_KEPT = (
     "קטגוריה:המכלול: ערכים שנמחקו בוויקיפדיה"
 )
+CATEGORY_SPLIT_FROM_WIKIPEDIA = (
+    "קטגוריה:המכלול: ערכים מוויקיפדיה שפוצלו במכלול"
+)
 
 BATCH_SIZE = 500
 REQUEST_DELAY_SECONDS = 0.2
@@ -62,9 +65,13 @@ STATUS_IMPORTED_UNDOCUMENTED = "מיובא ללא תיעוד"
 STATUS_IMPORTED_FROM_CHABADPEDIA = 'ייבוא מחב"דפדיה'
 STATUS_IMPORTED_FROM_WIKISHIVA = "ייבוא מוויקישיבה"
 STATUS_KEPT_AFTER_WIKIPEDIA_DELETION = "נשמר במכלול למרות מחיקה בוויקיפדיה"
+STATUS_SPLIT_FROM_WIKIPEDIA = "פוצל מתוכן ויקיפדי"
 
 # סטטוסים שבהם כותרת זהה לוויקיפדיה היא צירוף מקרים בלבד, לא עדות
-# לייבוא אמיתי - נוצר עצמאית במכלול, או יובא ממקור אחר (חב"דפדיה/ויקישיבה).
+# לייבוא אמיתי - נוצר עצמאית במכלול, או יובא ממקור אחר (חב"דפדיה/ויקישיבה),
+# או פוצל מתוכן ויקיפדי לכותרת חדשה שמעולם לא הייתה קיימת שם (הכותרת
+# עצמה "נוצרה במכלול" לצורך כל בדיקה טכנית - רק מקור התוכן/זכויות
+# היוצרים שונה, ונשמר כסטטוס נפרד לצורך תיעוד ומעקב, לא לצורך התאמה).
 # בכוונה לא כולל STATUS_KEPT_AFTER_WIKIPEDIA_DELETION - שם הכותרת כן
 # מייצגת ייבוא אמיתי-היסטורי מוויקיפדיה (רק שהערך שם כבר לא קיים),
 # ולכן אם אי-פעם תימצא בכל זאת התאמה (למשל הערך נוצר מחדש בוויקיפדיה),
@@ -75,6 +82,7 @@ NOT_REALLY_IMPORTED_STATUSES = (
     STATUS_CREATED_IN_MECHALOL,
     STATUS_IMPORTED_FROM_CHABADPEDIA,
     STATUS_IMPORTED_FROM_WIKISHIVA,
+    STATUS_SPLIT_FROM_WIKIPEDIA,
 )
 
 # סטטוסים שבהם אין טעם לחפש/להתריע על חוסר התאמה לוויקיפדיה - כולל גם

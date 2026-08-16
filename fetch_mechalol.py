@@ -32,12 +32,14 @@ from config import (
     CATEGORY_IMPORTED_FROM_CHABADPEDIA,
     CATEGORY_IMPORTED_FROM_WIKISHIVA,
     CATEGORY_DELETED_ON_WIKIPEDIA_KEPT,
+    CATEGORY_SPLIT_FROM_WIKIPEDIA,
     STATUS_CREATED_IN_MECHALOL,
     STATUS_IMPORTED_DOCUMENTED,
     STATUS_IMPORTED_UNDOCUMENTED,
     STATUS_IMPORTED_FROM_CHABADPEDIA,
     STATUS_IMPORTED_FROM_WIKISHIVA,
     STATUS_KEPT_AFTER_WIKIPEDIA_DELETION,
+    STATUS_SPLIT_FROM_WIKIPEDIA,
 )
 from supabase_client import get_client
 
@@ -461,18 +463,25 @@ def main():
     deleted_on_wikipedia_kept = collect_direct_titles(
         CATEGORY_DELETED_ON_WIKIPEDIA_KEPT, "ערכים שנמחקו בוויקיפדיה ונשמרו"
     )
+    split_from_wikipedia = collect_direct_titles(
+        CATEGORY_SPLIT_FROM_WIKIPEDIA, "ערכים שפוצלו מתוכן ויקיפדי"
+    )
 
     last_update_map = get_last_update_map()
 
     # מקור מכלולי-פנימי/חיצוני-לא-ויקיפדי, או ויקיפדי-היסטורי-בלבד,
     # לעניין last_update_month (אין להם קטגוריית עדכון חודשי רלוונטית)
-    created_sources = created | translated | pirushonim | chabadpedia | wikishiva | deleted_on_wikipedia_kept
+    created_sources = (
+        created | translated | pirushonim | chabadpedia | wikishiva
+        | deleted_on_wikipedia_kept | split_from_wikipedia
+    )
 
     log(
         f"סיכום | נוצרו={len(created):,} | תורגמו={len(translated):,} | "
         f"פירושונים={len(pirushonim):,} | חסרי_מיון={len(missing_sort):,} | "
         f"חב\"דפדיה={len(chabadpedia):,} | ויקישיבה={len(wikishiva):,} | "
-        f"נמחקו_בוויקיפדיה_ונשמרו={len(deleted_on_wikipedia_kept):,}"
+        f"נמחקו_בוויקיפדיה_ונשמרו={len(deleted_on_wikipedia_kept):,} | "
+        f"פוצלו_מוויקיפדיה={len(split_from_wikipedia):,}"
     )
 
     total = progress.get("uploaded_count", 0)
@@ -500,6 +509,8 @@ def main():
                 status, source_type = STATUS_IMPORTED_FROM_WIKISHIVA, "wikishiva"
             elif title in deleted_on_wikipedia_kept:
                 status, source_type = STATUS_KEPT_AFTER_WIKIPEDIA_DELETION, "wikipedia_deleted_kept"
+            elif title in split_from_wikipedia:
+                status, source_type = STATUS_SPLIT_FROM_WIKIPEDIA, "split_from_wikipedia"
             elif title in missing_sort:
                 status, source_type = STATUS_IMPORTED_UNDOCUMENTED, "unknown"
             else:

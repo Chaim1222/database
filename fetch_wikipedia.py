@@ -2,6 +2,14 @@
 שליפת כל כותרות הערכים ממרחב השם הראשי בוויקיפדיה העברית,
 והכנסתן/עדכונן בטבלת wikipedia_pages בסופרבייס.
 
+בסוף כל סריקה מלאה ורצופה (לא המשך של initial_run שנעצר) - מנקה גם
+שורות wikipedia_pages שה-page_id שלהן לא נצפה בסריקה הנוכחית (הדף כבר
+לא קיים במרחב הראשי, מכל סיבה שהיא - מחיקה, העברה למרחב אחר, וכו').
+זו השוואת מצב-מול-מצב פשוטה, במקום פענוח יומן אירועים (הגישה הקודמת,
+ב-check_wikipedia_deletions.py, שהוסר) - לא מעניין אותנו *מה* קרה
+ו*מתי*, רק מה המצב הנוכחי לעומת מה שהיה. מקביל בדיוק ל-
+cleanup_deleted_from_mechalol ב-fetch_mechalol.py.
+
 שימוש (הרצה ראשונית ומלאה):
     python fetch_wikipedia.py
 
@@ -12,6 +20,7 @@
 import json
 import os
 import time
+from datetime import datetime, timezone
 
 import requests
 
@@ -21,6 +30,7 @@ from config import (
     REQUEST_DELAY_SECONDS,
     REQUEST_HEADERS,
     API_BATCH_SIZE_TEMPLATE_CHECK,
+    WIKIPEDIA_MATCH_NOT_EXPECTED_STATUSES,
 )
 from supabase_client import get_client
 
@@ -159,7 +169,11 @@ def upsert_batch(client, batch):
         return
 
     batch = dedupe_batch_titles(batch)
-    rows = [{"title": title, "page_id": page_id} for title, page_id in batch]
+    checked_at = datetime.now(timezone.utc).isoformat()
+    rows = [
+        {"title": title, "page_id": page_id, "checked_at": checked_at}
+        for title, page_id in batch
+    ]
 
     for attempt in range(1, MAX_SUPABASE_RETRIES + 1):
         try:
@@ -177,8 +191,90 @@ def upsert_batch(client, batch):
                 raise
 
 
+def get_existing_page_ids(client):
+    """שולף (id, page_id) עבור כל השורות הקיימות כרגע ב-wikipedia_pages, בעימוד."""
+    pairs = []
+    last_id = 0
+
+    while True:
+        result = (
+            client.table("wikipedia_pages")
+            .select("id, page_id")
+            .gt("id", last_id)
+            .order("id")
+            .limit(BATCH_SIZE)
+            .execute()
+        )
+        rows = result.data or []
+        if not rows:
+            break
+
+        pairs.extend((row["page_id"], row["id"]) for row in rows)
+        last_id = rows[-1]["id"]
+
+        if len(rows) < BATCH_SIZE:
+            break
+
+    return pairs
+
+
+def cleanup_stale_wikipedia_pages(client, seen_page_ids):
+    """
+    מוחק שורות wikipedia_pages שה-page_id שלהן לא הופיע בסריקה המלאה
+    הנוכחית - הדף כבר לא קיים במרחב הראשי (מכל סיבה: מחיקה, העברה
+    למרחב אחר, וכו' - לא מעניין אותנו מה בדיוק, רק שהוא לא שם היום).
+
+    לפני מחיקת כל שורה כזו - משחררים קודם הפניות אליה מ-
+    mechalol_pages.wikipedia_id (אם ישנן - התאמה אמיתית שקיימת),
+    ומסמנים deleted_from_wikipedia=true על השורות ששוחררו (רק אם ה-
+    status שלהן מעיד על ייבוא אמיתי - לא WIKIPEDIA_MATCH_NOT_EXPECTED_STATUSES).
+    זה מונע קריסה על אילוץ מפתח זר, ומאפשר בדיקה מחדש אוטומטית ב-match.py
+    אם הערך ייווצר מחדש בעתיד (ראו should_reexamine).
+    """
+    existing = get_existing_page_ids(client)
+    stale_ids = [row_id for page_id, row_id in existing if page_id not in seen_page_ids]
+
+    if not stale_ids:
+        print("ניקוי | לא נמצאו שורות שנעלמו מוויקיפדיה")
+        return 0
+
+    print(f"ניקוי | {len(stale_ids):,} שורות עם page_id שלא נמצא בסריקה הנוכחית")
+
+    for i in range(0, len(stale_ids), API_BATCH_SIZE_TEMPLATE_CHECK):
+        chunk = stale_ids[i:i + API_BATCH_SIZE_TEMPLATE_CHECK]
+
+        referencing = (
+            client.table("mechalol_pages")
+            .select("id, status")
+            .in_("wikipedia_id", chunk)
+            .execute()
+        )
+        to_flag = [
+            row["id"] for row in (referencing.data or [])
+            if row["status"] not in WIKIPEDIA_MATCH_NOT_EXPECTED_STATUSES
+        ]
+        to_release_only = [
+            row["id"] for row in (referencing.data or [])
+            if row["status"] in WIKIPEDIA_MATCH_NOT_EXPECTED_STATUSES
+        ]
+
+        if to_flag:
+            client.table("mechalol_pages").update(
+                {"deleted_from_wikipedia": True, "wikipedia_id": None}
+            ).in_("id", to_flag).execute()
+        if to_release_only:
+            client.table("mechalol_pages").update(
+                {"wikipedia_id": None}
+            ).in_("id", to_release_only).execute()
+
+        client.table("wikipedia_pages").delete().in_("id", chunk).execute()
+
+    return len(stale_ids)
+
+
 def main():
     done, apcontinue = load_progress()
+    is_resumed = apcontinue is not None
 
     if done:
         print("שליפת ויקיפדיה כבר הושלמה בעבר - מדלג. (למחוק את wikipedia_progress.json כדי לאלץ שליפה מחדש)")
@@ -186,14 +282,25 @@ def main():
 
     client = get_client()
     total = 0
+    seen_page_ids = set()
 
     for batch in fetch_all_titles(apcontinue):
+        seen_page_ids.update(page_id for _, page_id in batch)
         upsert_batch(client, batch)
         total += len(batch)
         print(f"נטענו {total} כותרות עד כה")
 
     save_progress(None, done=True)
     print(f"סיום. סה\"כ {total} כותרות נטענו מוויקיפדיה העברית")
+
+    # ניקוי דפים שנעלמו מוויקיפדיה - רק אם הסריקה בוצעה ברצף אחד בתהליך
+    # הזה (לא המשך של initial_run שנעצר), כי אחרת seen_page_ids לא
+    # מכיל את הכותרות שכבר נסרקו בתהליכים קודמים ותהיה מחיקה שגויה.
+    if is_resumed:
+        print("ניקוי | דולג - זו המשך ריצה שהתחילה בתהליך קודם (seen_page_ids חלקי)")
+    else:
+        removed = cleanup_stale_wikipedia_pages(client, seen_page_ids)
+        print(f"ניקוי | הוסרו {removed:,} שורות שלא קיימות עוד בוויקיפדיה")
 
 
 if __name__ == "__main__":
