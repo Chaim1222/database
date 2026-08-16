@@ -493,6 +493,7 @@ def main():
             continue
 
         rows = []
+        checked_at = datetime.now(timezone.utc).isoformat()
 
         for title, page_id in batch:
             seen_page_ids.add(page_id)
@@ -511,17 +512,21 @@ def main():
                 status, source_type = STATUS_KEPT_AFTER_WIKIPEDIA_DELETION, "wikipedia_deleted_kept"
             elif title in split_from_wikipedia:
                 status, source_type = STATUS_SPLIT_FROM_WIKIPEDIA, "split_from_wikipedia"
+            elif title in last_update_map:
+                # הוכחה זולה ומדויקת ל"יש תבנית מיון תקינה": קטגוריות
+                # התיארוך ("עודכן לאחרונה ב-X") מבוססות על תבנית
+                # {{מיון ויקיפדיה}} עצמה - חברות בהן = יש תבנית פעילה,
+                # בלי שום קריאת API נוספת (last_update_map כבר נשלף
+                # ממילא). מחליף את ה"ניחוש הבטוח" הישן - ראו היסטוריית
+                # השינויים לפירוט המלא.
+                status, source_type = STATUS_IMPORTED_DOCUMENTED, "wikipedia_documented"
             elif title in missing_sort:
-                status, source_type = STATUS_IMPORTED_UNDOCUMENTED, "unknown"
+                status, source_type = STATUS_IMPORTED_UNDOCUMENTED, "missing_sort"
             else:
-                # ponytail: אין קטגוריית "יש תבנית מיון" חיובית - זה עדיין
-                # ניחוש, רק בכיוון הבטוח יותר (undocumented). ערכים ישנים
-                # שיובאו לפני שהנוהג של {{מיון ויקיפדיה}}/missing_sort
-                # הונהג נופלים לכאן ואין דרך זולה להבדיל "יש תבנית" מ
-                # "מעולם לא נבדק". שדרוג: match.py כבר בודק בפועל אם יש
-                # תבנית (שלב 4, pending בלבד) - אפשר להרחיב את הבדיקה
-                # לכל השורות ולעדכן status בדיעבד לפי
-                # normalization_method=='תבנית_מיון' לעומת לא-נמצא.
+                # אין קטגוריית תיארוך ואין קטגוריית "חסר תבנית מיון" -
+                # מעולם לא נבדק/לא ידוע, לא "בטוח שאין תבנית". לא ניתן
+                # להבדיל בזול מ"יש תבנית אך טרם תויירך" - match.py שלב 4
+                # (pending בלבד) מהווה בדיקת-אמת חיה משלימה למקרים כאלה.
                 status, source_type = STATUS_IMPORTED_UNDOCUMENTED, "unknown"
 
             last_update_month = (
@@ -535,6 +540,7 @@ def main():
                 "status": status,
                 "source_type": source_type,
                 "last_update_month": last_update_month,
+                "checked_at": checked_at,
                 # match_type לא נשלח - ברירת מחדל בטבלה בלבד (ראו הערת מודול).
                 "needs_attention": title in pages_to_open,
                 "is_dictionary_entry": title in dictionary_entries,
