@@ -99,20 +99,20 @@ def dedupe_batch_titles(batch):
 
 def find_stale_title_collisions(existing_rows, new_rows):
     """
-    כל שורה קיימת ב-wikipedia_pages שהכותרת שלה מופיעה גם באצווה
-    החדשה - נמחקת בלי תנאי, גם אם ה-page_id שלה עצמו נמצא באצווה.
-
-    חשוב: בכוונה *לא* מחריגים שורה רק כי ה-page_id שלה מופיע באצווה.
-    אם page_id זהה, השורה תוחדר מחדש מייד באותו upsert עם הנתונים
-    המעודכנים - אין סיכון לאובדן מידע. ההחרגה הזו הייתה הבאג המקורי:
-    היא פספסה בדיוק את מקרה "החלפת כותרות" - עמוד A זז מהכותרת X
-    (לכותרת חדשה, עדיין באותה אצווה), ועמוד B זז *אל* הכותרת X (גם הוא
-    באותה אצווה). ה-page_id של A כן מופיע באצווה (עם כותרת אחרת) -
-    בדיקה לפי page_id הייתה מדלגת עליו ומשאירה את השורה הישנה שלו עם
-    הכותרת X, מתנגשת עם B, בלי שום דרך לפתור את זה בניסיון חוזר.
+    שורה קיימת נחשבת "מיושנת/מתנגשת" רק אם הכותרת שלה תואמת כותרת
+    באצווה החדשה *וגם* ה-page_id שלה שונה מה-page_id שהאצווה משייכת
+    לאותה כותרת בדיוק. אם page_id זהה - זו פשוט אותה שורה במדויק (עדכון
+    רגיל, לא התנגשות) - לא נוגעים בה. הגרסה הקודמת מחקה כל שורה שהכותרת
+    שלה תאמה, גם אם page_id זהה, מה שגרם למחיקת שורות תקינות בטעות -
+    כולל שורות שמכלול_pages מקושר אליהן, וקרס על אילוץ מפתח זר.
     """
-    new_titles = {title for title, _ in new_rows}
-    return [row["id"] for row in existing_rows if row["title"] in new_titles]
+    new_page_id_by_title = dict(new_rows)
+    return [
+        row["id"]
+        for row in existing_rows
+        if row["title"] in new_page_id_by_title
+        and row["page_id"] != new_page_id_by_title[row["title"]]
+    ]
 
 
 def resolve_title_collisions(client, batch):
@@ -135,6 +135,15 @@ def resolve_title_collisions(client, batch):
     stale_ids = find_stale_title_collisions(existing, batch)
 
     if stale_ids:
+        # לפני מחיקה - לשחרר הפניות מ-mechalol_pages.wikipedia_id לשורות
+        # המיושנות האלה (אם יש כאלה - התאמה אמיתית וקיימת שכבר בוצעה
+        # דרך match.py), כדי לא ליפול על אילוץ מפתח זר. השורות המשוחררות
+        # (wikipedia_id=NULL) ייבדקו מחדש אוטומטית ב-match.py בריצה
+        # הבאה, בזכות should_reexamine.
+        for i in range(0, len(stale_ids), API_BATCH_SIZE_TEMPLATE_CHECK):
+            chunk = stale_ids[i:i + API_BATCH_SIZE_TEMPLATE_CHECK]
+            client.table("mechalol_pages").update({"wikipedia_id": None}).in_("wikipedia_id", chunk).execute()
+
         print(f"WARNING | התנגשות כותרת/page_id | מוחק {len(stale_ids)} שורות מיושנות: {stale_ids}")
         client.table("wikipedia_pages").delete().in_("id", stale_ids).execute()
 
