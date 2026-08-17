@@ -84,12 +84,18 @@ def rule_break_hyphen(t):
 
 
 def rule_hebrew_year_final_letter(t):
+    """
+    שנה עברית מלאה עם קידומת אלפים: אות(א-ה) + גרש + אותיות (משתנה) +
+    גרשיים + אות אחרונה. הגרשיים תמיד לפני האות האחרונה, לא אחריה
+    (לדוגמה: ה'תש"ף). בוויקיפדיה האות האחרונה נכתבת בצורתה הסופית אם
+    היא שייכת למנצפ"ך; במכלול היא נכתבת כאות רגילה. מאומת מול הכותרת
+    האמיתית של הערך "ה'תש"ף" בוויקיפדיה העברית.
+    """
     def repl(m):
-        letter, quote = m.group(1), m.group(2)
-        return FINAL_LETTERS.get(letter, letter) + quote
+        prefix, letter = m.group(1), m.group(2)
+        return prefix + FINAL_LETTERS.get(letter, letter)
 
-    # לא רק בסוף הכותרת - בכל מקום שבו יש אות+גרש/גרשיים שאינו סוף מילה עברית.
-    new = re.sub(r"([כמנפצ])(['\"])(?![א-ת])", repl, t)
+    new = re.sub(r"([א-ה]'[א-ת]+\")([כמנפצ])(?![א-ת])", repl, t)
     return new, new != t, "אות_סופית_שנה"
 
 
