@@ -23,15 +23,10 @@ normalization_checked, אין should_reexamine - כל אלה התייתרו לג
 
 import re
 import time
-from datetime import datetime, timezone
-
-import requests
 
 from config import (
     BATCH_SIZE,
-    MECHALOL_API,
     REQUEST_DELAY_SECONDS,
-    REQUEST_HEADERS,
     API_BATCH_SIZE_TEMPLATE_CHECK,
     NOT_REALLY_IMPORTED_STATUSES,
     WIKIPEDIA_MATCH_NOT_EXPECTED_STATUSES,
@@ -40,31 +35,14 @@ from config import (
     MATCH_TYPE_SAME_TITLE_UNRELATED,
 )
 from normalize import hygiene, normalize_title
-from supabase_client import get_client
-
-
-MAX_RETRIES = 5
-RETRY_DELAY = 3
-
-session = requests.Session()
-session.headers.update(REQUEST_HEADERS)
-
-
-def log(message):
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-    print(f"[{now}] {message}", flush=True)
+from supabase_client import get_client, execute_with_retry as _execute_with_retry
+from mechalol_api import log, api_get_with_retry
 
 
 def execute_with_retry(operation, description):
-    for attempt in range(1, MAX_RETRIES + 1):
-        try:
-            return operation()
-        except Exception as exc:
-            if attempt >= MAX_RETRIES:
-                log(f"ERROR | {description} | נכשל אחרי {MAX_RETRIES} ניסיונות: {exc}")
-                raise
-            log(f"WARNING | {description} | ניסיון {attempt}/{MAX_RETRIES} נכשל: {exc}. ניסיון חוזר בעוד {RETRY_DELAY}ש")
-            time.sleep(RETRY_DELAY)
+    # עטיפה דקה - כדי שהלוג יכלול חותמת זמן (log() מ-mechalol_api),
+    # בלי לשנות אף call site קיים בקובץ הזה.
+    return _execute_with_retry(operation, description, log_fn=log)
 
 
 # ---------------------------------------------------------------------------
@@ -197,20 +175,7 @@ def fetch_template_titles(titles):
         "format": "json",
     }
 
-    for attempt in range(1, MAX_RETRIES + 1):
-        try:
-            response = session.get(MECHALOL_API, params=params, timeout=(15, 60))
-            response.raise_for_status()
-            data = response.json()
-            break
-        except (requests.RequestException, ValueError) as exc:
-            if attempt >= MAX_RETRIES:
-                log(f"ERROR | template batch | נכשל אחרי {MAX_RETRIES}: {exc}")
-                raise
-            log(f"WARNING | template batch | ניסיון {attempt}/{MAX_RETRIES}: {exc}")
-            time.sleep(RETRY_DELAY)
-    else:
-        return result
+    data = api_get_with_retry(params, "template batch")
 
     if "error" in data:
         error_code = data["error"].get("code")

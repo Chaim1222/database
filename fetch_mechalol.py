@@ -413,70 +413,75 @@ def main():
     total = progress.get("uploaded_count", 0)
     batch_number = progress.get("upload_batch", 0)
 
-    for batch in fetch_all_titles(progress):
-        if not batch:
-            continue
+    try:
+        for batch in fetch_all_titles(progress):
+            if not batch:
+                continue
 
-        rows = []
+            rows = []
 
-        for title, page_id in batch:
-            if title in created:
-                status, source_type = STATUS_CREATED_IN_MECHALOL, "created"
-            elif title in translated:
-                status, source_type = STATUS_CREATED_IN_MECHALOL, "translated"
-            elif title in pirushonim:
-                status, source_type = STATUS_CREATED_IN_MECHALOL, "pirushon"
-            elif title in chabadpedia:
-                status, source_type = STATUS_IMPORTED_FROM_CHABADPEDIA, "chabadpedia"
-            elif title in wikishiva:
-                status, source_type = STATUS_IMPORTED_FROM_WIKISHIVA, "wikishiva"
-            elif title in deleted_on_wikipedia_kept:
-                status, source_type = STATUS_KEPT_AFTER_WIKIPEDIA_DELETION, "wikipedia_deleted_kept"
-            elif title in split_from_wikipedia:
-                status, source_type = STATUS_SPLIT_FROM_WIKIPEDIA, "split_from_wikipedia"
-            elif title in last_update_map:
-                # הוכחה זולה ומדויקת ל"יש תבנית מיון תקינה": קטגוריות
-                # התיארוך ("עודכן לאחרונה ב-X") מבוססות על תבנית
-                # {{מיון ויקיפדיה}} עצמה - חברות בהן = יש תבנית פעילה,
-                # בלי שום קריאת API נוספת (last_update_map כבר נשלף
-                # ממילא). מחליף את ה"ניחוש הבטוח" הישן - ראו היסטוריית
-                # השינויים לפירוט המלא.
-                status, source_type = STATUS_IMPORTED_DOCUMENTED, "wikipedia_documented"
-            elif title in missing_sort:
-                status, source_type = STATUS_IMPORTED_UNDOCUMENTED, "missing_sort"
-            else:
-                # אין קטגוריית תיארוך ואין קטגוריית "חסר תבנית מיון" -
-                # מעולם לא נבדק/לא ידוע, לא "בטוח שאין תבנית". לא ניתן
-                # להבדיל בזול מ"יש תבנית אך טרם תויירך" - match.py שלב 4
-                # (pending בלבד) מהווה בדיקת-אמת חיה משלימה למקרים כאלה.
-                status, source_type = STATUS_IMPORTED_UNDOCUMENTED, "unknown"
+            for title, page_id in batch:
+                if title in created:
+                    status, source_type = STATUS_CREATED_IN_MECHALOL, "created"
+                elif title in translated:
+                    status, source_type = STATUS_CREATED_IN_MECHALOL, "translated"
+                elif title in pirushonim:
+                    status, source_type = STATUS_CREATED_IN_MECHALOL, "pirushon"
+                elif title in chabadpedia:
+                    status, source_type = STATUS_IMPORTED_FROM_CHABADPEDIA, "chabadpedia"
+                elif title in wikishiva:
+                    status, source_type = STATUS_IMPORTED_FROM_WIKISHIVA, "wikishiva"
+                elif title in deleted_on_wikipedia_kept:
+                    status, source_type = STATUS_KEPT_AFTER_WIKIPEDIA_DELETION, "wikipedia_deleted_kept"
+                elif title in split_from_wikipedia:
+                    status, source_type = STATUS_SPLIT_FROM_WIKIPEDIA, "split_from_wikipedia"
+                elif title in last_update_map:
+                    # הוכחה זולה ומדויקת ל"יש תבנית מיון תקינה": קטגוריות
+                    # התיארוך ("עודכן לאחרונה ב-X") מבוססות על תבנית
+                    # {{מיון ויקיפדיה}} עצמה - חברות בהן = יש תבנית פעילה,
+                    # בלי שום קריאת API נוספת (last_update_map כבר נשלף
+                    # ממילא). מחליף את ה"ניחוש הבטוח" הישן - ראו היסטוריית
+                    # השינויים לפירוט המלא.
+                    status, source_type = STATUS_IMPORTED_DOCUMENTED, "wikipedia_documented"
+                elif title in missing_sort:
+                    status, source_type = STATUS_IMPORTED_UNDOCUMENTED, "missing_sort"
+                else:
+                    # אין קטגוריית תיארוך ואין קטגוריית "חסר תבנית מיון" -
+                    # מעולם לא נבדק/לא ידוע, לא "בטוח שאין תבנית". לא ניתן
+                    # להבדיל בזול מ"יש תבנית אך טרם תויירך" - match.py שלב 4
+                    # (pending בלבד) מהווה בדיקת-אמת חיה משלימה למקרים כאלה.
+                    status, source_type = STATUS_IMPORTED_UNDOCUMENTED, "unknown"
 
-            last_update_month = (
-                None if title in created_sources or title in missing_sort
-                else last_update_map.get(title)
-            )
+                last_update_month = (
+                    None if title in created_sources or title in missing_sort
+                    else last_update_map.get(title)
+                )
 
-            rows.append({
-                "id": page_id,
-                "title": title,
-                "status": status,
-                "source_type": source_type,
-                "last_update_month": last_update_month,
-                # match_type לא נשלח - ברירת מחדל בטבלה בלבד (ראו הערת מודול).
-                "needs_attention": title in pages_to_open,
-                "is_dictionary_entry": title in dictionary_entries,
-            })
+                rows.append({
+                    "id": page_id,
+                    "title": title,
+                    "status": status,
+                    "source_type": source_type,
+                    "last_update_month": last_update_month,
+                    # match_type לא נשלח - ברירת מחדל בטבלה בלבד (ראו הערת מודול).
+                    "needs_attention": title in pages_to_open,
+                    "is_dictionary_entry": title in dictionary_entries,
+                })
 
-        batch_number += 1
-        total += len(rows)
+            batch_number += 1
+            total += len(rows)
 
-        upsert_rows(client, rows, batch_number, total)
+            upsert_rows(client, rows, batch_number, total)
 
-        progress["upload_batch"] = batch_number
-        progress["uploaded_count"] = total
-        progress["last_update"] = utc_now()
-        save_progress(progress)
-        heartbeat(force=True)
+            progress["upload_batch"] = batch_number
+            progress["uploaded_count"] = total
+            progress["last_update"] = utc_now()
+            save_progress(progress)
+            heartbeat(force=True)
+    except Exception:
+        log("שגיאה אמיתית באמצע הריצה - מוחק את קובץ ההתקדמות כדי שהריצה הבאה תתחיל מחדש", logging.ERROR)
+        clear_progress()
+        raise
 
     clear_progress()
 

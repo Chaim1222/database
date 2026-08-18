@@ -11,9 +11,12 @@
 שימוש (הרצה ראשונית ומלאה):
     python fetch_wikipedia.py
 
-הסקריפט תומך בהמשכה: אם הריצה נקטעת (למשל בגלל מגבלת זמן של גיטהאב אקשנס),
-הרצה חוזרת תמשיך מנקודת ההמשך האחרונה שנשמרה בקובץ progress - ובמקרה כזה
-*לא* מרוקנת מחדש (אחרת היו אובדות התוצאות שכבר נשמרו מהריצה הקודמת).
+הסקריפט תומך בהמשכה: אם הריצה נקטעת עקב מגבלת זמן של גיטהאב אקשנס (הריגה
+חיצונית של התהליך, בלי הזדמנות להגיב) - קובץ ה-progress נשאר במצבו האחרון
+השמור, והרצה חוזרת ממשיכה ממנו *בלי* ריקון מחדש (אחרת היו אובדות התוצאות
+שכבר נשמרו). לעומת זאת, אם מתרחשת שגיאה אמיתית בתוך הקוד עצמו (חריגה שלא
+נפתרה) - קובץ ה-progress נמחק לפני שהחריגה מועלית הלאה, כדי שהריצה הבאה
+תתחיל מחדש עם ריקון, ולא "תמשיך" ממצב שאולי לא אמין.
 """
 
 import json
@@ -34,6 +37,7 @@ from supabase_client import get_client
 
 PROGRESS_FILE = "wikipedia_progress.json"
 MAX_SUPABASE_RETRIES = 5
+MAX_API_RETRIES = 5
 
 
 def load_progress():
@@ -68,9 +72,19 @@ def fetch_all_titles(apcontinue):
         if apcontinue:
             params["apcontinue"] = apcontinue
 
-        response = requests.get(WIKIPEDIA_API, params=params, headers=REQUEST_HEADERS, timeout=30)
-        response.raise_for_status()
-        data = response.json()
+        data = None
+        for attempt in range(1, MAX_API_RETRIES + 1):
+            try:
+                response = requests.get(WIKIPEDIA_API, params=params, headers=REQUEST_HEADERS, timeout=30)
+                response.raise_for_status()
+                data = response.json()
+                break
+            except (requests.RequestException, ValueError) as exc:
+                if attempt >= MAX_API_RETRIES:
+                    print(f"שגיאת API | ניסיון {attempt}/{MAX_API_RETRIES}: {exc}")
+                    raise
+                print(f"WARNING | שגיאת API | ניסיון {attempt}/{MAX_API_RETRIES}: {exc}")
+                time.sleep(min(2 ** (attempt - 1), 30))
 
         pages = data.get("query", {}).get("allpages", [])
         yield [(p["title"], p["pageid"]) for p in pages]
@@ -207,10 +221,16 @@ def main():
 
     total = 0
 
-    for batch in fetch_all_titles(apcontinue):
-        upsert_batch(client, batch)
-        total += len(batch)
-        print(f"נטענו {total} כותרות עד כה")
+    try:
+        for batch in fetch_all_titles(apcontinue):
+            upsert_batch(client, batch)
+            total += len(batch)
+            print(f"נטענו {total} כותרות עד כה")
+    except Exception:
+        print("שגיאה אמיתית באמצע הריצה - מוחק את קובץ ההתקדמות כדי שהריצה הבאה תתחיל מחדש עם ריקון")
+        if os.path.exists(PROGRESS_FILE):
+            os.remove(PROGRESS_FILE)
+        raise
 
     save_progress(None, done=True)
     print(f"סיום. סה\"כ {total} כותרות נטענו מוויקיפדיה העברית")
