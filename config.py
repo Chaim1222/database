@@ -85,12 +85,11 @@ NOT_REALLY_IMPORTED_STATUSES = (
     STATUS_SPLIT_FROM_WIKIPEDIA,
 )
 
-# סטטוסים שבהם אין טעם לחפש/להתריע על חוסר התאמה לוויקיפדיה - כולל גם
+# סטטוסים שבהם אין טעם להתריע על חוסר התאמה לוויקיפדיה - כולל גם
 # את NOT_REALLY_IMPORTED_STATUSES (מקור לא-ויקיפדי מלכתחילה), וגם
 # STATUS_KEPT_AFTER_WIKIPEDIA_DELETION (מקור ויקיפדי היסטורית, אבל
 # ידוע מראש וללא צורך בהתרעה - הוחלט במפורש להשאיר במכלול). בשימוש
-# ב-match.py (should_reexamine + מניעת maybe_deleted_from_wikipedia)
-# וב-check_wikipedia_deletions.py (החרגה מ-deleted_from_wikipedia).
+# ב-match.py בלבד (מניעת maybe_deleted_from_wikipedia שווא).
 WIKIPEDIA_MATCH_NOT_EXPECTED_STATUSES = NOT_REALLY_IMPORTED_STATUSES + (
     STATUS_KEPT_AFTER_WIKIPEDIA_DELETION,
 )

@@ -301,16 +301,18 @@ def fetch_all_titles(progress):
     log(f"כל הדפים | הסריקה הסתיימה | {total:,}")
 
 
-# ponytail: כותרת שהייתה שייכת ל-page_id ישן (שונה/נמחק/הועבר בוויקי)
-# ונתפסה כעת ע"י page_id חדש. הסריקה היא תמונת מצב חיה של הוויקי - אין
-# שני page_id חיים עם אותה כותרת בו-זמנית - אז כל שורה קיימת בטבלה עם
-# אותה כותרת ו-page_id שונה מהחדש היא בהכרח מיושנת, ואפשר למחוק אותה
-# בבטחון. תקרה: לא מטפל במקרה של שתי שורות *חדשות* באותה אצווה
-# שמתחרות על אותה כותרת בו-זמנית - לא אמור לקרות (MediaWiki לא מאפשר
-# שתי כותרות חיות זהות), ולא נצפה בפועל.
+# שורה קיימת נחשבת "מיושנת/מתנגשת" רק אם הכותרת שלה תואמת כותרת
+# באצווה החדשה *וגם* ה-id (page_id) שלה שונה מה-page_id שהאצווה משייכת
+# לאותה כותרת בדיוק. אם ה-id זהה - זו פשוט אותה שורה במדויק (עדכון
+# רגיל, לא התנגשות) - לא נוגעים בה.
 def find_stale_title_collisions(existing_rows, new_rows):
-    new_page_ids = {r["page_id"] for r in new_rows}
-    return [row["id"] for row in existing_rows if row["page_id"] not in new_page_ids]
+    new_id_by_title = {r["title"]: r["id"] for r in new_rows}
+    return [
+        row["id"]
+        for row in existing_rows
+        if row["title"] in new_id_by_title
+        and row["id"] != new_id_by_title[row["title"]]
+    ]
 
 
 def resolve_title_collisions(client, rows):
@@ -325,7 +327,7 @@ def resolve_title_collisions(client, rows):
         chunk = titles[i:i + API_BATCH_SIZE_TEMPLATE_CHECK]
         result = (
             client.table("mechalol_pages")
-            .select("id, title, page_id")
+            .select("id, title")
             .in_("title", chunk)
             .execute()
         )
@@ -334,7 +336,7 @@ def resolve_title_collisions(client, rows):
     stale_ids = find_stale_title_collisions(existing, rows)
 
     if stale_ids:
-        log(f"WARNING | התנגשות כותרת/page_id | מוחק {len(stale_ids)} שורות מיושנות: {stale_ids}")
+        log(f"WARNING | התנגשות כותרת/id | מוחק {len(stale_ids)} שורות מיושנות: {stale_ids}")
         client.table("mechalol_pages").delete().in_("id", stale_ids).execute()
 
     return bool(stale_ids)
@@ -350,7 +352,7 @@ def upsert_rows(client, rows, batch_number, total):
 
     for attempt in range(1, MAX_SUPABASE_RETRIES + 1):
         try:
-            client.table("mechalol_pages").upsert(rows, on_conflict="page_id").execute()
+            client.table("mechalol_pages").upsert(rows, on_conflict="id").execute()
             log(f"Supabase | אצווה #{batch_number:,} | {len(rows):,} שורות | סה״כ {total:,}")
             return
         except Exception as exc:
@@ -369,84 +371,8 @@ def upsert_rows(client, rows, batch_number, total):
                 raise
 
 
-def get_existing_page_ids(client):
-    """שולף (page_id, id) עבור כל השורות הקיימות כרגע ב-mechalol_pages, בעימוד."""
-    pairs = set()
-    last_id = 0
-
-    while True:
-        for attempt in range(1, MAX_SUPABASE_RETRIES + 1):
-            try:
-                result = (
-                    client.table("mechalol_pages")
-                    .select("id, page_id")
-                    .gt("id", last_id)
-                    .order("id")
-                    .limit(BATCH_SIZE)
-                    .execute()
-                )
-                break
-            except Exception as exc:
-                if attempt >= MAX_SUPABASE_RETRIES:
-                    raise
-                log(
-                    f"שגיאת Supabase | שליפת page_id קיימים | ניסיון {attempt}/{MAX_SUPABASE_RETRIES}: {exc}",
-                    logging.WARNING,
-                )
-                time.sleep(min(2 ** (attempt - 1), 30))
-
-        rows = result.data or []
-        if not rows:
-            break
-
-        for row in rows:
-            pairs.add((row["page_id"], row["id"]))
-
-        last_id = rows[-1]["id"]
-        if len(rows) < BATCH_SIZE:
-            break
-
-    return pairs
-
-
-def cleanup_deleted_from_mechalol(client, current_page_ids):
-    """
-    מוחק שורות שה-page_id שלהן לא הופיע בסריקה המלאה הנוכחית - כלומר
-    הדף כבר לא קיים במכלול (נמחק). קריאה למחיקה, בלי שמירת תיעוד
-    היסטורי, לפי בקשה מפורשת. חייבים לקרוא לפונקציה הזו רק אחרי סריקה
-    מלאה ורצופה (לא מחודשת מ-initial_run שנעצר) - ראו main().
-    """
-    existing = get_existing_page_ids(client)
-    stale_ids = [row_id for page_id, row_id in existing if page_id not in current_page_ids]
-
-    if not stale_ids:
-        log("ניקוי | לא נמצאו שורות שנמחקו מהמכלול")
-        return 0
-
-    log(f"ניקוי | {len(stale_ids):,} שורות עם page_id שלא נמצא בסריקה הנוכחית - נמחקות")
-
-    for i in range(0, len(stale_ids), BATCH_SIZE):
-        chunk = stale_ids[i:i + BATCH_SIZE]
-        for attempt in range(1, MAX_SUPABASE_RETRIES + 1):
-            try:
-                client.table("mechalol_pages").delete().in_("id", chunk).execute()
-                break
-            except Exception as exc:
-                if attempt >= MAX_SUPABASE_RETRIES:
-                    raise
-                log(
-                    f"שגיאת Supabase | מחיקת שורות שנעלמו מהמכלול | "
-                    f"ניסיון {attempt}/{MAX_SUPABASE_RETRIES}: {exc}",
-                    logging.WARNING,
-                )
-                time.sleep(min(2 ** (attempt - 1), 30))
-
-    return len(stale_ids)
-
-
 def main():
     progress = load_progress()
-    is_resumed = bool(progress)
     client = get_client()
 
     log("=" * 80)
@@ -486,18 +412,14 @@ def main():
 
     total = progress.get("uploaded_count", 0)
     batch_number = progress.get("upload_batch", 0)
-    seen_page_ids = set()
 
     for batch in fetch_all_titles(progress):
         if not batch:
             continue
 
         rows = []
-        checked_at = datetime.now(timezone.utc).isoformat()
 
         for title, page_id in batch:
-            seen_page_ids.add(page_id)
-
             if title in created:
                 status, source_type = STATUS_CREATED_IN_MECHALOL, "created"
             elif title in translated:
@@ -535,12 +457,11 @@ def main():
             )
 
             rows.append({
+                "id": page_id,
                 "title": title,
-                "page_id": page_id,
                 "status": status,
                 "source_type": source_type,
                 "last_update_month": last_update_month,
-                "checked_at": checked_at,
                 # match_type לא נשלח - ברירת מחדל בטבלה בלבד (ראו הערת מודול).
                 "needs_attention": title in pages_to_open,
                 "is_dictionary_entry": title in dictionary_entries,
@@ -560,15 +481,6 @@ def main():
     clear_progress()
 
     log(f"הצלחה | הועלו/עודכנו {total:,} ערכים | בקשות API: {api_requests:,}")
-
-    # ניקוי דפים שנמחקו מהמכלול - רק אם הסריקה בוצעה ברצף אחד בתהליך
-    # הזה (לא המשך של initial_run שנעצר), כי אחרת seen_page_ids לא
-    # מכיל את הכותרות שכבר נסרקו בתהליכים קודמים ותהיה מחיקה שגויה.
-    if is_resumed:
-        log("ניקוי | דולג - זו המשך ריצה שהתחילה בתהליך קודם (seen_page_ids חלקי)")
-    else:
-        deleted = cleanup_deleted_from_mechalol(client, seen_page_ids)
-        log(f"ניקוי | נמחקו {deleted:,} שורות שלא קיימות עוד במכלול")
 
 
 if __name__ == "__main__":
