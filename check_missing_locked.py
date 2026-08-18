@@ -99,6 +99,7 @@ def main():
         elif level == "create_locked":
             blacklist_rows.append({
                 "title": title,
+                "wikipedia_id": wikipedia_id_by_title[title],
                 "reason": "נעול ליצירה במכלול (allevel=create) - זוהה אוטומטית",
             })
 

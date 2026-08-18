@@ -96,6 +96,14 @@ create table if not exists blacklist_titles (
     id bigserial primary key,
     title text not null unique,
     reason text,
+
+    -- page_id בוויקיפדיה, כשהכותרת נחסמה ליצירה במכלול (זוהה אוטומטית
+    -- על ידי check_missing_locked.py). nullable - רשומות שנוספו ידנית
+    -- לא בהכרח כוללות אותו. בכוונה בלי מפתח זר אמיתי ל-wikipedia_pages -
+    -- אותו טעם בדיוק שבגללו manual_matches.wikipedia_page_id למעלה גם
+    -- הוא בלי מפתח זר אמיתי (הטבלה מתרוקנת מדי שבוע).
+    wikipedia_id bigint,
+
     added_at timestamptz not null default now()
 );
 
