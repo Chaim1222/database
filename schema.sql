@@ -1,25 +1,30 @@
 -- סכימת מסד הנתונים להשוואת ערכים בין ויקיפדיה העברית למכלול
 -- להרצה חד-פעמית בעורך ה-SQL של סופרבייס, על טבלאות חדשות/ריקות.
 --
--- הערה: קובץ זה מעודכן ידנית מול הסכימה החיה בפועל בסופרבייס (כולל
--- ערך ה-status הרביעי לחב"דפדיה, עמודת matched_title, וערך ה-status
--- החמישי לוויקישיבה). אם אתה מריץ את זה מחדש על סביבה קיימת - אין בכך
--- צורך, הטבלה כבר במצב הזה.
+-- ארכיטקטורה: wikipedia_pages ו-mechalol_pages מתרוקנות (TRUNCATE)
+-- ומתמלאות מחדש במלואן בכל ריצה שבועית - אין מנגנון "דילוג על מה
+-- שכבר נבדק" בקוד, כל שורה נבדקת מחדש כל שבוע.
+--
+-- id בשתי הטבלאות הוא ה-page_id האמיתי של הדף באתר המקור (לא
+-- bigserial) - כלומר יציב וזהה בכל ריצה, גם אחרי TRUNCATE. אין טור
+-- page_id נפרד - id הוא הוא ה-page_id. בזכות זה manual_matches (למטה)
+-- שורדת ריקון בלי שום מיפוי נוסף.
+--
+-- manual_matches ו-blacklist_titles הן היחידות שלא מתרוקנות - תחזוקה
+-- ידנית, למקרים שהאוטומציה לא פותרת לבד.
 
 create table if not exists wikipedia_pages (
-    id bigserial primary key,
+    id bigint primary key,  -- page_id בוויקיפדיה
     title text not null unique,
-    page_id bigint not null unique,
     checked_at timestamptz not null default now()
 );
 
 create table if not exists mechalol_pages (
-    id bigserial primary key,
+    id bigint primary key,  -- page_id במכלול
     title text not null unique,
-    page_id bigint not null unique,
 
     -- נוצר במכלול / מיובא ומתועד / מיובא ללא תיעוד / ייבוא מחב"דפדיה /
-    -- ייבוא מוויקישיבה / נשמר במכלול למרות מחיקה בוויקיפדיה
+    -- ייבוא מוויקישיבה / נשמר במכלול למרות מחיקה בוויקיפדיה / פוצל מתוכן ויקיפדי
     status text not null check (
         status in (
             'נוצר במכלול',
@@ -35,7 +40,8 @@ create table if not exists mechalol_pages (
     -- רק כאשר status = מיובא ומתועד, בפורמט YYYY-MM (נגזר מקטגוריית "עודכן לאחרונה ב-X")
     last_update_month text,
 
-    -- מפתח זר לטבלת ויקיפדיה, אם נמצאה התאמת כותרת
+    -- מפתח זר לטבלת ויקיפדיה - id שם הוא בעצמו page_id בוויקיפדיה,
+    -- אז השדה הזה הוא בפועל page_id של הדף המתאים בוויקיפדיה
     wikipedia_id bigint references wikipedia_pages(id),
 
     -- יובא מוויקיפדיה / כותרת זהה ללא קשר / ללא התאמה
@@ -52,51 +58,56 @@ create table if not exists mechalol_pages (
 
     -- מקור השורה ודאי-ויקיפדי או לא-ידוע, ולא נמצאה לו התאמה בטבלת
     -- wikipedia_pages בריצה הנוכחית של match.py (סימון לבדיקה ידנית -
-    -- לא גורר מחיקה אוטומטית בשום מקום). לא מסומן על שורות שמקורן ודאי
-    -- לא-ויקיפדי (נוצר במכלול/חב"דפדיה/ויקישיבה).
+    -- מועמד ל-manual_matches אם זה חוזר על עצמו שבוע-שבוע). לא מסומן
+    -- על שורות שמקורן ודאי לא-ויקיפדי (נוצר במכלול/חב"דפדיה/ויקישיבה/פוצל).
     maybe_deleted_from_wikipedia boolean not null default false,
 
-    -- אושר ודאית מיומן המחיקות/ההעברות של ויקיפדיה: הערך המקורי נמחק שם,
-    -- או הועבר ממרחב הערכים למרחב אחר
-    deleted_from_wikipedia boolean not null default false,
-
-    -- שידוך ידני - אם true, match.py מדלג לגמרי על השורה ולא נוגע בה
-    manual_match boolean not null default false,
-
-    -- האם שורה זו כבר עברה את שלב הנרמול/תבנית המיון (בין אם נמצאה
-    -- התאמה ובין אם לא) - נבדק יחד עם matched_title/status כדי לקבוע אם
-    -- ריצות עתידיות ידלגו עליה או יבדקו אותה מחדש (ראו match.py)
-    normalization_checked boolean not null default false,
-
-    -- ההתאמה נמצאה דרך נרמול/תבנית מיון, לא כותרת זהה במדויק
+    -- ההתאמה נמצאה דרך נרמול/תבנית מיון/manual_matches, לא כותרת זהה במדויק
     normalization_match boolean not null default false,
 
     -- שם הכלל/כללים שהובילו להתאמה (למשל 'כתיב_אלוהים+קרבן_לקורבן',
-    -- או 'תבנית_מיון')
+    -- 'תבנית_מיון', 'התאמה_ידנית')
     normalization_method text,
 
     -- הכותרת המנורמלת שנמצאה עבורה התאמה בוויקיפדיה
     title_normalized text,
 
-    -- כותרת המכלול (title) כפי שהייתה בזמן שההתאמה הנוכחית (wikipedia_id)
-    -- נקבעה. אם title הנוכחי שונה מזה - סימן שהדף הועבר לשם אחר במכלול
-    -- מאז ההתאמה, וצריך לבדוק אותה מחדש (ראו should_reexamine ב-match.py)
-    matched_title text,
+    -- מקור השורה: created / translated / pirushon / chabadpedia /
+    -- wikishiva / wikipedia_documented / missing_sort / unknown / ...
+    source_type text not null default 'unknown'
+);
 
-    -- מקור השורה: created / translated / pirushon / chabadpedia / wikishiva / unknown
-    source_type text not null default 'unknown',
+-- התאמות ידניות - היחידה שלא מתרוקנת בריצה השבועית. למקרים שהאוטומציה
+-- לא יכולה לפתור לבד (למשל כותרת שונה במכלול, והדף בוויקיפדיה נעול
+-- לקריאה - כך שגם בדיקת תבנית המיון לא אפשרית). בכוונה בלי מפתח זר
+-- אמיתי ל-wikipedia_pages/mechalol_pages - טבלאות אלה מתרוקנות מדי
+-- שבוע, ומפתח זר היה חוסם את ה-TRUNCATE שלהן לגמרי.
+create table if not exists manual_matches (
+    id bigserial primary key,
+    mechalol_page_id bigint not null unique,
+    wikipedia_page_id bigint not null,
+    reason text,
+    added_at timestamptz not null default now()
+);
 
-    checked_at timestamptz not null default now()
+-- רשימה שחורה - כותרות שבכוונה לא יובאו למכלול. לא מתרוקנת. תחזוקה
+-- ידנית. בשימוש ב-views.sql (report_missing_from_mechalol) לסינון.
+create table if not exists blacklist_titles (
+    id bigserial primary key,
+    title text not null unique,
+    reason text,
+    added_at timestamptz not null default now()
 );
 
 create index if not exists idx_mechalol_status on mechalol_pages(status);
 create index if not exists idx_mechalol_match_type on mechalol_pages(match_type);
 create index if not exists idx_mechalol_wikipedia_id on mechalol_pages(wikipedia_id);
 
--- שאילתה לדוגמה: מה קיים בוויקיפדיה ואין במכלול
--- select w.* from wikipedia_pages w
--- left join mechalol_pages m on m.wikipedia_id = w.id
--- where m.id is null;
-
--- שאילתה לדוגמה: מה קיים במכלול וייחודי לו (לא נמצאה התאמה בוויקיפדיה)
--- select * from mechalol_pages where match_type = 'ללא התאמה';
+-- קריאה מ-fetch_wikipedia.py (client.rpc) בתחילת כל ריצה טרייה, לפני
+-- המילוי מחדש. שתי הטבלאות ביחד - יש מפתח זר ביניהן.
+create or replace function truncate_pages()
+returns void
+language sql
+as $$
+    truncate table wikipedia_pages, mechalol_pages;
+$$;

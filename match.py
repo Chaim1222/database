@@ -1,25 +1,21 @@
 """
 התאמת כותרות מכלול מול ויקיפדיה.
 
-סדר ההתאמה:
-1. manual_match - קובע, לא נוגעים.
-2. היגיינת טקסט (השוואה אחרי ניקוי תווי כיווניות/גרשיים/מקפים - לא משנה
-   את הכותרת המאוחסנת).
-3. נרמול סמנטי (מכלול -> ויקיפדיה בלבד, ראו normalize.py).
-4. {{מיון ויקיפדיה|דף=...}} - קריאת API באצוות, מוצא אחרון בלבד.
+הטבלאות מתרוקנות ומתמלאות מחדש במלואן בכל ריצה שבועית (TRUNCATE +
+מילוי מחדש, ראו README) - לכן אין כאן שום מנגנון "דילוג על מה שכבר
+נבדק": כל שורה נבדקת מחדש, בכל ריצה, מאפס. אין matched_title, אין
+normalization_checked, אין should_reexamine - כל אלה התייתרו לגמרי
+עם המעבר לריקון-ומילוי-מחדש.
 
-normalization_checked=true אומר שהשורה כבר עברה את כל התהליך בעבר. זה
-*לא* אומר שריצות עתידיות ידלגו עליה תמיד - ראו get_should_reexamine():
-- אם נמצאה התאמה (wikipedia_id) וכותרת המכלול לא זזה מאז (matched_title)
-  - דילוג לצמיתות (אין טעם, כלום לא השתנה).
-- אם אין התאמה אבל ה-status ודאי לא-ויקיפדי (NOT_REALLY_IMPORTED_STATUSES:
-  נוצר במכלול/חב"דפדיה/ויקישיבה) - דילוג לצמיתות (לא רלוונטי לחיפוש
-  מלכתחילה). "נשמר במכלול למרות מחיקה בוויקיפדיה" בכוונה *לא* נכלל כאן
-  - הוא ממשיך להיבדק בכל ריצה, כדי לאפשר ריפוי עצמי אוטומטי אם הערך
-  ייווצר מחדש בוויקיפדיה (ראו should_reexamine).
-- אחרת (הכותרת השתנתה מאז ההתאמה, או שאין התאמה ומקור ויקיפדיה/לא-ידוע)
-  - בדיקה מחדש בכל ריצה.
-manual_match=true תמיד מדלג ללא תנאי, בלי קשר לכל האמור לעיל.
+סדר ההתאמה:
+0. manual_matches (טבלה נפרדת, לא מתרוקנת - שרדה בזכות מפתח page_id
+   קבוע, לא id פנימי) - למקרים שהאוטומציה לא יכולה לפתור לבד (למשל
+   כותרת שונה + דף נעול-לקריאה, ולכן גם תבנית המיון לא ניתנת לבדיקה).
+   קובע, לא ממשיכים לשלבים הבאים.
+1. היגיינת טקסט (השוואה אחרי ניקוי תווי כיווניות/גרשיים/מקפים - לא משנה
+   את הכותרת המאוחסנת).
+2. נרמול סמנטי (מכלול -> ויקיפדיה בלבד, ראו normalize.py).
+3. {{מיון ויקיפדיה|דף=...}} - קריאת API באצוות, מוצא אחרון בלבד.
 
 חשוב: fetch_mechalol.py לא שולח match_type בעדכונים שוטפים (רק ב-INSERT
 ראשוני), כדי לא לדרוס התאמות שכבר בוצעו כאן.
@@ -76,7 +72,15 @@ def execute_with_retry(operation, description):
 # ---------------------------------------------------------------------------
 
 def load_wikipedia_map(client):
+    """
+    מחזיר:
+    - title_map: hygiene(title) -> id (לשלבים 1-3 הרגילים)
+    - existing_ids: set של כל ה-id (=page_id בוויקיפדיה) הקיימים כרגע -
+      לשלב 0 (manual_matches), לוודא שה-wikipedia_page_id השמור עדיין
+      קיים בפועל. אין צורך במפה - id בטבלה הוא כבר page_id ישירות.
+    """
     title_map = {}
+    existing_ids = set()
     collisions = 0
     last_id = 0
     batch_number = 0
@@ -102,6 +106,8 @@ def load_wikipedia_map(client):
 
         for row in rows:
             title = row.get("title")
+            existing_ids.add(row["id"])
+
             if not title:
                 continue
 
@@ -122,7 +128,19 @@ def load_wikipedia_map(client):
     if collisions:
         log(f"WARNING | {collisions:,} התנגשויות מפתח היגיינה בוויקיפדיה (דולגו)")
 
-    return title_map
+    return title_map, existing_ids
+
+
+def load_manual_matches(client):
+    """
+    {mechalol_page_id: wikipedia_page_id} - טבלה נפרדת, קטנה, לא
+    מתרוקנת עם שאר הטבלאות. תחזוקה ידנית בלבד.
+    """
+    result = execute_with_retry(
+        lambda: client.table("manual_matches").select("mechalol_page_id, wikipedia_page_id").execute(),
+        "MANUAL_MATCHES",
+    )
+    return {row["mechalol_page_id"]: row["wikipedia_page_id"] for row in (result.data or [])}
 
 
 # ---------------------------------------------------------------------------
@@ -315,28 +333,6 @@ def get_match_type(row):
     return MATCH_TYPE_IMPORTED
 
 
-def should_reexamine(row, current_title):
-    """
-    True אם שורה שכבר עברה בדיקה בעבר (normalization_checked=true)
-    בכל זאת צריכה בדיקה מחדש הפעם. ראו הסבר מלא ב-docstring של המודול.
-    """
-    has_match = row.get("wikipedia_id") is not None
-    title_unchanged = row.get("matched_title") == current_title
-    # שימו לב: כאן בכוונה NOT_REALLY_IMPORTED_STATUSES (הקבוצה הצרה),
-    # לא WIKIPEDIA_MATCH_NOT_EXPECTED_STATUSES - כדי ש"נשמר במכלול למרות
-    # מחיקה בוויקיפדיה" ימשיך להיבדק בכל ריצה (לא ידלג לצמיתות), ויתאפשר
-    # ריפוי עצמי אוטומטי אם הערך ייווצר מחדש בוויקיפדיה בעתיד. השתקת
-    # ההתרעה על אי-מציאה (maybe_deleted_from_wikipedia) עדיין קורית
-    # בנפרד למטה, עם הקבוצה הרחבה - ראו ההערה שם.
-    source_definitely_not_wikipedia = row.get("status") in NOT_REALLY_IMPORTED_STATUSES
-
-    if has_match and title_unchanged:
-        return False
-    if not has_match and source_definitely_not_wikipedia:
-        return False
-    return True
-
-
 # ---------------------------------------------------------------------------
 # עיקרי
 # ---------------------------------------------------------------------------
@@ -349,20 +345,21 @@ def main():
     log("START | match.py")
     log("=" * 80)
 
-    log("שלב 1 | טוען כותרות ויקיפדיה...")
-    wikipedia_map = load_wikipedia_map(client)
-    log(f"שלב 1 הושלם | כותרות={len(wikipedia_map):,}")
+    log("שלב 0 | טוען מפות ויקיפדיה + התאמות ידניות...")
+    wikipedia_map, wikipedia_existing_ids = load_wikipedia_map(client)
+    manual_matches = load_manual_matches(client)
+    log(f"שלב 0 הושלם | כותרות={len(wikipedia_map):,} | התאמות_ידניות={len(manual_matches):,}")
 
     total = 0
+    manual_matched = 0
+    manual_unresolved = 0
     exact_matches = 0
     normalization_matches = 0
     template_matches = 0
     unmatched = 0
     access_denied_skipped = 0
-    manual_skipped = 0
-    already_checked_skipped = 0
 
-    log("שלב 2 | מתאים כותרות מכלול...")
+    log("שלב 1 | מתאים כותרות מכלול...")
 
     for batch_number, batch in enumerate(iter_mechalol_rows(client), 1):
         updates = []
@@ -376,8 +373,29 @@ def main():
                 log(f"WARNING | שורה id={row.get('id')} ללא כותרת - דולגה")
                 continue
 
-            if row.get("manual_match"):
-                manual_skipped += 1
+            # 0. התאמה ידנית - טבלה נפרדת, לא מתרוקנת, לפי id (=page_id) קבוע.
+            if row["id"] in manual_matches:
+                wikipedia_page_id = manual_matches[row["id"]]
+
+                if wikipedia_page_id not in wikipedia_existing_ids:
+                    log(
+                        f"WARNING | manual_matches | id={row['id']} "
+                        f"(\"{title}\") -> wikipedia_page_id={wikipedia_page_id} "
+                        f"לא נמצא ב-wikipedia_pages כרגע - כדאי לבדוק/לעדכן את הרשומה"
+                    )
+                    manual_unresolved += 1
+                    continue
+
+                updated = dict(row)
+                updated["wikipedia_id"] = wikipedia_page_id
+                updated["match_type"] = get_match_type(row)
+                updated["maybe_deleted_from_wikipedia"] = False
+                updated["normalization_match"] = True
+                updated["normalization_method"] = "התאמה_ידנית"
+                updated["title_normalized"] = None
+
+                updates.append(updated)
+                manual_matched += 1
                 continue
 
             # 1. היגיינת טקסט (כולל התאמה מדויקת - אם הכותרת נקייה, hygiene(title)==title)
@@ -389,29 +407,14 @@ def main():
                 updated["wikipedia_id"] = wikipedia_id
                 updated["match_type"] = get_match_type(row)
                 updated["maybe_deleted_from_wikipedia"] = False
-                updated["matched_title"] = title
 
                 if key != title:
-                    updated["normalization_checked"] = True
                     updated["normalization_match"] = True
                     updated["normalization_method"] = "היגיינת_טקסט"
                     updated["title_normalized"] = key
 
                 updates.append(updated)
                 exact_matches += 1
-                continue
-
-            if row.get("normalization_checked") and not should_reexamine(row, title):
-                already_checked_skipped += 1
-
-                # הגנה: אם בעבר נמצאה התאמה (wikipedia_id קיים) או שהמקור
-                # ודאי לא-ויקיפדי, אבל הדגל "אולי נמחק" נשאר דלוק מריצה
-                # קודמת יותר (למשל מגרסה ישנה של match.py) - מתקנים תוך כדי.
-                if row.get("maybe_deleted_from_wikipedia"):
-                    updated = dict(row)
-                    updated["maybe_deleted_from_wikipedia"] = False
-                    updates.append(updated)
-
                 continue
 
             # 2. נרמול סמנטי
@@ -424,12 +427,10 @@ def main():
                     updated = dict(row)
                     updated["wikipedia_id"] = candidate_id
                     updated["match_type"] = get_match_type(row)
-                    updated["normalization_checked"] = True
                     updated["normalization_match"] = True
                     updated["normalization_method"] = "+".join(applied)
                     updated["title_normalized"] = candidate
                     updated["maybe_deleted_from_wikipedia"] = False
-                    updated["matched_title"] = title
 
                     updates.append(updated)
                     normalization_matches += 1
@@ -439,7 +440,7 @@ def main():
             pending.append((row, title))
 
         # -------------------------------------------------------------
-        # 4. בדיקת תבנית מיון - באצוות
+        # 3. בדיקת תבנית מיון - באצוות
         # -------------------------------------------------------------
 
         if pending:
@@ -449,7 +450,6 @@ def main():
                 if row["id"] not in resolved:
                     # לא הוכרע בריצה הזו (למשל דף נעול-לקריאה) - לא
                     # רושמים שום מסקנה, לא מעדכנים את השורה כלל.
-                    # should_reexamine ידאג שתיבדק שוב בריצה הבאה.
                     access_denied_skipped += 1
                     continue
 
@@ -460,12 +460,10 @@ def main():
                     wikipedia_id, template_value = result
                     updated["wikipedia_id"] = wikipedia_id
                     updated["match_type"] = get_match_type(row)
-                    updated["normalization_checked"] = True
                     updated["normalization_match"] = True
                     updated["normalization_method"] = "תבנית_מיון"
                     updated["title_normalized"] = template_value
                     updated["maybe_deleted_from_wikipedia"] = False
-                    updated["matched_title"] = title
 
                     # תבנית מיון תקינה שאומתה בפועל מול ה-API היא הוכחה
                     # ישירה לייבוא מתועד - לא ניחוש לפי חברות בקטגוריה.
@@ -476,7 +474,6 @@ def main():
 
                     template_matches += 1
                 else:
-                    updated["normalization_checked"] = True
                     updated["normalization_match"] = False
                     updated["normalization_method"] = None
                     updated["title_normalized"] = None
@@ -484,7 +481,8 @@ def main():
                     # לא נמצאה התאמה בשום שלב. אם המקור ודאי-ויקיפדי או
                     # לא-ידוע (לא נוצר במכלול/חב"דפדיה/ויקישיבה, ולא ידוע
                     # מראש כערך שנמחק בוויקיפדיה והוחלט להשאירו) - זה חשוד
-                    # כמחיקה/בעיית התאמה שדורשת בדיקה ידנית.
+                    # כבעיית התאמה שדורשת בדיקה ידנית (ואולי הוספה ל-
+                    # manual_matches, אם המקור הוא כותרת שונה/דף נעול).
                     if row.get("status") not in WIKIPEDIA_MATCH_NOT_EXPECTED_STATUSES:
                         updated["maybe_deleted_from_wikipedia"] = True
 
@@ -502,25 +500,26 @@ def main():
                 f"UPDATE batch={batch_number}",
             )
 
-        matched_total = exact_matches + normalization_matches + template_matches
+        matched_total = manual_matched + exact_matches + normalization_matches + template_matches
 
         log(
             f"התקדמות | אצווה={batch_number} | נבדקו={total:,} | "
-            f"הותאמו={matched_total:,} | מדויק={exact_matches:,} | "
-            f"נרמול={normalization_matches:,} | תבנית={template_matches:,} | "
-            f"ללא_התאמה={unmatched:,} | נדחה_ללא_הכרעה={access_denied_skipped:,} | "
-            f"manual={manual_skipped:,} | כבר_נבדק={already_checked_skipped:,}"
+            f"הותאמו={matched_total:,} | ידני={manual_matched:,} | "
+            f"מדויק={exact_matches:,} | נרמול={normalization_matches:,} | "
+            f"תבנית={template_matches:,} | ללא_התאמה={unmatched:,} | "
+            f"נדחה_ללא_הכרעה={access_denied_skipped:,} | "
+            f"ידני_לא_נמצא={manual_unresolved:,}"
         )
 
     elapsed = int(time.monotonic() - started)
-    matched_total = exact_matches + normalization_matches + template_matches
+    matched_total = manual_matched + exact_matches + normalization_matches + template_matches
 
     log("=" * 80)
     log(
-        f"סיום | נבדקו={total:,} | הותאמו={matched_total:,} | "
+        f"סיום | נבדקו={total:,} | הותאמו={matched_total:,} | ידני={manual_matched:,} | "
         f"מדויק={exact_matches:,} | נרמול={normalization_matches:,} | "
         f"תבנית={template_matches:,} | ללא_התאמה={unmatched:,} | "
-        f"נדחה_ללא_הכרעה={access_denied_skipped:,}"
+        f"נדחה_ללא_הכרעה={access_denied_skipped:,} | ידני_לא_נמצא={manual_unresolved:,}"
     )
     log(f"זמן ריצה | {elapsed // 60} דק' {elapsed % 60} שנ'")
     log("=" * 80)
