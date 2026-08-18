@@ -1,0 +1,28 @@
+name: בדיקת כותרות חסרות נעולות
+
+# הרצה ידנית בלבד (workflow_dispatch) - לא לפי לוח זמנים קבוע. מריצים
+# מדי פעם, לפי הצורך - לא כל שבוע כמו fetch_wikipedia/fetch_mechalol/match.
+on:
+  workflow_dispatch:
+
+jobs:
+  check_locked:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: שחזור קוד
+        uses: actions/checkout@v4
+
+      - name: התקנת פייתון
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: התקנת ספריות
+        run: pip install -r requirements.txt
+
+      - name: בדיקת נעילה ועדכון הרשימה השחורה
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python check_missing_locked.py
