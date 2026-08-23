@@ -403,6 +403,10 @@ function switchTab(key){
   document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
   document.getElementById("tab-"+key).classList.add("active");
   document.getElementById("search-input").value = "";
+  const searchInput = document.getElementById("search-input");
+  searchInput.placeholder = VIEWS[key].columns.includes("wikidata_desc")
+    ? "חיפוש בכותרת או בתיאור ויקינתונים…"
+    : "חיפוש בכותרת…";
   buildDynamicFilters();
   updateSelectionBar();
   loadActiveView();
@@ -569,7 +573,16 @@ function buildQuery(){
   const cfg = VIEWS[activeTab];
   let q = client.from(cfg.view).select("*", {count:"exact"});
   const search = document.getElementById("search-input").value.trim();
-  if(search) q = q.ilike("title", `%${search}%`);
+  if(search){
+    // בפסיקים יש משמעות תחבירית ב-or() של פוסטגרסט (מפריד בין תנאים) -
+    // מוסרים אותם מהחיפוש כדי לא לשבור את התחביר בטעות.
+    const safeSearch = search.replace(/,/g, "");
+    if(cfg.columns.includes("wikidata_desc")){
+      q = q.or(`title.ilike.%${safeSearch}%,wikidata_desc.ilike.%${safeSearch}%`);
+    } else {
+      q = q.ilike("title", `%${safeSearch}%`);
+    }
+  }
   Object.entries(activeFilters).forEach(([k,v])=>{ q = q.eq(k, v); });
   return q.order("title", {ascending:true});
 }
