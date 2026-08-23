@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>לוח בקרה — השוואת ערכים</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@400;500;700;900&family=Assistant:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+  :root{
+    --ink-900:#0F1B22; --ink-800:#16262F; --ink-700:#1E323C;
+    --wiki:#5C9686; --wiki-dim:#5C968633;
+    --mechalol:#C79449; --mechalol-dim:#C7944933;
+    --alert:#C1634A; --alert-dim:#C1634A26;
+    --text-1:#EDEAE1; --text-2:#9FADAF; --text-3:#657679;
+    --line:rgba(237,234,225,0.10);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{background:var(--ink-900);color:var(--text-1);font-family:'Assistant',sans-serif;font-feature-settings:"tnum" 1;min-height:100vh;}
+  a{color:inherit;}
+  .page{max-width:1220px;margin:0 auto;padding:32px 24px 80px;}
+
+  header.top{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:16px;margin-bottom:28px;}
+  .eyebrow{font-size:13px;letter-spacing:.04em;color:var(--text-2);margin:0 0 6px;}
+  h1{font-family:'Frank Ruhl Libre',serif;font-weight:700;font-size:clamp(26px,4vw,38px);margin:0;line-height:1.15;}
+  h1 span{color:var(--mechalol);}
+  .top-actions{display:flex;align-items:center;gap:12px;}
+  .sync-note{font-size:13px;color:var(--text-2);}
+  button.refresh{background:var(--ink-700);border:1px solid var(--line);color:var(--text-1);padding:10px 18px;border-radius:8px;font-family:'Assistant';font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .15s ease, transform .1s ease;}
+  button.refresh:hover{background:#22394480;}
+  button.refresh:active{transform:scale(.97);}
+  button.refresh .dot{width:6px;height:6px;border-radius:50%;background:var(--wiki);}
+  button.refresh.spinning .dot{animation:pulse 1s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.2;}}
+
+  .ledger{background:var(--ink-800);border:1px solid var(--line);border-radius:14px;padding:22px 24px 18px;margin-bottom:24px;}
+  .ledger-heads{display:flex;justify-content:space-between;margin-bottom:14px;}
+  .ledger-head{display:flex;flex-direction:column;gap:2px;}
+  .ledger-head .label{font-size:12px;color:var(--text-2);}
+  .ledger-head .num{font-family:'Frank Ruhl Libre',serif;font-size:26px;font-weight:700;}
+  .ledger-head.wiki .num{color:var(--wiki);}
+  .ledger-head.mechalol .num{color:var(--mechalol);}
+  .bar{height:14px;border-radius:7px;overflow:hidden;display:flex;background:var(--ink-700);border:1px solid var(--line);}
+  .bar .seg{height:100%;transition:width .6s ease;}
+  .bar .seg.matched{background:linear-gradient(90deg,var(--wiki),var(--mechalol));}
+  .bar .seg.tasks{background:var(--alert);}
+  .bar .seg.missing{background:var(--text-3);}
+  .ledger-legend{display:flex;flex-wrap:wrap;gap:18px;margin-top:12px;font-size:12.5px;color:var(--text-2);}
+  .ledger-legend .item{display:flex;align-items:center;gap:6px;}
+  .swatch{width:9px;height:9px;border-radius:2px;display:inline-block;}
+  .swatch.matched{background:linear-gradient(90deg,var(--wiki),var(--mechalol));}
+  .swatch.tasks{background:var(--alert);}
+  .swatch.missing{background:var(--text-3);}
+  .warn-inline{color:var(--alert);font-size:12px;margin-right:6px;cursor:help;}
+
+  .stat-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:28px;}
+  .stat-card{background:var(--ink-800);border:1px solid var(--line);border-radius:12px;padding:16px 18px;}
+  .stat-card .n{font-family:'Frank Ruhl Libre',serif;font-size:28px;font-weight:700;}
+  .stat-card .l{font-size:12.5px;color:var(--text-2);margin-top:4px;display:flex;align-items:center;gap:6px;}
+  .mini-spinner{width:11px;height:11px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--mechalol);animation:spin .7s linear infinite;display:inline-block;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .tabs{display:flex;gap:6px;border-bottom:1px solid var(--line);margin-bottom:18px;overflow-x:auto;}
+  .tab{background:none;border:none;color:var(--text-2);font-family:'Assistant';font-size:14.5px;font-weight:600;padding:10px 4px;cursor:pointer;position:relative;white-space:nowrap;margin-left:22px;}
+  .tab .count{display:inline-block;margin-right:6px;font-size:11.5px;background:var(--ink-700);color:var(--text-2);padding:1px 7px;border-radius:20px;}
+  .tab.active{color:var(--text-1);}
+  .tab.active .count{background:var(--mechalol-dim);color:var(--mechalol);}
+  .tab.active::after{content:"";position:absolute;bottom:-1px;right:0;left:0;height:2px;background:var(--mechalol);border-radius:2px;}
+
+  .filter-bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:14px;}
+  .search-wrap{position:relative;flex:1;min-width:200px;max-width:320px;}
+  input.search, select.filter-select, select.page-size{
+    background:var(--ink-800);border:1px solid var(--line);border-radius:8px;color:var(--text-1);
+    padding:9px 12px;font-family:'Assistant';font-size:13.5px;
+  }
+  input.search{width:100%;}
+  input.search::placeholder{color:var(--text-3);}
+  input.search:focus, select:focus{outline:2px solid var(--mechalol-dim);border-color:var(--mechalol);}
+  select.filter-select{cursor:pointer;}
+  .clear-filters{background:none;border:none;color:var(--text-2);font-size:13px;cursor:pointer;text-decoration:underline;padding:0;}
+  .clear-filters:hover{color:var(--alert);}
+  .spacer{flex:1;}
+
+  .selection-bar{
+    display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+    background:var(--mechalol-dim);border:1px solid var(--mechalol);border-radius:10px;
+    padding:10px 16px;margin-bottom:12px;font-size:13.5px;
+  }
+  .selection-bar b{color:var(--mechalol);}
+  .selection-bar .grow{flex:1;}
+  .selection-bar button, .export-btn{
+    background:var(--ink-700);border:1px solid var(--line);color:var(--text-1);
+    padding:7px 14px;border-radius:7px;font-family:'Assistant';font-size:13px;font-weight:600;cursor:pointer;
+  }
+  .selection-bar button:hover, .export-btn:hover{background:#22394480;}
+  .select-all-matching{background:none;border:none;color:var(--mechalol);text-decoration:underline;cursor:pointer;font-size:13px;font-family:'Assistant';padding:0;}
+
+  .table-wrap{background:var(--ink-800);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+  table{width:100%;border-collapse:collapse;font-size:14px;}
+  thead th{text-align:right;font-weight:600;color:var(--text-2);font-size:12.5px;letter-spacing:.02em;padding:12px 14px;border-bottom:1px solid var(--line);background:var(--ink-700);}
+  th.chk-col, td.chk-col{width:36px;padding-left:4px;padding-right:14px;}
+  tbody td{padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:middle;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:#ffffff05;}
+  tbody tr.selected{background:var(--mechalol-dim);}
+  td.title a{text-decoration:none;font-weight:500;}
+  td.title a:hover{text-decoration:underline;color:var(--mechalol);}
+  input[type=checkbox]{width:16px;height:16px;accent-color:var(--mechalol);cursor:pointer;}
+  .badge{display:inline-block;font-size:11.5px;padding:2px 9px;border-radius:20px;white-space:nowrap;}
+  .badge.wiki{background:var(--wiki-dim);color:var(--wiki);}
+  .badge.mechalol{background:var(--mechalol-dim);color:var(--mechalol);}
+  .badge.alert{background:var(--alert-dim);color:var(--alert);}
+  .badge.neutral{background:var(--ink-700);color:var(--text-2);}
+  .muted{color:var(--text-3);}
+  .num-cell{font-variant-numeric:tabular-nums;color:var(--text-2);font-size:13px;}
+
+  .pager{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;font-size:13px;color:var(--text-2);flex-wrap:wrap;gap:10px;}
+  .pager .controls{display:flex;align-items:center;gap:8px;}
+  .pager button{background:var(--ink-700);border:1px solid var(--line);color:var(--text-1);width:30px;height:30px;border-radius:7px;cursor:pointer;font-size:14px;}
+  .pager button:disabled{opacity:.35;cursor:default;}
+
+  .state{padding:60px 20px;text-align:center;color:var(--text-2);}
+  .state .big{font-family:'Frank Ruhl Libre',serif;font-size:20px;color:var(--text-1);margin-bottom:6px;}
+  .state.error{color:var(--alert);}
+  .state pre{white-space:pre-wrap;text-align:right;background:var(--ink-700);padding:12px 14px;border-radius:8px;font-size:12.5px;color:var(--text-2);margin-top:14px;direction:ltr;}
+  .skeleton{background:linear-gradient(90deg,var(--ink-700) 25%,#22394480 37%,var(--ink-700) 63%);background-size:400% 100%;animation:shine 1.4s ease infinite;border-radius:6px;}
+  @keyframes shine{0%{background-position:100% 0;}100%{background-position:0 0;}}
+
+  .setup{max-width:560px;margin:60px auto;background:var(--ink-800);border:1px solid var(--line);border-radius:14px;padding:32px;}
+  .setup h2{font-family:'Frank Ruhl Libre',serif;margin-top:0;}
+  .setup label{display:block;font-size:13px;color:var(--text-2);margin:16px 0 6px;}
+  .setup input{width:100%;background:var(--ink-700);border:1px solid var(--line);color:var(--text-1);padding:10px 12px;border-radius:8px;font-family:'Assistant';}
+  .setup button{margin-top:20px;width:100%;background:var(--mechalol);color:var(--ink-900);border:none;padding:12px;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;}
+  .setup p.hint{font-size:12.5px;color:var(--text-3);line-height:1.6;}
+
+  footer{margin-top:40px;text-align:center;font-size:12px;color:var(--text-3);}
+
+  @media (max-width:640px){
+    .ledger-heads{flex-direction:column;gap:10px;}
+    thead{display:none;}
+    table,tbody,tr,td{display:block;width:100%;}
+    tbody tr{border-bottom:1px solid var(--line);padding:10px 4px;}
+    tbody td{border:none;padding:4px 12px;display:flex;justify-content:space-between;gap:10px;}
+    tbody td.chk-col{justify-content:flex-start;}
+    tbody td::before{content:attr(data-label);color:var(--text-3);font-size:12px;}
+  }
+</style>
+</head>
+<body>
+
+<div id="setup-screen" class="setup" style="display:none;">
+  <h2>חיבור למסד הנתונים</h2>
+  <p class="hint">הדף קורא נתונים בלבד. יש להזין כתובת פרויקט סופרבייס ומפתח ציבורי (Publishable / anon) עם הרשאת קריאה בלבד — לא מפתח שירות סודי. ההגדרה נשמרת רק בזיכרון הדפדפן ונעלמת ברענון הדף.</p>
+  <label for="in-url">כתובת הפרויקט (Project URL)</label>
+  <input id="in-url" type="text" placeholder="https://xxxxx.supabase.co">
+  <label for="in-key">מפתח ציבורי (Publishable / anon key)</label>
+  <input id="in-key" type="text" placeholder="eyJhbGciOi...">
+  <button onclick="startWithInputs()">התחברות</button>
+  <p class="hint" style="margin-top:18px;">אפשר גם לקבוע ערכים קבועים ישירות בקובץ, בשורות ההגדרה שבתחילת קוד הדף.</p>
+</div>
+
+<div id="app" class="page" style="display:none;">
+
+  <header class="top">
+    <div>
+      <p class="eyebrow">מסד הנתונים · השוואת ערכים</p>
+      <h1>ויקיפדיה העברית <span>↔</span> <span>המכלול</span></h1>
+    </div>
+    <div class="top-actions">
+      <span class="sync-note" id="sync-note">נבדק לאחרונה —</span>
+      <button class="refresh" id="refresh-btn" onclick="refreshAll()"><span class="dot"></span> רענון</button>
+    </div>
+  </header>
+
+  <section class="ledger">
+    <div class="ledger-heads">
+      <div class="ledger-head wiki">
+        <span class="label">ערכים בוויקיפדיה <span class="mini-spinner" id="spin-wiki"></span><span class="warn-inline" id="warn-wiki" style="display:none;" title="">⚠</span></span>
+        <span class="num" id="stat-wiki-total">—</span>
+      </div>
+      <div class="ledger-head mechalol" style="text-align:left;">
+        <span class="label">ערכים במכלול <span class="mini-spinner" id="spin-mechalol"></span><span class="warn-inline" id="warn-mechalol" style="display:none;" title="">⚠</span></span>
+        <span class="num" id="stat-mechalol-total">—</span>
+      </div>
+    </div>
+    <div class="bar" id="ledger-bar">
+      <div class="seg matched" style="width:0%"></div>
+      <div class="seg tasks" style="width:0%"></div>
+      <div class="seg missing" style="width:0%"></div>
+    </div>
+    <div class="ledger-legend">
+      <span class="item"><span class="swatch matched"></span> תואמים בין שני האתרים</span>
+      <span class="item"><span class="swatch tasks"></span> ממתינים לטיפול</span>
+      <span class="item"><span class="swatch missing"></span> חסרים במכלול לגמרי</span>
+    </div>
+  </section>
+
+  <section class="stat-cards">
+    <div class="stat-card"><div class="n" id="stat-tasks">—</div><div class="l"><span class="mini-spinner" id="spin-tasks"></span><span class="warn-inline" id="warn-tasks" style="display:none;">⚠</span>משימות לטיפול</div></div>
+    <div class="stat-card"><div class="n" id="stat-deleted">—</div><div class="l"><span class="mini-spinner" id="spin-deleted"></span><span class="warn-inline" id="warn-deleted" style="display:none;">⚠</span>חשוד כמחיקה מוויקיפדיה</div></div>
+    <div class="stat-card"><div class="n" id="stat-undoc">—</div><div class="l"><span class="mini-spinner" id="spin-undoc"></span><span class="warn-inline" id="warn-undoc" style="display:none;">⚠</span>מיובא ללא תיעוד</div></div>
+    <div class="stat-card"><div class="n" id="stat-missing">—</div><div class="l"><span class="mini-spinner" id="spin-missing"></span><span class="warn-inline" id="warn-missing" style="display:none;">⚠</span>חסרים במכלול</div></div>
+  </section>
+
+  <nav class="tabs" id="tabs"></nav>
+
+  <div class="filter-bar" id="filter-bar">
+    <div class="search-wrap">
+      <input class="search" id="search-input" placeholder="חיפוש בכותרת…">
+    </div>
+    <div id="dynamic-filters" style="display:flex;gap:10px;flex-wrap:wrap;"></div>
+    <button class="clear-filters" id="clear-filters-btn" onclick="clearFilters()" style="display:none;">נקה סינון</button>
+    <span class="spacer"></span>
+    <select class="page-size" id="page-size" onchange="onPageSizeChange()">
+      <option value="25">25 בעמוד</option>
+      <option value="50" selected>50 בעמוד</option>
+      <option value="100">100 בעמוד</option>
+      <option value="250">250 בעמוד</option>
+    </select>
+  </div>
+
+  <div class="selection-bar" id="selection-bar" style="display:none;">
+    <span><b id="selected-count">0</b> נבחרו</span>
+    <button class="select-all-matching" id="select-all-matching-btn" style="display:none;" onclick="selectAllMatching()"></button>
+    <span class="grow"></span>
+    <button class="export-btn" onclick="exportData('csv')">ייצוא CSV</button>
+    <button class="export-btn" onclick="exportData('json')">ייצוא JSON</button>
+    <button class="export-btn" onclick="exportData('txt')">ייצוא כותרות (טקסט)</button>
+    <button onclick="clearSelection()">נקה בחירה</button>
+  </div>
+
+  <div class="table-wrap">
+    <div id="table-target"></div>
+    <div class="pager" id="pager" style="display:none;">
+      <span id="pager-summary"></span>
+      <div class="controls">
+        <button id="pg-first" onclick="goPage(0)">«</button>
+        <button id="pg-prev" onclick="goPage(currentPage-1)">‹</button>
+        <span id="pg-label"></span>
+        <button id="pg-next" onclick="goPage(currentPage+1)">›</button>
+        <button id="pg-last" onclick="goPage(totalPages-1)">»</button>
+      </div>
+    </div>
+  </div>
+
+  <footer>הנתונים מתעדכנים אוטומטית כל יום ראשון · טבלאות ויקיפדיה ומכלול מתרוקנות ונטענות מחדש במלואן בכל ריצה</footer>
+</div>
+
+<script>
+const SUPABASE_URL = "https://hgsyzaghedqsypisbvev.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhnc3l6YWdoZWRxc3lwaXNidmV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzNTY2ODgsImV4cCI6MjEwMTkzMjY4OH0.eDPO3n3OHvmndWDvgF-istBP2NhY5W20erG3zztm7vs";
+
+let client = null;
+
+const STATUS_OPTIONS = ['נוצר במכלול','מיובא ומתועד','מיובא ללא תיעוד','ייבוא מחב"דפדיה','ייבוא מוויקישיבה','נשמר במכלול למרות מחיקה בוויקיפדיה','פוצל מתוכן ויקיפדי'];
+const MATCH_TYPE_OPTIONS = ['יובא מוויקיפדיה','כותרת זהה ללא קשר','ללא התאמה'];
+const TASK_TYPE_OPTIONS = ['לבדוק מחיקה/השוואה לוויקיפדיה','סטטוס לא ברור'];
+const SOURCE_TYPE_LABELS = {
+  created:"נוצר במכלול", translated:"תורגם במכלול", pirushon:"פירושון",
+  chabadpedia:"ייבוא מחב\"דפדיה", wikishiva:"ייבוא מוויקישיבה",
+  wikipedia_documented:"מתועד מוויקיפדיה", missing_sort:"חסר תבנית מיון", unknown:"לא ידוע",
+};
+const COLUMN_LABELS = {
+  title:"כותרת", status:"סטטוס", task_type:"סוג משימה", source_type:"מקור",
+  match_type:"סוג התאמה", wikipedia_id:"קישור לוויקיפדיה", checked_at:"נבדק בתאריך",
+  wikidata_desc:"תיאור (ויקינתונים)",
+};
+
+const VIEWS = {
+  tasks:   { view:"report_tasks_to_handle",        label:"משימות לטיפול",   columns:["title","status","task_type","source_type","match_type","wikipedia_id"],
+             filters:[{key:"task_type",label:"סוג משימה",options:TASK_TYPE_OPTIONS},{key:"status",label:"סטטוס",options:STATUS_OPTIONS},{key:"source_type",label:"מקור",options:Object.keys(SOURCE_TYPE_LABELS),display:SOURCE_TYPE_LABELS}] },
+  deleted: { view:"report_possibly_deleted_source",label:"חשוד כמחיקה",     columns:["title","status","source_type","match_type"],
+             filters:[{key:"status",label:"סטטוס",options:STATUS_OPTIONS},{key:"source_type",label:"מקור",options:Object.keys(SOURCE_TYPE_LABELS),display:SOURCE_TYPE_LABELS}] },
+  undoc:   { view:"report_undocumented_import",    label:"מיובא ללא תיעוד", columns:["title","source_type","match_type","wikipedia_id"],
+             filters:[{key:"source_type",label:"מקור",options:Object.keys(SOURCE_TYPE_LABELS),display:SOURCE_TYPE_LABELS},{key:"match_type",label:"סוג התאמה",options:MATCH_TYPE_OPTIONS}] },
+  missing: { view:"report_missing_from_mechalol",  label:"חסר במכלול",      columns:["title","checked_at","wikidata_desc"], filters:[] },
+};
+
+// מטמון תיאורים מוויקינתונים לפי כותרת — נשמר רק בזיכרון הדפדפן לאורך הביקור הנוכחי
+const wikidataCache = new Map();
+const wikidataInFlight = new Set(); // כותרות שכבר יצאה עבורן בקשה ועוד לא חזרה - מונע בקשות כפולות בדפדוף מהיר
+
+let activeTab = "tasks";
+let currentPage = 0;
+let pageSize = 50;
+let totalRows = 0;
+let totalPages = 1;
+let currentPageRows = [];
+let activeFilters = {};
+let searchDebounce = null;
+let loadRequestId = 0; // מונע מתוצאה ישנה (חיפוש/סינון קודם) לדרוס תוצאה חדשה יותר שכבר חזרה
+let selectedRows = new Map(); // id -> row
+
+function mechalolUrl(id){ return `https://www.hamichlol.org.il/w/index.php?curid=${id}`; }
+function wikipediaUrl(id){ return `https://he.wikipedia.org/w/index.php?curid=${id}`; }
+function mechalolEditUrl(title){ return `https://www.hamichlol.org.il/w/index.php?title=${encodeURIComponent(title.replace(/ /g, "_"))}&action=edit`; }
+function rowKey(row){ return activeTab + ":" + row.id; }
+
+// ===== תיאורים מוויקינתונים (לטבלת "חסר במכלול" בלבד) =====
+async function fetchWikidataDescriptions(titles){
+  titles.forEach(t=>wikidataInFlight.add(t));
+  const chunks = [];
+  for(let i=0; i<titles.length; i+=50) chunks.push(titles.slice(i, i+50));
+  for(const chunk of chunks){
+    try{
+      const url = "https://www.wikidata.org/w/api.php?action=wbgetentities&sites=hewiki&titles="
+        + chunk.map(encodeURIComponent).join("|")
+        + "&props=descriptions%7Csitelinks&languages=he&format=json&origin=*";
+      const data = await withRetry(async ()=>{
+        const res = await fetch(url);
+        if(!res.ok) throw new Error("HTTP " + res.status);
+        return res.json();
+      }, 2);
+      chunk.forEach(t => { if(!wikidataCache.has(t)) wikidataCache.set(t, ""); });
+      if(data.entities){
+        Object.values(data.entities).forEach(ent=>{
+          if(ent.missing !== undefined) return;
+          const linkedTitle = ent.sitelinks && ent.sitelinks.hewiki ? ent.sitelinks.hewiki.title : null;
+          const desc = ent.descriptions && ent.descriptions.he ? ent.descriptions.he.value : "";
+          if(linkedTitle) wikidataCache.set(linkedTitle, desc);
+        });
+      }
+    }catch(e){
+      chunk.forEach(t => wikidataCache.set(t, null));
+    }
+  }
+  titles.forEach(t=>wikidataInFlight.delete(t));
+  paintWikidataDescriptions();
+}
+
+function paintWikidataDescriptions(){
+  document.querySelectorAll("[data-desc-title]").forEach(el=>{
+    const t = el.getAttribute("data-desc-title");
+    if(!wikidataCache.has(t)) return;
+    const val = wikidataCache.get(t);
+    el.classList.remove("skeleton", "muted");
+    if(val === null){ el.textContent = "שגיאה בשליפה"; el.classList.add("muted"); }
+    else if(val === ""){ el.textContent = "—"; el.classList.add("muted"); }
+    else{ el.textContent = val; }
+  });
+}
+
+function loadWikidataDescriptionsForCurrentPage(){
+  if(activeTab !== "missing") return;
+  // ערך שמור מהמסד (fetch_wikidata_descriptions.py) - כולל מחרוזת ריקה
+  // שמייצגת "נבדק ואין תיאור", לא רק ערך לא-ריק - נכנס למטמון ישירות
+  // בלי שליפה חיה. undefined/null בלבד (טרם נבדק על ידי הסקריפט)
+  // ממשיך לשליפה החיה כמו קודם, כדי לשמור על עקביות עד שהסקריפט ירוץ
+  // על כל השורות הרלוונטיות.
+  currentPageRows.forEach(r=>{
+    if(r.wikidata_desc !== null && r.wikidata_desc !== undefined && !wikidataCache.has(r.title)){
+      wikidataCache.set(r.title, r.wikidata_desc);
+    }
+  });
+  const need = currentPageRows.map(r=>r.title).filter(t=>!wikidataCache.has(t) && !wikidataInFlight.has(t));
+  if(need.length === 0){ paintWikidataDescriptions(); return; }
+  fetchWikidataDescriptions(need);
+}
+
+function initClient(url, key){
+  if(!url || !key) return false;
+  try{
+    client = supabase.createClient(url, key);
+    document.getElementById("setup-screen").style.display = "none";
+    document.getElementById("app").style.display = "block";
+    buildTabs();
+    buildDynamicFilters();
+    document.getElementById("search-input").addEventListener("input", ()=>{
+      clearTimeout(searchDebounce);
+      searchDebounce = setTimeout(()=>{ currentPage = 0; loadActiveView(); }, 550);
+    });
+    refreshAll();
+    return true;
+  }catch(e){ console.error(e); return false; }
+}
+
+function startWithInputs(){
+  const url = document.getElementById("in-url").value.trim();
+  const key = document.getElementById("in-key").value.trim();
+  if(!initClient(url, key)) alert("לא ניתן להתחבר — יש לבדוק את הכתובת והמפתח.");
+}
+
+function buildTabs(){
+  const nav = document.getElementById("tabs");
+  nav.innerHTML = "";
+  Object.entries(VIEWS).forEach(([key, v])=>{
+    const btn = document.createElement("button");
+    btn.className = "tab" + (key===activeTab ? " active" : "");
+    btn.id = "tab-"+key;
+    btn.innerHTML = `<span class="count" id="tab-count-${key}">–</span>${v.label}`;
+    btn.onclick = ()=>switchTab(key);
+    nav.appendChild(btn);
+  });
+}
+
+function switchTab(key){
+  activeTab = key;
+  currentPage = 0;
+  activeFilters = {};
+  selectedRows.clear();
+  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+  document.getElementById("tab-"+key).classList.add("active");
+  document.getElementById("search-input").value = "";
+  buildDynamicFilters();
+  updateSelectionBar();
+  loadActiveView();
+}
+
+function buildDynamicFilters(){
+  const host = document.getElementById("dynamic-filters");
+  host.innerHTML = "";
+  const cfg = VIEWS[activeTab];
+  cfg.filters.forEach(f=>{
+    const sel = document.createElement("select");
+    sel.className = "filter-select";
+    sel.id = "filter-"+f.key;
+    let opts = `<option value="">${f.label} — הכול</option>`;
+    f.options.forEach(o=>{
+      const label = f.display ? f.display[o] : o;
+      opts += `<option value="${o}">${label}</option>`;
+    });
+    sel.innerHTML = opts;
+    sel.onchange = ()=>{
+      if(sel.value) activeFilters[f.key] = sel.value; else delete activeFilters[f.key];
+      currentPage = 0;
+      loadActiveView();
+      toggleClearFiltersBtn();
+    };
+    host.appendChild(sel);
+  });
+  toggleClearFiltersBtn();
+}
+
+function toggleClearFiltersBtn(){
+  const hasFilters = Object.keys(activeFilters).length > 0 || document.getElementById("search-input").value.trim().length>0;
+  document.getElementById("clear-filters-btn").style.display = hasFilters ? "inline" : "none";
+}
+
+function clearFilters(){
+  activeFilters = {};
+  document.getElementById("search-input").value = "";
+  document.querySelectorAll("#dynamic-filters select").forEach(s=>s.value="");
+  currentPage = 0;
+  toggleClearFiltersBtn();
+  loadActiveView();
+}
+
+function onPageSizeChange(){
+  pageSize = parseInt(document.getElementById("page-size").value, 10);
+  currentPage = 0;
+  loadActiveView();
+}
+
+async function refreshAll(){
+  const btn = document.getElementById("refresh-btn");
+  btn.classList.add("spinning");
+  const [, , lastSync] = await Promise.all([loadStats(), loadActiveView(), fetchLastSyncTime().catch(()=>undefined)]);
+  btn.classList.remove("spinning");
+
+  const note = document.getElementById("sync-note");
+  if(lastSync){
+    note.textContent = "עדכון אחרון מהתהליך — " +
+      new Date(lastSync).toLocaleString("he-IL", {day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit"});
+  }else{
+    note.textContent = "נבדק בדפדפן — " +
+      new Date().toLocaleTimeString("he-IL", {hour:"2-digit", minute:"2-digit"}) +
+      " (לא ניתן לשלוף את זמן העדכון האמיתי)";
+  }
+}
+
+const RETRY_ATTEMPTS = 3;
+const RETRY_DELAY_MS = 900;
+
+function sleep(ms){ return new Promise(r=>setTimeout(r, ms)); }
+
+async function withRetry(fn, attempts=RETRY_ATTEMPTS){
+  let lastErr;
+  for(let i=1; i<=attempts; i++){
+    try{ return await fn(); }
+    catch(e){
+      lastErr = e;
+      if(i < attempts) await sleep(RETRY_DELAY_MS * i);
+    }
+  }
+  throw lastErr;
+}
+
+async function countOf(table, applyFilter){
+  return withRetry(async ()=>{
+    let q = client.from(table).select("*", {count:"exact", head:true});
+    if(applyFilter) applyFilter(q);
+    const {count, error} = await q;
+    if(error) throw error;
+    return count ?? 0;
+  });
+}
+
+// זמן העדכון האמיתי האחרון של התהליך השבועי (לא זמן טעינת הדף בדפדפן) -
+// checked_at נכתב מחדש לכל שורה בכל ריצה של fetch_wikipedia.py, אז
+// הערך המרבי שלו הוא בפועל זמן תחילת הריצה השבועית האחרונה שהצליחה
+// לפחות עד שלב שליפת ויקיפדיה.
+async function fetchLastSyncTime(){
+  return withRetry(async ()=>{
+    const {data, error} = await client
+      .from("wikipedia_pages")
+      .select("checked_at")
+      .order("checked_at", {ascending:false})
+      .limit(1);
+    if(error) throw error;
+    if(!data || !data.length) return null;
+    return data[0].checked_at;
+  });
+}
+
+const STAT_DEFS = [
+  {key:"wiki",     table:"wikipedia_pages", statId:"stat-wiki-total",     spinId:"spin-wiki",     warnId:"warn-wiki",     warnMsg:"לא ניתן לקרוא את wikipedia_pages — יש לבדוק RLS/הרשאות."},
+  {key:"mechalol", table:"mechalol_pages",  statId:"stat-mechalol-total", spinId:"spin-mechalol", warnId:"warn-mechalol", warnMsg:"לא ניתן לקרוא את mechalol_pages — יש לבדוק RLS/הרשאות."},
+  {key:"tasks",    table:"report_tasks_to_handle",        statId:"stat-tasks",   spinId:"spin-tasks",   warnId:"warn-tasks",   warnMsg:"לא ניתן לקרוא את report_tasks_to_handle.",        tabCount:"tab-count-tasks"},
+  {key:"deleted",  table:"report_possibly_deleted_source",statId:"stat-deleted", spinId:"spin-deleted", warnId:"warn-deleted", warnMsg:"לא ניתן לקרוא את report_possibly_deleted_source.", tabCount:"tab-count-deleted"},
+  {key:"undoc",    table:"report_undocumented_import",    statId:"stat-undoc",   spinId:"spin-undoc",   warnId:"warn-undoc",   warnMsg:"לא ניתן לקרוא את report_undocumented_import.",     tabCount:"tab-count-undoc"},
+  {key:"missing",  table:"report_missing_from_mechalol",  statId:"stat-missing", spinId:"spin-missing", warnId:"warn-missing", warnMsg:"לא ניתן לקרוא את report_missing_from_mechalol.",   tabCount:"tab-count-missing"},
+];
+
+async function loadStats(){
+  STAT_DEFS.forEach(d=>{
+    document.getElementById(d.spinId).style.display = "inline-block";
+    document.getElementById(d.warnId).style.display = "none";
+  });
+
+  const statValues = {};
+
+  const jobs = STAT_DEFS.map(async d=>{
+    try{
+      const val = await countOf(d.table);
+      statValues[d.key] = val;
+      document.getElementById(d.statId).textContent = val.toLocaleString("he-IL");
+      if(d.tabCount) document.getElementById(d.tabCount).textContent = val.toLocaleString("he-IL");
+    }catch(e){
+      statValues[d.key] = null;
+      const w = document.getElementById(d.warnId);
+      w.style.display = "inline";
+      w.title = d.warnMsg + " (" + (e.message||e) + ")";
+    }finally{
+      document.getElementById(d.spinId).style.display = "none";
+    }
+  });
+
+  const matchedJob = (async ()=>{
+    try{ return await countOf("mechalol_pages", q=>q.not("wikipedia_id","is",null)); }
+    catch(e){ return null; }
+  })();
+
+  const [matched] = await Promise.all([matchedJob, ...jobs]);
+
+  const {tasks, missing} = statValues;
+  if(matched!=null && tasks!=null && missing!=null){
+    const total = matched + tasks + missing;
+    const pct = n => total ? (100*n/total).toFixed(1) : 0;
+    const bar = document.getElementById("ledger-bar");
+    bar.children[0].style.width = pct(matched) + "%";
+    bar.children[1].style.width = pct(tasks) + "%";
+    bar.children[2].style.width = pct(missing) + "%";
+  }
+}
+
+function buildQuery(){
+  const cfg = VIEWS[activeTab];
+  let q = client.from(cfg.view).select("*", {count:"exact"});
+  const search = document.getElementById("search-input").value.trim();
+  if(search) q = q.ilike("title", `%${search}%`);
+  Object.entries(activeFilters).forEach(([k,v])=>{ q = q.eq(k, v); });
+  return q.order("title", {ascending:true});
+}
+
+async function loadActiveView(){
+  const myRequestId = ++loadRequestId;
+  const target = document.getElementById("table-target");
+  target.innerHTML = skeletonRows();
+  document.getElementById("pager").style.display = "none";
+  try{
+    const from = currentPage * pageSize;
+    const to = from + pageSize - 1;
+    const {data, count, error} = await withRetry(async ()=>{
+      const res = await buildQuery().range(from, to);
+      if(res.error) throw res.error;
+      return res;
+    });
+    if(myRequestId !== loadRequestId) return; // חיפוש/סינון חדש יותר כבר החל - מתעלמים מהתוצאה הישנה
+    if(error) throw error;
+    currentPageRows = data || [];
+    totalRows = count ?? 0;
+    totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
+    renderTable();
+    renderPager();
+    loadWikidataDescriptionsForCurrentPage();
+  }catch(e){ if(myRequestId === loadRequestId) showError(e); }
+}
+
+function skeletonRows(){
+  let html = "<table><tbody>";
+  for(let i=0;i<8;i++) html += `<tr><td style="padding:14px 16px;"><div class="skeleton" style="height:14px;width:${60+Math.random()*30}%;"></div></td></tr>`;
+  return html + "</tbody></table>";
+}
+function showError(e){
+  document.getElementById("table-target").innerHTML = `
+    <div class="state error">
+      <div class="big">שגיאה בטעינת הנתונים</div>
+      <div>נכשלו כמה ניסיונות חיבור ברצף. יש לבדוק את כתובת הפרויקט, המפתח, והרשאות הקריאה (RLS) על הטבלאות והתצוגות.</div>
+      <pre>${(e && e.message) ? e.message : JSON.stringify(e)}</pre>
+      <button class="refresh" style="margin:16px auto 0;" onclick="loadActiveView()"><span class="dot"></span> ניסיון נוסף</button>
+    </div>`;
+}
+
+function renderTable(){
+  const cfg = VIEWS[activeTab];
+  if(currentPageRows.length === 0){
+    document.getElementById("table-target").innerHTML = `<div class="state"><div class="big">אין תוצאות</div>אין שורות התואמות לסינון הנוכחי.</div>`;
+    return;
+  }
+  const allOnPageSelected = currentPageRows.every(r => selectedRows.has(rowKey(r)));
+  let thead = `<tr><th class="chk-col"><input type="checkbox" ${allOnPageSelected?"checked":""} onchange="togglePageSelection(this.checked)"></th>` +
+              cfg.columns.map(c=>`<th>${COLUMN_LABELS[c]||c}</th>`).join("") + "</tr>";
+  let tbody = currentPageRows.map(r=>{
+    const selected = selectedRows.has(rowKey(r));
+    return `<tr class="${selected?'selected':''}">` +
+      `<td class="chk-col" data-label=""><input type="checkbox" ${selected?"checked":""} onchange="toggleRowSelection(${r.id}, this.checked)"></td>` +
+      cfg.columns.map(c=>`<td data-label="${COLUMN_LABELS[c]||c}">${renderCell(c, r)}</td>`).join("") + "</tr>";
+  }).join("");
+  document.getElementById("table-target").innerHTML = `<table><thead>${thead}</thead><tbody>${tbody}</tbody></table>`;
+}
+
+function renderCell(col, row){
+  const val = row[col];
+  if(col === "title"){
+    const url = VIEWS[activeTab].view === "report_missing_from_mechalol" ? mechalolEditUrl(val) : mechalolUrl(row.id);
+    return `<span class="title"><a href="${url}" target="_blank" rel="noopener">${escapeHtml(val)}</a></span>`;
+  }
+  if(col === "wikipedia_id") return val ? `<a href="${wikipediaUrl(val)}" target="_blank" rel="noopener" class="num-cell">${val}</a>` : `<span class="muted">—</span>`;
+  if(col === "source_type") return `<span class="badge neutral">${SOURCE_TYPE_LABELS[val]||val}</span>`;
+  if(col === "match_type") return `<span class="badge ${val==='ללא התאמה'?'alert':'wiki'}">${escapeHtml(val)}</span>`;
+  if(col === "task_type") return `<span class="badge mechalol">${escapeHtml(val)}</span>`;
+  if(col === "status") return `<span class="badge neutral">${escapeHtml(val)}</span>`;
+  if(col === "checked_at") return val ? `<span class="num-cell">${new Date(val).toLocaleDateString("he-IL")}</span>` : `<span class="muted">—</span>`;
+  if(col === "wikidata_desc"){
+    const title = row.title;
+    if(wikidataCache.has(title)){
+      const v = wikidataCache.get(title);
+      if(v === null) return `<span class="muted" data-desc-title="${escapeHtml(title)}">שגיאה בשליפה</span>`;
+      if(v === "") return `<span class="muted" data-desc-title="${escapeHtml(title)}">—</span>`;
+      return `<span data-desc-title="${escapeHtml(title)}">${escapeHtml(v)}</span>`;
+    }
+    return `<span class="skeleton" data-desc-title="${escapeHtml(title)}" style="display:inline-block;height:12px;width:70%;">&nbsp;</span>`;
+  }
+  return escapeHtml(val ?? "—");
+}
+function escapeHtml(s){ return String(s ?? "").replace(/[&<>"']/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m])); }
+
+function renderPager(){
+  const pager = document.getElementById("pager");
+  pager.style.display = "flex";
+  const from = totalRows===0 ? 0 : currentPage*pageSize+1;
+  const to = Math.min(totalRows, (currentPage+1)*pageSize);
+  document.getElementById("pager-summary").textContent = `מציג ${from.toLocaleString("he-IL")}–${to.toLocaleString("he-IL")} מתוך ${totalRows.toLocaleString("he-IL")}`;
+  document.getElementById("pg-label").textContent = `עמוד ${(currentPage+1).toLocaleString("he-IL")} מתוך ${totalPages.toLocaleString("he-IL")}`;
+  document.getElementById("pg-first").disabled = currentPage===0;
+  document.getElementById("pg-prev").disabled = currentPage===0;
+  document.getElementById("pg-next").disabled = currentPage>=totalPages-1;
+  document.getElementById("pg-last").disabled = currentPage>=totalPages-1;
+}
+function goPage(p){
+  if(p<0 || p>totalPages-1) return;
+  currentPage = p;
+  loadActiveView();
+}
+
+function toggleRowSelection(id, checked){
+  const row = currentPageRows.find(r=>r.id===id);
+  if(!row) return;
+  const key = rowKey(row);
+  if(checked) selectedRows.set(key, row); else selectedRows.delete(key);
+  updateSelectionBar();
+  renderTable();
+}
+function togglePageSelection(checked){
+  currentPageRows.forEach(r=>{
+    const key = rowKey(r);
+    if(checked) selectedRows.set(key, r); else selectedRows.delete(key);
+  });
+  updateSelectionBar();
+  renderTable();
+}
+function clearSelection(){ selectedRows.clear(); updateSelectionBar(); renderTable(); }
+
+function updateSelectionBar(){
+  const bar = document.getElementById("selection-bar");
+  const n = selectedRows.size;
+  document.getElementById("selected-count").textContent = n.toLocaleString("he-IL");
+  bar.style.display = n>0 ? "flex" : "none";
+  const linkBtn = document.getElementById("select-all-matching-btn");
+  if(n>0 && n < totalRows && currentPageRows.every(r=>selectedRows.has(rowKey(r)))){
+    linkBtn.style.display = "inline";
+    linkBtn.textContent = `בחר את כל ${totalRows.toLocaleString("he-IL")} התוצאות התואמות`;
+  }else{
+    linkBtn.style.display = "none";
+  }
+}
+
+async function selectAllMatching(){
+  const btn = document.getElementById("select-all-matching-btn");
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "טוען…";
+  try{
+    const data = await withRetry(async ()=>{
+      const res = await buildQuery().range(0, Math.min(totalRows, 20000)-1);
+      if(res.error) throw res.error;
+      return res.data;
+    });
+    (data||[]).forEach(r => selectedRows.set(rowKey(r), r));
+    updateSelectionBar();
+    renderTable();
+  }catch(e){
+    btn.disabled = false;
+    btn.textContent = originalText;
+    alert("שגיאה בטעינת כל התוצאות, גם אחרי כמה ניסיונות:\n" + (e.message||e) + "\n\nניתן לנסות שוב.");
+  }
+}
+
+function download(filename, content, mime){
+  const blob = new Blob([content], {type: mime + ";charset=utf-8"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+async function getExportRows(){
+  if(selectedRows.size > 0) return Array.from(selectedRows.values());
+  try{
+    return await withRetry(async ()=>{
+      const res = await buildQuery().range(0, Math.min(totalRows, 20000)-1);
+      if(res.error) throw res.error;
+      return res.data || [];
+    });
+  }catch(e){
+    alert("שגיאה בהבאת הנתונים לייצוא, גם אחרי כמה ניסיונות:\n" + (e.message||e));
+    return null;
+  }
+}
+
+async function exportData(kind){
+  const btn = event ? event.currentTarget : null;
+  let originalText;
+  if(btn){ originalText = btn.textContent; btn.disabled = true; btn.textContent = "מכין…"; }
+  const rows = await getExportRows();
+  if(btn){ btn.disabled = false; btn.textContent = originalText; }
+  if(rows === null) return;
+  if(rows.length===0){ alert("אין שורות לייצוא."); return; }
+  const cfg = VIEWS[activeTab];
+  if(cfg.columns.includes("wikidata_desc")){
+    rows.forEach(r=>{
+      const v = wikidataCache.get(r.title);
+      r.wikidata_desc = (v===null || v===undefined) ? "" : v;
+    });
+  }
+  const stamp = new Date().toISOString().slice(0,10);
+  const base = `${cfg.label}_${stamp}`;
+
+  if(kind === "txt"){
+    download(`${base}.txt`, rows.map(r=>r.title).join("\n"), "text/plain");
+    return;
+  }
+  if(kind === "json"){
+    const clean = rows.map(r=>{ const o={}; cfg.columns.forEach(c=>o[c]=r[c]); o.id=r.id; return o; });
+    download(`${base}.json`, JSON.stringify(clean, null, 2), "application/json");
+    return;
+  }
+  if(kind === "csv"){
+    const headers = ["id", ...cfg.columns];
+    const escapeCsv = v => `"${String(v ?? "").replace(/"/g,'""')}"`;
+    const lines = [headers.map(h=>escapeCsv(COLUMN_LABELS[h]||h)).join(",")];
+    rows.forEach(r=> lines.push(headers.map(h=>escapeCsv(r[h])).join(",")));
+    download(`${base}.csv`, "\ufeff" + lines.join("\r\n"), "text/csv");
+    return;
+  }
+}
+
+buildDynamicFilters();
+if(SUPABASE_URL && SUPABASE_ANON_KEY){ initClient(SUPABASE_URL, SUPABASE_ANON_KEY); }
+else{ document.getElementById("setup-screen").style.display = "block"; }
+</script>
+</body>
+</html>
