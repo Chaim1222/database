@@ -1,8 +1,11 @@
 name: בדיקת כותרות חסרות נעולות
 
-# הרצה ידנית בלבד (workflow_dispatch) - לא לפי לוח זמנים קבוע. מריצים
-# מדי פעם, לפי הצורך - לא כל שבוע כמו fetch_wikipedia/fetch_mechalol/match.
+# הרצה חודשית אוטומטית (ה-1 לכל חודש, 04:00 UTC - אחרי חלון העדכון
+# השבועי הרגיל), בנפרד לגמרי מ-weekly_update.yml. workflow_dispatch
+# עדיין זמין גם להרצה ידנית לפי הצורך.
 on:
+  schedule:
+    - cron: "0 4 1 * *"
   workflow_dispatch:
 
 jobs:

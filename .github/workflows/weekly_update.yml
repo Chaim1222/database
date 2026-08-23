@@ -9,6 +9,8 @@ jobs:
   update:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    permissions:
+      issues: write
     steps:
       - name: שחזור קוד
         uses: actions/checkout@v4
@@ -38,3 +40,17 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: python match.py
+
+      - name: פתיחת Issue בעת כישלון
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `כשל בעדכון השבועי - ${new Date().toISOString().slice(0, 10)}`,
+              body: `ריצת העדכון השבועי נכשלה. פרטי הריצה: ${runUrl}`,
+              labels: ["automation-failure"],
+            });
