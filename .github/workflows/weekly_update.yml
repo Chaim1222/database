@@ -33,6 +33,8 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          USER_NAME: ${{ secrets.USER_NAME }}
+          PASSWORD: ${{ secrets.PASSWORD }}
         run: python fetch_mechalol.py
 
       - name: התאמה בין הכותרות
