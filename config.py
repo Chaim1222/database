@@ -48,6 +48,14 @@ CATEGORY_SPLIT_FROM_WIKIPEDIA = (
 )
 
 BATCH_SIZE = 500
+
+# גודל אצווה לקריאות aplimit/cmlimit מול ה-API של המכלול בלבד
+# (fetch_mechalol.py) - גדול מ-BATCH_SIZE הרגיל כי לחשבון שמריץ את
+# הסקריפט יש דגל בוט במכלול (לא בוויקיפדיה). BATCH_SIZE הרגיל ממשיך
+# לשמש את fetch_wikipedia.py (מול ויקיפדיה, אין שם דגל בוט) ואת
+# match.py (גודל עמוד בשליפה מסופרבייס - לא קשור לשום דגל בוט).
+BATCH_SIZE_MECHALOL_API = 5000
+
 REQUEST_DELAY_SECONDS = 0.2
 
 # גודל אצווה לקריאת API אחת (titles=a|b|c...) בבדיקת {{מיון ויקיפדיה}}.

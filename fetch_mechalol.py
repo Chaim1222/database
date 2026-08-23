@@ -19,7 +19,7 @@ import requests
 
 from config import (
     MECHALOL_API,
-    BATCH_SIZE,
+    BATCH_SIZE_MECHALOL_API,
     REQUEST_DELAY_SECONDS,
     REQUEST_HEADERS,
     API_BATCH_SIZE_TEMPLATE_CHECK,
@@ -187,7 +187,7 @@ def get_category_members(category_title, member_type="page", namespace=None):
             "list": "categorymembers",
             "cmtitle": category_title,
             "cmtype": member_type,
-            "cmlimit": BATCH_SIZE,
+            "cmlimit": BATCH_SIZE_MECHALOL_API,
         }
         if namespace is not None:
             params["cmnamespace"] = namespace
@@ -276,7 +276,7 @@ def fetch_all_titles(progress):
             "list": "allpages",
             "apnamespace": 0,
             "apfilterredir": "nonredirects",
-            "aplimit": BATCH_SIZE,
+            "aplimit": BATCH_SIZE_MECHALOL_API,
         }
         if apcontinue:
             params["apcontinue"] = apcontinue
