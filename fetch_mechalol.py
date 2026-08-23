@@ -88,6 +88,49 @@ def log(message, level=logging.INFO):
     logger.log(level, message)
 
 
+def login():
+    """
+    מתחבר לחשבון הבוט במכלול. חובה להתחבר בפועל (לא רק לשלוח
+    bot=1 בפרמטרים) כדי שמדיה-ויקי יכיר בהרשאת apihighlimits
+    ויאפשר aplimit/cmlimit=5000 - בלי session מחובר, הבקשות
+    היו חוזרות בשקט למגבלה האנונימית הרגילה של 500, בלי שום
+    שגיאה שמתריעה על כך.
+    """
+    username = os.getenv("USER_NAME")
+    password = os.getenv("PASSWORD")
+    if not username or not password:
+        log("USER_NAME או PASSWORD לא מוגדרים - לא ניתן להתחבר למכלול", logging.ERROR)
+        return False
+
+    try:
+        token_params = {"action": "query", "meta": "tokens", "type": "login", "format": "json"}
+        token_resp = session.get(MECHALOL_API, params=token_params, timeout=(15, 60))
+        token_resp.raise_for_status()
+        login_token = token_resp.json()["query"]["tokens"]["logintoken"]
+
+        login_params = {
+            "action": "login",
+            "lgname": username,
+            "lgpassword": password,
+            "lgtoken": login_token,
+            "format": "json",
+        }
+        login_resp = session.post(MECHALOL_API, data=login_params, timeout=(15, 60))
+        login_resp.raise_for_status()
+        result = login_resp.json().get("login", {})
+
+        if result.get("result") != "Success":
+            log(f"התחברות למכלול נכשלה: {result.get('reason', 'סיבה לא ידועה')}", logging.ERROR)
+            return False
+
+        log(f"התחברות למכלול הצליחה | משתמש: {username}")
+        return True
+
+    except (requests.RequestException, ValueError, KeyError) as exc:
+        log(f"שגיאה בהתחברות למכלול: {type(exc).__name__}: {exc}", logging.ERROR)
+        return False
+
+
 def format_duration(seconds):
     seconds = int(seconds)
     hours, remainder = divmod(seconds, 3600)
@@ -372,6 +415,10 @@ def upsert_rows(client, rows, batch_number, total):
 
 
 def main():
+    if not login():
+        log("עצירה - לא ניתן להמשיך בלי התחברות תקינה למכלול", logging.ERROR)
+        sys.exit(1)
+
     progress = load_progress()
     client = get_client()
 
