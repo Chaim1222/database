@@ -16,7 +16,12 @@
 create table if not exists wikipedia_pages (
     id bigint primary key,  -- page_id בוויקיפדיה
     title text not null unique,
-    checked_at timestamptz not null default now()
+    checked_at timestamptz not null default now(),
+
+    -- תיאור קצר מוויקינתונים, נשלף ונשמר על ידי fetch_wikidata_descriptions.py
+    -- (סקריפט עצמאי, לא חלק מ-weekly_update.yml) עבור השורות שמופיעות
+    -- בדוח report_missing_from_mechalol בלבד - ראו migration_add_wikidata_desc.sql
+    wikidata_desc text
 );
 
 create table if not exists mechalol_pages (
