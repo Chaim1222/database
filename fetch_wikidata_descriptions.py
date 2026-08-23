@@ -127,17 +127,20 @@ def save_descriptions(client, rows, descriptions):
     לחריגה מה-timeout; upsert בקבוצות של BATCH_SIZE מצמצם את זה
     ל-כ-50 בקשות בלבד.
 
-    on_conflict="id" עם רק id+wikidata_desc בכל רשומה: מכיוון שהשורות
-    כבר קיימות (id ידוע מראש מ-report_missing_from_mechalol), זו בפועל
-    פעולת UPDATE על עמודה אחת בלבד - עמודות אחרות בשורה (title,
-    checked_at) לא נוגעות ולא נדרסות.
+    on_conflict="id" עם id+title+wikidata_desc בכל רשומה: title נכלל
+    כי פוסטגרס בודק אילוצי not null על העמודה המלאה עוד לפני שהוא בכלל
+    מגיע לבדיקת ההתנגשות (גם בנתיב ON CONFLICT DO UPDATE) - השמטת title
+    (שכבר יש לו ערך ידוע וזהה) גורמת לשגיאה, גם ששום דבר לא אמור
+    להשתנות בו בפועל. checked_at לא נכלל בכוונה - יש לו ברירת מחדל
+    (פותר את בעיית ה-not null אילו הייתה מתבצעת הכנסה), וכיוון שהוא לא
+    ברשימת העמודות המעודכנות ב-SET, הוא לא נדרס אצל שורות קיימות.
 
     רק עבור שורות שבאמת נמצא להן תיאור (גם ריק - "" - נשמר, כדי לדעת
     להבדיל בין "נבדק ואין תיאור" לבין "עדיין לא נבדק" בריצה הבאה של
     הדשבורד).
     """
     to_update = [
-        {"id": row["id"], "wikidata_desc": descriptions[row["title"]]}
+        {"id": row["id"], "title": row["title"], "wikidata_desc": descriptions[row["title"]]}
         for row in rows
         if row["title"] in descriptions
     ]
