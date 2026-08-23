@@ -21,7 +21,15 @@ create table if not exists wikipedia_pages (
     -- תיאור קצר מוויקינתונים, נשלף ונשמר על ידי fetch_wikidata_descriptions.py
     -- (סקריפט עצמאי, לא חלק מ-weekly_update.yml) עבור השורות שמופיעות
     -- בדוח report_missing_from_mechalol בלבד - ראו migration_add_wikidata_desc.sql
-    wikidata_desc text
+    wikidata_desc text,
+
+    -- true אם אין אף שורה ב-mechalol_pages שמצביעה לכאן (wikipedia_id).
+    -- מחושב מחדש בסוף כל ריצה של match.py (recompute_missing_flag,
+    -- למטה) - לא חי, לא מתעדכן אוטומטית בין ריצה לריצה. הוחלף מהצטרפות
+    -- (join) חיה של שתי הטבלאות ב-report_missing_from_mechalol, שהייתה
+    -- לוקחת ~3.7 שניות ועפה על statement_timeout של תפקיד ה-anon -
+    -- ראו migration_add_is_missing_flag.sql.
+    is_missing boolean not null default false
 );
 
 create table if not exists mechalol_pages (
@@ -115,6 +123,7 @@ create table if not exists blacklist_titles (
 create index if not exists idx_mechalol_status on mechalol_pages(status);
 create index if not exists idx_mechalol_match_type on mechalol_pages(match_type);
 create index if not exists idx_mechalol_wikipedia_id on mechalol_pages(wikipedia_id);
+create index if not exists idx_wikipedia_is_missing on wikipedia_pages(is_missing) where is_missing;
 
 -- קריאה מ-fetch_wikipedia.py (client.rpc) בתחילת כל ריצה טרייה, לפני
 -- המילוי מחדש. שתי הטבלאות ביחד - יש מפתח זר ביניהן.
@@ -123,4 +132,22 @@ returns void
 language sql
 as $$
     truncate table wikipedia_pages, mechalol_pages;
+$$;
+
+-- קריאה מ-match.py (client.rpc) בסוף כל ריצה, אחרי שכל שורות
+-- mechalol_pages כבר עודכנו עם wikipedia_id סופי. מעדכן בעדכון יחיד
+-- (לא שורה-שורה) את is_missing עבור כל wikipedia_pages - מריץ עם
+-- מפתח השירות (SUPABASE_SERVICE_KEY), לא עם תפקיד ה-anon, כך שלא כפוף
+-- ל-statement_timeout הנמוך שלו.
+create or replace function recompute_missing_flag()
+returns void
+language sql
+as $$
+    update wikipedia_pages w
+    set is_missing = not exists (
+        select 1 from mechalol_pages m where m.wikipedia_id = w.id
+    )
+    where w.is_missing <> not exists (
+        select 1 from mechalol_pages m where m.wikipedia_id = w.id
+    );
 $$;

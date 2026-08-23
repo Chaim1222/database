@@ -476,6 +476,19 @@ def main():
             f"ידני_לא_נמצא={manual_unresolved:,}"
         )
 
+    # שלב 2 | חישוב מחדש של wikipedia_pages.is_missing - עדכון יחיד
+    # בסופרבייס (לא שורה-שורה), אחרי שכל mechalol_pages.wikipedia_id כבר
+    # סופי לריצה הזו. מחליף הצטרפות חיה שהתבצעה עד כה בתוך
+    # report_missing_from_mechalol (ראו migration_add_is_missing_flag.sql).
+    log("שלב 2 | מחשב מחדש wikipedia_pages.is_missing...")
+    recompute_started = time.monotonic()
+    execute_with_retry(
+        lambda: client.rpc("recompute_missing_flag").execute(),
+        "RECOMPUTE_MISSING_FLAG",
+    )
+    recompute_elapsed = time.monotonic() - recompute_started
+    log(f"שלב 2 הושלם | {recompute_elapsed:.1f} שנ'")
+
     elapsed = int(time.monotonic() - started)
     matched_total = manual_matched + exact_matches + normalization_matches + template_matches
 

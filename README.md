@@ -1,7 +1,7 @@
 # השוואת ערכים - ויקיפדיה העברית מול המכלול
 
 ## הגדרה נדרשת לפני הרצה
-1. להריץ את `schema.sql` בעורך ה-SQL של סופרבייס (התקנה חדשה), או `migration_manual_matches_and_cleanup_columns.sql` (מעבר מסביבה קיימת - **קרא את האזהרה בראש הקובץ לפני הרצה**, יש בו DROP TABLE).
+1. להריץ את `schema.sql` בעורך ה-SQL של סופרבייס (התקנה חדשה), או `migration_manual_matches_and_cleanup_columns.sql` (מעבר מסביבה קיימת - **קרא את האזהרה בראש הקובץ לפני הרצה**, יש בו DROP TABLE). התקנה קיימת שכבר עברה את המיגרציה הזו בעבר צריכה להריץ בנוסף גם את `migration_add_is_missing_flag.sql` (ראו הערה על `is_missing` למטה).
 2. להריץ את `views.sql`.
 3. להוסיף ב-Secrets של הריפו בגיטהאב: `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `MECHALOL_API_URL`.
 4. לוודא ב-`config.py` שכתובת ה-API של המכלול וכתובות הקטגוריות מדויקות (הוגדרו לפי ההנחות מהשיחה, כדאי לאמת מול השרת בפועל).
@@ -9,11 +9,14 @@
 ## ארכיטקטורה - ריקון ומילוי מחדש בכל ריצה
 `wikipedia_pages` ו-`mechalol_pages` מתרוקנות (`TRUNCATE`) ומתמלאות מחדש **במלואן** בכל ריצה שבועית - לא עדכון הפרשי. `id` בשתי הטבלאות הוא ה-`page_id` האמיתי באתר המקור (לא `bigserial`), כך שהוא יציב וזהה בין ריצות, גם אחרי הריקון.
 
+`wikipedia_pages.is_missing` (בוליאני) מסמן דף שקיים בוויקיפדיה ואין לו שום שורה תואמת ב-`mechalol_pages` - זהו המקור ל-`report_missing_from_mechalol`. **לא מחושב חי** - `fetch_wikipedia.py` ממלא אותו ל-`false` (ברירת מחדל) בכל `INSERT`, ורק בסוף `match.py` (אחרי שכל ההתאמות של אותה ריצה כבר נקבעו) הוא מחושב מחדש בבת אחת דרך `recompute_missing_flag()`. המשמעות: **באמצע הריצה השבועית** (מרגע שה-`TRUNCATE` רץ ועד לסיום `match.py`, כ-30-40 דק') הדוח עשוי להראות זמנית פחות שורות משתמצה במציאות, עד שהחישוב מחדש רץ. הוחלף ב-2026-08 מהצטרפות (`JOIN`) חיה בין שתי הטבלאות ב-`report_missing_from_mechalol`, שלקחה כ-3.7 שניות וחרגה מ-`statement_timeout` של תפקיד ה-`anon` בסופרבייס - ראו `migration_add_is_missing_flag.sql`.
+
 שתי טבלאות **לא** מתרוקנות, ודורשות תחזוקה ידנית שלך בלבד:
 - **`manual_matches`** - התאמות שהאוטומציה לא יכולה לפתור לבד (למשל כותרת שונה + דף נעול-לקריאה). מפתח: `mechalol_page_id`/`wikipedia_page_id`.
 - **`blacklist_titles`** - כותרות שבכוונה לא יובאו למכלול, לא יופיעו כ"חסרות" ב-`report_missing_from_mechalol`.
 
 ## הרצה
 - הרצה ראשונית: `workflow_dispatch` על `initial_run.yml`. אם נעצר באמצע (מגבלת זמן), פשוט להריץ שוב - ההתקדמות נשמרת (ובמצב הזה, הריקון **לא** חוזר על עצמו, כדי לא לאבד את מה שכבר נטען).
-- עדכון שוטף: `weekly_update.yml`, רץ אוטומטית כל יום ראשון. סדר השלבים קריטי: `fetch_wikipedia.py` (מבצע את הריקון, ואז ממלא) → `fetch_mechalol.py` → `match.py`.
+- עדכון שוטף: `weekly_update.yml`, רץ אוטומטית כל יום ראשון. סדר השלבים קריטי: `fetch_wikipedia.py` (מבצע את הריקון, ואז ממלא) → `fetch_mechalol.py` → `match.py` (מתאים כותרות **וגם** מחשב מחדש את `wikipedia_pages.is_missing` בסופו).
+
 
