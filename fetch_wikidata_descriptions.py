@@ -121,26 +121,40 @@ def fetch_descriptions(titles):
 
 def save_descriptions(client, rows, descriptions):
     """
-    מעדכן את wikipedia_pages.wikidata_desc לפי id, רק עבור שורות
-    שבאמת נמצא להן תיאור (גם ריק - "" - נשמר, כדי לדעת להבדיל בין
-    "נבדק ואין תיאור" לבין "עדיין לא נבדק" בריצה הבאה של הדשבורד).
-    """
-    updated = 0
-    for row in rows:
-        title = row["title"]
-        if title not in descriptions:
-            continue  # לא הוחזר בכלל מוויקינתונים (למשל שגיאת קבוצה) - לא נוגעים
+    מעדכן את wikipedia_pages.wikidata_desc לפי id, בקבוצות מאוגדות
+    (upsert עם רשימת שורות בבקשה אחת) - לא שורה-שורה. עדכון בודד לכל
+    שורה (~24,000 בקשות HTTP נפרדות) התברר כאיטי מדי בפועל וגרם
+    לחריגה מה-timeout; upsert בקבוצות של BATCH_SIZE מצמצם את זה
+    ל-כ-50 בקשות בלבד.
 
-        def update():
+    on_conflict="id" עם רק id+wikidata_desc בכל רשומה: מכיוון שהשורות
+    כבר קיימות (id ידוע מראש מ-report_missing_from_mechalol), זו בפועל
+    פעולת UPDATE על עמודה אחת בלבד - עמודות אחרות בשורה (title,
+    checked_at) לא נוגעות ולא נדרסות.
+
+    רק עבור שורות שבאמת נמצא להן תיאור (גם ריק - "" - נשמר, כדי לדעת
+    להבדיל בין "נבדק ואין תיאור" לבין "עדיין לא נבדק" בריצה הבאה של
+    הדשבורד).
+    """
+    to_update = [
+        {"id": row["id"], "wikidata_desc": descriptions[row["title"]]}
+        for row in rows
+        if row["title"] in descriptions
+    ]
+
+    updated = 0
+    batches = [to_update[i:i + BATCH_SIZE] for i in range(0, len(to_update), BATCH_SIZE)]
+    for i, batch in enumerate(batches):
+        def do_upsert(batch=batch):
             return (
                 client.table("wikipedia_pages")
-                .update({"wikidata_desc": descriptions[title]})
-                .eq("id", row["id"])
+                .upsert(batch, on_conflict="id")
                 .execute()
             )
 
-        execute_with_retry(update, f"עדכון תיאור | {title}", log)
-        updated += 1
+        execute_with_retry(do_upsert, f"עדכון קבוצת תיאורים {i + 1}/{len(batches)}", log)
+        updated += len(batch)
+        log(f"נשמרו {updated}/{len(to_update)} תיאורים")
 
     return updated
 
