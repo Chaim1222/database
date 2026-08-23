@@ -1,0 +1,29 @@
+name: שליפת תיאורי ויקינתונים
+
+# הרצה ידנית בלבד, לצורך בדיקת זמן ריצה - עדיין לא הוחלט אם זה יהפוך
+# לשלב בתוך weekly_update.yml או יישאר תהליך נפרד (בדומה להחלטה על
+# check_missing_locked.yml).
+on:
+  workflow_dispatch:
+
+jobs:
+  fetch_wikidata_descriptions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: שחזור קוד
+        uses: actions/checkout@v4
+
+      - name: התקנת פייתון
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: התקנת ספריות
+        run: pip install -r requirements.txt
+
+      - name: שליפת תיאורי ויקינתונים
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python fetch_wikidata_descriptions.py
