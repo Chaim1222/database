@@ -71,14 +71,15 @@
 
   .filter-bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:14px;}
   .search-wrap{position:relative;flex:1;min-width:200px;max-width:320px;}
-  input.search, select.filter-select, select.page-size{
+  input.search, select.filter-select, select.page-size, input.filter-number{
     background:var(--ink-800);border:1px solid var(--line);border-radius:8px;color:var(--text-1);
     padding:9px 12px;font-family:'Assistant';font-size:13.5px;
   }
   input.search{width:100%;}
-  input.search::placeholder{color:var(--text-3);}
-  input.search:focus, select:focus{outline:2px solid var(--mechalol-dim);border-color:var(--mechalol);}
+  input.search::placeholder, input.filter-number::placeholder{color:var(--text-3);}
+  input.search:focus, select:focus, input.filter-number:focus{outline:2px solid var(--mechalol-dim);border-color:var(--mechalol);}
   select.filter-select{cursor:pointer;}
+  input.filter-number{width:150px;}
   .clear-filters{background:none;border:none;color:var(--text-2);font-size:13px;cursor:pointer;text-decoration:underline;padding:0;}
   .clear-filters:hover{color:var(--alert);}
   .spacer{flex:1;}
@@ -434,7 +435,79 @@ function buildDynamicFilters(){
     };
     host.appendChild(sel);
   });
+  if(activeTab === "missing") buildEasyImportFilters(host);
   toggleClearFiltersBtn();
+}
+
+// שלושת מסנני "קלות ייבוא" הייעודיים לכרטיסיית "חסר במכלול" - שונים
+// מהמסננים הגנריים למעלה (לא שוויון על עמודת מחרוזת): קלט מספרי
+// (lte על easy_import_length), ו-2 בחירות עם ברירת מחדל לא-ריקה
+// (בשונה מכל שאר המסננים באפליקציה, שברירת המחדל שלהם היא "הכול").
+// מסנן הבדיקה המוקדמת (problematic_words_clean) מופעל כברירת מחדל
+// (activeFilters מאוחסן כאן, לא רק ב-UI) - כך שגם טעינה ראשונה של
+// הכרטיסייה, לפני שהמשתמש נגע בשום מסנן, כבר מסננת ערכים "לא נקיים".
+function buildEasyImportFilters(host){
+  // אורך מקסימלי בבתים - ברירת מחדל: אין הגבלה (לא נשלח כלל ל-activeFilters)
+  const lenInput = document.createElement("input");
+  lenInput.type = "number";
+  lenInput.min = "0";
+  lenInput.className = "filter-number";
+  lenInput.id = "filter-easy-length";
+  lenInput.placeholder = "אורך מקס' (בתים)";
+  lenInput.oninput = ()=>{
+    const raw = lenInput.value.trim();
+    if(raw === "" || isNaN(Number(raw))){
+      delete activeFilters["easy_import_length"];
+    } else {
+      activeFilters["easy_import_length"] = {op:"lte", value:Number(raw)};
+    }
+    currentPage = 0;
+    loadActiveView();
+    toggleClearFiltersBtn();
+  };
+  host.appendChild(lenInput);
+
+  // תמונות - ברירת מחדל: הכול (לא נשלח כלל ל-activeFilters)
+  const imgSel = document.createElement("select");
+  imgSel.className = "filter-select";
+  imgSel.id = "filter-easy-images";
+  imgSel.innerHTML = `
+    <option value="">תמונות — הכול</option>
+    <option value="no_images">בלי תמונות</option>`;
+  imgSel.onchange = ()=>{
+    if(imgSel.value === "no_images"){
+      activeFilters["easy_import_has_images"] = {op:"eq", value:false};
+    } else {
+      delete activeFilters["easy_import_has_images"];
+    }
+    currentPage = 0;
+    loadActiveView();
+    toggleClearFiltersBtn();
+  };
+  host.appendChild(imgSel);
+
+  // בדיקה מוקדמת של תוכן (ניקיון ממילים בעייתיות) - ברירת מחדל: כן
+  // (בשונה מכל שאר המסננים - כאן ברירת המחדל *כן* מסננת החוצה ערכים
+  // לא-נקיים, גם בטעינה ראשונה, לפני נגיעה של המשתמש).
+  const cleanSel = document.createElement("select");
+  cleanSel.className = "filter-select";
+  cleanSel.id = "filter-clean";
+  cleanSel.innerHTML = `
+    <option value="yes">בדיקה מוקדמת: כן</option>
+    <option value="no">בדיקה מוקדמת: לא</option>`;
+  cleanSel.value = "yes";
+  activeFilters["problematic_words_clean"] = {op:"eq", value:true};
+  cleanSel.onchange = ()=>{
+    if(cleanSel.value === "yes"){
+      activeFilters["problematic_words_clean"] = {op:"eq", value:true};
+    } else {
+      delete activeFilters["problematic_words_clean"];
+    }
+    currentPage = 0;
+    loadActiveView();
+    toggleClearFiltersBtn();
+  };
+  host.appendChild(cleanSel);
 }
 
 function toggleClearFiltersBtn(){
@@ -445,9 +518,12 @@ function toggleClearFiltersBtn(){
 function clearFilters(){
   activeFilters = {};
   document.getElementById("search-input").value = "";
-  document.querySelectorAll("#dynamic-filters select").forEach(s=>s.value="");
   currentPage = 0;
-  toggleClearFiltersBtn();
+  // בונה מחדש את כל הפילטרים (כולל אלה של "חסר במכלול") במקום רק
+  // לאפס ערכי select ידנית - כי במסנן הבדיקה המוקדמת ברירת המחדל היא
+  // "כן" (activeFilters לא נשאר ריק), לא "" כמו שאר המסננים באפליקציה.
+  // buildDynamicFilters קורא בעצמו ל-toggleClearFiltersBtn בסופו.
+  buildDynamicFilters();
   loadActiveView();
 }
 
@@ -583,7 +659,16 @@ function buildQuery(){
       q = q.ilike("title", `%${safeSearch}%`);
     }
   }
-  Object.entries(activeFilters).forEach(([k,v])=>{ q = q.eq(k, v); });
+  // ערך רגיל (מחרוזת/בוליאני) - שוויון, כמו כל הפילטרים הקיימים.
+  // ערך אובייקט {op,value} - לפילטרים החדשים של "חסר במכלול" שאינם
+  // שוויון (lte לאורך מקסימלי, eq מפורש ל-false/true לתמונות/ניקיון).
+  Object.entries(activeFilters).forEach(([k,v])=>{
+    if(v && typeof v === "object"){
+      q = q[v.op](k, v.value);
+    } else {
+      q = q.eq(k, v);
+    }
+  });
   return q.order("title", {ascending:true});
 }
 

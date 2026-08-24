@@ -23,6 +23,15 @@ create table if not exists wikipedia_pages (
     -- בדוח report_missing_from_mechalol בלבד - ראו migration_add_wikidata_desc.sql
     wikidata_desc text,
 
+    -- שלוש בדיקות "קלות ייבוא", נשלפות ונשמרות על ידי
+    -- fetch_easy_import_candidates.py (סקריפט עצמאי, לא חלק
+    -- מ-weekly_update.yml) עבור השורות שמופיעות בדוח
+    -- report_missing_from_mechalol בלבד - ראו migration_add_easy_import_columns.sql.
+    -- problematic_words_clean בוליאני יחיד - ראו problematic_words.py.
+    easy_import_length bigint,
+    easy_import_has_images boolean,
+    problematic_words_clean boolean,
+
     -- true אם אין אף שורה ב-mechalol_pages שמצביעה לכאן (wikipedia_id).
     -- מחושב מחדש בסוף כל ריצה של match.py (recompute_missing_flag,
     -- למטה) - לא חי, לא מתעדכן אוטומטית בין ריצה לריצה. הוחלף מהצטרפות
