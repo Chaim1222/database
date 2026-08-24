@@ -1,0 +1,31 @@
+name: חישוב קלות ייבוא לחסרים במכלול
+
+# הרצה ידנית בלבד, לצורך מדידת זמן ריצה בפועל - הורדת תוכן מלא
+# (rvprop=content) ל-~24.5 אלף דפים עלולה לקחת 10-20 דקות, ועדיין לא
+# הוחלט אם זה יהפוך לשלב בתוך weekly_update.yml (שכבר עומד על ~37
+# דק' מתוך מגבלה של 60) או יישאר תהליך נפרד - ראו fetch_easy_import_candidates.py
+# ואת ההחלטה המקבילה על fetch_wikidata_descriptions.yml.
+on:
+  workflow_dispatch:
+
+jobs:
+  fetch_easy_import_candidates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: שחזור קוד
+        uses: actions/checkout@v4
+
+      - name: התקנת פייתון
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: התקנת ספריות
+        run: pip install -r requirements.txt
+
+      - name: חישוב קלות ייבוא
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python fetch_easy_import_candidates.py
