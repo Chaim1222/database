@@ -58,8 +58,9 @@ order by task_type, title;
 --    כ"חסרים"). התאמה לפי כותרת מדויקת בלבד - כותרת שנוספה לרשימה
 --    השחורה בכתיב שונה מהכתיב המדויק בוויקיפדיה לא תסונן.
 create or replace view report_missing_from_mechalol as
-select w.id, w.title, w.checked_at, w.wikidata_desc,
-    w.easy_import_length, w.easy_import_has_images, w.problematic_words_clean
+select w.id, w.title, w.checked_at, w.created_at, w.wikidata_desc,
+    w.easy_import_length, w.easy_import_has_images, w.problematic_words_clean,
+    w.mechalol_redirect_exists
 from wikipedia_pages w
 left join mechalol_pages m on m.wikipedia_id = w.id
 where m.id is null
