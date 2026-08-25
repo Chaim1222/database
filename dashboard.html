@@ -255,8 +255,6 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 let client = null;
 
-const STATUS_OPTIONS = ['נוצר במכלול','מיובא ומתועד','מיובא ללא תיעוד','ייבוא מחב"דפדיה','ייבוא מוויקישיבה','נשמר במכלול למרות מחיקה בוויקיפדיה','פוצל מתוכן ויקיפדי'];
-const MATCH_TYPE_OPTIONS = ['יובא מוויקיפדיה','כותרת זהה ללא קשר','ללא התאמה'];
 const TASK_TYPE_OPTIONS = ['לבדוק מחיקה/השוואה לוויקיפדיה','סטטוס לא ברור'];
 const SOURCE_TYPE_LABELS = {
   created:"נוצר במכלול", translated:"תורגם במכלול", pirushon:"פירושון",
@@ -271,11 +269,11 @@ const COLUMN_LABELS = {
 
 const VIEWS = {
   tasks:   { view:"report_tasks_to_handle",        label:"משימות לטיפול",   columns:["title","status","task_type","source_type","match_type","wikipedia_id"],
-             filters:[{key:"task_type",label:"סוג משימה",options:TASK_TYPE_OPTIONS},{key:"status",label:"סטטוס",options:STATUS_OPTIONS},{key:"source_type",label:"מקור",options:Object.keys(SOURCE_TYPE_LABELS),display:SOURCE_TYPE_LABELS}] },
+             filters:[{key:"task_type",label:"סוג משימה",options:TASK_TYPE_OPTIONS}] },
   deleted: { view:"report_possibly_deleted_source",label:"חשוד כמחיקה",     columns:["title","status","source_type","match_type"],
-             filters:[{key:"status",label:"סטטוס",options:STATUS_OPTIONS},{key:"source_type",label:"מקור",options:Object.keys(SOURCE_TYPE_LABELS),display:SOURCE_TYPE_LABELS}] },
+             filters:[] },
   undoc:   { view:"report_undocumented_import",    label:"מיובא ללא תיעוד", columns:["title","source_type","match_type","wikipedia_id"],
-             filters:[{key:"source_type",label:"מקור",options:Object.keys(SOURCE_TYPE_LABELS),display:SOURCE_TYPE_LABELS},{key:"match_type",label:"סוג התאמה",options:MATCH_TYPE_OPTIONS}] },
+             filters:[] },
   missing: { view:"report_missing_from_mechalol",  label:"חסר במכלול",      columns:["title","checked_at","wikidata_desc"], filters:[] },
 };
 
@@ -443,7 +441,7 @@ function buildDynamicFilters(){
 // מהמסננים הגנריים למעלה (לא שוויון על עמודת מחרוזת): קלט מספרי
 // (lte על easy_import_length), ו-2 בחירות עם ברירת מחדל לא-ריקה
 // (בשונה מכל שאר המסננים באפליקציה, שברירת המחדל שלהם היא "הכול").
-// מסנן הבדיקה המוקדמת (problematic_words_clean) מופעל כברירת מחדל
+// מסנן בעיות הצניעות (problematic_words_clean) מופעל כברירת מחדל
 // (activeFilters מאוחסן כאן, לא רק ב-UI) - כך שגם טעינה ראשונה של
 // הכרטיסייה, לפני שהמשתמש נגע בשום מסנן, כבר מסננת ערכים "לא נקיים".
 function buildEasyImportFilters(host){
@@ -486,15 +484,16 @@ function buildEasyImportFilters(host){
   };
   host.appendChild(imgSel);
 
-  // בדיקה מוקדמת של תוכן (ניקיון ממילים בעייתיות) - ברירת מחדל: כן
-  // (בשונה מכל שאר המסננים - כאן ברירת המחדל *כן* מסננת החוצה ערכים
-  // לא-נקיים, גם בטעינה ראשונה, לפני נגיעה של המשתמש).
+  // בעיות צניעות (בדיקת ניקיון ממילים בעייתיות, נושא מין ומיניות
+  // בלבד כרגע) - ברירת מחדל: ללא בעיות צניעות (בשונה מכל שאר
+  // המסננים - כאן ברירת המחדל *מסננת החוצה* ערכים לא-נקיים, גם
+  // בטעינה ראשונה, לפני נגיעה של המשתמש).
   const cleanSel = document.createElement("select");
   cleanSel.className = "filter-select";
   cleanSel.id = "filter-clean";
   cleanSel.innerHTML = `
-    <option value="yes">בדיקה מוקדמת: כן</option>
-    <option value="no">בדיקה מוקדמת: לא</option>`;
+    <option value="yes">ללא בעיות צניעות</option>
+    <option value="no">כולל בעיות צניעות אפשריות</option>`;
   cleanSel.value = "yes";
   activeFilters["problematic_words_clean"] = {op:"eq", value:true};
   cleanSel.onchange = ()=>{
@@ -520,7 +519,7 @@ function clearFilters(){
   document.getElementById("search-input").value = "";
   currentPage = 0;
   // בונה מחדש את כל הפילטרים (כולל אלה של "חסר במכלול") במקום רק
-  // לאפס ערכי select ידנית - כי במסנן הבדיקה המוקדמת ברירת המחדל היא
+  // לאפס ערכי select ידנית - כי במסנן בעיות הצניעות ברירת המחדל היא
   // "כן" (activeFilters לא נשאר ריק), לא "" כמו שאר המסננים באפליקציה.
   // buildDynamicFilters קורא בעצמו ל-toggleClearFiltersBtn בסופו.
   buildDynamicFilters();
