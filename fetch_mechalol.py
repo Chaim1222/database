@@ -415,9 +415,12 @@ def upsert_rows(client, rows, batch_number, total):
 
 
 def main():
-    if not login():
-        log("עצירה - לא ניתן להמשיך בלי התחברות תקינה למכלול", logging.ERROR)
-        sys.exit(1)
+    authenticated = login()
+
+    if not authenticated:
+    log("התחברות נכשלה - ממשיך כאנונימי עם מגבלת API של 500")
+    global BATCH_SIZE_MECHALOL_API
+    BATCH_SIZE_MECHALOL_API = 500
 
     progress = load_progress()
     client = get_client()
