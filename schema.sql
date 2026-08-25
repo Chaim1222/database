@@ -18,13 +18,6 @@ create table if not exists wikipedia_pages (
     title text not null unique,
     checked_at timestamptz not null default now(),
 
-    -- תאריך יצירת הערך בוויקיפדיה (חותמת הזמן של הגרסה הראשונה שלו),
-    -- נשלף ונשמר על ידי fetch_wikipedia.py כחלק מאותה בקשת API של
-    -- allpages (generator=allpages + prop=revisions&rvdir=newer) - בלי
-    -- סבב בקשות נפרד. nullable - יכול לחסור אם לגרסה הראשונה אין
-    -- חותמת זמן זמינה (מקרה חריג). ראו migration_add_wikipedia_created_at.sql.
-    created_at timestamptz,
-
     -- תיאור קצר מוויקינתונים, נשלף ונשמר על ידי fetch_wikidata_descriptions.py
     -- (סקריפט עצמאי, לא חלק מ-weekly_update.yml) עבור השורות שמופיעות
     -- בדוח report_missing_from_mechalol בלבד - ראו migration_add_wikidata_desc.sql
@@ -38,15 +31,6 @@ create table if not exists wikipedia_pages (
     easy_import_length bigint,
     easy_import_has_images boolean,
     problematic_words_clean boolean,
-
-    -- true אם קיימת הפניה (redirect) במכלול תחת כותרת זהה בדיוק לזו -
-    -- כלומר הכותרת "לא ריקה" במכלול, גם אם אין שם ערך תוכן מלא. נשלף
-    -- ונשמר ידנית על ידי check_missing_redirects.py (סקריפט עצמאי,
-    -- לא חלק מ-weekly_update.yml) עבור השורות שמופיעות בדוח
-    -- report_missing_from_mechalol בלבד - כמו wikidata_desc/easy_import
-    -- למטה. nullable בכוונה: NULL = טרם נבדק, לא "ודאי לא הפניה".
-    -- ראו migration_add_mechalol_redirect_flag.sql.
-    mechalol_redirect_exists boolean,
 
     -- true אם אין אף שורה ב-mechalol_pages שמצביעה לכאן (wikipedia_id).
     -- מחושב מחדש בסוף כל ריצה של match.py (recompute_missing_flag,

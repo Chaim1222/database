@@ -256,13 +256,6 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 let client = null;
 
 const TASK_TYPE_OPTIONS = ['לבדוק מחיקה/השוואה לוויקיפדיה','סטטוס לא ברור'];
-// גיל סף ל"ערך חדש בוויקיפדיה", בימים - בשימוש במסנן created_at
-// בכרטיסיית "חסר במכלול" (buildEasyImportFilters). מחושב מול הרגע
-// הנוכחי בכל טעינה/החלפת מסנן, לא מחרוזת תאריך קבועה.
-const NEW_ARTICLE_CUTOFF_DAYS = 14;
-function newArticleCutoffIso(){
-  return new Date(Date.now() - NEW_ARTICLE_CUTOFF_DAYS*24*60*60*1000).toISOString();
-}
 const SOURCE_TYPE_LABELS = {
   created:"נוצר במכלול", translated:"תורגם במכלול", pirushon:"פירושון",
   chabadpedia:"ייבוא מחב\"דפדיה", wikishiva:"ייבוא מוויקישיבה",
@@ -271,8 +264,7 @@ const SOURCE_TYPE_LABELS = {
 const COLUMN_LABELS = {
   title:"כותרת", status:"סטטוס", task_type:"סוג משימה", source_type:"מקור",
   match_type:"סוג התאמה", wikipedia_id:"קישור לוויקיפדיה", checked_at:"נבדק בתאריך",
-  wikidata_desc:"תיאור (ויקינתונים)", created_at:"תאריך יצירה בוויקיפדיה",
-  mechalol_redirect_exists:"קיים במכלול כהפניה",
+  wikidata_desc:"תיאור (ויקינתונים)",
 };
 
 const VIEWS = {
@@ -282,8 +274,7 @@ const VIEWS = {
              filters:[] },
   undoc:   { view:"report_undocumented_import",    label:"מיובא ללא תיעוד", columns:["title","source_type","match_type","wikipedia_id"],
              filters:[] },
-  missing: { view:"report_missing_from_mechalol",  label:"חסר במכלול",
-             columns:["title","created_at","mechalol_redirect_exists","checked_at","wikidata_desc"], filters:[] },
+  missing: { view:"report_missing_from_mechalol",  label:"חסר במכלול",      columns:["title","checked_at","wikidata_desc"], filters:[] },
 };
 
 // מטמון תיאורים מוויקינתונים לפי כותרת — נשמר רק בזיכרון הדפדפן לאורך הביקור הנוכחי
@@ -516,30 +507,6 @@ function buildEasyImportFilters(host){
     toggleClearFiltersBtn();
   };
   host.appendChild(cleanSel);
-
-  // ערכים חדשים בוויקיפדיה (נוצרו בשבועיים האחרונים) - ברירת מחדל:
-  // לא כולל (כמו מסנן בעיות הצניעות למעלה - מסנן החוצה כבר בטעינה
-  // הראשונה, לפני נגיעה של המשתמש). ערך שנוצר לאחרונה סביר יותר
-  // להימחק/להשתנות בוויקיפדיה עצמה, ופחות יציב למועמד ייבוא.
-  const ageSel = document.createElement("select");
-  ageSel.className = "filter-select";
-  ageSel.id = "filter-age";
-  ageSel.innerHTML = `
-    <option value="exclude">ללא ערכים חדשים (שבועיים אחרונים)</option>
-    <option value="include">כולל ערכים חדשים</option>`;
-  ageSel.value = "exclude";
-  activeFilters["created_at"] = {op:"lt", value:newArticleCutoffIso()};
-  ageSel.onchange = ()=>{
-    if(ageSel.value === "exclude"){
-      activeFilters["created_at"] = {op:"lt", value:newArticleCutoffIso()};
-    } else {
-      delete activeFilters["created_at"];
-    }
-    currentPage = 0;
-    loadActiveView();
-    toggleClearFiltersBtn();
-  };
-  host.appendChild(ageSel);
 }
 
 function toggleClearFiltersBtn(){
@@ -773,8 +740,6 @@ function renderCell(col, row){
   if(col === "task_type") return `<span class="badge mechalol">${escapeHtml(val)}</span>`;
   if(col === "status") return `<span class="badge neutral">${escapeHtml(val)}</span>`;
   if(col === "checked_at") return val ? `<span class="num-cell">${new Date(val).toLocaleDateString("he-IL")}</span>` : `<span class="muted">—</span>`;
-  if(col === "created_at") return val ? `<span class="num-cell">${new Date(val).toLocaleDateString("he-IL")}</span>` : `<span class="muted">—</span>`;
-  if(col === "mechalol_redirect_exists") return val ? `<span class="badge neutral">קיים כהפניה</span>` : `<span class="muted">—</span>`;
   if(col === "wikidata_desc"){
     const title = row.title;
     if(wikidataCache.has(title)){
