@@ -264,7 +264,7 @@ const SOURCE_TYPE_LABELS = {
 const COLUMN_LABELS = {
   title:"כותרת", status:"סטטוס", task_type:"סוג משימה", source_type:"מקור",
   match_type:"סוג התאמה", wikipedia_id:"קישור לוויקיפדיה", checked_at:"נבדק בתאריך",
-  wikidata_desc:"תיאור (ויקינתונים)",
+  wikidata_desc:"תיאור (ויקינתונים)", mechalol_redirect_exists:"קיים במכלול כהפניה",
 };
 
 const VIEWS = {
@@ -274,7 +274,8 @@ const VIEWS = {
              filters:[] },
   undoc:   { view:"report_undocumented_import",    label:"מיובא ללא תיעוד", columns:["title","source_type","match_type","wikipedia_id"],
              filters:[] },
-  missing: { view:"report_missing_from_mechalol",  label:"חסר במכלול",      columns:["title","checked_at","wikidata_desc"], filters:[] },
+  missing: { view:"report_missing_from_mechalol",  label:"חסר במכלול",
+             columns:["title","mechalol_redirect_exists","checked_at","wikidata_desc"], filters:[] },
 };
 
 // מטמון תיאורים מוויקינתונים לפי כותרת — נשמר רק בזיכרון הדפדפן לאורך הביקור הנוכחי
@@ -507,6 +508,37 @@ function buildEasyImportFilters(host){
     toggleClearFiltersBtn();
   };
   host.appendChild(cleanSel);
+
+  // מצב הבדיקה מול המכלול (mechalol_redirect_exists) - שלושה מצבים
+  // אפשריים בעמודה עצמה (true/false/NULL), ומאפשרים לסנן לכל אחד מהם
+  // בנפרד: קיים כהפניה, נבדק ואין בכלל, או טרם נבדק כלל. ברירת מחדל:
+  // הכל (בלי סינון) - בניגוד למסנני ברירת המחדל האחרים כאן, זה לא
+  // מיועד "לסנן החוצה" משהו אוטומטית, אלא לתת שליטה לבודד כל קבוצה
+  // לפי דרישה.
+  const redirectSel = document.createElement("select");
+  redirectSel.className = "filter-select";
+  redirectSel.id = "filter-redirect-status";
+  redirectSel.innerHTML = `
+    <option value="all">כל הסטטוסים (הפניה/לא קיים/טרם נבדק)</option>
+    <option value="redirect">רק קיימות כהפניה במכלול</option>
+    <option value="absent">רק נבדקו ואין בכלל</option>
+    <option value="unchecked">רק טרם נבדקו</option>`;
+  redirectSel.value = "all";
+  redirectSel.onchange = ()=>{
+    if(redirectSel.value === "redirect"){
+      activeFilters["mechalol_redirect_exists"] = {op:"eq", value:true};
+    } else if(redirectSel.value === "absent"){
+      activeFilters["mechalol_redirect_exists"] = {op:"eq", value:false};
+    } else if(redirectSel.value === "unchecked"){
+      activeFilters["mechalol_redirect_exists"] = {op:"is", value:null};
+    } else {
+      delete activeFilters["mechalol_redirect_exists"];
+    }
+    currentPage = 0;
+    loadActiveView();
+    toggleClearFiltersBtn();
+  };
+  host.appendChild(redirectSel);
 }
 
 function toggleClearFiltersBtn(){
@@ -740,6 +772,11 @@ function renderCell(col, row){
   if(col === "task_type") return `<span class="badge mechalol">${escapeHtml(val)}</span>`;
   if(col === "status") return `<span class="badge neutral">${escapeHtml(val)}</span>`;
   if(col === "checked_at") return val ? `<span class="num-cell">${new Date(val).toLocaleDateString("he-IL")}</span>` : `<span class="muted">—</span>`;
+  if(col === "mechalol_redirect_exists"){
+    if(val === true) return `<span class="badge neutral">קיים כהפניה</span>`;
+    if(val === false) return `<span class="muted">אין בכלל</span>`;
+    return `<span class="muted">טרם נבדק</span>`;
+  }
   if(col === "wikidata_desc"){
     const title = row.title;
     if(wikidataCache.has(title)){

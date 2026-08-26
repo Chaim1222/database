@@ -58,19 +58,30 @@ def save_progress(apcontinue, done=False):
 
 def fetch_all_titles(apcontinue):
     """
-    ג'נרטור שמחזיר רשימות של (כותרת, page_id) בעימוד, עד סיום כל מרחב השם הראשי.
+    ג'נרטור שמחזיר רשימות של דפים (כותרת, page_id, תאריך יצירה) בעימוד,
+    עד סיום כל מרחב השם הראשי.
+
+    משתמש ב-generator=allpages (במקום list=allpages) יחד עם
+    prop=revisions&rvlimit=1&rvdir=newer כדי לקבל את חותמת הזמן של
+    הגרסה הראשונה (=תאריך היצירה) לכל דף באותה בקשה בדיוק - בלי סבב
+    בקשות נפרד. gapcontinue מחליף את apcontinue כמנגנון העימוד
+    (שם אחר לגמרי בתשובת ה-API כשעובדים עם generator).
     """
     while True:
         params = {
             "action": "query",
-            "list": "allpages",
-            "apnamespace": 0,
-            "apfilterredir": "nonredirects",  # לא כולל הפניות - רק ערכים בפועל
-            "aplimit": BATCH_SIZE,
+            "generator": "allpages",
+            "gapnamespace": 0,
+            "gapfilterredir": "nonredirects",  # לא כולל הפניות - רק ערכים בפועל
+            "gaplimit": BATCH_SIZE,
+            "prop": "revisions",
+            "rvprop": "timestamp",
+            "rvlimit": 1,
+            "rvdir": "newer",  # הגרסה הראשונה = תאריך היצירה
             "format": "json",
         }
         if apcontinue:
-            params["apcontinue"] = apcontinue
+            params["gapcontinue"] = apcontinue
 
         data = None
         for attempt in range(1, MAX_API_RETRIES + 1):
@@ -86,10 +97,19 @@ def fetch_all_titles(apcontinue):
                 print(f"WARNING | שגיאת API | ניסיון {attempt}/{MAX_API_RETRIES}: {exc}")
                 time.sleep(min(2 ** (attempt - 1), 30))
 
-        pages = data.get("query", {}).get("allpages", [])
-        yield [(p["title"], p["pageid"]) for p in pages]
+        # עם generator, הדפים מגיעים כ-dict לפי page_id (לא רשימה כמו
+        # עם list=allpages) - סדר לא מובטח, לא משנה לצרכינו.
+        pages = data.get("query", {}).get("pages", {})
+        batch = []
+        for page in pages.values():
+            if "pageid" not in page or "title" not in page:
+                continue
+            revisions = page.get("revisions") or []
+            created_at = revisions[0]["timestamp"] if revisions else None
+            batch.append({"title": page["title"], "id": page["pageid"], "created_at": created_at})
+        yield batch
 
-        apcontinue = data.get("continue", {}).get("apcontinue")
+        apcontinue = data.get("continue", {}).get("gapcontinue")
         save_progress(apcontinue, done=False)
 
         if not apcontinue:
@@ -109,14 +129,15 @@ def dedupe_batch_titles(batch):
     (העדכני יותר, לפי סדר ההופעה בתשובת ה-API).
     """
     by_title = {}
-    for title, page_id in batch:
-        if title in by_title and by_title[title] != page_id:
+    for row in batch:
+        title = row["title"]
+        if title in by_title and by_title[title]["id"] != row["id"]:
             print(
                 f"WARNING | כותרת כפולה באותה אצווה | '{title}' - "
-                f"page_id {by_title[title]} ו-{page_id} - נשמר רק האחרון"
+                f"page_id {by_title[title]['id']} ו-{row['id']} - נשמר רק האחרון"
             )
-        by_title[title] = page_id
-    return list(by_title.items())
+        by_title[title] = row
+    return list(by_title.values())
 
 
 def find_stale_title_collisions(existing_rows, new_rows):
@@ -126,7 +147,7 @@ def find_stale_title_collisions(existing_rows, new_rows):
     משייכת לאותה כותרת בדיוק. אם ה-id זהה - זו פשוט אותה שורה במדויק
     (עדכון רגיל, לא התנגשות) - לא נוגעים בה.
     """
-    new_page_id_by_title = dict(new_rows)
+    new_page_id_by_title = {row["title"]: row["id"] for row in new_rows}
     return [
         row["id"]
         for row in existing_rows
@@ -136,7 +157,7 @@ def find_stale_title_collisions(existing_rows, new_rows):
 
 
 def resolve_title_collisions(client, batch):
-    titles = [title for title, _ in batch]
+    titles = [row["title"] for row in batch]
 
     # פיצול לצ'אנקים - עשרות/מאות כותרות בעברית באצווה אחת חורגות
     # ממגבלת אורך URL של השרת בבקשת .in_() (כמו שכבר טופל באותה צורה
@@ -180,8 +201,13 @@ def upsert_batch(client, batch):
     batch = dedupe_batch_titles(batch)
     checked_at = datetime.now(timezone.utc).isoformat()
     rows = [
-        {"id": page_id, "title": title, "checked_at": checked_at}
-        for title, page_id in batch
+        {
+            "id": row["id"],
+            "title": row["title"],
+            "checked_at": checked_at,
+            "created_at": row["created_at"],
+        }
+        for row in batch
     ]
 
     for attempt in range(1, MAX_SUPABASE_RETRIES + 1):
