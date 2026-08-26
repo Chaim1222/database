@@ -24,10 +24,15 @@ create table if not exists wikipedia_pages (
     wikidata_desc text,
 
     -- תאריך יצירת הערך בוויקיפדיה (חותמת הזמן של הגרסה הראשונה שלו),
-    -- נשלף ונשמר על ידי fetch_wikipedia.py כחלק מאותה בקשת API של
-    -- allpages (generator=allpages + prop=revisions&rvdir=newer) - בלי
-    -- סבב בקשות נפרד. nullable - יכול לחסור אם לגרסה הראשונה אין
-    -- חותמת זמן זמינה (מקרה חריג). ראו migration_add_wikipedia_created_at.sql.
+    -- תאריך יצירת הערך בוויקיפדיה (חותמת הזמן של הגרסה הראשונה שלו).
+    -- *לא* נשלף בסריקה השבועית המלאה - מדיה-ויקי דוחה כל ניסיון לשלב
+    -- rvdir=newer (הדרך היחידה לקבל את הגרסה הראשונה) עם generator/
+    -- titles שמספקים כמה דפים בבת אחת ("invalidparammix"). נשלף ונשמר
+    -- ידנית על ידי fetch_wikipedia_created_at.py (סקריפט עצמאי, לא
+    -- חלק מ-weekly_update.yml) עבור השורות שמופיעות בדוח
+    -- report_missing_from_mechalol בלבד - כמו wikidata_desc/easy_import
+    -- למטה. nullable: NULL = טרם נבדק (או חסר חותמת זמן במקרה חריג).
+    -- ראו migration_add_wikipedia_created_at.sql.
     created_at timestamptz,
 
     -- שלוש בדיקות "קלות ייבוא", נשלפות ונשמרות על ידי

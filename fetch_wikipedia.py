@@ -2,6 +2,14 @@
 שליפת כל כותרות הערכים ממרחב השם הראשי בוויקיפדיה העברית,
 והכנסתן/עדכונן בטבלת wikipedia_pages בסופרבייס.
 
+תאריך יצירה (created_at) *לא* נשלף כאן: מדיה-ויקי דוחה כל ניסיון
+לשלב rvdir=newer (הדרך היחידה לקבל את הגרסה הראשונה=תאריך יצירה) עם
+generator/titles שמספקים כמה דפים בבת אחת - "invalidparammix", מגבלה
+מוצהרת של ה-API עצמו (מאושר גם בפורום הרשמי של מדיה-ויקי: כדי לקבל
+תאריך יצירה חייבים בקשה נפרדת per-title). לכן, במקום לנסות את זה על
+350 אלף דפים, created_at נשלף בנפרד, ידנית, רק לכותרות ה"חסר במכלול"
+(כמה אלפים) - ראו fetch_wikipedia_created_at.py.
+
 ארכיטקטורה: בתחילת כל ריצה טרייה (לא המשך של ריצה שנעצרה) - מרוקנת
 (TRUNCATE) את wikipedia_pages בלבד ואז ממלאת מחדש מאפס. הריקון עצל
 (lazy) - קורה רק ממש לפני כתיבת האצווה הראשונה עם תוכן אמיתי שהתקבלה
@@ -65,30 +73,26 @@ def save_progress(apcontinue, done=False):
 
 def fetch_all_titles(apcontinue):
     """
-    ג'נרטור שמחזיר רשימות של דפים (כותרת, page_id, תאריך יצירה) בעימוד,
-    עד סיום כל מרחב השם הראשי.
+    ג'נרטור שמחזיר רשימות של דפים (כותרת, page_id) בעימוד, עד סיום כל
+    מרחב השם הראשי.
 
-    משתמש ב-generator=allpages (במקום list=allpages) יחד עם
-    prop=revisions&rvlimit=1&rvdir=newer כדי לקבל את חותמת הזמן של
-    הגרסה הראשונה (=תאריך היצירה) לכל דף באותה בקשה בדיוק - בלי סבב
-    בקשות נפרד. gapcontinue מחליף את apcontinue כמנגנון העימוד
-    (שם אחר לגמרי בתשובת ה-API כשעובדים עם generator).
+    לא מנסה יותר לקבל תאריך יצירה כאן (ראו הערת המודול למעלה) - מדיה-
+    ויקי דוחה json.get("error", {}).get("code") == "invalidparammix"
+    כל ניסיון לשלב rvdir=newer עם generator/titles מרובים; זו מגבלה
+    מוצהרת של ה-API עצמו, לא ניתנת לעקיפה. תאריך יצירה נשלף בנפרד,
+    לכותרות ה"חסר במכלול" בלבד, על ידי fetch_wikipedia_created_at.py.
     """
     while True:
         params = {
             "action": "query",
-            "generator": "allpages",
-            "gapnamespace": 0,
-            "gapfilterredir": "nonredirects",  # לא כולל הפניות - רק ערכים בפועל
-            "gaplimit": BATCH_SIZE,
-            "prop": "revisions",
-            "rvprop": "timestamp",
-            "rvlimit": 1,
-            "rvdir": "newer",  # הגרסה הראשונה = תאריך היצירה
+            "list": "allpages",
+            "apnamespace": 0,
+            "apfilterredir": "nonredirects",  # לא כולל הפניות - רק ערכים בפועל
+            "aplimit": BATCH_SIZE,
             "format": "json",
         }
         if apcontinue:
-            params["gapcontinue"] = apcontinue
+            params["apcontinue"] = apcontinue
 
         data = None
         for attempt in range(1, MAX_API_RETRIES + 1):
@@ -99,7 +103,7 @@ def fetch_all_titles(apcontinue):
                 # מדיה-ויקי לעיתים מחזיר HTTP 200 תקין עם {"error": ...}
                 # בגוף התשובה (לא שגיאת HTTP) - בלי הבדיקה הזו, שגיאה כזו
                 # "נבלעת" בשקט: pages ריק מתפרש כ"0 דפים נמצאו", התהליך
-                # ממשיך וממשיך "בהצלחה" עד לריקון+מילוי-ריק של הטבלאות.
+                # ממשיך וממשיך "בהצלחה" עד לריקון+מילוי-ריק של הטבלה.
                 # ויקיפדיה העברית לעולם לא מחזירה בפועל 0 דפים בסריקה
                 # תקינה - error בתשובה תמיד מטופל כשגיאה הניתנת לניסיון חוזר.
                 if "error" in data:
@@ -112,19 +116,10 @@ def fetch_all_titles(apcontinue):
                 print(f"WARNING | שגיאת API | ניסיון {attempt}/{MAX_API_RETRIES}: {exc}")
                 time.sleep(min(2 ** (attempt - 1), 30))
 
-        # עם generator, הדפים מגיעים כ-dict לפי page_id (לא רשימה כמו
-        # עם list=allpages) - סדר לא מובטח, לא משנה לצרכינו.
-        pages = data.get("query", {}).get("pages", {})
-        batch = []
-        for page in pages.values():
-            if "pageid" not in page or "title" not in page:
-                continue
-            revisions = page.get("revisions") or []
-            created_at = revisions[0]["timestamp"] if revisions else None
-            batch.append({"title": page["title"], "id": page["pageid"], "created_at": created_at})
-        yield batch
+        pages = data.get("query", {}).get("allpages", [])
+        yield [{"title": p["title"], "id": p["pageid"]} for p in pages]
 
-        apcontinue = data.get("continue", {}).get("gapcontinue")
+        apcontinue = data.get("continue", {}).get("apcontinue")
         save_progress(apcontinue, done=False)
 
         if not apcontinue:
@@ -220,7 +215,6 @@ def upsert_batch(client, batch):
             "id": row["id"],
             "title": row["title"],
             "checked_at": checked_at,
-            "created_at": row["created_at"],
         }
         for row in batch
     ]
