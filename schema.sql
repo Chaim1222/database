@@ -23,6 +23,13 @@ create table if not exists wikipedia_pages (
     -- בדוח report_missing_from_mechalol בלבד - ראו migration_add_wikidata_desc.sql
     wikidata_desc text,
 
+    -- תאריך יצירת הערך בוויקיפדיה (חותמת הזמן של הגרסה הראשונה שלו),
+    -- נשלף ונשמר על ידי fetch_wikipedia.py כחלק מאותה בקשת API של
+    -- allpages (generator=allpages + prop=revisions&rvdir=newer) - בלי
+    -- סבב בקשות נפרד. nullable - יכול לחסור אם לגרסה הראשונה אין
+    -- חותמת זמן זמינה (מקרה חריג). ראו migration_add_wikipedia_created_at.sql.
+    created_at timestamptz,
+
     -- שלוש בדיקות "קלות ייבוא", נשלפות ונשמרות על ידי
     -- fetch_easy_import_candidates.py (סקריפט עצמאי, לא חלק
     -- מ-weekly_update.yml) עבור השורות שמופיעות בדוח
@@ -31,6 +38,16 @@ create table if not exists wikipedia_pages (
     easy_import_length bigint,
     easy_import_has_images boolean,
     problematic_words_clean boolean,
+
+    -- true אם קיימת הפניה (redirect) במכלול תחת כותרת זהה בדיוק לזו -
+    -- כלומר הכותרת "לא ריקה" במכלול, גם אם אין שם ערך תוכן מלא. false
+    -- אם נבדק ונמצא שאין שם כלום (לא ערך ולא הפניה). נשלף ונשמר ידנית
+    -- על ידי check_missing_redirects.py (סקריפט עצמאי, לא חלק
+    -- מ-weekly_update.yml) עבור השורות שמופיעות בדוח
+    -- report_missing_from_mechalol בלבד - כמו wikidata_desc/easy_import
+    -- למעלה. nullable בכוונה: NULL = טרם נבדק בכלל (שונה מ-false, שהוא
+    -- תוצאת בדיקה בפועל). ראו migration_add_mechalol_redirect_flag.sql.
+    mechalol_redirect_exists boolean,
 
     -- true אם אין אף שורה ב-mechalol_pages שמצביעה לכאן (wikipedia_id).
     -- מחושב מחדש בסוף כל ריצה של match.py (recompute_missing_flag,
@@ -134,13 +151,34 @@ create index if not exists idx_mechalol_match_type on mechalol_pages(match_type)
 create index if not exists idx_mechalol_wikipedia_id on mechalol_pages(wikipedia_id);
 create index if not exists idx_wikipedia_is_missing on wikipedia_pages(is_missing) where is_missing;
 
--- קריאה מ-fetch_wikipedia.py (client.rpc) בתחילת כל ריצה טרייה, לפני
--- המילוי מחדש. שתי הטבלאות ביחד - יש מפתח זר ביניהן.
-create or replace function truncate_pages()
+-- קריאות מ-fetch_mechalol.py ו-fetch_wikipedia.py (client.rpc), כל אחת
+-- בתחילת ריצה טרייה משלה, ממש לפני המילוי מחדש - שתי פונקציות נפרדות
+-- (לא אחת משותפת) בכוונה, כדי שכישלון של אחד הסקריפטים לא יגרום לריקון
+-- הטבלה של השני.
+--
+-- הסדר קריטי בגלל המפתח הזר mechalol_pages.wikipedia_id -> wikipedia_pages.id:
+-- תמיד יש לרוקן קודם את mechalol_pages (הטבלה המפנה/child) ורק אחר כך
+-- את wikipedia_pages (הטבלה המופנית/parent). ריקון wikipedia_pages
+-- לבד בזמן שיש עדיין שורות ב-mechalol_pages שמפנות לשורות שלה נכשל
+-- עם שגיאת מפתח זר (TRUNCATE לא מרשה את זה, בניגוד ל-DELETE).
+-- fetch_mechalol.py לא שולח wikipedia_id ב-INSERT שלו (הוא נקבע רק
+-- ב-match.py בסוף השרשרת), כך שמיד אחרי ריצה מוצלחת של
+-- truncate_mechalol_pages()+מילוי מחדש, כל wikipedia_id הוא NULL -
+-- ולכן truncate_wikipedia_pages() בטוח לגמרי גם אם הוא רץ מיד אחרי.
+-- ראו סדר השלבים ב-weekly_update.yml (מכלול תמיד לפני ויקיפדיה) וההערה
+-- המתאימה בכל אחד מהסקריפטים. ראו migration_split_truncate_functions.sql.
+create or replace function truncate_mechalol_pages()
 returns void
 language sql
 as $$
-    truncate table wikipedia_pages, mechalol_pages;
+    truncate table mechalol_pages;
+$$;
+
+create or replace function truncate_wikipedia_pages()
+returns void
+language sql
+as $$
+    truncate table wikipedia_pages;
 $$;
 
 -- קריאה מ-match.py (client.rpc) בסוף כל ריצה, אחרי שכל שורות

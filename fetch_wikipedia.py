@@ -2,11 +2,18 @@
 שליפת כל כותרות הערכים ממרחב השם הראשי בוויקיפדיה העברית,
 והכנסתן/עדכונן בטבלת wikipedia_pages בסופרבייס.
 
-ארכיטקטורה: בתחילת כל ריצה טרייה (לא המשך של initial_run שנעצר) -
-מרוקנת (TRUNCATE) את wikipedia_pages ואת mechalol_pages יחד (יש ביניהן
-מפתח זר), ואז ממלאת מחדש מאפס. id בטבלה הוא ה-page_id האמיתי בוויקיפדיה
-(לא bigserial) - יציב וזהה בכל ריצה. אין יותר מנגנון "ניקוי דפים
-שנעלמו" בסוף הריצה - הריקון בתחילתה כבר עושה את זה.
+ארכיטקטורה: בתחילת כל ריצה טרייה (לא המשך של ריצה שנעצרה) - מרוקנת
+(TRUNCATE) את wikipedia_pages בלבד ואז ממלאת מחדש מאפס. הריקון עצל
+(lazy) - קורה רק ממש לפני כתיבת האצווה הראשונה עם תוכן אמיתי שהתקבלה
+בהצלחה מה-API, לא באופן גורף בתחילת הריצה - כך שתקלת API בבקשה
+הראשונה לא נוגעת בטבלה הקיימת בכלל. חייבת לרוץ *אחרי* fetch_mechalol.py
+בתזמון השבועי (ראו weekly_update.yml) - מפתח זר
+mechalol_pages.wikipedia_id -> wikipedia_pages.id, וריקון wikipedia_pages
+דורש שכל ה-wikipedia_id ב-mechalol_pages כבר NULL (מובטח מיד אחרי ריקון
++מילוי טרי של mechalol_pages, לפני ש-match.py הריץ). id בטבלה הוא
+ה-page_id האמיתי בוויקיפדיה (לא bigserial) - יציב וזהה בכל ריצה. אין
+יותר מנגנון "ניקוי דפים שנעלמו" בסוף הריצה - הריקון בתחילתה כבר עושה
+את זה.
 
 שימוש (הרצה ראשונית ומלאה):
     python fetch_wikipedia.py
@@ -58,19 +65,30 @@ def save_progress(apcontinue, done=False):
 
 def fetch_all_titles(apcontinue):
     """
-    ג'נרטור שמחזיר רשימות של (כותרת, page_id) בעימוד, עד סיום כל מרחב השם הראשי.
+    ג'נרטור שמחזיר רשימות של דפים (כותרת, page_id, תאריך יצירה) בעימוד,
+    עד סיום כל מרחב השם הראשי.
+
+    משתמש ב-generator=allpages (במקום list=allpages) יחד עם
+    prop=revisions&rvlimit=1&rvdir=newer כדי לקבל את חותמת הזמן של
+    הגרסה הראשונה (=תאריך היצירה) לכל דף באותה בקשה בדיוק - בלי סבב
+    בקשות נפרד. gapcontinue מחליף את apcontinue כמנגנון העימוד
+    (שם אחר לגמרי בתשובת ה-API כשעובדים עם generator).
     """
     while True:
         params = {
             "action": "query",
-            "list": "allpages",
-            "apnamespace": 0,
-            "apfilterredir": "nonredirects",  # לא כולל הפניות - רק ערכים בפועל
-            "aplimit": BATCH_SIZE,
+            "generator": "allpages",
+            "gapnamespace": 0,
+            "gapfilterredir": "nonredirects",  # לא כולל הפניות - רק ערכים בפועל
+            "gaplimit": BATCH_SIZE,
+            "prop": "revisions",
+            "rvprop": "timestamp",
+            "rvlimit": 1,
+            "rvdir": "newer",  # הגרסה הראשונה = תאריך היצירה
             "format": "json",
         }
         if apcontinue:
-            params["apcontinue"] = apcontinue
+            params["gapcontinue"] = apcontinue
 
         data = None
         for attempt in range(1, MAX_API_RETRIES + 1):
@@ -78,18 +96,35 @@ def fetch_all_titles(apcontinue):
                 response = requests.get(WIKIPEDIA_API, params=params, headers=REQUEST_HEADERS, timeout=30)
                 response.raise_for_status()
                 data = response.json()
+                # מדיה-ויקי לעיתים מחזיר HTTP 200 תקין עם {"error": ...}
+                # בגוף התשובה (לא שגיאת HTTP) - בלי הבדיקה הזו, שגיאה כזו
+                # "נבלעת" בשקט: pages ריק מתפרש כ"0 דפים נמצאו", התהליך
+                # ממשיך וממשיך "בהצלחה" עד לריקון+מילוי-ריק של הטבלאות.
+                # ויקיפדיה העברית לעולם לא מחזירה בפועל 0 דפים בסריקה
+                # תקינה - error בתשובה תמיד מטופל כשגיאה הניתנת לניסיון חוזר.
+                if "error" in data:
+                    raise RuntimeError(f"שגיאת API בגוף התשובה: {data['error']}")
                 break
-            except (requests.RequestException, ValueError) as exc:
+            except (requests.RequestException, ValueError, RuntimeError) as exc:
                 if attempt >= MAX_API_RETRIES:
                     print(f"שגיאת API | ניסיון {attempt}/{MAX_API_RETRIES}: {exc}")
                     raise
                 print(f"WARNING | שגיאת API | ניסיון {attempt}/{MAX_API_RETRIES}: {exc}")
                 time.sleep(min(2 ** (attempt - 1), 30))
 
-        pages = data.get("query", {}).get("allpages", [])
-        yield [(p["title"], p["pageid"]) for p in pages]
+        # עם generator, הדפים מגיעים כ-dict לפי page_id (לא רשימה כמו
+        # עם list=allpages) - סדר לא מובטח, לא משנה לצרכינו.
+        pages = data.get("query", {}).get("pages", {})
+        batch = []
+        for page in pages.values():
+            if "pageid" not in page or "title" not in page:
+                continue
+            revisions = page.get("revisions") or []
+            created_at = revisions[0]["timestamp"] if revisions else None
+            batch.append({"title": page["title"], "id": page["pageid"], "created_at": created_at})
+        yield batch
 
-        apcontinue = data.get("continue", {}).get("apcontinue")
+        apcontinue = data.get("continue", {}).get("gapcontinue")
         save_progress(apcontinue, done=False)
 
         if not apcontinue:
@@ -109,14 +144,15 @@ def dedupe_batch_titles(batch):
     (העדכני יותר, לפי סדר ההופעה בתשובת ה-API).
     """
     by_title = {}
-    for title, page_id in batch:
-        if title in by_title and by_title[title] != page_id:
+    for row in batch:
+        title = row["title"]
+        if title in by_title and by_title[title]["id"] != row["id"]:
             print(
                 f"WARNING | כותרת כפולה באותה אצווה | '{title}' - "
-                f"page_id {by_title[title]} ו-{page_id} - נשמר רק האחרון"
+                f"page_id {by_title[title]['id']} ו-{row['id']} - נשמר רק האחרון"
             )
-        by_title[title] = page_id
-    return list(by_title.items())
+        by_title[title] = row
+    return list(by_title.values())
 
 
 def find_stale_title_collisions(existing_rows, new_rows):
@@ -126,7 +162,7 @@ def find_stale_title_collisions(existing_rows, new_rows):
     משייכת לאותה כותרת בדיוק. אם ה-id זהה - זו פשוט אותה שורה במדויק
     (עדכון רגיל, לא התנגשות) - לא נוגעים בה.
     """
-    new_page_id_by_title = dict(new_rows)
+    new_page_id_by_title = {row["title"]: row["id"] for row in new_rows}
     return [
         row["id"]
         for row in existing_rows
@@ -136,7 +172,7 @@ def find_stale_title_collisions(existing_rows, new_rows):
 
 
 def resolve_title_collisions(client, batch):
-    titles = [title for title, _ in batch]
+    titles = [row["title"] for row in batch]
 
     # פיצול לצ'אנקים - עשרות/מאות כותרות בעברית באצווה אחת חורגות
     # ממגבלת אורך URL של השרת בבקשת .in_() (כמו שכבר טופל באותה צורה
@@ -180,8 +216,13 @@ def upsert_batch(client, batch):
     batch = dedupe_batch_titles(batch)
     checked_at = datetime.now(timezone.utc).isoformat()
     rows = [
-        {"id": page_id, "title": title, "checked_at": checked_at}
-        for title, page_id in batch
+        {
+            "id": row["id"],
+            "title": row["title"],
+            "checked_at": checked_at,
+            "created_at": row["created_at"],
+        }
+        for row in batch
     ]
 
     for attempt in range(1, MAX_SUPABASE_RETRIES + 1):
@@ -210,19 +251,28 @@ def main():
 
     client = get_client()
 
-    # ריקון מלא - רק בהתחלה טרייה, לא בהמשך של ריצה שנעצרה (אחרת
-    # אובדות התוצאות שכבר נשמרו). wikipedia_pages ו-mechalol_pages
-    # מתרוקנות יחד (יש מפתח זר ביניהן) - ראו truncate_pages() ב-DB.
+    # ריקון מלא (TRUNCATE) - עכשיו "עצל" (lazy): מתבצע רק ממש לפני
+    # כתיבת האצווה הראשונה שבאמת מתקבלת מה-API עם תוכן, לא באופן גורף
+    # בתחילת הריצה. כך אם יש תקלת API כלשהי בבקשה הראשונה עצמה (רשת,
+    # חסימה, שגיאה בגוף התשובה) - הריצה נכשלת *לפני* שנוגעים בטבלה
+    # הקיימת בכלל, והנתונים הישנים נשארים שלמים. מרוקן רק את
+    # wikipedia_pages - לא נוגע ב-mechalol_pages בכלל (ראו
+    # truncate_wikipedia_pages() ב-DB, ותיעוד הסדר הנדרש מול
+    # fetch_mechalol.py בהערת המודול למעלה).
+    # בהמשך ריצה שנעצרה (is_resumed) - הריקון כבר קרה בריצה הקודמת
+    # שהצליחה לקבל לפחות אצווה אחת; לא מרוקנים שוב.
+    truncated = is_resumed
     if is_resumed:
         print("ריקון | דולג - זו המשך ריצה שהתחילה בתהליך קודם")
-    else:
-        print("ריקון | מרוקן wikipedia_pages + mechalol_pages...")
-        client.rpc("truncate_pages").execute()
 
     total = 0
 
     try:
         for batch in fetch_all_titles(apcontinue):
+            if batch and not truncated:
+                print("ריקון | מרוקן wikipedia_pages...")
+                client.rpc("truncate_wikipedia_pages").execute()
+                truncated = True
             upsert_batch(client, batch)
             total += len(batch)
             print(f"נטענו {total} כותרות עד כה")
@@ -231,6 +281,20 @@ def main():
         if os.path.exists(PROGRESS_FILE):
             os.remove(PROGRESS_FILE)
         raise
+
+    # רשת הגנה אחרונה: ריצה תקינה על ויקיפדיה העברית לעולם לא מסתיימת
+    # ב-0 כותרות. אם זה קורה בכל זאת - כנראה שגיאת API/חסימה לא-ודאית
+    # לא נתפסה כראוי. עדיף להיכשל בקול (exit code שונה מ-0) מאשר לסמן
+    # "done" בשקט. הודות לריקון העצל למעלה, המקרה הזה כבר לא כרוך
+    # באובדן נתונים - הטבלה כלל לא נגעו בה אם total==0.
+    if not is_resumed and total == 0:
+        if os.path.exists(PROGRESS_FILE):
+            os.remove(PROGRESS_FILE)
+        raise RuntimeError(
+            "הריצה הסתיימה עם 0 כותרות מוויקיפדיה העברית - כנראה תקלת "
+            "API/חסימה. הטבלה לא נגעה בה (הריקון עצל ומתבצע רק לפני "
+            "אצווה ראשונה עם תוכן) - לא מסמן כהצלחה."
+        )
 
     save_progress(None, done=True)
     print(f"סיום. סה\"כ {total} כותרות נטענו מוויקיפדיה העברית")

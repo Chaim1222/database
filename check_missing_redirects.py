@@ -10,11 +10,13 @@
 שכבר בדוח "חסר במכלול" (בד"כ כמה אלפים), באצוות ממוקדות של
 prop=info&titles=... - עד API_BATCH_SIZE כותרות בבקשה אחת.
 
-מתחבר לחשבון הבוט במכלול (כמו fetch_mechalol.py) כדי לנצל
+מנסה להתחבר לחשבון הבוט במכלול (כמו fetch_mechalol.py) כדי לנצל
 apihighlimits: 500 כותרות באצווה במקום 50. שימו לב - זו מגבלה שונה
 מ-aplimit/cmlimit (BATCH_SIZE_MECHALOL_API=5000 ב-config.py): titles=
 הוא פרמטר "מרובה-ערכים" (multivalue), שהתקרה שלו נשארת 500 גם עם
 apihighlimits, לא 5000 - זו מגבלה נפרדת לגמרי בממשק ה-API.
+*כישלון login לא עוצר את הריצה* - ממשיכה אנונימית עם 50 לאצווה
+(ראו MECHALOL_BATCH_SIZE, ואותה גישה בדיוק ב-fetch_mechalol.py).
 
 מיועד להרצה ידנית (workflow_dispatch). מריצים אותו שוב בכל פעם שרוצים
 לרענן את התוצאה - העמודה חוזרת ל-NULL אוטומטית בכל ריקון שבועי
@@ -24,7 +26,6 @@ apihighlimits, לא 5000 - זו מגבלה נפרדת לגמרי בממשק ה-A
     python check_missing_redirects.py
 """
 import os
-import sys
 import time
 from datetime import datetime, timezone
 
@@ -33,10 +34,13 @@ import requests
 from config import MECHALOL_API, BATCH_SIZE, REQUEST_DELAY_SECONDS, REQUEST_HEADERS
 from supabase_client import get_client, execute_with_retry
 
-# גודל אצווה לקריאת API אחת (titles=a|b|c...) מול המכלול - 500, תקרת
-# apihighlimits לפרמטר multivalue (ראו הערת מודול לעיל - שונה מ-
-# aplimit/cmlimit שמגיע עד 5000 עם אותו דגל בוט).
-API_BATCH_SIZE = 500
+# גודל אצווה לקריאת API אחת (titles=a|b|c...) מול המכלול - נקבע
+# ב-main() לפי תוצאת login(): 500 (תקרת apihighlimits לפרמטר
+# multivalue - ראו הערת מודול לעיל) אם ההתחברות הצליחה, 50 (התקרה
+# האנונימית הרגילה לאותו פרמטר) אם לא - בלי לעצור את הריצה.
+LOGGED_IN_BATCH_SIZE = 500
+ANONYMOUS_BATCH_SIZE = 50
+API_BATCH_SIZE = ANONYMOUS_BATCH_SIZE
 MAX_API_RETRIES = 5
 
 session = requests.Session()
@@ -217,12 +221,17 @@ def save_results(client, rows, computed):
 
 
 def main():
+    global API_BATCH_SIZE
+
     start = time.monotonic()
     log("מתחיל בדיקת הפניות במכלול לערכים חסרים...")
 
-    if not login():
-        log("עצירה - לא ניתן להמשיך בלי התחברות תקינה למכלול")
-        sys.exit(1)
+    if login():
+        API_BATCH_SIZE = LOGGED_IN_BATCH_SIZE
+        log(f"מחובר לחשבון הבוט במכלול - עובד עם אצוות של {LOGGED_IN_BATCH_SIZE} כותרות")
+    else:
+        API_BATCH_SIZE = ANONYMOUS_BATCH_SIZE
+        log(f"לא הצלחתי להתחבר למכלול - ממשיך אנונימי עם אצוות של {ANONYMOUS_BATCH_SIZE} כותרות")
 
     client = get_client()
     rows = load_missing_rows()

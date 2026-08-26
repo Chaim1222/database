@@ -5,6 +5,24 @@ Fetch Wikipedia-derived metadata from Hamichlol into Supabase.
 (ALTER TABLE ... SET DEFAULT), כדי שרק INSERT של שורה חדשה יקבל אותה,
 ולא ידרוס תוצאות התאמה שכבר חושבו ב-match.py. אם עמודה זו נדרשת
 ב-INSERT ידני, ראו migration_status_labels.sql.
+
+התחברות: login() מנסה להתחבר לחשבון הבוט (apihighlimits, aplimit/
+cmlimit עד 5000) אבל *לא עוצרת את הריצה* אם זה נכשל - ממשיכה אנונימית
+עם המגבלה הרגילה (500). login() נכשלה בעבר עם 403 כבר בבקשת ה-token
+הראשונה (type=login) - נראה כמו חסימה ספציפית לזרימת ה-login עצמה
+(הגנה נגד בוטים/ניחוש-סיסמאות), לא לתעבורת API כללית - שאר הקוד תמיד
+עבד אנונימי בלי שום login. ראו MECHALOL_BATCH_SIZE.
+
+ארכיטקטורה: בתחילת כל ריצה טרייה - מרוקנת (TRUNCATE) את mechalol_pages
+בלבד ואז ממלאת מחדש מאפס. הריקון עצל (lazy) - קורה רק ממש לפני כתיבת
+האצווה הראשונה עם תוכן אמיתי שהתקבלה בהצלחה מה-API, לא באופן גורף
+בתחילת הריצה - כך שתקלת API בכל אחד משלבי האיסוף (login, קטגוריות,
+מיפוי תאריכים, האצווה הראשונה) לא נוגעת בטבלה הקיימת בכלל. wikipedia_id
+לא נשלח ב-INSERT כאן (נקבע רק ב-match.py), כך שמיד אחרי ריקון+מילוי
+מוצלח כל wikipedia_id הוא NULL - ולכן fetch_wikipedia.py יכול לרוקן את
+wikipedia_pages שלו בבטחה גם אם הוא רץ מיד אחרי. בגלל התלות הזו,
+fetch_mechalol.py *חייב* לרוץ לפני fetch_wikipedia.py בתזמון השבועי
+(ראו weekly_update.yml, וההערה המקבילה בראש fetch_wikipedia.py).
 """
 
 import json
@@ -19,6 +37,7 @@ import requests
 
 from config import (
     MECHALOL_API,
+    BATCH_SIZE,
     BATCH_SIZE_MECHALOL_API,
     REQUEST_DELAY_SECONDS,
     REQUEST_HEADERS,
@@ -80,6 +99,14 @@ last_heartbeat = start_time
 api_requests = 0
 api_failures = 0
 
+# גודל אצווה בפועל ל-aplimit/cmlimit - נקבע ב-main() לפי תוצאת login():
+# BATCH_SIZE_MECHALOL_API (5000) אם ההתחברות הצליחה, BATCH_SIZE (500)
+# אם לא - ולא עצירה. login() נכשל בעבר על 403 כבר בבקשת ה-token
+# הראשונה (type=login) - חסימה שנראית ספציפית לזרימת login עצמה, לא
+# לתעבורת API כללית - ולכן נפילה חזרה לגישה אנונימית (שאר הקוד הזה
+# תמיד עבד כך, ללא login בכלל) עדיפה בהרבה על עצירה מוחלטת של הריצה.
+MECHALOL_BATCH_SIZE = BATCH_SIZE_MECHALOL_API
+
 session = requests.Session()
 session.headers.update(REQUEST_HEADERS)
 
@@ -90,11 +117,12 @@ def log(message, level=logging.INFO):
 
 def login():
     """
-    מתחבר לחשבון הבוט במכלול. חובה להתחבר בפועל (לא רק לשלוח
-    bot=1 בפרמטרים) כדי שמדיה-ויקי יכיר בהרשאת apihighlimits
-    ויאפשר aplimit/cmlimit=5000 - בלי session מחובר, הבקשות
-    היו חוזרות בשקט למגבלה האנונימית הרגילה של 500, בלי שום
-    שגיאה שמתריעה על כך.
+    מנסה להתחבר לחשבון הבוט במכלול. הצלחה מזכה ב-apihighlimits
+    (aplimit/cmlimit עד 5000, ראו MECHALOL_BATCH_SIZE). *לא עוצרת את
+    הריצה בכישלון* - הקורא (main) בוחר בהתאם להמשיך אנונימי עם המגבלה
+    הרגילה (500) במקום. login() עצמה כבר תמיד היתה עמידה לכישלון
+    (מחזירה False, לא raise) - זה נשאר כך; מה שהשתנה הוא שה-caller
+    כבר לא מבצע sys.exit() על False.
     """
     username = os.getenv("USER_NAME")
     password = os.getenv("PASSWORD")
@@ -169,6 +197,15 @@ def api_get(params, description="בקשת API"):
             response.raise_for_status()
             data = response.json()
 
+            # מדיה-ויקי לעיתים מחזיר HTTP 200 תקין עם {"error": ...}
+            # בגוף התשובה (לא שגיאת HTTP) - בלי הבדיקה הזו, שגיאה כזו
+            # "נבלעת" בשקט: query/pages/allpages ריקים מתפרשים כ"0
+            # תוצאות נמצאו", וזה ממשיך "בהצלחה" עד לריקון+מילוי-ריק של
+            # הטבלה (בדיוק התקלה שקרתה בפועל בצד ויקיפדיה). מרוכז כאן
+            # במקום אחד כי כל הקריאות למכלול עוברות דרך הפונקציה הזו.
+            if "error" in data:
+                raise RuntimeError(f"שגיאת API בגוף התשובה: {data['error']}")
+
             if api_requests % LOG_EVERY_API_REQUESTS == 0:
                 log(f"API | בוצעו {api_requests} בקשות עד כה")
 
@@ -177,7 +214,7 @@ def api_get(params, description="בקשת API"):
 
             return data
 
-        except (requests.RequestException, ValueError) as exc:
+        except (requests.RequestException, ValueError, RuntimeError) as exc:
             api_failures += 1
             log(
                 f"שגיאת API | {description} | ניסיון {attempt}/{MAX_API_RETRIES} | "
@@ -230,7 +267,7 @@ def get_category_members(category_title, member_type="page", namespace=None):
             "list": "categorymembers",
             "cmtitle": category_title,
             "cmtype": member_type,
-            "cmlimit": BATCH_SIZE_MECHALOL_API,
+            "cmlimit": MECHALOL_BATCH_SIZE,
         }
         if namespace is not None:
             params["cmnamespace"] = namespace
@@ -319,7 +356,7 @@ def fetch_all_titles(progress):
             "list": "allpages",
             "apnamespace": 0,
             "apfilterredir": "nonredirects",
-            "aplimit": BATCH_SIZE_MECHALOL_API,
+            "aplimit": MECHALOL_BATCH_SIZE,
         }
         if apcontinue:
             params["apcontinue"] = apcontinue
@@ -415,11 +452,27 @@ def upsert_rows(client, rows, batch_number, total):
 
 
 def main():
-    if not login():
-        log("עצירה - לא ניתן להמשיך בלי התחברות תקינה למכלול", logging.ERROR)
-        sys.exit(1)
+    global MECHALOL_BATCH_SIZE
+
+    logged_in = login()
+    if logged_in:
+        log(f"מחובר לחשבון הבוט במכלול - עובד עם מגבלת API גבוהה (aplimit/cmlimit={BATCH_SIZE_MECHALOL_API:,})")
+    else:
+        MECHALOL_BATCH_SIZE = BATCH_SIZE
+        log(
+            f"לא הצלחתי להתחבר למכלול - ממשיך אנונימי עם מגבלת API רגילה "
+            f"(aplimit/cmlimit={BATCH_SIZE:,})",
+            logging.WARNING,
+        )
 
     progress = load_progress()
+    # progress לא ריק = יש מצב שמור מריצה קודמת שנקטעה עקב הריגה חיצונית
+    # (מגבלת זמן של גיטהאב אקשנס) בלי הזדמנות להגיב. לעומת זאת, חריגה
+    # אמיתית בתוך הקוד כבר מנקה את קובץ ה-progress בעצמה (ראו except
+    # למטה) - אז אם הקובץ קיים כאן, זו בהכרח הריגה חיצונית, לא כשלון-
+    # בקוד. במצב כזה - הריקון כבר קרה בריצה הקודמת שהצליחה לקבל לפחות
+    # אצווה אחת; לא מרוקנים שוב.
+    is_resumed = bool(progress)
     client = get_client()
 
     log("=" * 80)
@@ -459,11 +512,25 @@ def main():
 
     total = progress.get("uploaded_count", 0)
     batch_number = progress.get("upload_batch", 0)
+    # ריקון מלא (TRUNCATE) - עצל (lazy): מתבצע רק ממש לפני כתיבת האצווה
+    # הראשונה שבאמת מתקבלת מה-API עם תוכן (בלולאה למטה), לא באופן גורף
+    # כאן. כך תקלת API בכל אחד מהשלבים שמעל (login, כל אחד
+    # מ-collect_direct_titles, get_last_update_map) - כבר גורמת לחריגה
+    # ולא מגיעה לכלל ריקון בכלל. מרוקן רק את mechalol_pages - לא נוגע
+    # ב-wikipedia_pages (ראו truncate_mechalol_pages() ב-DB, ותיעוד
+    # סדר השלבים הנדרש ב-weekly_update.yml ובהערת המודול של
+    # fetch_wikipedia.py - מכלול חייב לרוץ ולהתרוקן+להתמלא לפני ויקיפדיה).
+    truncated = is_resumed
 
     try:
         for batch in fetch_all_titles(progress):
             if not batch:
                 continue
+
+            if not truncated:
+                log("ריקון | מרוקן mechalol_pages...")
+                client.rpc("truncate_mechalol_pages").execute()
+                truncated = True
 
             rows = []
 
@@ -529,6 +596,19 @@ def main():
         log("שגיאה אמיתית באמצע הריצה - מוחק את קובץ ההתקדמות כדי שהריצה הבאה תתחיל מחדש", logging.ERROR)
         clear_progress()
         raise
+
+    # רשת הגנה אחרונה: ריצה תקינה על המכלול לעולם לא מסתיימת ב-0
+    # ערכים. אם זה קורה בכל זאת - כנראה תקלת API/חסימה לא-ודאית לא
+    # נתפסה כראוי. עדיף להיכשל בקול (exit code שונה מ-0) מאשר לסמן
+    # "הצלחה" בשקט. הודות לריקון העצל למעלה, המקרה הזה כבר לא כרוך
+    # באובדן נתונים - הטבלה כלל לא נגעה בה אם total==0.
+    if not is_resumed and total == 0:
+        clear_progress()
+        raise RuntimeError(
+            "הריצה הסתיימה עם 0 ערכים מהמכלול - כנראה תקלת API/חסימה. "
+            "הטבלה לא נגעה בה (הריקון עצל ומתבצע רק לפני אצווה ראשונה "
+            "עם תוכן) - לא מסמן כהצלחה."
+        )
 
     clear_progress()
 
