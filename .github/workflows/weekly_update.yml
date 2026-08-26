@@ -23,12 +23,6 @@ jobs:
       - name: התקנת ספריות
         run: pip install -r requirements.txt
 
-      - name: שליפת כותרות ויקיפדיה
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python fetch_wikipedia.py
-
       - name: שליפת נתוני המכלול
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -36,6 +30,17 @@ jobs:
           USER_NAME: ${{ secrets.USER_NAME }}
           PASSWORD: ${{ secrets.PASSWORD }}
         run: python fetch_mechalol.py
+
+      # fetch_mechalol.py *חייב* לרוץ לפני fetch_wikipedia.py - ראו
+      # ההערה המפורטת בראש כל אחד מהקבצים (מפתח זר
+      # mechalol_pages.wikipedia_id -> wikipedia_pages.id; ריקון
+      # wikipedia_pages דורש שכל ה-wikipedia_id ב-mechalol_pages כבר
+      # NULL, מובטח רק מיד אחרי ריקון+מילוי טרי של mechalol_pages).
+      - name: שליפת כותרות ויקיפדיה
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python fetch_wikipedia.py
 
       - name: התאמה בין הכותרות
         env:
