@@ -38,6 +38,9 @@ from config import WIKIPEDIA_API, BATCH_SIZE, REQUEST_DELAY_SECONDS, REQUEST_HEA
 from supabase_client import get_client, execute_with_retry
 
 MAX_API_RETRIES = 5
+SAVE_EVERY = 500  # לשמור לסופרבייס כל 500 כותרות שנבדקו, לא רק בסוף הריצה -
+                  # ריצה שנקטעת (לדוגמה בגלל תפוגת הזמן של הזרימה) לא
+                  # תאבד את מה שכבר נבדק, רק את היתרה
 
 session = requests.Session()
 session.headers.update(REQUEST_HEADERS)
@@ -50,9 +53,11 @@ def log(message):
 
 def load_missing_rows():
     """
-    שולף את כל השורות מ-report_missing_from_mechalol (id, title) -
-    בעימוד מבוסס-מפתח (id), אותו דפוס בדיוק כמו שאר הסקריפטים
-    המקבילים.
+    שולף את כל השורות מ-report_missing_from_mechalol (id, title) שעדיין
+    אין להן תאריך יצירה שמור - בעימוד מבוסס-מפתח (id), אותו דפוס בדיוק
+    כמו שאר הסקריפטים המקבילים. הסינון על created_at ריק הופך ריצות
+    חוזרות לזולות: כותרת שכבר טופלה בהצלחה בריצה קודמת (ולא התאפסה מאז
+    בריקון שבועי) לא נשלפת ולא נבדקת שוב.
     """
     client = get_client()
     rows = []
@@ -62,6 +67,7 @@ def load_missing_rows():
             return (
                 client.table("report_missing_from_mechalol")
                 .select("id,title")
+                .is_("created_at", "null")
                 .gt("id", last_id)
                 .order("id")
                 .limit(BATCH_SIZE)
@@ -100,23 +106,6 @@ def fetch_created_at(title):
     for attempt in range(1, MAX_API_RETRIES + 1):
         try:
             response = session.get(WIKIPEDIA_API, params=params, timeout=(15, 60))
-
-            if response.status_code == 429:
-                # הגבלת קצב (429) - שונה מכל שגיאת רשת/שרת אחרת: לא
-                # תקלה חולפת אלא הגבלה מכוונת, סביר שנגרמת מה-IP
-                # המשותף של ריצי GitHub Actions (לא בהכרח מהתדירות של
-                # הריצה הזו עצמה). מכבד Retry-After אם התקבל, אחרת
-                # השהיה שגדלה עם מספר הניסיון - לא נספר כאן תחת אותה
-                # עלייה מעריכית קצרה של שגיאות רגילות למטה.
-                retry_after = response.headers.get("Retry-After")
-                wait = float(retry_after) if retry_after else min(10 * attempt, 60)
-                log(
-                    f"WARNING | '{title}' | הוגבל קצב (429) | ממתין "
-                    f"{wait:.0f} שניות (ניסיון {attempt}/{MAX_API_RETRIES})"
-                )
-                time.sleep(wait)
-                continue
-
             response.raise_for_status()
             data = response.json()
             if "error" in data:
@@ -128,15 +117,6 @@ def fetch_created_at(title):
                 return None
             log(f"WARNING | '{title}' | ניסיון {attempt}/{MAX_API_RETRIES}: {exc}")
             time.sleep(min(2 ** (attempt - 1), 30))
-    else:
-        data = None
-
-    if data is None:
-        log(
-            f"ERROR | '{title}' | נכשל אחרי {MAX_API_RETRIES} ניסיונות "
-            "(כנראה הגבלת קצב מתמשכת) - מדלגים"
-        )
-        return None
 
     pages = data.get("query", {}).get("pages", [])
     if not pages or pages[0].get("missing"):
@@ -149,40 +129,17 @@ def fetch_created_at(title):
     return revisions[0]["timestamp"]
 
 
-def compute_all(titles):
-    computed = {}
-    total = len(titles)
-
-    for i, title in enumerate(titles, start=1):
-        created_at = fetch_created_at(title)
-        if created_at:
-            computed[title] = created_at
-
-        if i % 200 == 0 or i == total:
-            log(f"נבדקו {i}/{total} כותרות")
-
-        if REQUEST_DELAY_SECONDS:
-            time.sleep(REQUEST_DELAY_SECONDS)
-
-    return computed
-
-
-def save_results(client, rows, computed):
+def flush_buffer(client, buffer):
     """
-    מעדכן את wikipedia_pages.created_at לפי id - כולל title (לא רק id)
-    למניעת שגיאת not null על ON CONFLICT DO UPDATE, אותו דפוס בדיוק
-    כמו בשאר הסקריפטים המקבילים. רק כותרות שקיבלו תשובה בפועל
-    (title in computed) מתעדכנות.
+    שומר קבוצת תוצאות (id, title, created_at) לטבלת wikipedia_pages -
+    כולל title (לא רק id) למניעת שגיאת not null על ON CONFLICT DO
+    UPDATE, אותו דפוס בדיוק כמו בשאר הסקריפטים המקבילים.
     """
-    to_update = [
-        {"id": row["id"], "title": row["title"], "created_at": computed[row["title"]]}
-        for row in rows
-        if row["title"] in computed
-    ]
+    if not buffer:
+        return 0
 
-    updated = 0
-    batches = [to_update[i:i + BATCH_SIZE] for i in range(0, len(to_update), BATCH_SIZE)]
-    for i, batch in enumerate(batches):
+    batches = [buffer[i:i + BATCH_SIZE] for i in range(0, len(buffer), BATCH_SIZE)]
+    for batch in batches:
         def do_upsert(batch=batch):
             return (
                 client.table("wikipedia_pages")
@@ -190,11 +147,39 @@ def save_results(client, rows, computed):
                 .execute()
             )
 
-        execute_with_retry(do_upsert, f"עדכון קבוצת תאריכי יצירה {i + 1}/{len(batches)}", log)
-        updated += len(batch)
-        log(f"נשמרו {updated}/{len(to_update)} שורות")
+        execute_with_retry(do_upsert, "עדכון קבוצת תאריכי יצירה (שמירה הדרגתית)", log)
 
-    return updated
+    log(f"נשמרו {len(buffer)} שורות נוספות לסופרבייס")
+    return len(buffer)
+
+
+def compute_all(client, rows):
+    """
+    שולף תאריך יצירה לכל שורה, ושומר לסופרבייס בהדרגה (כל SAVE_EVERY
+    כותרות שכבר נבדקו) ולא רק בסוף הריצה - כך שריצה שנקטעת (לדוגמה
+    בגלל תפוגת הזמן שהוגדרה לזרימה בגיטהאב) לא מאבדת את כל מה שכבר
+    נעשה, אלא רק את היתרה שעדיין לא נבדקה.
+    """
+    total = len(rows)
+    buffer = []
+    total_saved = 0
+
+    for i, row in enumerate(rows, start=1):
+        created_at = fetch_created_at(row["title"])
+        if created_at:
+            buffer.append({"id": row["id"], "title": row["title"], "created_at": created_at})
+
+        if i % 200 == 0 or i == total:
+            log(f"נבדקו {i}/{total} כותרות")
+
+        if len(buffer) >= SAVE_EVERY or (i == total and buffer):
+            total_saved += flush_buffer(client, buffer)
+            buffer = []
+
+        if REQUEST_DELAY_SECONDS:
+            time.sleep(REQUEST_DELAY_SECONDS)
+
+    return total_saved
 
 
 def main():
@@ -203,19 +188,18 @@ def main():
 
     client = get_client()
     rows = load_missing_rows()
-    log(f"נמצאו {len(rows)} כותרות בדוח 'חסר במכלול'")
+    log(f"נמצאו {len(rows)} כותרות בדוח 'חסר במכלול' שעדיין ללא תאריך יצירה שמור")
 
     if not rows:
         log("אין כותרות לעיבוד - מסתיים")
         return
 
-    titles = [row["title"] for row in rows]
-    log(f"שולף תאריך יצירה - בקשה אחת לכל כותרת ({len(titles)} בקשות בסך הכול, ראו הערת המודול)")
-    computed = compute_all(titles)
-    log(f"נמצא תאריך יצירה עבור {len(computed)} מתוך {len(titles)} כותרות")
-
-    updated = save_results(client, rows, computed)
-    log(f"עודכנו {updated} שורות בטבלת wikipedia_pages")
+    log(
+        f"שולף תאריך יצירה - בקשה אחת לכל כותרת ({len(rows)} בקשות בסך הכול, "
+        f"ראו הערת המודול) - נשמר לסופרבייס בהדרגה כל {SAVE_EVERY} כותרות, לא רק בסוף"
+    )
+    updated = compute_all(client, rows)
+    log(f"עודכנו {updated} שורות בטבלת wikipedia_pages מתוך {len(rows)} כותרות שנבדקו")
 
     duration = time.monotonic() - start
     log(f"הסתיים בהצלחה. משך ריצה כולל: {duration:.1f} שניות ({duration / 60:.1f} דקות)")
