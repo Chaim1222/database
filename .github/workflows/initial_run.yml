@@ -43,19 +43,26 @@ jobs:
       - name: התקנת ספריות
         run: pip install -r requirements.txt
 
+      # fetch_mechalol.py *חייב* לרוץ לפני fetch_wikipedia.py, גם כאן -
+      # אותה סיבה בדיוק כמו ב-weekly_update.yml (מפתח זר
+      # mechalol_pages.wikipedia_id -> wikipedia_pages.id; ריקון
+      # wikipedia_pages דורש שכל ה-wikipedia_id ב-mechalol_pages כבר
+      # NULL, מובטח רק מיד אחרי ריקון+מילוי טרי של mechalol_pages).
+      - name: שליפת נתוני המכלול
+        if: ${{ inputs.mode == 'all' || inputs.mode == 'mechalol_only' }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          USER_NAME: ${{ secrets.USER_NAME }}
+          PASSWORD: ${{ secrets.PASSWORD }}
+        run: python fetch_mechalol.py
+
       - name: שליפת כותרות ויקיפדיה
         if: ${{ inputs.mode == 'all' }}
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: python fetch_wikipedia.py
-
-      - name: שליפת נתוני המכלול
-        if: ${{ inputs.mode == 'all' || inputs.mode == 'mechalol_only' }}
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python fetch_mechalol.py
 
       - name: התאמה בין הכותרות
         if: ${{ inputs.mode == 'match_only' || (inputs.mode == 'all' && success()) }}
