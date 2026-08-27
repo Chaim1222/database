@@ -100,6 +100,23 @@ def fetch_created_at(title):
     for attempt in range(1, MAX_API_RETRIES + 1):
         try:
             response = session.get(WIKIPEDIA_API, params=params, timeout=(15, 60))
+
+            if response.status_code == 429:
+                # הגבלת קצב (429) - שונה מכל שגיאת רשת/שרת אחרת: לא
+                # תקלה חולפת אלא הגבלה מכוונת, סביר שנגרמת מה-IP
+                # המשותף של ריצי GitHub Actions (לא בהכרח מהתדירות של
+                # הריצה הזו עצמה). מכבד Retry-After אם התקבל, אחרת
+                # השהיה שגדלה עם מספר הניסיון - לא נספר כאן תחת אותה
+                # עלייה מעריכית קצרה של שגיאות רגילות למטה.
+                retry_after = response.headers.get("Retry-After")
+                wait = float(retry_after) if retry_after else min(10 * attempt, 60)
+                log(
+                    f"WARNING | '{title}' | הוגבל קצב (429) | ממתין "
+                    f"{wait:.0f} שניות (ניסיון {attempt}/{MAX_API_RETRIES})"
+                )
+                time.sleep(wait)
+                continue
+
             response.raise_for_status()
             data = response.json()
             if "error" in data:
@@ -111,6 +128,15 @@ def fetch_created_at(title):
                 return None
             log(f"WARNING | '{title}' | ניסיון {attempt}/{MAX_API_RETRIES}: {exc}")
             time.sleep(min(2 ** (attempt - 1), 30))
+    else:
+        data = None
+
+    if data is None:
+        log(
+            f"ERROR | '{title}' | נכשל אחרי {MAX_API_RETRIES} ניסיונות "
+            "(כנראה הגבלת קצב מתמשכת) - מדלגים"
+        )
+        return None
 
     pages = data.get("query", {}).get("pages", [])
     if not pages or pages[0].get("missing"):

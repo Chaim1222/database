@@ -147,7 +147,12 @@ def fetch_redirect_status(titles):
     data = None
     for attempt in range(1, MAX_API_RETRIES + 1):
         try:
-            response = session.get(MECHALOL_API, params=params, timeout=(15, 60))
+            # POST ולא GET: כותרות בעברית מקודדות ל-URL תופסות בערך פי
+            # 3 מהאורך המקורי (percent-encoding), וב-500 כותרות באצווה
+            # (LOGGED_IN_BATCH_SIZE) זה בקלות חוצה את מגבלת אורך ה-URL
+            # של השרת/פרוקסי (400/414 גנרי). POST שולח את אותם פרמטרים
+            # בגוף הבקשה, בלי מגבלת אורך כזו - נתמך רשמית ל-action=query.
+            response = session.post(MECHALOL_API, data=params, timeout=(15, 60))
             response.raise_for_status()
             data = response.json()
             break
