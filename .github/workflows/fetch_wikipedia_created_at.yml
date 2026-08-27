@@ -12,7 +12,7 @@ on:
 jobs:
   fetch_wikipedia_created_at:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 300
     steps:
       - name: שחזור קוד
         uses: actions/checkout@v4
