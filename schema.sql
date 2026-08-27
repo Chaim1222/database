@@ -183,6 +183,15 @@ create or replace function truncate_wikipedia_pages()
 returns void
 language sql
 as $$
+    -- לפני הריקון, משחררת כל הפניה קיימת מ-mechalol_pages ל-
+    -- wikipedia_pages (wikipedia_id -> NULL). זה הופך את הריקון לבטוח
+    -- *תמיד* - גם אם משום מה fetch_wikipedia.py רץ לפני
+    -- fetch_mechalol.py השבוע (טעות סדר בתזמון, ריצה ידנית, וכו') -
+    -- לא רק כשהסדר "התיאורטי" נשמר. match.py ממילא מחשב מחדש את
+    -- ה-wikipedia_id של כל שורה מאפס בכל ריצה, כך שאיפוסו כאן לא
+    -- מאבד מידע אמיתי - רק דוחה את החישוב שלו לריצת match.py הבאה,
+    -- בדיוק כפי שהיה קורה גם אם הריקון היה משותף לשתי הטבלאות.
+    update mechalol_pages set wikipedia_id = null where wikipedia_id is not null;
     truncate table wikipedia_pages;
 $$;
 
