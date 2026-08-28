@@ -23,6 +23,8 @@ normalization_checked, אין should_reexamine - כל אלה התייתרו לג
 
 import re
 import time
+import json
+import os
 
 from config import (
     BATCH_SIZE,
@@ -262,7 +264,31 @@ def resolve_pending_via_template(pending, wikipedia_map):
 # מכלול - איטרציה
 # ---------------------------------------------------------------------------
 
-def iter_mechalol_rows(client):
+def iter_mechalol_rows(client, only_ids=None):
+    """
+    only_ids=None (ברירת מחדל): סריקה מלאה, בדיוק כמו קודם - לשימוש
+    בפיוס התקופתי המלא (חודשי).
+
+    only_ids=רשימת id-ים: מגביל את הסריקה לשורות האלה בלבד - לשימוש
+    בריצת דלתא (--scoped, ראו main), אחרי שהוחלט אילו שורות מכלול
+    בכלל דורשות בדיקה מחדש (ראו compute_scoped_ids). מפוצל לצ'אנקים
+    כמו find_stale_title_collisions/resolve_title_collisions בשאר
+    הקוד - אורך URL.
+    """
+    if only_ids is not None:
+        only_ids = sorted(set(only_ids))
+        for i in range(0, len(only_ids), BATCH_SIZE):
+            chunk = only_ids[i:i + BATCH_SIZE]
+            result = execute_with_retry(
+                lambda chunk=chunk: (
+                    client.table("mechalol_pages").select("*").in_("id", chunk).execute()
+                ),
+                f"MECHALOL scoped chunk={i // BATCH_SIZE + 1}",
+            )
+            if result.data:
+                yield result.data
+        return
+
     last_id = 0
     batch_number = 0
 
@@ -292,10 +318,59 @@ def iter_mechalol_rows(client):
             break
 
 
+def compute_scoped_ids(client, mechalol_changed_ids, wikipedia_changed_ids):
+    """
+    מחזיר את קבוצת ה-id-ים ב-mechalol_pages שצריך להעביר מחדש דרך
+    ההתאמה (שלבים 0-3), בהינתן מה השתנה בריצת הדלתא האחרונה:
+
+    - mechalol_changed_ids: id-ים של שורות מכלול שנוצרו/שונה שמן -
+      ברור שצריך להתאים אותן מחדש (חדשות, או עם title שונה מקודם).
+    - wikipedia_changed_ids: id-ים (page_id בוויקיפדיה) של דפים
+      שנוצרו/נמחקו/שונה שמם בוויקיפדיה - לא משפיע ישירות על שום שורת
+      מכלול ספציפית *חדשה*, אבל עלול לשבור/לאפשר התאמה קיימת: שורת
+      מכלול שכבר הצביעה (wikipedia_id) לדף שנמחק/שונה שמו שם, צריכה
+      הערכה מחדש. נמצא בשאילתה הפוכה: כל mechalol_pages.id שה-
+      wikipedia_id שלו נמצא בקבוצה הזו.
+
+    לא מטפל בצד ההפוך (דף ויקיפדי *חדש* שאולי סוף-סוף תואם שורת מכלול
+    שהייתה maybe_deleted_from_wikipedia) - זה בכוונה נשאר לפיוס
+    התקופתי המלא (כמו בתכנון: פערי "התאמה חדשה שנפתחה" ממילא מכוסים
+    שם, לא דורשים תגובה מיידית באותה תדירות כמו דלתא שבורה).
+    """
+    scoped = set(mechalol_changed_ids or [])
+
+    if wikipedia_changed_ids:
+        for i in range(0, len(wikipedia_changed_ids), BATCH_SIZE):
+            chunk = wikipedia_changed_ids[i:i + BATCH_SIZE]
+            result = execute_with_retry(
+                lambda chunk=chunk: (
+                    client.table("mechalol_pages").select("id").in_("wikipedia_id", chunk).execute()
+                ),
+                f"MECHALOL affected-by-wikipedia-change chunk={i // BATCH_SIZE + 1}",
+            )
+            scoped.update(row["id"] for row in (result.data or []))
+
+    return scoped
+
+
 def get_match_type(row):
     if row.get("status") in NOT_REALLY_IMPORTED_STATUSES:
         return MATCH_TYPE_SAME_TITLE_UNRELATED
     return MATCH_TYPE_IMPORTED
+
+
+def _load_changed_ids(filename):
+    """
+    קורא קובץ JSON עם רשימת id-ים שנכתב על ידי סקריפט דלתא (ראו
+    fetch_mechalol_delta.py/fetch_wikipedia_delta.py - _write_changed_ids
+    שם). מחזיר None אם הקובץ לא קיים בכלל (לא הופעל --scoped אחרי אף
+    ריצת דלתא) - שונה במפורש מרשימה ריקה (ריצת דלתא רצה, ופשוט לא היה
+    שום שינוי הפעם).
+    """
+    if not os.path.exists(filename):
+        return None
+    with open(filename, "r", encoding="utf-8") as f:
+        return json.load(f)
 
 
 # ---------------------------------------------------------------------------
@@ -303,17 +378,46 @@ def get_match_type(row):
 # ---------------------------------------------------------------------------
 
 def main():
+    import argparse
+
+    parser = argparse.ArgumentParser(description="התאמת כותרות מכלול מול ויקיפדיה")
+    parser.add_argument(
+        "--scoped", action="store_true",
+        help=(
+            "בודק רק שורות מכלול שהושפעו מריצת הדלתא האחרונה (קורא "
+            "mechalol_delta_changed_ids.json / wikipedia_delta_changed_ids.json "
+            "אם קיימים - נכתבים על ידי fetch_mechalol_delta.py / "
+            "fetch_wikipedia_delta.py). בלי הדגל - סריקה מלאה, כרגיל "
+            "(לשימוש בפיוס התקופתי המלא)."
+        ),
+    )
+    args = parser.parse_args()
+
     started = time.monotonic()
     client = get_client()
 
     log("=" * 80)
-    log("START | match.py")
+    log("START | match.py" + (" (--scoped)" if args.scoped else ""))
     log("=" * 80)
 
     log("שלב 0 | טוען מפות ויקיפדיה + התאמות ידניות...")
     wikipedia_map, wikipedia_existing_ids = load_wikipedia_map(client)
     manual_matches = load_manual_matches(client)
     log(f"שלב 0 הושלם | כותרות={len(wikipedia_map):,} | התאמות_ידניות={len(manual_matches):,}")
+
+    only_ids = None
+    if args.scoped:
+        mechalol_changed = _load_changed_ids("mechalol_delta_changed_ids.json")
+        wikipedia_changed = _load_changed_ids("wikipedia_delta_changed_ids.json")
+
+        if mechalol_changed is None and wikipedia_changed is None:
+            log(
+                "WARNING | --scoped אך לא נמצא אף קובץ changed_ids - "
+                "כנראה לא רצה עדיין ריצת דלתא. נופל חזרה לסריקה מלאה."
+            )
+        else:
+            only_ids = compute_scoped_ids(client, mechalol_changed or [], wikipedia_changed or [])
+            log(f"שלב 0 | מצומצם ל-{len(only_ids):,} שורות מכלול (--scoped)")
 
     total = 0
     manual_matched = 0
@@ -326,7 +430,7 @@ def main():
 
     log("שלב 1 | מתאים כותרות מכלול...")
 
-    for batch_number, batch in enumerate(iter_mechalol_rows(client), 1):
+    for batch_number, batch in enumerate(iter_mechalol_rows(client, only_ids=only_ids), 1):
         updates = []
         pending = []  # [(row, title)] - דורש בדיקת תבנית מיון
 

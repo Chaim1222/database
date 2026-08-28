@@ -1,0 +1,45 @@
+name: בדיקת דלתא (dry-run)
+
+# workflow זמני לבדיקה בלבד - להרצה ידנית דרך טאב Actions -> "בדיקת
+# דלתא (dry-run)" -> Run workflow. מריץ את fetch_wikipedia_delta.py
+# ו-fetch_mechalol_delta.py עם --dry-run - שולף מה-API האמיתי של
+# ויקיפדיה/המכלול ומדפיס מה היה נכתב/נמחק/משתנה, בלי לגעת בסופרבייס
+# בכלל (אין GITHUB secrets בשימוש כאן במכוון - --dry-run + --since לא
+# צריכים אותם). למחוק את הקובץ הזה אחרי שהבדיקה מסתיימת ועוברים
+# לריצות אמת (weekly_update.yml).
+
+on:
+  workflow_dispatch:
+    inputs:
+      since:
+        description: 'לבדוק שינויים החל מתאריך זה (ISO 8601, UTC)'
+        required: true
+        default: '2026-08-25T00:00:00Z'
+
+jobs:
+  dry_run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: שחזור קוד
+        uses: actions/checkout@v4
+
+      - name: התקנת פייתון
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: התקנת ספריות
+        run: pip install -r requirements.txt
+
+      - name: דלתא ויקיפדיה (dry-run)
+        env:
+          SUPABASE_URL: unused
+          SUPABASE_SERVICE_KEY: unused
+        run: python fetch_wikipedia_delta.py --dry-run --since "${{ inputs.since }}"
+
+      - name: דלתא מכלול (dry-run)
+        env:
+          SUPABASE_URL: unused
+          SUPABASE_SERVICE_KEY: unused
+        run: python fetch_mechalol_delta.py --dry-run --since "${{ inputs.since }}"
