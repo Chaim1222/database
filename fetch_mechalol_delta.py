@@ -22,7 +22,7 @@ import json
 
 from config import MECHALOL_API
 from delta_api import fetch_new_pages, fetch_delete_log, fetch_move_log
-from fetch_mechalol import fetch_classification_data, classify_page
+from fetch_mechalol import fetch_own_categories, classify_page_from_own_categories
 from supabase_client import get_client, execute_with_retry
 
 SOURCE = "mechalol"
@@ -58,20 +58,22 @@ def classify_moves(moves):
     return renames, creation_like, deletion_like
 
 
-def apply_creations(client, creations, categories, last_update_map):
+def apply_creations(client, creations, own_categories_by_title):
     """
-    בשונה מ-fetch_wikipedia_delta - כל שורה חדשה עוברת classify_page
-    (סטטוס/source_type/last_update_month/needs_attention/is_dictionary_entry)
-    לפני upsert. wikipedia_id לא נשלח (כמו בסריקה המלאה) - נקבע רק
-    ב-match.py; match_type לא נשלח - ברירת מחדל בטבלה בלבד, כדי לא
-    לדרוס שורה קיימת (upsert על id שכבר קיים, למשל restore אחרי מחיקה
-    ישנה, לא אמור לאפס match_type שכבר חושב).
+    בשונה מהגרסה הקודמת (שהשתמשה ב-fetch_classification_data/
+    classify_page הגלובליים - התגלה בפועל כיקר מדי לריצה תכופה, ראו
+    fetch_own_categories) - כל שורה חדשה עוברת classify_page_from_own_categories
+    על סמך הקטגוריות שהיא עצמה שייכת אליהן, שנשלפו מראש ב-main() רק
+    עבור הכותרות שבאמת השתנו. wikipedia_id/match_type לא נשלחים - ראו
+    הערה מקורית.
     """
     if not creations:
         return
     rows = []
     for c in creations:
-        classification = classify_page(c["title"], categories, last_update_map)
+        classification = classify_page_from_own_categories(
+            c["title"], own_categories_by_title.get(c["title"], set())
+        )
         rows.append({"id": c["page_id"], "title": c["title"], **classification})
 
     execute_with_retry(
@@ -227,14 +229,16 @@ def main():
         f"תזוזות-כמחיקה={len(move_deletions)} | שינויי-שם={len(renames)}"
     )
 
-    # קטגוריות + מיפוי תאריכים נשלפים תמיד (גם ב-dry-run, כדי להציג
-    # status אמיתי) - עלות זולה וקבועה (ראו הערת המודול).
-    categories, last_update_map = fetch_classification_data()
+    # קטגוריות עצמיות רק לכותרות שבאמת נוצרו (לא כל האתר) - ראו
+    # fetch_own_categories. עדיין נשלף ב-dry-run כדי להציג status אמיתי.
+    own_categories_by_title = fetch_own_categories([c["title"] for c in all_creations])
 
     if args.dry_run:
         log("--- DRY RUN: לא נכתב שום דבר לסופרבייס ---")
         for c in all_creations[:20]:
-            classification = classify_page(c["title"], categories, last_update_map)
+            classification = classify_page_from_own_categories(
+                c["title"], own_categories_by_title.get(c["title"], set())
+            )
             log(f"  יצירה   | id={c['page_id']} | '{c['title']}' | status={classification['status']}")
         for d in all_deletions[:20]:
             log(f"  מחיקה   | id={d['page_id']} | '{d['title']}' | pageid_valid={d['pageid_valid']}")
@@ -247,7 +251,7 @@ def main():
 
     try:
         write_delta_tables(client, all_creations, all_deletions, renames)
-        apply_creations(client, all_creations, categories, last_update_map)
+        apply_creations(client, all_creations, own_categories_by_title)
         apply_deletions(client, all_deletions)
         apply_renames(client, renames)
         write_changed_ids_file(all_creations, renames)

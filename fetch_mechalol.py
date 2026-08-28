@@ -346,6 +346,107 @@ def get_last_update_map():
     return result
 
 
+def fetch_own_categories(titles):
+    """
+    לשימוש בדלתא בלבד (כמות כותרות קטנה) - ראו fetch_mechalol_delta.py.
+    שולפת prop=categories&titles=... - לכל כותרת, אילו קטגוריות *היא
+    עצמה* שייכת אליהן - בניגוד ל-fetch_classification_data/
+    collect_direct_titles, שמורידות את כל רשימת החברים של כל קטגוריה
+    מוכרת (עלות תלויה בגודל הקטגוריה - התגלה בפועל בהרצת dry-run
+    אמיתית: עד 185,000+ חברים בקטגוריות עדכון-אחרון, כמעט כל האתר -
+    בעייתי כשמריצים כל 2-3 ימים, לא רק שבועית כמו הסריקה המלאה).
+    כאן העלות תלויה במספר הכותרות המבוקשות, לא בגודל שום קטגוריה.
+
+    מחזירה dict: title -> set(שמות קטגוריות מלאים, "קטגוריה:...").
+    """
+    titles = list(dict.fromkeys(titles))  # ייחודי, שומר סדר
+    result = {t: set() for t in titles}
+
+    for i in range(0, len(titles), API_BATCH_SIZE_TEMPLATE_CHECK):
+        batch = titles[i:i + API_BATCH_SIZE_TEMPLATE_CHECK]
+        clcontinue = None
+
+        while True:
+            params = {
+                "action": "query",
+                "prop": "categories",
+                "titles": "|".join(batch),
+                "cllimit": 500,
+            }
+            if clcontinue:
+                params["clcontinue"] = clcontinue
+
+            data = api_get(params, f"קטגוריות עצמיות | אצווה {i // API_BATCH_SIZE_TEMPLATE_CHECK + 1}")
+            for page in data.get("query", {}).get("pages", {}).values():
+                title = page.get("title")
+                if not title or title not in result:
+                    continue
+                for cat in page.get("categories", []):
+                    result[title].add(cat["title"])
+
+            clcontinue = data.get("continue", {}).get("clcontinue")
+            if not clcontinue:
+                break
+
+    return result
+
+
+_CREATED_SOURCE_CATEGORIES = None  # מחושב פעם אחת ב-classify_page_from_own_categories
+
+
+def classify_page_from_own_categories(title, own_categories):
+    """
+    מקבילה ל-classify_page, לשימוש בדלתא (ראו fetch_own_categories) -
+    בודקת שייכות בקטגוריות של הכותרת עצמה במקום בקבוצות הגלובליות.
+    סדר העדיפויות זהה בדיוק ל-classify_page - חובה לשמור מסונכרן אם
+    אחת מהן משתנה.
+    """
+    global _CREATED_SOURCE_CATEGORIES
+    if _CREATED_SOURCE_CATEGORIES is None:
+        _CREATED_SOURCE_CATEGORIES = {
+            CATEGORY_CREATED_IN_MECHALOL, CATEGORY_TRANSLATED_IN_MECHALOL,
+            CATEGORY_PIRUSHONIM_CREATED_IN_MECHALOL, CATEGORY_IMPORTED_FROM_CHABADPEDIA,
+            CATEGORY_IMPORTED_FROM_WIKISHIVA, CATEGORY_DELETED_ON_WIKIPEDIA_KEPT,
+            CATEGORY_SPLIT_FROM_WIKIPEDIA,
+        }
+
+    last_update_cat = next((c for c in own_categories if parse_month_from_category(c)), None)
+
+    if CATEGORY_CREATED_IN_MECHALOL in own_categories:
+        status, source_type = STATUS_CREATED_IN_MECHALOL, "created"
+    elif CATEGORY_TRANSLATED_IN_MECHALOL in own_categories:
+        status, source_type = STATUS_CREATED_IN_MECHALOL, "translated"
+    elif CATEGORY_PIRUSHONIM_CREATED_IN_MECHALOL in own_categories:
+        status, source_type = STATUS_CREATED_IN_MECHALOL, "pirushon"
+    elif CATEGORY_IMPORTED_FROM_CHABADPEDIA in own_categories:
+        status, source_type = STATUS_IMPORTED_FROM_CHABADPEDIA, "chabadpedia"
+    elif CATEGORY_IMPORTED_FROM_WIKISHIVA in own_categories:
+        status, source_type = STATUS_IMPORTED_FROM_WIKISHIVA, "wikishiva"
+    elif CATEGORY_DELETED_ON_WIKIPEDIA_KEPT in own_categories:
+        status, source_type = STATUS_KEPT_AFTER_WIKIPEDIA_DELETION, "wikipedia_deleted_kept"
+    elif CATEGORY_SPLIT_FROM_WIKIPEDIA in own_categories:
+        status, source_type = STATUS_SPLIT_FROM_WIKIPEDIA, "split_from_wikipedia"
+    elif last_update_cat:
+        status, source_type = STATUS_IMPORTED_DOCUMENTED, "wikipedia_documented"
+    elif CATEGORY_MISSING_SORT_TEMPLATE in own_categories:
+        status, source_type = STATUS_IMPORTED_UNDOCUMENTED, "missing_sort"
+    else:
+        status, source_type = STATUS_IMPORTED_UNDOCUMENTED, "unknown"
+
+    last_update_month = (
+        None if (own_categories & _CREATED_SOURCE_CATEGORIES) or CATEGORY_MISSING_SORT_TEMPLATE in own_categories
+        else (parse_month_from_category(last_update_cat) if last_update_cat else None)
+    )
+
+    return {
+        "status": status,
+        "source_type": source_type,
+        "last_update_month": last_update_month,
+        "needs_attention": CATEGORY_PAGES_TO_OPEN in own_categories,
+        "is_dictionary_entry": CATEGORY_DICTIONARY_ENTRIES in own_categories,
+    }
+
+
 def fetch_classification_data():
     """
     שולפת את כל קבוצות הקטגוריה (עצמן, לא הדפים המלאים) הדרושות לסיווג
