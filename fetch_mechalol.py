@@ -346,6 +346,100 @@ def get_last_update_map():
     return result
 
 
+def fetch_classification_data():
+    """
+    שולפת את כל קבוצות הקטגוריה (עצמן, לא הדפים המלאים) הדרושות לסיווג
+    כל כותרת - ומיפוי תאריכי העדכון האחרון. עלות זולה וקבועה, בלתי
+    תלויה בכמות הדפים הכוללת במכלול (~10 קטגוריות מוגדרות מראש, לא
+    350 אלף) - ניתנת לשימוש חוזר גם בסריקה המלאה (main, למטה) וגם
+    בסקריפט הדלתא (fetch_mechalol_delta.py), כדי לא לשכפל את לוגיקת
+    הסיווג בשני מקומות ולהסתכן בסטייה בין הגרסאות.
+
+    מחזירה dict של קבוצות הכותרות (מפתחות תואמים בשם לקטגוריה
+    המקורית ב-config), פלוס last_update_map בנפרד.
+    """
+    categories = {
+        "created": collect_direct_titles(CATEGORY_CREATED_IN_MECHALOL, "ערכים שנוצרו במכלול"),
+        "translated": collect_direct_titles(CATEGORY_TRANSLATED_IN_MECHALOL, "ערכים שתורגמו במכלול"),
+        "pirushonim": collect_direct_titles(CATEGORY_PIRUSHONIM_CREATED_IN_MECHALOL, "פירושונים שנוצרו במכלול"),
+        "missing_sort": collect_direct_titles(CATEGORY_MISSING_SORT_TEMPLATE, "ערכים מוויקיפדיה ללא תבנית מיון"),
+        "pages_to_open": collect_direct_titles(CATEGORY_PAGES_TO_OPEN, "ערכים לפתיחה"),
+        "dictionary_entries": collect_direct_titles(CATEGORY_DICTIONARY_ENTRIES, "ערכים מילוניים"),
+        "chabadpedia": collect_direct_titles(CATEGORY_IMPORTED_FROM_CHABADPEDIA, "דפים שיובאו מחב\"דפדיה"),
+        "wikishiva": collect_direct_titles(CATEGORY_IMPORTED_FROM_WIKISHIVA, "דפים שיובאו מויקישיבה"),
+        "deleted_on_wikipedia_kept": collect_direct_titles(
+            CATEGORY_DELETED_ON_WIKIPEDIA_KEPT, "ערכים שנמחקו בוויקיפדיה ונשמרו"
+        ),
+        "split_from_wikipedia": collect_direct_titles(
+            CATEGORY_SPLIT_FROM_WIKIPEDIA, "ערכים שפוצלו מתוכן ויקיפדי"
+        ),
+    }
+
+    log(
+        f"סיכום | נוצרו={len(categories['created']):,} | תורגמו={len(categories['translated']):,} | "
+        f"פירושונים={len(categories['pirushonim']):,} | חסרי_מיון={len(categories['missing_sort']):,} | "
+        f"חב\"דפדיה={len(categories['chabadpedia']):,} | ויקישיבה={len(categories['wikishiva']):,} | "
+        f"נמחקו_בוויקיפדיה_ונשמרו={len(categories['deleted_on_wikipedia_kept']):,} | "
+        f"פוצלו_מוויקיפדיה={len(categories['split_from_wikipedia']):,}"
+    )
+
+    # מקור מכלולי-פנימי/חיצוני-לא-ויקיפדי, או ויקיפדי-היסטורי-בלבד,
+    # לעניין last_update_month (אין להם קטגוריית עדכון חודשי רלוונטית)
+    categories["created_sources"] = (
+        categories["created"] | categories["translated"] | categories["pirushonim"]
+        | categories["chabadpedia"] | categories["wikishiva"]
+        | categories["deleted_on_wikipedia_kept"] | categories["split_from_wikipedia"]
+    )
+
+    last_update_map = get_last_update_map()
+
+    return categories, last_update_map
+
+
+def classify_page(title, categories, last_update_map):
+    """
+    מסווגת כותרת בודדת ל-(status, source_type, last_update_month,
+    needs_attention, is_dictionary_entry), לפי בדיוק אותו סדר עדיפויות
+    שהיה קודם משוכפל inline בתוך הלולאה הראשית ב-main() - חולץ לכאן
+    כדי ששני מקורות הנתונים (הסריקה השבועית המלאה, וסקריפט הדלתא
+    fetch_mechalol_delta.py) ישתמשו באותה לוגיקה בדיוק, ולא יסטו זה
+    מזה בהדרגה עם הזמן.
+    """
+    if title in categories["created"]:
+        status, source_type = STATUS_CREATED_IN_MECHALOL, "created"
+    elif title in categories["translated"]:
+        status, source_type = STATUS_CREATED_IN_MECHALOL, "translated"
+    elif title in categories["pirushonim"]:
+        status, source_type = STATUS_CREATED_IN_MECHALOL, "pirushon"
+    elif title in categories["chabadpedia"]:
+        status, source_type = STATUS_IMPORTED_FROM_CHABADPEDIA, "chabadpedia"
+    elif title in categories["wikishiva"]:
+        status, source_type = STATUS_IMPORTED_FROM_WIKISHIVA, "wikishiva"
+    elif title in categories["deleted_on_wikipedia_kept"]:
+        status, source_type = STATUS_KEPT_AFTER_WIKIPEDIA_DELETION, "wikipedia_deleted_kept"
+    elif title in categories["split_from_wikipedia"]:
+        status, source_type = STATUS_SPLIT_FROM_WIKIPEDIA, "split_from_wikipedia"
+    elif title in last_update_map:
+        status, source_type = STATUS_IMPORTED_DOCUMENTED, "wikipedia_documented"
+    elif title in categories["missing_sort"]:
+        status, source_type = STATUS_IMPORTED_UNDOCUMENTED, "missing_sort"
+    else:
+        status, source_type = STATUS_IMPORTED_UNDOCUMENTED, "unknown"
+
+    last_update_month = (
+        None if title in categories["created_sources"] or title in categories["missing_sort"]
+        else last_update_map.get(title)
+    )
+
+    return {
+        "status": status,
+        "source_type": source_type,
+        "last_update_month": last_update_month,
+        "needs_attention": title in categories["pages_to_open"],
+        "is_dictionary_entry": title in categories["dictionary_entries"],
+    }
+
+
 def fetch_all_titles(progress):
     apcontinue = progress.get("allpages_apcontinue")
     total = progress.get("allpages_count", 0)
@@ -478,37 +572,7 @@ def main():
     log("=" * 80)
     log("התחלה | fetch_mechalol.py")
 
-    created = collect_direct_titles(CATEGORY_CREATED_IN_MECHALOL, "ערכים שנוצרו במכלול")
-    translated = collect_direct_titles(CATEGORY_TRANSLATED_IN_MECHALOL, "ערכים שתורגמו במכלול")
-    pirushonim = collect_direct_titles(CATEGORY_PIRUSHONIM_CREATED_IN_MECHALOL, "פירושונים שנוצרו במכלול")
-    missing_sort = collect_direct_titles(CATEGORY_MISSING_SORT_TEMPLATE, "ערכים מוויקיפדיה ללא תבנית מיון")
-    pages_to_open = collect_direct_titles(CATEGORY_PAGES_TO_OPEN, "ערכים לפתיחה")
-    dictionary_entries = collect_direct_titles(CATEGORY_DICTIONARY_ENTRIES, "ערכים מילוניים")
-    chabadpedia = collect_direct_titles(CATEGORY_IMPORTED_FROM_CHABADPEDIA, "דפים שיובאו מחב\"דפדיה")
-    wikishiva = collect_direct_titles(CATEGORY_IMPORTED_FROM_WIKISHIVA, "דפים שיובאו מויקישיבה")
-    deleted_on_wikipedia_kept = collect_direct_titles(
-        CATEGORY_DELETED_ON_WIKIPEDIA_KEPT, "ערכים שנמחקו בוויקיפדיה ונשמרו"
-    )
-    split_from_wikipedia = collect_direct_titles(
-        CATEGORY_SPLIT_FROM_WIKIPEDIA, "ערכים שפוצלו מתוכן ויקיפדי"
-    )
-
-    last_update_map = get_last_update_map()
-
-    # מקור מכלולי-פנימי/חיצוני-לא-ויקיפדי, או ויקיפדי-היסטורי-בלבד,
-    # לעניין last_update_month (אין להם קטגוריית עדכון חודשי רלוונטית)
-    created_sources = (
-        created | translated | pirushonim | chabadpedia | wikishiva
-        | deleted_on_wikipedia_kept | split_from_wikipedia
-    )
-
-    log(
-        f"סיכום | נוצרו={len(created):,} | תורגמו={len(translated):,} | "
-        f"פירושונים={len(pirushonim):,} | חסרי_מיון={len(missing_sort):,} | "
-        f"חב\"דפדיה={len(chabadpedia):,} | ויקישיבה={len(wikishiva):,} | "
-        f"נמחקו_בוויקיפדיה_ונשמרו={len(deleted_on_wikipedia_kept):,} | "
-        f"פוצלו_מוויקיפדיה={len(split_from_wikipedia):,}"
-    )
+    categories, last_update_map = fetch_classification_data()
 
     total = progress.get("uploaded_count", 0)
     batch_number = progress.get("upload_batch", 0)
@@ -535,51 +599,12 @@ def main():
             rows = []
 
             for title, page_id in batch:
-                if title in created:
-                    status, source_type = STATUS_CREATED_IN_MECHALOL, "created"
-                elif title in translated:
-                    status, source_type = STATUS_CREATED_IN_MECHALOL, "translated"
-                elif title in pirushonim:
-                    status, source_type = STATUS_CREATED_IN_MECHALOL, "pirushon"
-                elif title in chabadpedia:
-                    status, source_type = STATUS_IMPORTED_FROM_CHABADPEDIA, "chabadpedia"
-                elif title in wikishiva:
-                    status, source_type = STATUS_IMPORTED_FROM_WIKISHIVA, "wikishiva"
-                elif title in deleted_on_wikipedia_kept:
-                    status, source_type = STATUS_KEPT_AFTER_WIKIPEDIA_DELETION, "wikipedia_deleted_kept"
-                elif title in split_from_wikipedia:
-                    status, source_type = STATUS_SPLIT_FROM_WIKIPEDIA, "split_from_wikipedia"
-                elif title in last_update_map:
-                    # הוכחה זולה ומדויקת ל"יש תבנית מיון תקינה": קטגוריות
-                    # התיארוך ("עודכן לאחרונה ב-X") מבוססות על תבנית
-                    # {{מיון ויקיפדיה}} עצמה - חברות בהן = יש תבנית פעילה,
-                    # בלי שום קריאת API נוספת (last_update_map כבר נשלף
-                    # ממילא). מחליף את ה"ניחוש הבטוח" הישן - ראו היסטוריית
-                    # השינויים לפירוט המלא.
-                    status, source_type = STATUS_IMPORTED_DOCUMENTED, "wikipedia_documented"
-                elif title in missing_sort:
-                    status, source_type = STATUS_IMPORTED_UNDOCUMENTED, "missing_sort"
-                else:
-                    # אין קטגוריית תיארוך ואין קטגוריית "חסר תבנית מיון" -
-                    # מעולם לא נבדק/לא ידוע, לא "בטוח שאין תבנית". לא ניתן
-                    # להבדיל בזול מ"יש תבנית אך טרם תויירך" - match.py שלב 4
-                    # (pending בלבד) מהווה בדיקת-אמת חיה משלימה למקרים כאלה.
-                    status, source_type = STATUS_IMPORTED_UNDOCUMENTED, "unknown"
-
-                last_update_month = (
-                    None if title in created_sources or title in missing_sort
-                    else last_update_map.get(title)
-                )
-
+                classification = classify_page(title, categories, last_update_map)
                 rows.append({
                     "id": page_id,
                     "title": title,
-                    "status": status,
-                    "source_type": source_type,
-                    "last_update_month": last_update_month,
                     # match_type לא נשלח - ברירת מחדל בטבלה בלבד (ראו הערת מודול).
-                    "needs_attention": title in pages_to_open,
-                    "is_dictionary_entry": title in dictionary_entries,
+                    **classification,
                 })
 
             batch_number += 1
