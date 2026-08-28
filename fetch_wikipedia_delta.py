@@ -279,7 +279,7 @@ def main():
         for c in all_creations[:20]:
             log(f"  יצירה   | id={c['page_id']} | '{c['title']}' | {c['created_at']}")
         for d in all_deletions[:20]:
-            log(f"  מחיקה   | id={d['page_id']} | '{d['title']}' | pageid_valid={d['pageid_valid']}")
+            log(f"  מחיקה   | id={d['page_id']} | '{d['title']}' | {d['deleted_at']} | pageid_valid={d['pageid_valid']}")
         for mv in renames[:20]:
             log(f"  שינוי-שם | id={mv['page_id']} | '{mv['old_title']}' -> '{mv['new_title']}' | {mv['action']}")
         if len(all_creations) > 20 or len(all_deletions) > 20 or len(renames) > 20:
