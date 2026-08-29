@@ -21,6 +21,7 @@ import requests
 from config import REQUEST_HEADERS
 
 MAX_API_RETRIES = 5
+API_BATCH_SIZE_REDIRECT_CHECK = 50  # תקרה אנונימית זהירה (כמו check_missing_redirects.py) - אין login כאן
 
 
 def _api_get_with_retry(api_url, params, description):
@@ -31,6 +32,114 @@ def _api_get_with_retry(api_url, params, description):
             data = response.json()
             # כמו ב-fetch_wikipedia.py הקיים - מדיה-ויקי לפעמים מחזיר
             # HTTP 200 עם {"error": ...} בגוף התשובה, לא שגיאת HTTP.
+            if "error" in data:
+                raise RuntimeError(f"שגיאת API בגוף התשובה: {data['error']}")
+            return data
+        except (requests.RequestException, ValueError, RuntimeError) as exc:
+            if attempt >= MAX_API_RETRIES:
+                print(f"שגיאת API | {description} | ניסיון {attempt}/{MAX_API_RETRIES}: {exc}")
+                raise
+            print(f"WARNING | {description} | ניסיון {attempt}/{MAX_API_RETRIES}: {exc}")
+            time.sleep(min(2 ** (attempt - 1), 30))
+
+
+def fetch_edited_page_ids(api_url, since_ts):
+    """
+    list=recentchanges, rcnamespace=0, rctype=edit (לא new/log) -
+    כל עריכה "רגילה" (לא יצירה/מחיקה/העברה) בטווח. לשימוש בזיהוי שני
+    סוגי שינוי שאינם נראים כלל דרך type:new/logevents (הפער המתועד
+    בתכנון המקורי: "עריכה רגילה יכולה להפוך ערך להפניה, או להפך, בלי
+    שום אירוע יצירה/מחיקה/העברה נלווה"):
+
+    1. ערך במעקב שהופך להפניה - "נעלם" בלי אירוע מחיקה/העברה.
+    2. עדכון תבנית {{מיון ויקיפדיה}} על ערך קיים במכלול (מוסיפים/
+       מתקנים אותה בעריכה רגילה, לא ביצירה) - צריך סיווג-סטטוס מחדש.
+
+    לא מנסה לזהות בעצמו מה בדיוק השתנה בעריכה - רק מחזיר את כל הכותרות
+    שנערכו, בלי סינון. הקורא (fetch_wikipedia_delta.py/
+    fetch_mechalol_delta.py) מצליב את זה מול הטבלה שלו-עצמו (רק
+    page_id שכבר במעקב אצלנו רלוונטי בכלל) - לכן, למרות שרשימת כל
+    העריכות היומיות יכולה להיות גדולה בהרבה מיצירות/מחיקות/העברות,
+    העיבוד בפועל בהמשך נשאר קטן (מוגבל לגודל הצומת עם מה שכבר יש לנו,
+    לא לגודל האתר כולו).
+
+    מחזיר רשימת dict: page_id, title.
+    """
+    results = []
+    rccontinue = None
+
+    while True:
+        params = {
+            "action": "query",
+            "list": "recentchanges",
+            "rcnamespace": 0,
+            "rctype": "edit",
+            "rcdir": "newer",
+            "rcstart": since_ts,
+            "rcprop": "title|ids",
+            "rclimit": 500,
+            "formatversion": "2",
+            "format": "json",
+        }
+        if rccontinue:
+            params["rccontinue"] = rccontinue
+
+        data = _api_get_with_retry(api_url, params, "recentchanges (עריכות)")
+
+        for rc in data.get("query", {}).get("recentchanges", []):
+            results.append({"page_id": rc["pageid"], "title": rc["title"]})
+
+        rccontinue = data.get("continue", {}).get("rccontinue")
+        if not rccontinue:
+            break
+
+    return results
+
+
+def fetch_redirect_status(api_url, titles):
+    """
+    prop=info&titles=... (POST, לא GET - כותרות עבריות מקודדות יכולות
+    לחצות מגבלת אורך URL באצוות גדולות; אותו טעם בדיוק כמו ב-
+    check_missing_redirects.py). בלי redirects=1 (ברירת המחדל) - כך
+    שאם הכותרת המבוקשת עצמה היא דף הפניה, ה-API מחזיר את דף ההפניה
+    עצמו (redirect:true), לא "עוקב" ליעד שלה.
+
+    מחזיר {title: bool} רק עבור כותרות שנמצאו בפועל (title קיים) -
+    כותרת "missing" (למשל נמחקה ממש עכשיו, אחרי שנערכה) לא נכללת.
+    """
+    if not titles:
+        return {}
+
+    result = {}
+    for i in range(0, len(titles), API_BATCH_SIZE_REDIRECT_CHECK):
+        batch = titles[i:i + API_BATCH_SIZE_REDIRECT_CHECK]
+        params = {
+            "action": "query",
+            "prop": "info",
+            "titles": "|".join(batch),
+            "formatversion": "2",
+            "format": "json",
+        }
+        data = _api_post_with_retry(api_url, params, f"בדיקת סטטוס הפניה | אצווה {i // API_BATCH_SIZE_REDIRECT_CHECK + 1}")
+        for page in data.get("query", {}).get("pages", []):
+            if page.get("missing"):
+                continue
+            result[page["title"]] = bool(page.get("redirect"))
+
+    return result
+
+
+def _api_post_with_retry(api_url, params, description):
+    """
+    כמו _api_get_with_retry, אבל POST - נחוץ ל-fetch_redirect_status
+    (ראו שם: כותרות עבריות מקודדות עלולות לחצות מגבלת אורך URL
+    ב-GET עם אצוות גדולות).
+    """
+    for attempt in range(1, MAX_API_RETRIES + 1):
+        try:
+            response = requests.post(api_url, data=params, headers=REQUEST_HEADERS, timeout=30)
+            response.raise_for_status()
+            data = response.json()
             if "error" in data:
                 raise RuntimeError(f"שגיאת API בגוף התשובה: {data['error']}")
             return data

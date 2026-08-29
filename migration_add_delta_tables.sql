@@ -53,6 +53,11 @@ create table if not exists wikipedia_deletions (
     title text not null,
     deleted_at timestamptz not null,
     deleted_pageid_valid boolean not null,
+    -- 'log_event' (מ-logevents, delete/move-clearing רגיל) או
+    -- 'became_redirect' (עריכה רגילה הפכה ערך במעקב להפניה - לא
+    -- נראה כלל דרך logevents, מזוהה בנפרד דרך rctype=edit - ראו
+    -- fetch_edited_page_ids/fetch_redirect_status ב-delta_api.py).
+    reason text not null default 'log_event' check (reason in ('log_event', 'became_redirect')),
     fetched_at timestamptz not null default now(),
     unique (page_id, deleted_at)
 );
@@ -63,6 +68,7 @@ create table if not exists mechalol_deletions (
     title text not null,
     deleted_at timestamptz not null,
     deleted_pageid_valid boolean not null,
+    reason text not null default 'log_event' check (reason in ('log_event', 'became_redirect')),
     fetched_at timestamptz not null default now(),
     unique (page_id, deleted_at)
 );

@@ -1,16 +1,20 @@
 """
 עדכון דלתא למכלול - מקביל ל-fetch_wikipedia_delta.py, ראו שם להסבר
-כללי על הארכיטקטורה (watermark, bootstrap, סיווג תזוזות). ההבדל
-המהותי היחיד: mechalol_pages.status הוא NOT NULL עם CHECK constraint,
-ונקבע לפי חברות בקטגוריות (לא זמין מ-recentchanges/logevents עצמם) -
-ולכן דף חדש שנמצא בדלתא עדיין חייב סיווג, בדיוק כמו בסריקה המלאה.
+כללי על הארכיטקטורה (watermark, bootstrap, סיווג תזוזות, זיהוי
+"הפך להפניה"). ההבדל המהותי היחיד: mechalol_pages.status הוא NOT NULL
+עם CHECK constraint, ונקבע לפי חברות בקטגוריות (לא זמין מ-
+recentchanges/logevents עצמם) - ולכן דף חדש שנמצא בדלתא עדיין חייב
+סיווג, בדיוק כמו בסריקה המלאה. כאן יש גם שכבה נוספת שאין בצד
+ויקיפדיה: detect_edited_tracked_changes מזהה לא רק "הפך להפניה" אלא
+גם תיקון/הוספת תבנית {{מיון ויקיפדיה}} על ערך קיים (עריכה רגילה, לא
+יצירה) - שני אלה בלתי-נראים לחלוטין דרך recentchanges type:new/
+logevents.
 
-במקום לשכפל את לוגיקת הסיווג (סיכון לסטייה בין הגרסאות עם הזמן),
-משתמש ישירות ב-fetch_classification_data()/classify_page() המיוצאות
-מ-fetch_mechalol.py (חולצו לשם בדיוק לצורך זה). עלות זו זולה וקבועה -
-שליפת ~10 קטגוריות מוגדרות מראש, לא תלויה בכמות הדפים הכוללת במכלול
-(350 אלף) - ולכן סבירה גם בריצת דלתא תכופה (כל 2-3 ימים), לא רק
-בסריקה השבועית/עתידית-פחות-תכופה המלאה.
+הסיווג עצמו (fetch_own_categories/classify_page_from_own_categories,
+מיובאות מ-fetch_mechalol.py) שולף prop=categories רק עבור הכותרות
+שבאמת השתנו בריצה הזו - לא כל חברי הקטגוריות (זה מה שהתגלה בפועל
+כיקר מדי בדיקה חיה: עד 185,000+ חברים בקטגוריות עדכון-אחרון - ראו
+היסטוריית הפרויקט). בזכות זה, עלות סבירה גם בריצה תכופה (לילית).
 
 לוגין (login מ-fetch_mechalol.py) *לא* בשימוש כאן בכוונה - כמות
 הדפים בדלתא בודדת-עד-מאות, לא צריך aplimit/cmlimit גבוה (הטעם היחיד
@@ -21,12 +25,16 @@ from datetime import datetime, timezone
 import json
 
 from config import MECHALOL_API
-from delta_api import fetch_new_pages, fetch_delete_log, fetch_move_log
+from delta_api import (
+    fetch_new_pages, fetch_delete_log, fetch_move_log,
+    fetch_edited_page_ids, fetch_redirect_status,
+)
 from fetch_mechalol import fetch_own_categories, classify_page_from_own_categories
 from supabase_client import get_client, execute_with_retry
 
 SOURCE = "mechalol"
 TABLE = "mechalol_pages"
+ID_LOOKUP_BATCH_SIZE = 500
 
 
 def log(message):
@@ -58,6 +66,147 @@ def classify_moves(moves):
     return renames, creation_like, deletion_like
 
 
+def find_tracked_ids(client, candidate_ids):
+    """זהה ל-fetch_wikipedia_delta.find_tracked_ids - ראו שם לתיעוד מלא."""
+    if not client or not candidate_ids:
+        return set()
+    found = set()
+    candidate_ids = sorted(set(candidate_ids))
+    for i in range(0, len(candidate_ids), ID_LOOKUP_BATCH_SIZE):
+        chunk = candidate_ids[i:i + ID_LOOKUP_BATCH_SIZE]
+        result = execute_with_retry(
+            lambda chunk=chunk: client.table(TABLE).select("id").in_("id", chunk).execute(),
+            f"בדיקת מעקב קיים ({TABLE}) | אצווה {i // ID_LOOKUP_BATCH_SIZE + 1}",
+            log_fn=log,
+        )
+        found.update(row["id"] for row in (result.data or []))
+    return found
+
+
+def detect_edited_tracked_changes(client, since_ts, already_handled_ids):
+    """
+    מזהה שני סוגי שינוי בדפי מכלול *במעקב אצלנו* שנערכו (לא נוצרו/
+    נמחקו/הועברו) - הפער המתועד בתכנון: "עריכה רגילה יכולה להפוך
+    ערך להפניה, או לתקן/להוסיף את תבנית {{מיון ויקיפדיה}}, בלי שום
+    אירוע יצירה/מחיקה/העברה נלווה" (ראו fetch_edited_page_ids ב-
+    delta_api.py):
+
+    1. הפכו להפניה -> "מחיקה רכה" (reason='became_redirect') - אותו
+       זרם טיפול כמו מחיקה מ-logevents.
+    2. עדיין ערך אמיתי, אבל הקטגוריות שלו עשויות היו להשתנות (הוספת/
+       תיקון תבנית המיון) -> מסווגים מחדש (classify_page_from_own_categories)
+       ומעדכנים את status/source_type/last_update_month/וכו' במקום -
+       גם אם בפועל שום דבר לא השתנה (classify מחזיר את אותו סטטוס),
+       upsert על נתונים זהים לא מזיק.
+
+    client=None (dry-run בלי DB) - מדלג לגמרי, כמו הגרסה המקבילה
+    בוויקיפדיה. מחזיר (became_redirect_deletions, status_updates).
+    """
+    if not client:
+        log("דילוג על זיהוי 'הפך להפניה'/תיקון סיווג - אין חיבור לסופרבייס (--dry-run בלי DB)")
+        return [], []
+
+    edited = fetch_edited_page_ids(MECHALOL_API, since_ts)
+    candidate_ids = {e["page_id"] for e in edited} - already_handled_ids
+    if not candidate_ids:
+        return [], []
+
+    tracked_ids = find_tracked_ids(client, candidate_ids)
+    if not tracked_ids:
+        return [], []
+
+    id_to_title = {e["page_id"]: e["title"] for e in edited if e["page_id"] in tracked_ids}
+    redirect_status = fetch_redirect_status(MECHALOL_API, list(id_to_title.values()))
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    became_redirect = []
+    still_articles = {}
+    for page_id, title in id_to_title.items():
+        if redirect_status.get(title) is True:
+            became_redirect.append({
+                "page_id": page_id, "title": title,
+                "deleted_at": now_iso, "pageid_valid": True, "reason": "became_redirect",
+            })
+        else:
+            still_articles[page_id] = title
+
+    status_updates = []
+    if still_articles:
+        own_cats = fetch_own_categories(list(still_articles.values()))
+        for page_id, title in still_articles.items():
+            classification = classify_page_from_own_categories(title, own_cats.get(title, set()))
+            status_updates.append({"id": page_id, "title": title, **classification})
+
+    if became_redirect:
+        log(f"נמצאו {len(became_redirect)} ערכים במעקב שהפכו להפניה בעריכה רגילה")
+    if status_updates:
+        log(f"נבדק סיווג מחדש (למשל תיקון תבנית מיון) עבור {len(status_updates)} ערכים שנערכו")
+
+    return became_redirect, status_updates
+
+
+def _is_title_collision(exc):
+    return getattr(exc, "code", None) == "23505" and "mechalol_pages_title_key" in str(exc)
+
+
+def resolve_title_collisions(client, rows):
+    """
+    מקביל בדיוק ל-resolve_title_collisions ב-fetch_mechalol.py (הסריקה
+    המלאה) - ראו שם ואת ההסבר המקביל ב-fetch_wikipedia_delta.py.
+    בניגוד לוויקיפדיה - כאן אין מפתח זר להתחשב בו (שום דבר לא מצביע
+    ל-mechalol_pages.id) - מחיקת השורה המיושנת היא צעד יחיד.
+    """
+    titles = [r["title"] for r in rows]
+    existing = []
+    for i in range(0, len(titles), ID_LOOKUP_BATCH_SIZE):
+        chunk = titles[i:i + ID_LOOKUP_BATCH_SIZE]
+        result = execute_with_retry(
+            lambda chunk=chunk: client.table(TABLE).select("id, title").in_("title", chunk).execute(),
+            "בדיקת התנגשות כותרת",
+            log_fn=log,
+        )
+        existing.extend(result.data or [])
+
+    new_id_by_title = {r["title"]: r["id"] for r in rows}
+    stale_ids = [
+        row["id"] for row in existing
+        if row["title"] in new_id_by_title and row["id"] != new_id_by_title[row["title"]]
+    ]
+
+    if stale_ids:
+        log(f"WARNING | התנגשות כותרת/id | מוחק {len(stale_ids)} שורות מיושנות: {stale_ids}")
+        execute_with_retry(
+            lambda: client.table(TABLE).delete().in_("id", stale_ids).execute(),
+            "מחיקת שורות מיושנות",
+            log_fn=log,
+        )
+
+    return bool(stale_ids)
+
+
+def _upsert_with_collision_handling(client, rows):
+    """זהה ל-fetch_wikipedia_delta._upsert_with_collision_handling - ראו שם לתיעוד מלא."""
+    try:
+        client.table(TABLE).upsert(rows, on_conflict="id").execute()
+    except Exception as exc:
+        if _is_title_collision(exc) and resolve_title_collisions(client, rows):
+            log("upsert | טופלה התנגשות כותרת, מנסה שוב")
+            client.table(TABLE).upsert(rows, on_conflict="id").execute()
+        else:
+            raise
+
+
+def apply_status_updates(client, status_updates):
+    if not status_updates:
+        return
+    execute_with_retry(
+        lambda: client.table(TABLE).upsert(status_updates, on_conflict="id").execute(),
+        f"עדכון סיווג ל-{len(status_updates)} ערכים קיימים",
+        log_fn=log,
+    )
+    log(f"עודכן סיווג ל-{len(status_updates)} ערכים ב-{TABLE}")
+
+
 def apply_creations(client, creations, own_categories_by_title):
     """
     בשונה מהגרסה הקודמת (שהשתמשה ב-fetch_classification_data/
@@ -77,7 +226,7 @@ def apply_creations(client, creations, own_categories_by_title):
         rows.append({"id": c["page_id"], "title": c["title"], **classification})
 
     execute_with_retry(
-        lambda: client.table(TABLE).upsert(rows, on_conflict="id").execute(),
+        lambda: _upsert_with_collision_handling(client, rows),
         f"upsert {len(rows)} יצירות ל-{TABLE}",
         log_fn=log,
     )
@@ -105,8 +254,18 @@ def apply_deletions(client, deletions):
 def apply_renames(client, renames):
     """זהה ל-fetch_wikipedia_delta.apply_renames - ראו שם לתיעוד מלא."""
     for mv in renames:
+        def _update_with_collision_handling(mv=mv):
+            try:
+                client.table(TABLE).update({"title": mv["new_title"]}).eq("id", mv["page_id"]).execute()
+            except Exception as exc:
+                if _is_title_collision(exc) and resolve_title_collisions(client, [{"id": mv["page_id"], "title": mv["new_title"]}]):
+                    log(f"עדכון כותרת page_id={mv['page_id']} | טופלה התנגשות כותרת, מנסה שוב")
+                    client.table(TABLE).update({"title": mv["new_title"]}).eq("id", mv["page_id"]).execute()
+                else:
+                    raise
+
         execute_with_retry(
-            lambda mv=mv: client.table(TABLE).update({"title": mv["new_title"]}).eq("id", mv["page_id"]).execute(),
+            _update_with_collision_handling,
             f"עדכון כותרת page_id={mv['page_id']} -> '{mv['new_title']}'",
             log_fn=log,
         )
@@ -135,6 +294,7 @@ def write_delta_tables(client, creations, deletions, renames):
                 "title": d["title"],
                 "deleted_at": d["deleted_at"],
                 "deleted_pageid_valid": d["pageid_valid"],
+                "reason": d["reason"],
             }
             for d in deletions
         ]
@@ -168,16 +328,20 @@ def write_delta_tables(client, creations, deletions, renames):
         )
 
 
-def write_changed_ids_file(all_creations, renames):
+def write_changed_ids_file(all_creations, renames, status_updates):
     """
     כותב mechalol_delta_changed_ids.json - כל page_id במכלול שהשתנה
-    בריצת הדלתא הזו (יצירה/שינוי-שם - מחיקות לא נכללות, אין טעם
-    להתאים מחדש שורה שכבר לא קיימת), לשימוש על ידי match.py --scoped.
-    נכתב תמיד (גם רשימה ריקה) - ראו התיעוד המקביל ב-fetch_wikipedia_delta.py.
+    בריצת הדלתא הזו (יצירה/שינוי-שם/עדכון סיווג - מחיקות לא נכללות,
+    אין טעם להתאים מחדש שורה שכבר לא קיימת), לשימוש על ידי
+    match.py --scoped. status_updates נכלל כי שינוי status (למשל
+    תיקון תבנית מיון) יכול לשנות את match_type (ראו get_match_type
+    ב-match.py) גם בלי ששום כותרת השתנתה. נכתב תמיד (גם רשימה ריקה) -
+    ראו התיעוד המקביל ב-fetch_wikipedia_delta.py.
     """
     ids = set()
     ids.update(c["page_id"] for c in all_creations if c.get("page_id"))
     ids.update(mv["page_id"] for mv in renames if mv.get("page_id"))
+    ids.update(u["id"] for u in status_updates if u.get("id"))
 
     with open("mechalol_delta_changed_ids.json", "w", encoding="utf-8") as f:
         json.dump(sorted(ids), f)
@@ -205,6 +369,8 @@ def main():
     deletions, restores = fetch_delete_log(MECHALOL_API, since_ts)
     moves = fetch_move_log(MECHALOL_API, since_ts)
     renames, move_creations, move_deletions = classify_moves(moves)
+    for d in deletions:
+        d["reason"] = "log_event"
 
     move_creation_events = [
         {"page_id": mv["page_id"], "title": mv["new_title"], "created_at": mv["renamed_at"]}
@@ -218,15 +384,26 @@ def main():
             "title": mv["old_title"],
             "deleted_at": mv["renamed_at"],
             "pageid_valid": mv["old_title_pageid_valid"],
+            "reason": "log_event",
         }
         for mv in move_deletions
     ]
-    all_deletions = deletions + move_deletion_events
+
+    already_handled_ids = (
+        {c["page_id"] for c in all_creations if c.get("page_id")}
+        | {d["page_id"] for d in deletions if d.get("page_id")}
+        | {d["page_id"] for d in move_deletion_events if d.get("page_id")}
+        | {mv["page_id"] for mv in renames if mv.get("page_id")}
+    )
+    became_redirect, status_updates = detect_edited_tracked_changes(client, since_ts, already_handled_ids)
+
+    all_deletions = deletions + move_deletion_events + became_redirect
 
     log(
         f"נמצאו | יצירות={len(new_pages)} שחזורים={len(restores)} "
         f"תזוזות-כיצירה={len(move_creations)} | מחיקות={len(deletions)} "
-        f"תזוזות-כמחיקה={len(move_deletions)} | שינויי-שם={len(renames)}"
+        f"תזוזות-כמחיקה={len(move_deletions)} הפכו-להפניה={len(became_redirect)} | "
+        f"שינויי-שם={len(renames)} | עדכוני-סיווג={len(status_updates)}"
     )
 
     # קטגוריות עצמיות רק לכותרות שבאמת נוצרו (לא כל האתר) - ראו
@@ -241,10 +418,12 @@ def main():
             )
             log(f"  יצירה   | id={c['page_id']} | '{c['title']}' | status={classification['status']}")
         for d in all_deletions[:20]:
-            log(f"  מחיקה   | id={d['page_id']} | '{d['title']}' | {d['deleted_at']} | pageid_valid={d['pageid_valid']}")
+            log(f"  מחיקה   | id={d['page_id']} | '{d['title']}' | {d['deleted_at']} | pageid_valid={d['pageid_valid']} | reason={d['reason']}")
         for mv in renames[:20]:
             log(f"  שינוי-שם | id={mv['page_id']} | '{mv['old_title']}' -> '{mv['new_title']}' | {mv['action']}")
-        if len(all_creations) > 20 or len(all_deletions) > 20 or len(renames) > 20:
+        for u in status_updates[:20]:
+            log(f"  עדכון-סיווג | id={u['id']} | '{u['title']}' | status={u['status']}")
+        if len(all_creations) > 20 or len(all_deletions) > 20 or len(renames) > 20 or len(status_updates) > 20:
             log("  (מוצגות עד 20 שורות מכל סוג)")
         log(f"--- DRY RUN הושלם | watermark היה מתעדכן ל-{run_started_at} ---")
         return
@@ -254,7 +433,8 @@ def main():
         apply_creations(client, all_creations, own_categories_by_title)
         apply_deletions(client, all_deletions)
         apply_renames(client, renames)
-        write_changed_ids_file(all_creations, renames)
+        apply_status_updates(client, status_updates)
+        write_changed_ids_file(all_creations, renames, status_updates)
 
     except Exception:
         log("שגיאה - ה-watermark לא יתעדכן, הריצה הבאה תכסה מחדש את אותו טווח")
