@@ -1,0 +1,74 @@
+name: פיוס חודשי מלא
+
+# מחליף את weekly_update.yml הישן - התדירות עברה לחודשית (לא שבועית),
+# כי nightly_delta.yml מטפל בעדכון השוטף כל לילה. הריצה הזו היא רשת
+# הביטחון: ריקון+מילוי-מלא רגיל (בדיוק כמו שהיה קודם, אין שינוי
+# בסקריפטים עצמם), שתופסת את הפערים הידועים שהדלתא לא רואה במכוון -
+# בעיקר שינוי סטטוס הפניה<->ערך בלי אירוע יצירה/מחיקה/תזוזה נלווה.
+# לא נוגעת ב-sync_watermarks בכלל - זו נשארת באחריות nightly_delta.yml
+# בלבד, שתי המסלולים בלתי תלויים אחד בשני.
+#
+# מחליפים את weekly_update.yml הישן בקובץ הזה (מוחקים את הישן, לא
+# משאירים את שניהם רצים).
+
+on:
+  schedule:
+    - cron: "0 3 1 * *"  # ה-1 לכל חודש, 03:00 UTC
+  workflow_dispatch:
+
+jobs:
+  full_reconciliation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      issues: write
+    steps:
+      - name: שחזור קוד
+        uses: actions/checkout@v4
+
+      - name: התקנת פייתון
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: התקנת ספריות
+        run: pip install -r requirements.txt
+
+      - name: שליפת נתוני המכלול (מלא)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          USER_NAME: ${{ secrets.USER_NAME }}
+          PASSWORD: ${{ secrets.PASSWORD }}
+        run: python fetch_mechalol.py
+
+      # fetch_mechalol.py *חייב* לרוץ לפני fetch_wikipedia.py - ראו
+      # ההערה המפורטת בראש כל אחד מהקבצים (מפתח זר
+      # mechalol_pages.wikipedia_id -> wikipedia_pages.id; ריקון
+      # wikipedia_pages דורש שכל ה-wikipedia_id ב-mechalol_pages כבר
+      # NULL, מובטח רק מיד אחרי ריקון+מילוי טרי של mechalol_pages).
+      - name: שליפת כותרות ויקיפדיה (מלא)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python fetch_wikipedia.py
+
+      - name: התאמה מלאה בין הכותרות
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python match.py
+
+      - name: פתיחת Issue בעת כישלון
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `כשל בפיוס החודשי המלא - ${new Date().toISOString().slice(0, 10)}`,
+              body: `ריצת הפיוס החודשי נכשלה. פרטי הריצה: ${runUrl}`,
+              labels: ["automation-failure"],
+            });

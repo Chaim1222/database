@@ -1,0 +1,64 @@
+name: עדכון דלתא לילי
+
+on:
+  schedule:
+    - cron: "0 2 * * *"  # כל לילה ב-02:00 UTC
+  workflow_dispatch:
+
+jobs:
+  delta_update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      issues: write
+    steps:
+      - name: שחזור קוד
+        uses: actions/checkout@v4
+
+      - name: התקנת פייתון
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: התקנת ספריות
+        run: pip install -r requirements.txt
+
+      # כמו בריצה המלאה (weekly_update.yml/monthly_full_sync.yml) -
+      # מכלול קודם לוויקיפדיה. כאן זה כבר לא תלות קשיחה (apply_deletions
+      # ב-fetch_wikipedia_delta.py משחרר בעצמו wikipedia_id לפני מחיקה -
+      # ראו ההערה שם) - נשמר לעקביות ולניטור, לא לדרישה טכנית.
+      - name: דלתא מכלול
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python fetch_mechalol_delta.py
+
+      - name: דלתא ויקיפדיה
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python fetch_wikipedia_delta.py
+
+      # --scoped: בודק רק שורות מכלול שהדלתא הזו נגעה בהן (ישירות, או
+      # דרך wikipedia_id שהצביע לדף שהשתנה) - לא סריקה מלאה. קורא את
+      # קבצי ה-changed_ids.json שנכתבו על ידי שני השלבים למעלה, באותו
+      # workspace (אותו job - הקבצים נשארים על הדיסק בין הצעדים).
+      - name: התאמה ממוקדת
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python match.py --scoped
+
+      - name: פתיחת Issue בעת כישלון
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `כשל בעדכון הדלתא הלילי - ${new Date().toISOString().slice(0, 10)}`,
+              body: `ריצת הדלתא הלילית נכשלה. פרטי הריצה: ${runUrl}`,
+              labels: ["automation-failure"],
+            });
