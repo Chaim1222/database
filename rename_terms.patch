@@ -1,0 +1,123 @@
+diff --git a/.github/workflows/biweekly_full_reconciliation.yml b/.github/workflows/biweekly_full_reconciliation.yml
+index e16d0cd..634d67c 100644
+--- a/.github/workflows/biweekly_full_reconciliation.yml
++++ b/.github/workflows/biweekly_full_reconciliation.yml
+@@ -1,10 +1,10 @@
+-name: פיוס דו-שבועי מלא
++name: סנכרון דו-שבועי מלא
+ 
+ # מחליף את weekly_update.yml הישן - התדירות עברה לדו-שבועית (במקור
+ # הייתה חודשית, שונה ב-2026-08 - nightly_delta.yml כבר מטפל בעדכון
+ # השוטף כל לילה, ואין סיבה שרשת הביטחון תחכה חודש שלם). הריצה הזו
+ # היא רשת הביטחון: ריקון+מילוי-מלא רגיל (בדיוק כמו שהיה קודם, אין
+-# שינוי בסקריפטים עצמם), שתופסת את הפערים הידועים שהדלתא לא רואה
++# שינוי בסקריפטים עצמם), שתופסת את הפערים הידועים שהעדכון המצטבר הלילי לא רואה
+ # במכוון - בעיקר שינוי סטטוס הפניה<->ערך בלי אירוע יצירה/מחיקה/תזוזה
+ # נלווה. לא נוגעת ב-sync_watermarks בכלל - זו נשארת באחריות
+ # nightly_delta.yml בלבד, שתי המסלולים בלתי תלויים אחד בשני.
+@@ -84,7 +84,7 @@ jobs:
+             await github.rest.issues.create({
+               owner: context.repo.owner,
+               repo: context.repo.repo,
+-              title: `כשל בפיוס הדו-שבועי המלא - ${new Date().toISOString().slice(0, 10)}`,
+-              body: `ריצת הפיוס הדו-שבועי נכשלה. פרטי הריצה: ${runUrl}`,
++              title: `כשל בסנכרון הדו-שבועי המלא - ${new Date().toISOString().slice(0, 10)}`,
++              body: `ריצת הסנכרון הדו-שבועי נכשלה. פרטי הריצה: ${runUrl}`,
+               labels: ["automation-failure"],
+             });
+diff --git a/.github/workflows/enrichment_after_reconciliation.yml b/.github/workflows/enrichment_after_reconciliation.yml
+index 316d7ec..f77c840 100644
+--- a/.github/workflows/enrichment_after_reconciliation.yml
++++ b/.github/workflows/enrichment_after_reconciliation.yml
+@@ -5,7 +5,7 @@ name: העשרת דוח "חסר במכלול"
+ # הפניות במכלול) - כולם מעשירים אך ורק שורות שכבר בדוח
+ # report_missing_from_mechalol, ולא היו חלק מהריצה הראשית.
+ #
+-# מופעל אוטומטית מיד אחרי סיום מוצלח של "פיוס דו-שבועי מלא"
++# מופעל אוטומטית מיד אחרי סיום מוצלח של "סנכרון דו-שבועי מלא"
+ # (biweekly_full_reconciliation.yml) - זה הרגע שבו דוח "חסר במכלול"
+ # הכי טרי, אחרי ריקון+מילוי+התאמה מלאים. אם שם ה-workflow המקורי
+ # ישתנה אי-פעם, יש לעדכן את הרשימה תחת workflows: למטה בהתאם.
+@@ -21,7 +21,7 @@ name: העשרת דוח "חסר במכלול"
+ 
+ on:
+   workflow_run:
+-    workflows: ["פיוס דו-שבועי מלא"]
++    workflows: ["סנכרון דו-שבועי מלא"]
+     types: [completed]
+   workflow_dispatch:
+ 
+diff --git a/.github/workflows/nightly_delta.yml b/.github/workflows/nightly_delta.yml
+index fe38b0b..8a0dd82 100644
+--- a/.github/workflows/nightly_delta.yml
++++ b/.github/workflows/nightly_delta.yml
+@@ -1,4 +1,4 @@
+-name: עדכון דלתא לילי
++name: עדכון מצטבר לילי
+ 
+ on:
+   schedule:
+@@ -8,8 +8,8 @@ on:
+ # אותה קבוצת concurrency כמו initial_run.yml/weekly_update.yml/
+ # biweekly_full_reconciliation.yml - ראו הערה מלאה ב-initial_run.yml.
+ # nightly_delta.yml עצמו לא מרוקן טבלאות, אבל כותב (upsert/delete ממוקד)
+-# לאותן טבלאות בדיוק שהפיוס הדו-שבועי מרוקן ומדביק חזרה - בלי התור
+-# המשותף, לילה שבו הפיוס עדיין רץ (חורג מעבר לחלון שלו) עלול להתנגש
++# לאותן טבלאות בדיוק שהסנכרון הדו-שבועי מרוקן ומדביק חזרה - בלי התור
++# המשותף, לילה שבו הסנכרון עדיין רץ (חורג מעבר לחלון שלו) עלול להתנגש
+ # עם ריקון שקורה באמצע. אם ריצה של nightly_delta נשארת בתור מאחורי
+ # ריצה ארוכה, היא פשוט תרוץ מאוחר יותר - לא מדלגת, בזכות
+ # sync_watermarks שממשיך מאיפה שהפסיק.
+@@ -35,23 +35,23 @@ jobs:
+       - name: התקנת ספריות
+         run: pip install -r requirements.txt
+ 
+-      # כמו בריצה המלאה (weekly_update.yml/monthly_full_sync.yml) -
++      # כמו בריצה המלאה (weekly_update.yml/biweekly_full_reconciliation.yml) -
+       # מכלול קודם לוויקיפדיה. כאן זה כבר לא תלות קשיחה (apply_deletions
+       # ב-fetch_wikipedia_delta.py משחרר בעצמו wikipedia_id לפני מחיקה -
+       # ראו ההערה שם) - נשמר לעקביות ולניטור, לא לדרישה טכנית.
+-      - name: דלתא מכלול
++      - name: עדכון מצטבר - מכלול
+         env:
+           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+         run: python fetch_mechalol_delta.py
+ 
+-      - name: דלתא ויקיפדיה
++      - name: עדכון מצטבר - ויקיפדיה
+         env:
+           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+         run: python fetch_wikipedia_delta.py
+ 
+-      # --scoped: בודק רק שורות מכלול שהדלתא הזו נגעה בהן (ישירות, או
++      # --scoped: בודק רק שורות מכלול שהעדכון המצטבר הזה נגע בהן (ישירות, או
+       # דרך wikipedia_id שהצביע לדף שהשתנה) - לא סריקה מלאה. קורא את
+       # קבצי ה-changed_ids.json שנכתבו על ידי שני השלבים למעלה, באותו
+       # workspace (אותו job - הקבצים נשארים על הדיסק בין הצעדים).
+@@ -72,7 +72,7 @@ jobs:
+             await github.rest.issues.create({
+               owner: context.repo.owner,
+               repo: context.repo.repo,
+-              title: `כשל בעדכון הדלתא הלילי - ${new Date().toISOString().slice(0, 10)}`,
+-              body: `ריצת הדלתא הלילית נכשלה. פרטי הריצה: ${runUrl}`,
++              title: `כשל בעדכון המצטבר הלילי - ${new Date().toISOString().slice(0, 10)}`,
++              body: `ריצת העדכון המצטבר הלילי נכשלה. פרטי הריצה: ${runUrl}`,
+               labels: ["automation-failure"],
+             });
+diff --git a/README.md b/README.md
+index ee01efa..4afd785 100644
+--- a/README.md
++++ b/README.md
+@@ -18,8 +18,8 @@
+ ## הרצה
+ - הרצה ראשונית: `workflow_dispatch` על `initial_run.yml`. אם נעצר באמצע (מגבלת זמן), פשוט להריץ שוב - ההתקדמות נשמרת (ובמצב הזה, הריקון **לא** חוזר על עצמו, כדי לא לאבד את מה שכבר נטען). תומך גם ב-`mode=mechalol_only` למילוי חוזר של טבלה אחת בלבד, בלי לגעת בשנייה.
+ - עדכון שוטף (יומי): `nightly_delta.yml`, רץ אוטומטית כל לילה ב-02:00 UTC. לא מרוקן כלום - קורא `recentchanges`/`logevents` משני האתרים (יצירות/מחיקות/שינויי-שם/עריכות) ומעדכן רק את מה שהשתנה, דרך `fetch_wikipedia_delta.py` → `fetch_mechalol_delta.py` → `match.py --scoped`.
+-- רשת ביטחון (דו-שבועית): `biweekly_full_reconciliation.yml`, רץ אוטומטית ב-1 וב-15 לכל חודש, 03:00 UTC. ריקון+מילוי-מלא רגיל (בדיוק כמו `weekly_update.yml` הישן) - תופס פערים שהדלתא היומית לא רואה במכוון (בעיקר שינוי סטטוס הפניה↔ערך בלי אירוע נלווה). סדר השלבים קריטי: `fetch_mechalol.py` → `fetch_wikipedia.py` (מבצע את הריקון, ואז ממלא) → `match.py` (מתאים כותרות **וגם** מחשב מחדש את `wikipedia_pages.is_missing` בסופו).
+-- העשרת "חסר במכלול": `enrichment_after_reconciliation.yml`, מופעל אוטומטית (טריגר `workflow_run`) מיד אחרי שריצת הפיוס הדו-שבועי מסתיימת בהצלחה. ארבע עבודות מקבילות ובלתי-תלויות (לא ברצף - `fetch_wikipedia_created_at.py` לבדו יכול לקחת עד כמה שעות): תיאורי ויקינתונים, קלות ייבוא, תאריכי יצירה, הפניות במכלול.
++- רשת ביטחון (דו-שבועית): `biweekly_full_reconciliation.yml`, רץ אוטומטית ב-1 וב-15 לכל חודש, 03:00 UTC. ריקון+מילוי-מלא רגיל (בדיוק כמו `weekly_update.yml` הישן) - תופס פערים שהעדכון המצטבר היומי לא רואה במכוון (בעיקר שינוי סטטוס הפניה↔ערך בלי אירוע נלווה). סדר השלבים קריטי: `fetch_mechalol.py` → `fetch_wikipedia.py` (מבצע את הריקון, ואז ממלא) → `match.py` (מתאים כותרות **וגם** מחשב מחדש את `wikipedia_pages.is_missing` בסופו).
++- העשרת "חסר במכלול": `enrichment_after_reconciliation.yml`, מופעל אוטומטית (טריגר `workflow_run`) מיד אחרי שריצת הסנכרון הדו-שבועי מסתיימת בהצלחה. ארבע עבודות מקבילות ובלתי-תלויות (לא ברצף - `fetch_wikipedia_created_at.py` לבדו יכול לקחת עד כמה שעות): תיאורי ויקינתונים, קלות ייבוא, תאריכי יצירה, הפניות במכלול.
+ - `weekly_update.yml` - **מושבת** (Disabled בטאב Actions). הוחלף במלואו על ידי שני ה-workflows האוטומטיים למעלה; נשאר בריפו כרפרנס/רשת ביטחון להפעלה ידנית, לא רץ מעצמו.
+ - `check_missing_locked.yml` - רץ אוטומטית פעם בחודש (1 לחודש, 04:00 UTC), בודק כותרות חסומות ליצירה במכלול.
+ 

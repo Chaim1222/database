@@ -1,4 +1,4 @@
-name: עדכון דלתא לילי
+name: עדכון מצטבר לילי
 
 on:
   schedule:
@@ -8,8 +8,8 @@ on:
 # אותה קבוצת concurrency כמו initial_run.yml/weekly_update.yml/
 # biweekly_full_reconciliation.yml - ראו הערה מלאה ב-initial_run.yml.
 # nightly_delta.yml עצמו לא מרוקן טבלאות, אבל כותב (upsert/delete ממוקד)
-# לאותן טבלאות בדיוק שהפיוס הדו-שבועי מרוקן ומדביק חזרה - בלי התור
-# המשותף, לילה שבו הפיוס עדיין רץ (חורג מעבר לחלון שלו) עלול להתנגש
+# לאותן טבלאות בדיוק שהסנכרון הדו-שבועי מרוקן ומדביק חזרה - בלי התור
+# המשותף, לילה שבו הסנכרון עדיין רץ (חורג מעבר לחלון שלו) עלול להתנגש
 # עם ריקון שקורה באמצע. אם ריצה של nightly_delta נשארת בתור מאחורי
 # ריצה ארוכה, היא פשוט תרוץ מאוחר יותר - לא מדלגת, בזכות
 # sync_watermarks שממשיך מאיפה שהפסיק.
@@ -35,23 +35,23 @@ jobs:
       - name: התקנת ספריות
         run: pip install -r requirements.txt
 
-      # כמו בריצה המלאה (weekly_update.yml/monthly_full_sync.yml) -
+      # כמו בריצה המלאה (weekly_update.yml/biweekly_full_reconciliation.yml) -
       # מכלול קודם לוויקיפדיה. כאן זה כבר לא תלות קשיחה (apply_deletions
       # ב-fetch_wikipedia_delta.py משחרר בעצמו wikipedia_id לפני מחיקה -
       # ראו ההערה שם) - נשמר לעקביות ולניטור, לא לדרישה טכנית.
-      - name: דלתא מכלול
+      - name: עדכון מצטבר - מכלול
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: python fetch_mechalol_delta.py
 
-      - name: דלתא ויקיפדיה
+      - name: עדכון מצטבר - ויקיפדיה
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: python fetch_wikipedia_delta.py
 
-      # --scoped: בודק רק שורות מכלול שהדלתא הזו נגעה בהן (ישירות, או
+      # --scoped: בודק רק שורות מכלול שהעדכון המצטבר הזה נגע בהן (ישירות, או
       # דרך wikipedia_id שהצביע לדף שהשתנה) - לא סריקה מלאה. קורא את
       # קבצי ה-changed_ids.json שנכתבו על ידי שני השלבים למעלה, באותו
       # workspace (אותו job - הקבצים נשארים על הדיסק בין הצעדים).
@@ -72,7 +72,7 @@ jobs:
             await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: `כשל בעדכון הדלתא הלילי - ${new Date().toISOString().slice(0, 10)}`,
-              body: `ריצת הדלתא הלילית נכשלה. פרטי הריצה: ${runUrl}`,
+              title: `כשל בעדכון המצטבר הלילי - ${new Date().toISOString().slice(0, 10)}`,
+              body: `ריצת העדכון המצטבר הלילי נכשלה. פרטי הריצה: ${runUrl}`,
               labels: ["automation-failure"],
             });
