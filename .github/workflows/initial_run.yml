@@ -19,6 +19,11 @@ on:
         required: false
         default: false
         type: boolean
+      login:
+        description: "התאמה: להתחבר לחשבון הבוט במכלול (USER_NAME/PASSWORD) לפני בדיקת תבנית המיון"
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   collect:
@@ -74,7 +79,12 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python match.py ${{ inputs.skip_template_check == true && '--skip-template-check' || '' }}
+          USER_NAME: ${{ secrets.USER_NAME }}
+          PASSWORD: ${{ secrets.PASSWORD }}
+        run: >
+          python match.py
+          ${{ inputs.skip_template_check == true && '--skip-template-check' || '' }}
+          ${{ inputs.login == true && '--login' || '' }}
 
       - name: שמירת התקדמות (אם הריצה נעצרה באמצע)
         if: ${{ always() && inputs.mode != 'match_only' }}
