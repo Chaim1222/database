@@ -1,0 +1,181 @@
+name: העשרת דוח "חסר במכלול"
+
+# מאחד ארבעה סקריפטים שהיו workflow נפרד וידני-בלבד כל אחד (שליפת
+# תיאורי ויקינתונים, חישוב קלות ייבוא, שליפת תאריכי יצירה, בדיקת
+# הפניות במכלול) - כולם מעשירים אך ורק שורות שכבר בדוח
+# report_missing_from_mechalol, ולא היו חלק מהריצה הראשית.
+#
+# מופעל אוטומטית מיד אחרי סיום מוצלח של "פיוס דו-שבועי מלא"
+# (biweekly_full_reconciliation.yml) - זה הרגע שבו דוח "חסר במכלול"
+# הכי טרי, אחרי ריקון+מילוי+התאמה מלאים. אם שם ה-workflow המקורי
+# ישתנה אי-פעם, יש לעדכן את הרשימה תחת workflows: למטה בהתאם.
+#
+# ארבע העבודות למטה רצות *מקבילות זו לזו*, לא ברצף - במכוון, כי
+# "שליפת תאריכי יצירה" יכולה לקחת עד כמה שעות (בקשה אחת לכל כותרת,
+# מגבלה מבנית של API ויקיפדיה - אין דרך לבקש כמה דפים בבת אחת). הרצה
+# ברצף הייתה גוררת את שאר שלוש העבודות הקצרות בהרבה לחכות לה סתם.
+# כל עבודה נכשלת/מצליחה בנפרד; כישלון באחת לא עוצר את האחרות.
+#
+# workflow_dispatch מריץ את כל ארבע העבודות ביחד לצורך בדיקה ידנית -
+# אין הבחנה בין הרצה אוטומטית לידנית מבחינת אילו עבודות רצות.
+
+on:
+  workflow_run:
+    workflows: ["פיוס דו-שבועי מלא"]
+    types: [completed]
+  workflow_dispatch:
+
+jobs:
+  wikidata_descriptions:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      issues: write
+    steps:
+      - name: שחזור קוד
+        uses: actions/checkout@v4
+
+      - name: התקנת פייתון
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: התקנת ספריות
+        run: pip install -r requirements.txt
+
+      - name: שליפת תיאורי ויקינתונים
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python fetch_wikidata_descriptions.py
+
+      - name: פתיחת Issue בעת כישלון
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `כשל בשליפת תיאורי ויקינתונים - ${new Date().toISOString().slice(0, 10)}`,
+              body: `פרטי הריצה: ${runUrl}`,
+              labels: ["automation-failure"],
+            });
+
+  easy_import_candidates:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      issues: write
+    steps:
+      - name: שחזור קוד
+        uses: actions/checkout@v4
+
+      - name: התקנת פייתון
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: התקנת ספריות
+        run: pip install -r requirements.txt
+
+      - name: חישוב קלות ייבוא
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python fetch_easy_import_candidates.py
+
+      - name: פתיחת Issue בעת כישלון
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `כשל בחישוב קלות ייבוא - ${new Date().toISOString().slice(0, 10)}`,
+              body: `פרטי הריצה: ${runUrl}`,
+              labels: ["automation-failure"],
+            });
+
+  wikipedia_created_at:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    permissions:
+      issues: write
+    steps:
+      - name: שחזור קוד
+        uses: actions/checkout@v4
+
+      - name: התקנת פייתון
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: התקנת ספריות
+        run: pip install -r requirements.txt
+
+      - name: שליפת תאריכי יצירה
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python fetch_wikipedia_created_at.py
+
+      - name: פתיחת Issue בעת כישלון
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `כשל בשליפת תאריכי יצירה - ${new Date().toISOString().slice(0, 10)}`,
+              body: `פרטי הריצה: ${runUrl}`,
+              labels: ["automation-failure"],
+            });
+
+  missing_redirects:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      issues: write
+    steps:
+      - name: שחזור קוד
+        uses: actions/checkout@v4
+
+      - name: התקנת פייתון
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: התקנת ספריות
+        run: pip install -r requirements.txt
+
+      - name: בדיקת הפניות במכלול
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          USER_NAME: ${{ secrets.USER_NAME }}
+          PASSWORD: ${{ secrets.PASSWORD }}
+        run: python check_missing_redirects.py
+
+      - name: פתיחת Issue בעת כישלון
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `כשל בבדיקת הפניות במכלול - ${new Date().toISOString().slice(0, 10)}`,
+              body: `פרטי הריצה: ${runUrl}`,
+              labels: ["automation-failure"],
+            });

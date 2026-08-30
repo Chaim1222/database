@@ -25,6 +25,17 @@ on:
         default: false
         type: boolean
 
+# concurrency משותפת עם שאר ה-workflows שנוגעים בטבלאות wikipedia_pages/
+# mechalol_pages (initial_run.yml, weekly_update.yml,
+# biweekly_full_reconciliation.yml, nightly_delta.yml) - מונעת ריצות
+# חופפות שמריקות/כותבות זו על זו (בדיוק התקלה שגרמה בעבר ל-mechalol_pages
+# להימצא ריקה אחרי weekly_update.yml + initial_run.yml חופפים).
+# cancel-in-progress: false בכוונה - עדיף לחכות בתור מאשר לבטל ריצה
+# באמצע ריקון ולהשאיר את הטבלה חצי-ריקה.
+concurrency:
+  group: mechalol-wikipedia-db-write
+  cancel-in-progress: false
+
 jobs:
   collect:
     runs-on: ubuntu-latest

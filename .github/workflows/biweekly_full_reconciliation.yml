@@ -1,20 +1,34 @@
-name: פיוס חודשי מלא
+name: פיוס דו-שבועי מלא
 
-# מחליף את weekly_update.yml הישן - התדירות עברה לחודשית (לא שבועית),
-# כי nightly_delta.yml מטפל בעדכון השוטף כל לילה. הריצה הזו היא רשת
-# הביטחון: ריקון+מילוי-מלא רגיל (בדיוק כמו שהיה קודם, אין שינוי
-# בסקריפטים עצמם), שתופסת את הפערים הידועים שהדלתא לא רואה במכוון -
-# בעיקר שינוי סטטוס הפניה<->ערך בלי אירוע יצירה/מחיקה/תזוזה נלווה.
-# לא נוגעת ב-sync_watermarks בכלל - זו נשארת באחריות nightly_delta.yml
-# בלבד, שתי המסלולים בלתי תלויים אחד בשני.
+# מחליף את weekly_update.yml הישן - התדירות עברה לדו-שבועית (במקור
+# הייתה חודשית, שונה ב-2026-08 - nightly_delta.yml כבר מטפל בעדכון
+# השוטף כל לילה, ואין סיבה שרשת הביטחון תחכה חודש שלם). הריצה הזו
+# היא רשת הביטחון: ריקון+מילוי-מלא רגיל (בדיוק כמו שהיה קודם, אין
+# שינוי בסקריפטים עצמם), שתופסת את הפערים הידועים שהדלתא לא רואה
+# במכוון - בעיקר שינוי סטטוס הפניה<->ערך בלי אירוע יצירה/מחיקה/תזוזה
+# נלווה. לא נוגעת ב-sync_watermarks בכלל - זו נשארת באחריות
+# nightly_delta.yml בלבד, שתי המסלולים בלתי תלויים אחד בשני.
+#
+# בסיום מוצלח, מפעילה אוטומטית את enrichment_after_reconciliation.yml
+# (טריגר workflow_run) - ארבעת סקריפטי ההעשרה של דוח "חסר במכלול"
+# (תיאורי ויקינתונים, קלות ייבוא, תאריכי יצירה, הפניות במכלול).
 #
 # מחליפים את weekly_update.yml הישן בקובץ הזה (מוחקים את הישן, לא
 # משאירים את שניהם רצים).
 
 on:
   schedule:
-    - cron: "0 3 1 * *"  # ה-1 לכל חודש, 03:00 UTC
+    - cron: "0 3 1,15 * *"  # ה-1 וה-15 לכל חודש, 03:00 UTC
   workflow_dispatch:
+
+# אותה קבוצת concurrency כמו initial_run.yml/weekly_update.yml/
+# nightly_delta.yml - ראו הערה מלאה ב-initial_run.yml. חשוב כאן במיוחד:
+# זו הריצה שמבצעת בפועל את הריקון-ומילוי-מחדש (fetch_mechalol.py,
+# fetch_wikipedia.py), כך שהיא הכי רגישה לחפיפה עם ריצה אחרת שנוגעת
+# באותן טבלאות.
+concurrency:
+  group: mechalol-wikipedia-db-write
+  cancel-in-progress: false
 
 jobs:
   full_reconciliation:
@@ -57,7 +71,9 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python match.py
+          USER_NAME: ${{ secrets.USER_NAME }}
+          PASSWORD: ${{ secrets.PASSWORD }}
+        run: python match.py --login
 
       - name: פתיחת Issue בעת כישלון
         if: failure()
@@ -68,7 +84,7 @@ jobs:
             await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: `כשל בפיוס החודשי המלא - ${new Date().toISOString().slice(0, 10)}`,
-              body: `ריצת הפיוס החודשי נכשלה. פרטי הריצה: ${runUrl}`,
+              title: `כשל בפיוס הדו-שבועי המלא - ${new Date().toISOString().slice(0, 10)}`,
+              body: `ריצת הפיוס הדו-שבועי נכשלה. פרטי הריצה: ${runUrl}`,
               labels: ["automation-failure"],
             });

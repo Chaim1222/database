@@ -5,6 +5,18 @@ on:
     - cron: "0 2 * * *"  # כל לילה ב-02:00 UTC
   workflow_dispatch:
 
+# אותה קבוצת concurrency כמו initial_run.yml/weekly_update.yml/
+# biweekly_full_reconciliation.yml - ראו הערה מלאה ב-initial_run.yml.
+# nightly_delta.yml עצמו לא מרוקן טבלאות, אבל כותב (upsert/delete ממוקד)
+# לאותן טבלאות בדיוק שהפיוס הדו-שבועי מרוקן ומדביק חזרה - בלי התור
+# המשותף, לילה שבו הפיוס עדיין רץ (חורג מעבר לחלון שלו) עלול להתנגש
+# עם ריקון שקורה באמצע. אם ריצה של nightly_delta נשארת בתור מאחורי
+# ריצה ארוכה, היא פשוט תרוץ מאוחר יותר - לא מדלגת, בזכות
+# sync_watermarks שממשיך מאיפה שהפסיק.
+concurrency:
+  group: mechalol-wikipedia-db-write
+  cancel-in-progress: false
+
 jobs:
   delta_update:
     runs-on: ubuntu-latest
@@ -47,7 +59,9 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python match.py --scoped
+          USER_NAME: ${{ secrets.USER_NAME }}
+          PASSWORD: ${{ secrets.PASSWORD }}
+        run: python match.py --scoped --login
 
       - name: פתיחת Issue בעת כישלון
         if: failure()

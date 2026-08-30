@@ -1,0 +1,552 @@
+diff --git a/.github/workflows/monthly_full_reconciliation.yml b/.github/workflows/biweekly_full_reconciliation.yml
+similarity index 52%
+rename from .github/workflows/monthly_full_reconciliation.yml
+rename to .github/workflows/biweekly_full_reconciliation.yml
+index 5187b3c..e16d0cd 100644
+--- a/.github/workflows/monthly_full_reconciliation.yml
++++ b/.github/workflows/biweekly_full_reconciliation.yml
+@@ -1,21 +1,35 @@
+-name: פיוס חודשי מלא
++name: פיוס דו-שבועי מלא
+ 
+-# מחליף את weekly_update.yml הישן - התדירות עברה לחודשית (לא שבועית),
+-# כי nightly_delta.yml מטפל בעדכון השוטף כל לילה. הריצה הזו היא רשת
+-# הביטחון: ריקון+מילוי-מלא רגיל (בדיוק כמו שהיה קודם, אין שינוי
+-# בסקריפטים עצמם), שתופסת את הפערים הידועים שהדלתא לא רואה במכוון -
+-# בעיקר שינוי סטטוס הפניה<->ערך בלי אירוע יצירה/מחיקה/תזוזה נלווה.
+-# לא נוגעת ב-sync_watermarks בכלל - זו נשארת באחריות nightly_delta.yml
+-# בלבד, שתי המסלולים בלתי תלויים אחד בשני.
++# מחליף את weekly_update.yml הישן - התדירות עברה לדו-שבועית (במקור
++# הייתה חודשית, שונה ב-2026-08 - nightly_delta.yml כבר מטפל בעדכון
++# השוטף כל לילה, ואין סיבה שרשת הביטחון תחכה חודש שלם). הריצה הזו
++# היא רשת הביטחון: ריקון+מילוי-מלא רגיל (בדיוק כמו שהיה קודם, אין
++# שינוי בסקריפטים עצמם), שתופסת את הפערים הידועים שהדלתא לא רואה
++# במכוון - בעיקר שינוי סטטוס הפניה<->ערך בלי אירוע יצירה/מחיקה/תזוזה
++# נלווה. לא נוגעת ב-sync_watermarks בכלל - זו נשארת באחריות
++# nightly_delta.yml בלבד, שתי המסלולים בלתי תלויים אחד בשני.
++#
++# בסיום מוצלח, מפעילה אוטומטית את enrichment_after_reconciliation.yml
++# (טריגר workflow_run) - ארבעת סקריפטי ההעשרה של דוח "חסר במכלול"
++# (תיאורי ויקינתונים, קלות ייבוא, תאריכי יצירה, הפניות במכלול).
+ #
+ # מחליפים את weekly_update.yml הישן בקובץ הזה (מוחקים את הישן, לא
+ # משאירים את שניהם רצים).
+ 
+ on:
+   schedule:
+-    - cron: "0 3 1 * *"  # ה-1 לכל חודש, 03:00 UTC
++    - cron: "0 3 1,15 * *"  # ה-1 וה-15 לכל חודש, 03:00 UTC
+   workflow_dispatch:
+ 
++# אותה קבוצת concurrency כמו initial_run.yml/weekly_update.yml/
++# nightly_delta.yml - ראו הערה מלאה ב-initial_run.yml. חשוב כאן במיוחד:
++# זו הריצה שמבצעת בפועל את הריקון-ומילוי-מחדש (fetch_mechalol.py,
++# fetch_wikipedia.py), כך שהיא הכי רגישה לחפיפה עם ריצה אחרת שנוגעת
++# באותן טבלאות.
++concurrency:
++  group: mechalol-wikipedia-db-write
++  cancel-in-progress: false
++
+ jobs:
+   full_reconciliation:
+     runs-on: ubuntu-latest
+@@ -57,7 +71,9 @@ jobs:
+         env:
+           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+-        run: python match.py
++          USER_NAME: ${{ secrets.USER_NAME }}
++          PASSWORD: ${{ secrets.PASSWORD }}
++        run: python match.py --login
+ 
+       - name: פתיחת Issue בעת כישלון
+         if: failure()
+@@ -68,7 +84,7 @@ jobs:
+             await github.rest.issues.create({
+               owner: context.repo.owner,
+               repo: context.repo.repo,
+-              title: `כשל בפיוס החודשי המלא - ${new Date().toISOString().slice(0, 10)}`,
+-              body: `ריצת הפיוס החודשי נכשלה. פרטי הריצה: ${runUrl}`,
++              title: `כשל בפיוס הדו-שבועי המלא - ${new Date().toISOString().slice(0, 10)}`,
++              body: `ריצת הפיוס הדו-שבועי נכשלה. פרטי הריצה: ${runUrl}`,
+               labels: ["automation-failure"],
+             });
+diff --git a/.github/workflows/check_missing_redirects.yml b/.github/workflows/check_missing_redirects.yml
+deleted file mode 100644
+index 7a8aad2..0000000
+--- a/.github/workflows/check_missing_redirects.yml
++++ /dev/null
+@@ -1,33 +0,0 @@
+-name: בדיקת הפניות במכלול לחסרים
+-
+-# הרצה ידנית בלבד - בודק רק את הכותרות שכבר בדוח "חסר במכלול" (לא
+-# סורק את מרחב ההפניות של המכלול), ראו check_missing_redirects.py.
+-# דורש USER_NAME/PASSWORD (בדומה לשלב "שליפת נתוני המכלול" ב-
+-# weekly_update.yml) כדי להתחבר לחשבון הבוט ולנצל apihighlimits
+-# (500 כותרות באצווה במקום 50).
+-on:
+-  workflow_dispatch:
+-
+-jobs:
+-  check_missing_redirects:
+-    runs-on: ubuntu-latest
+-    timeout-minutes: 30
+-    steps:
+-      - name: שחזור קוד
+-        uses: actions/checkout@v4
+-
+-      - name: התקנת פייתון
+-        uses: actions/setup-python@v5
+-        with:
+-          python-version: "3.12"
+-
+-      - name: התקנת ספריות
+-        run: pip install -r requirements.txt
+-
+-      - name: בדיקת הפניות במכלול
+-        env:
+-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+-          USER_NAME: ${{ secrets.USER_NAME }}
+-          PASSWORD: ${{ secrets.PASSWORD }}
+-        run: python check_missing_redirects.py
+diff --git a/.github/workflows/delta_dry_run.yml b/.github/workflows/delta_dry_run.yml
+deleted file mode 100644
+index e51294c..0000000
+--- a/.github/workflows/delta_dry_run.yml
++++ /dev/null
+@@ -1,45 +0,0 @@
+-name: בדיקת דלתא (dry-run)
+-
+-# workflow זמני לבדיקה בלבד - להרצה ידנית דרך טאב Actions -> "בדיקת
+-# דלתא (dry-run)" -> Run workflow. מריץ את fetch_wikipedia_delta.py
+-# ו-fetch_mechalol_delta.py עם --dry-run - שולף מה-API האמיתי של
+-# ויקיפדיה/המכלול ומדפיס מה היה נכתב/נמחק/משתנה, בלי לגעת בסופרבייס
+-# בכלל (אין GITHUB secrets בשימוש כאן במכוון - --dry-run + --since לא
+-# צריכים אותם). למחוק את הקובץ הזה אחרי שהבדיקה מסתיימת ועוברים
+-# לריצות אמת (weekly_update.yml).
+-
+-on:
+-  workflow_dispatch:
+-    inputs:
+-      since:
+-        description: 'לבדוק שינויים החל מתאריך זה (ISO 8601, UTC)'
+-        required: true
+-        default: '2026-08-25T00:00:00Z'
+-
+-jobs:
+-  dry_run:
+-    runs-on: ubuntu-latest
+-    timeout-minutes: 15
+-    steps:
+-      - name: שחזור קוד
+-        uses: actions/checkout@v4
+-
+-      - name: התקנת פייתון
+-        uses: actions/setup-python@v5
+-        with:
+-          python-version: "3.12"
+-
+-      - name: התקנת ספריות
+-        run: pip install -r requirements.txt
+-
+-      - name: דלתא ויקיפדיה (dry-run)
+-        env:
+-          SUPABASE_URL: unused
+-          SUPABASE_SERVICE_KEY: unused
+-        run: python fetch_wikipedia_delta.py --dry-run --since "${{ inputs.since }}"
+-
+-      - name: דלתא מכלול (dry-run)
+-        env:
+-          SUPABASE_URL: unused
+-          SUPABASE_SERVICE_KEY: unused
+-        run: python fetch_mechalol_delta.py --dry-run --since "${{ inputs.since }}"
+diff --git a/.github/workflows/enrichment_after_reconciliation.yml b/.github/workflows/enrichment_after_reconciliation.yml
+new file mode 100644
+index 0000000..316d7ec
+--- /dev/null
++++ b/.github/workflows/enrichment_after_reconciliation.yml
+@@ -0,0 +1,181 @@
++name: העשרת דוח "חסר במכלול"
++
++# מאחד ארבעה סקריפטים שהיו workflow נפרד וידני-בלבד כל אחד (שליפת
++# תיאורי ויקינתונים, חישוב קלות ייבוא, שליפת תאריכי יצירה, בדיקת
++# הפניות במכלול) - כולם מעשירים אך ורק שורות שכבר בדוח
++# report_missing_from_mechalol, ולא היו חלק מהריצה הראשית.
++#
++# מופעל אוטומטית מיד אחרי סיום מוצלח של "פיוס דו-שבועי מלא"
++# (biweekly_full_reconciliation.yml) - זה הרגע שבו דוח "חסר במכלול"
++# הכי טרי, אחרי ריקון+מילוי+התאמה מלאים. אם שם ה-workflow המקורי
++# ישתנה אי-פעם, יש לעדכן את הרשימה תחת workflows: למטה בהתאם.
++#
++# ארבע העבודות למטה רצות *מקבילות זו לזו*, לא ברצף - במכוון, כי
++# "שליפת תאריכי יצירה" יכולה לקחת עד כמה שעות (בקשה אחת לכל כותרת,
++# מגבלה מבנית של API ויקיפדיה - אין דרך לבקש כמה דפים בבת אחת). הרצה
++# ברצף הייתה גוררת את שאר שלוש העבודות הקצרות בהרבה לחכות לה סתם.
++# כל עבודה נכשלת/מצליחה בנפרד; כישלון באחת לא עוצר את האחרות.
++#
++# workflow_dispatch מריץ את כל ארבע העבודות ביחד לצורך בדיקה ידנית -
++# אין הבחנה בין הרצה אוטומטית לידנית מבחינת אילו עבודות רצות.
++
++on:
++  workflow_run:
++    workflows: ["פיוס דו-שבועי מלא"]
++    types: [completed]
++  workflow_dispatch:
++
++jobs:
++  wikidata_descriptions:
++    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
++    runs-on: ubuntu-latest
++    timeout-minutes: 30
++    permissions:
++      issues: write
++    steps:
++      - name: שחזור קוד
++        uses: actions/checkout@v4
++
++      - name: התקנת פייתון
++        uses: actions/setup-python@v5
++        with:
++          python-version: "3.12"
++
++      - name: התקנת ספריות
++        run: pip install -r requirements.txt
++
++      - name: שליפת תיאורי ויקינתונים
++        env:
++          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
++          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
++        run: python fetch_wikidata_descriptions.py
++
++      - name: פתיחת Issue בעת כישלון
++        if: failure()
++        uses: actions/github-script@v7
++        with:
++          script: |
++            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
++            await github.rest.issues.create({
++              owner: context.repo.owner,
++              repo: context.repo.repo,
++              title: `כשל בשליפת תיאורי ויקינתונים - ${new Date().toISOString().slice(0, 10)}`,
++              body: `פרטי הריצה: ${runUrl}`,
++              labels: ["automation-failure"],
++            });
++
++  easy_import_candidates:
++    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
++    runs-on: ubuntu-latest
++    timeout-minutes: 45
++    permissions:
++      issues: write
++    steps:
++      - name: שחזור קוד
++        uses: actions/checkout@v4
++
++      - name: התקנת פייתון
++        uses: actions/setup-python@v5
++        with:
++          python-version: "3.12"
++
++      - name: התקנת ספריות
++        run: pip install -r requirements.txt
++
++      - name: חישוב קלות ייבוא
++        env:
++          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
++          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
++        run: python fetch_easy_import_candidates.py
++
++      - name: פתיחת Issue בעת כישלון
++        if: failure()
++        uses: actions/github-script@v7
++        with:
++          script: |
++            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
++            await github.rest.issues.create({
++              owner: context.repo.owner,
++              repo: context.repo.repo,
++              title: `כשל בחישוב קלות ייבוא - ${new Date().toISOString().slice(0, 10)}`,
++              body: `פרטי הריצה: ${runUrl}`,
++              labels: ["automation-failure"],
++            });
++
++  wikipedia_created_at:
++    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
++    runs-on: ubuntu-latest
++    timeout-minutes: 300
++    permissions:
++      issues: write
++    steps:
++      - name: שחזור קוד
++        uses: actions/checkout@v4
++
++      - name: התקנת פייתון
++        uses: actions/setup-python@v5
++        with:
++          python-version: "3.12"
++
++      - name: התקנת ספריות
++        run: pip install -r requirements.txt
++
++      - name: שליפת תאריכי יצירה
++        env:
++          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
++          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
++        run: python fetch_wikipedia_created_at.py
++
++      - name: פתיחת Issue בעת כישלון
++        if: failure()
++        uses: actions/github-script@v7
++        with:
++          script: |
++            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
++            await github.rest.issues.create({
++              owner: context.repo.owner,
++              repo: context.repo.repo,
++              title: `כשל בשליפת תאריכי יצירה - ${new Date().toISOString().slice(0, 10)}`,
++              body: `פרטי הריצה: ${runUrl}`,
++              labels: ["automation-failure"],
++            });
++
++  missing_redirects:
++    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
++    runs-on: ubuntu-latest
++    timeout-minutes: 30
++    permissions:
++      issues: write
++    steps:
++      - name: שחזור קוד
++        uses: actions/checkout@v4
++
++      - name: התקנת פייתון
++        uses: actions/setup-python@v5
++        with:
++          python-version: "3.12"
++
++      - name: התקנת ספריות
++        run: pip install -r requirements.txt
++
++      - name: בדיקת הפניות במכלול
++        env:
++          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
++          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
++          USER_NAME: ${{ secrets.USER_NAME }}
++          PASSWORD: ${{ secrets.PASSWORD }}
++        run: python check_missing_redirects.py
++
++      - name: פתיחת Issue בעת כישלון
++        if: failure()
++        uses: actions/github-script@v7
++        with:
++          script: |
++            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
++            await github.rest.issues.create({
++              owner: context.repo.owner,
++              repo: context.repo.repo,
++              title: `כשל בבדיקת הפניות במכלול - ${new Date().toISOString().slice(0, 10)}`,
++              body: `פרטי הריצה: ${runUrl}`,
++              labels: ["automation-failure"],
++            });
+diff --git a/.github/workflows/fetch_easy_import_candidates.yml b/.github/workflows/fetch_easy_import_candidates.yml
+deleted file mode 100644
+index e4fb0b2..0000000
+--- a/.github/workflows/fetch_easy_import_candidates.yml
++++ /dev/null
+@@ -1,31 +0,0 @@
+-name: חישוב קלות ייבוא לחסרים במכלול
+-
+-# הרצה ידנית בלבד, לצורך מדידת זמן ריצה בפועל - הורדת תוכן מלא
+-# (rvprop=content) ל-~24.5 אלף דפים עלולה לקחת 10-20 דקות, ועדיין לא
+-# הוחלט אם זה יהפוך לשלב בתוך weekly_update.yml (שכבר עומד על ~37
+-# דק' מתוך מגבלה של 60) או יישאר תהליך נפרד - ראו fetch_easy_import_candidates.py
+-# ואת ההחלטה המקבילה על fetch_wikidata_descriptions.yml.
+-on:
+-  workflow_dispatch:
+-
+-jobs:
+-  fetch_easy_import_candidates:
+-    runs-on: ubuntu-latest
+-    timeout-minutes: 45
+-    steps:
+-      - name: שחזור קוד
+-        uses: actions/checkout@v4
+-
+-      - name: התקנת פייתון
+-        uses: actions/setup-python@v5
+-        with:
+-          python-version: "3.12"
+-
+-      - name: התקנת ספריות
+-        run: pip install -r requirements.txt
+-
+-      - name: חישוב קלות ייבוא
+-        env:
+-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+-        run: python fetch_easy_import_candidates.py
+diff --git a/.github/workflows/fetch_wikidata_descriptions.yml b/.github/workflows/fetch_wikidata_descriptions.yml
+deleted file mode 100644
+index 1a8b164..0000000
+--- a/.github/workflows/fetch_wikidata_descriptions.yml
++++ /dev/null
+@@ -1,29 +0,0 @@
+-name: שליפת תיאורי ויקינתונים
+-
+-# הרצה ידנית בלבד, לצורך בדיקת זמן ריצה - עדיין לא הוחלט אם זה יהפוך
+-# לשלב בתוך weekly_update.yml או יישאר תהליך נפרד (בדומה להחלטה על
+-# check_missing_locked.yml).
+-on:
+-  workflow_dispatch:
+-
+-jobs:
+-  fetch_wikidata_descriptions:
+-    runs-on: ubuntu-latest
+-    timeout-minutes: 30
+-    steps:
+-      - name: שחזור קוד
+-        uses: actions/checkout@v4
+-
+-      - name: התקנת פייתון
+-        uses: actions/setup-python@v5
+-        with:
+-          python-version: "3.12"
+-
+-      - name: התקנת ספריות
+-        run: pip install -r requirements.txt
+-
+-      - name: שליפת תיאורי ויקינתונים
+-        env:
+-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+-        run: python fetch_wikidata_descriptions.py
+diff --git a/.github/workflows/fetch_wikipedia_created_at.yml b/.github/workflows/fetch_wikipedia_created_at.yml
+deleted file mode 100644
+index 930f11a..0000000
+--- a/.github/workflows/fetch_wikipedia_created_at.yml
++++ /dev/null
+@@ -1,32 +0,0 @@
+-name: שליפת תאריכי יצירה לחסרים
+-
+-# הרצה ידנית בלבד - שולף תאריך יצירה רק לכותרות שכבר בדוח "חסר
+-# במכלול", ראו fetch_wikipedia_created_at.py. בקשה אחת לכל כותרת
+-# (מגבלה מוצהרת של API ויקיפדיה - לא ניתן לבקש בבת אחת לכמה דפים),
+-# אז זה יכול לקחת זמן עם הרבה כותרות - timeout גבוה יחסית ליתר ביטחון.
+-# לא דורש USER_NAME/PASSWORD - ריצה אנונימית מול ויקיפדיה, בלי צורך
+-# בהתחברות (המגבלה כאן מבנית, לא תלוית-הרשאות).
+-on:
+-  workflow_dispatch:
+-
+-jobs:
+-  fetch_wikipedia_created_at:
+-    runs-on: ubuntu-latest
+-    timeout-minutes: 300
+-    steps:
+-      - name: שחזור קוד
+-        uses: actions/checkout@v4
+-
+-      - name: התקנת פייתון
+-        uses: actions/setup-python@v5
+-        with:
+-          python-version: "3.12"
+-
+-      - name: התקנת ספריות
+-        run: pip install -r requirements.txt
+-
+-      - name: שליפת תאריכי יצירה
+-        env:
+-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+-        run: python fetch_wikipedia_created_at.py
+diff --git a/.github/workflows/initial_run.yml b/.github/workflows/initial_run.yml
+index f5fea6f..671e0fe 100644
+--- a/.github/workflows/initial_run.yml
++++ b/.github/workflows/initial_run.yml
+@@ -25,6 +25,17 @@ on:
+         default: false
+         type: boolean
+ 
++# concurrency משותפת עם שאר ה-workflows שנוגעים בטבלאות wikipedia_pages/
++# mechalol_pages (initial_run.yml, weekly_update.yml,
++# biweekly_full_reconciliation.yml, nightly_delta.yml) - מונעת ריצות
++# חופפות שמריקות/כותבות זו על זו (בדיוק התקלה שגרמה בעבר ל-mechalol_pages
++# להימצא ריקה אחרי weekly_update.yml + initial_run.yml חופפים).
++# cancel-in-progress: false בכוונה - עדיף לחכות בתור מאשר לבטל ריצה
++# באמצע ריקון ולהשאיר את הטבלה חצי-ריקה.
++concurrency:
++  group: mechalol-wikipedia-db-write
++  cancel-in-progress: false
++
+ jobs:
+   collect:
+     runs-on: ubuntu-latest
+diff --git a/.github/workflows/nightly_delta.yml b/.github/workflows/nightly_delta.yml
+index 070b361..fe38b0b 100644
+--- a/.github/workflows/nightly_delta.yml
++++ b/.github/workflows/nightly_delta.yml
+@@ -5,6 +5,18 @@ on:
+     - cron: "0 2 * * *"  # כל לילה ב-02:00 UTC
+   workflow_dispatch:
+ 
++# אותה קבוצת concurrency כמו initial_run.yml/weekly_update.yml/
++# biweekly_full_reconciliation.yml - ראו הערה מלאה ב-initial_run.yml.
++# nightly_delta.yml עצמו לא מרוקן טבלאות, אבל כותב (upsert/delete ממוקד)
++# לאותן טבלאות בדיוק שהפיוס הדו-שבועי מרוקן ומדביק חזרה - בלי התור
++# המשותף, לילה שבו הפיוס עדיין רץ (חורג מעבר לחלון שלו) עלול להתנגש
++# עם ריקון שקורה באמצע. אם ריצה של nightly_delta נשארת בתור מאחורי
++# ריצה ארוכה, היא פשוט תרוץ מאוחר יותר - לא מדלגת, בזכות
++# sync_watermarks שממשיך מאיפה שהפסיק.
++concurrency:
++  group: mechalol-wikipedia-db-write
++  cancel-in-progress: false
++
+ jobs:
+   delta_update:
+     runs-on: ubuntu-latest
+@@ -47,7 +59,9 @@ jobs:
+         env:
+           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+-        run: python match.py --scoped
++          USER_NAME: ${{ secrets.USER_NAME }}
++          PASSWORD: ${{ secrets.PASSWORD }}
++        run: python match.py --scoped --login
+ 
+       - name: פתיחת Issue בעת כישלון
+         if: failure()
+diff --git a/.github/workflows/weekly_update.yml b/.github/workflows/weekly_update.yml
+index 9589166..956515c 100644
+--- a/.github/workflows/weekly_update.yml
++++ b/.github/workflows/weekly_update.yml
+@@ -5,6 +5,13 @@ on:
+     - cron: "0 3 * * 0"  # כל יום ראשון ב-03:00 UTC
+   workflow_dispatch:
+ 
++# אותה קבוצת concurrency כמו initial_run.yml/biweekly_full_reconciliation.yml/
++# nightly_delta.yml - ראו הערה שם. חשוב גם כאן, למרות שה-workflow מושבת
++# כרגע, ליום שבו מישהו יפעיל אותו ידנית.
++concurrency:
++  group: mechalol-wikipedia-db-write
++  cancel-in-progress: false
++
+ jobs:
+   update:
+     runs-on: ubuntu-latest
+diff --git a/README.md b/README.md
+index 8f4ed2d..ee01efa 100644
+--- a/README.md
++++ b/README.md
+@@ -16,7 +16,11 @@
+ - **`blacklist_titles`** - כותרות שבכוונה לא יובאו למכלול, לא יופיעו כ"חסרות" ב-`report_missing_from_mechalol`.
+ 
+ ## הרצה
+-- הרצה ראשונית: `workflow_dispatch` על `initial_run.yml`. אם נעצר באמצע (מגבלת זמן), פשוט להריץ שוב - ההתקדמות נשמרת (ובמצב הזה, הריקון **לא** חוזר על עצמו, כדי לא לאבד את מה שכבר נטען).
+-- עדכון שוטף: `weekly_update.yml`, רץ אוטומטית כל יום ראשון. סדר השלבים קריטי: `fetch_wikipedia.py` (מבצע את הריקון, ואז ממלא) → `fetch_mechalol.py` → `match.py` (מתאים כותרות **וגם** מחשב מחדש את `wikipedia_pages.is_missing` בסופו).
++- הרצה ראשונית: `workflow_dispatch` על `initial_run.yml`. אם נעצר באמצע (מגבלת זמן), פשוט להריץ שוב - ההתקדמות נשמרת (ובמצב הזה, הריקון **לא** חוזר על עצמו, כדי לא לאבד את מה שכבר נטען). תומך גם ב-`mode=mechalol_only` למילוי חוזר של טבלה אחת בלבד, בלי לגעת בשנייה.
++- עדכון שוטף (יומי): `nightly_delta.yml`, רץ אוטומטית כל לילה ב-02:00 UTC. לא מרוקן כלום - קורא `recentchanges`/`logevents` משני האתרים (יצירות/מחיקות/שינויי-שם/עריכות) ומעדכן רק את מה שהשתנה, דרך `fetch_wikipedia_delta.py` → `fetch_mechalol_delta.py` → `match.py --scoped`.
++- רשת ביטחון (דו-שבועית): `biweekly_full_reconciliation.yml`, רץ אוטומטית ב-1 וב-15 לכל חודש, 03:00 UTC. ריקון+מילוי-מלא רגיל (בדיוק כמו `weekly_update.yml` הישן) - תופס פערים שהדלתא היומית לא רואה במכוון (בעיקר שינוי סטטוס הפניה↔ערך בלי אירוע נלווה). סדר השלבים קריטי: `fetch_mechalol.py` → `fetch_wikipedia.py` (מבצע את הריקון, ואז ממלא) → `match.py` (מתאים כותרות **וגם** מחשב מחדש את `wikipedia_pages.is_missing` בסופו).
++- העשרת "חסר במכלול": `enrichment_after_reconciliation.yml`, מופעל אוטומטית (טריגר `workflow_run`) מיד אחרי שריצת הפיוס הדו-שבועי מסתיימת בהצלחה. ארבע עבודות מקבילות ובלתי-תלויות (לא ברצף - `fetch_wikipedia_created_at.py` לבדו יכול לקחת עד כמה שעות): תיאורי ויקינתונים, קלות ייבוא, תאריכי יצירה, הפניות במכלול.
++- `weekly_update.yml` - **מושבת** (Disabled בטאב Actions). הוחלף במלואו על ידי שני ה-workflows האוטומטיים למעלה; נשאר בריפו כרפרנס/רשת ביטחון להפעלה ידנית, לא רץ מעצמו.
++- `check_missing_locked.yml` - רץ אוטומטית פעם בחודש (1 לחודש, 04:00 UTC), בודק כותרות חסומות ליצירה במכלול.
+ 
+ 

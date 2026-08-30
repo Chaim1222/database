@@ -5,6 +5,13 @@ on:
     - cron: "0 3 * * 0"  # כל יום ראשון ב-03:00 UTC
   workflow_dispatch:
 
+# אותה קבוצת concurrency כמו initial_run.yml/biweekly_full_reconciliation.yml/
+# nightly_delta.yml - ראו הערה שם. חשוב גם כאן, למרות שה-workflow מושבת
+# כרגע, ליום שבו מישהו יפעיל אותו ידנית.
+concurrency:
+  group: mechalol-wikipedia-db-write
+  cancel-in-progress: false
+
 jobs:
   update:
     runs-on: ubuntu-latest
