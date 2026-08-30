@@ -10,7 +10,7 @@ MECHALOL_API = "https://www.hamichlol.org.il/w/api.php"
 USER_AGENT = (
     "MechalolWikipediaCompareBot/1.0 "
     "(https://www.hamichlol.org.il/; "
-    "geon@hamichlol.org.il)"
+    "bot@hamichlol.org.il)"
 )
 REQUEST_HEADERS = {"User-Agent": USER_AGENT}
 
