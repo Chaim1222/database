@@ -391,13 +391,26 @@ def main():
             "(לשימוש בפיוס התקופתי המלא)."
         ),
     )
+    parser.add_argument(
+        "--skip-template-check", action="store_true",
+        help=(
+            "מדלג לגמרי על שלב 4 (בדיקת תבנית {{מיון ויקיפדיה}} לדפים "
+            "שלא נמצאה להם התאמה בשלבים 0-3) - השלב היחיד שפונה בפועל "
+            "ל-API של המכלול באמצע match.py. שימושי כשהמכלול לא זמין "
+            "זמנית (למשל 'מצב התקפה') - שלבים 0-3 (התאמות ידניות, "
+            "כותרת מדויקת, כותרת מנורמלת) כולם מבוססי נתונים שכבר "
+            "נשלפו, בלי שום פנייה חדשה למכלול. דפים שהיו נפתרים רק "
+            "בשלב 4 יישארו ללא התאמה הפעם - ייפתרו בריצה הבאה בלי "
+            "הדגל, ברגע שה-API זמין שוב."
+        ),
+    )
     args = parser.parse_args()
 
     started = time.monotonic()
     client = get_client()
 
     log("=" * 80)
-    log("START | match.py" + (" (--scoped)" if args.scoped else ""))
+    log("START | match.py" + (" (--scoped)" if args.scoped else "") + (" (--skip-template-check)" if args.skip_template_check else ""))
     log("=" * 80)
 
     log("שלב 0 | טוען מפות ויקיפדיה + התאמות ידניות...")
@@ -427,6 +440,12 @@ def main():
     template_matches = 0
     unmatched = 0
     access_denied_skipped = 0
+    # נאסף רק בשביל --scoped (ראו שלב 2 למטה) - כל wikipedia_id שנגע
+    # בשורת מכלול שעברה בלולאה הזו, לפני או אחרי השינוי (row המקורי +
+    # updated החדש) - הקבוצה הזו היא בדיוק מה שעשוי להשפיע על
+    # is_missing, ולא יותר מזה.
+    affected_wikipedia_ids = set()
+    template_check_deferred = 0
 
     log("שלב 1 | מתאים כותרות מכלול...")
 
@@ -437,6 +456,8 @@ def main():
         for row in batch:
             total += 1
             title = row.get("title")
+            if row.get("wikipedia_id"):
+                affected_wikipedia_ids.add(row["wikipedia_id"])
 
             if not title:
                 log(f"WARNING | שורה id={row.get('id')} ללא כותרת - דולגה")
@@ -512,7 +533,9 @@ def main():
         # 3. בדיקת תבנית מיון - באצוות
         # -------------------------------------------------------------
 
-        if pending:
+        if args.skip_template_check:
+            template_check_deferred += len(pending)
+        elif pending:
             resolved = resolve_pending_via_template(pending, wikipedia_map)
 
             for row, title in pending:
@@ -560,6 +583,9 @@ def main():
                 updates.append(updated)
 
         if updates:
+            for u in updates:
+                if u.get("wikipedia_id"):
+                    affected_wikipedia_ids.add(u["wikipedia_id"])
             execute_with_retry(
                 lambda: (
                     client.table("mechalol_pages")
@@ -580,16 +606,39 @@ def main():
             f"ידני_לא_נמצא={manual_unresolved:,}"
         )
 
-    # שלב 2 | חישוב מחדש של wikipedia_pages.is_missing - עדכון יחיד
-    # בסופרבייס (לא שורה-שורה), אחרי שכל mechalol_pages.wikipedia_id כבר
-    # סופי לריצה הזו. מחליף הצטרפות חיה שהתבצעה עד כה בתוך
-    # report_missing_from_mechalol (ראו migration_add_is_missing_flag.sql).
+    # שלב 2 | חישוב מחדש של wikipedia_pages.is_missing.
+    #
+    # בסריקה מלאה (בלי --scoped, או עם --scoped שנפל חזרה לסריקה מלאה
+    # כי לא נמצא changed_ids) - עדכון יחיד על הטבלה כולה, כמו תמיד.
+    #
+    # ב---scoped אמיתי - מריצים גרסה ממוקדת (recompute_missing_flag_scoped,
+    # ראו migration_add_delta_tables.sql) על affected_wikipedia_ids
+    # בלבד: כל wikipedia_id שנגע בשורת מכלול שנבדקה הלילה, לפני או
+    # אחרי השינוי - זו בדיוק הקבוצה שעשויה להשפיע על is_missing, לא
+    # יותר. חשוב: בלי זה, כל ריצת --scoped הייתה מפעילה בכל זאת עדכון
+    # מלא על 350 אלף+ שורות בכל לילה - בדיוק סוג הפעולה היקרה שהדלתא
+    # נועדה למנוע (וגם בדיוק הסוג שגרם בפועל ל-statement timeout על
+    # הטבלה המלאה, שנתקלנו בו בהרצה אמיתית).
     log("שלב 2 | מחשב מחדש wikipedia_pages.is_missing...")
     recompute_started = time.monotonic()
-    execute_with_retry(
-        lambda: client.rpc("recompute_missing_flag").execute(),
-        "RECOMPUTE_MISSING_FLAG",
-    )
+
+    if only_ids is not None:
+        if affected_wikipedia_ids:
+            execute_with_retry(
+                lambda: client.rpc(
+                    "recompute_missing_flag_scoped", {"ids": list(affected_wikipedia_ids)}
+                ).execute(),
+                "RECOMPUTE_MISSING_FLAG_SCOPED",
+            )
+            log(f"שלב 2 | ממוקד ל-{len(affected_wikipedia_ids):,} wikipedia_id")
+        else:
+            log("שלב 2 | דולג - אף שורה לא נגעה ב-wikipedia_id כלשהו (--scoped)")
+    else:
+        execute_with_retry(
+            lambda: client.rpc("recompute_missing_flag").execute(),
+            "RECOMPUTE_MISSING_FLAG",
+        )
+
     recompute_elapsed = time.monotonic() - recompute_started
     log(f"שלב 2 הושלם | {recompute_elapsed:.1f} שנ'")
 
@@ -602,6 +651,7 @@ def main():
         f"מדויק={exact_matches:,} | נרמול={normalization_matches:,} | "
         f"תבנית={template_matches:,} | ללא_התאמה={unmatched:,} | "
         f"נדחה_ללא_הכרעה={access_denied_skipped:,} | ידני_לא_נמצא={manual_unresolved:,}"
+        + (f" | נדחה_ללא_בדיקת_תבנית={template_check_deferred:,}" if args.skip_template_check else "")
     )
     log(f"זמן ריצה | {elapsed // 60} דק' {elapsed % 60} שנ'")
     log("=" * 80)
