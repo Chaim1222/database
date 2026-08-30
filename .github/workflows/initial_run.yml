@@ -14,6 +14,11 @@ on:
           - all
           - mechalol_only
           - match_only
+      skip_template_check:
+        description: "התאמה: לדלג על בדיקת תבנית מיון (כשהמכלול לא זמין, למשל 'מצב התקפה')"
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   collect:
@@ -69,7 +74,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python match.py
+        run: python match.py ${{ inputs.skip_template_check == true && '--skip-template-check' || '' }}
 
       - name: שמירת התקדמות (אם הריצה נעצרה באמצע)
         if: ${{ always() && inputs.mode != 'match_only' }}
