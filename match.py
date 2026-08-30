@@ -38,7 +38,7 @@ from config import (
 )
 from normalize import hygiene, normalize_title
 from supabase_client import get_client, execute_with_retry as _execute_with_retry
-from mechalol_api import log, api_get_with_retry
+from mechalol_api import log, api_get_with_retry, login as mechalol_login
 
 
 def execute_with_retry(operation, description):
@@ -404,14 +404,34 @@ def main():
             "הדגל, ברגע שה-API זמין שוב."
         ),
     )
+    parser.add_argument(
+        "--login", action="store_true",
+        help=(
+            "מתחבר לחשבון הבוט במכלול (USER_NAME/PASSWORD) לפני שלב 4 "
+            "(בדיקת תבנית מיון) - הופך את הבקשות שם לתעבורה מחוברת "
+            "במקום אנונימית. כישלון התחברות לא עוצר את הריצה - נופל "
+            "חזרה לגישה אנונימית, בדיוק כמו fetch_mechalol.py. חסר "
+            "תועלת (ולכן ברירת המחדל היא בלי) אלא אם יש סיבה ספציפית "
+            "(למשל תעבורה אנונימית נחסמת) - login() עצמו הוא קריאת "
+            "רשת נוספת, לא לגמרי חינמית."
+        ),
+    )
     args = parser.parse_args()
 
     started = time.monotonic()
     client = get_client()
 
     log("=" * 80)
-    log("START | match.py" + (" (--scoped)" if args.scoped else "") + (" (--skip-template-check)" if args.skip_template_check else ""))
+    log(
+        "START | match.py"
+        + (" (--scoped)" if args.scoped else "")
+        + (" (--skip-template-check)" if args.skip_template_check else "")
+        + (" (--login)" if args.login else "")
+    )
     log("=" * 80)
+
+    if args.login:
+        mechalol_login()
 
     log("שלב 0 | טוען מפות ויקיפדיה + התאמות ידניות...")
     wikipedia_map, wikipedia_existing_ids = load_wikipedia_map(client)

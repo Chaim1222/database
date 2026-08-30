@@ -5,6 +5,7 @@
 רמת נעילה של כותרות "חסרות").
 """
 
+import os
 import time
 from datetime import datetime, timezone
 
@@ -27,6 +28,55 @@ session.headers.update(REQUEST_HEADERS)
 def log(message):
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     print(f"[{now}] {message}", flush=True)
+
+
+def login():
+    """
+    מקביל בדיוק ל-login() ב-fetch_mechalol.py - ראו שם לתיעוד המלא -
+    רק פועל על session של המודול הזה (מופרד מה-session של
+    fetch_mechalol.py - שני מודולים, שני אובייקטי session נפרדים,
+    אין קשר ביניהם). לא עוצרת בכישלון - מחזירה False, הקורא (match.py)
+    בוחר להמשיך אנונימי במקרה כזה, בדיוק כמו fetch_mechalol.py.
+
+    בשונה מ-fetch_mechalol.py - כאן ההנעה להתחברות היא לא aplimit/
+    cmlimit גבוה יותר (match.py לא עושה סריקות קטגוריה גדולות), אלא
+    אפשרות שתעבורה מחוברת (לא אנונימית) תתמודד טוב יותר מול הגנות
+    אתר שחוסמות במיוחד תעבורה אנונימית לא-מזוהה (כפי שקרה בפועל -
+    "מצב התקפה" בלי חריגים לתעבורה אנונימית).
+    """
+    username = os.getenv("USER_NAME")
+    password = os.getenv("PASSWORD")
+    if not username or not password:
+        log("USER_NAME או PASSWORD לא מוגדרים - לא ניתן להתחבר למכלול")
+        return False
+
+    try:
+        token_params = {"action": "query", "meta": "tokens", "type": "login", "format": "json"}
+        token_resp = session.get(MECHALOL_API, params=token_params, timeout=(15, 60))
+        token_resp.raise_for_status()
+        login_token = token_resp.json()["query"]["tokens"]["logintoken"]
+
+        login_params = {
+            "action": "login",
+            "lgname": username,
+            "lgpassword": password,
+            "lgtoken": login_token,
+            "format": "json",
+        }
+        login_resp = session.post(MECHALOL_API, data=login_params, timeout=(15, 60))
+        login_resp.raise_for_status()
+        result = login_resp.json().get("login", {})
+
+        if result.get("result") != "Success":
+            log(f"התחברות למכלול נכשלה: {result.get('reason', 'סיבה לא ידועה')}")
+            return False
+
+        log(f"התחברות למכלול הצליחה | משתמש: {username}")
+        return True
+
+    except (requests.RequestException, ValueError, KeyError) as exc:
+        log(f"שגיאה בהתחברות למכלול: {type(exc).__name__}: {exc}")
+        return False
 
 
 def api_get_with_retry(params, description):
