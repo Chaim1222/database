@@ -205,15 +205,36 @@ def _upsert_with_collision_handling(client, rows):
     resolve_title_collisions) - עטוף כולו ב-execute_with_retry על ידי
     הקוראים, כדי ששגיאות רשת/זמניות רגילות עדיין ייהנו מהניסיון החוזר
     הגנרי, בלי לבזבז אותם ניסיונות על שגיאת התנגשות שלא תיפתר לבד.
+
+    resolve_title_collisions מנקה רק שורה *קיימת ב-DB* שמתנגשת עם
+    כותרת חדשה. היא לא עוזרת אם ההתנגשות היא *בתוך האצווה עצמה* - שני
+    page_id שונים באותה אצווה עם אותה כותרת בדיוק (מצב מעברי אמיתי,
+    לא נדיר כשיש הרבה תזוזות/שחזורים בחלון דלתא אחד) - אז אין שורה
+    מיושנת למחוק, resolve_title_collisions מחזירה False, וה-upsert
+    הבא ייכשל באותה שגיאה בדיוק, שוב ושוב, גם תחת execute_with_retry
+    החיצונית (נצפה בפועל: 5 ניסיונות זהים). הפתרון: ליפול חזרה
+    לעדכון שורה-שורה - כל שורה שמתחייבת ל-DB הופכת את השורה הבאה
+    שמתנגשת איתה לניתנת-לפתרון ע"י resolve_title_collisions הרגילה
+    (עכשיו יש שורה אמיתית ב-DB לזהות מולה) - אותו עיקרון בדיוק לפיו
+    apply_renames כבר עובד שורה-שורה מלכתחילה.
     """
     try:
         client.table(TABLE).upsert(rows, on_conflict="id").execute()
+        return
     except Exception as exc:
-        if _is_title_collision(exc) and resolve_title_collisions(client, rows):
-            log("upsert | טופלה התנגשות כותרת, מנסה שוב")
-            client.table(TABLE).upsert(rows, on_conflict="id").execute()
-        else:
+        if not _is_title_collision(exc):
             raise
+        resolve_title_collisions(client, rows)
+
+    log(f"upsert | נופל חזרה לעדכון שורה-שורה ({len(rows)} שורות) בגלל התנגשות כותרת בתוך האצווה")
+    for row in rows:
+        try:
+            client.table(TABLE).upsert([row], on_conflict="id").execute()
+        except Exception as row_exc:
+            if _is_title_collision(row_exc) and resolve_title_collisions(client, [row]):
+                client.table(TABLE).upsert([row], on_conflict="id").execute()
+            else:
+                raise
 
 
 def _dedupe_creations_by_id(creations):

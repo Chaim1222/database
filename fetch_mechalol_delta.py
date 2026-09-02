@@ -185,15 +185,31 @@ def resolve_title_collisions(client, rows):
 
 
 def _upsert_with_collision_handling(client, rows):
-    """זהה ל-fetch_wikipedia_delta._upsert_with_collision_handling - ראו שם לתיעוד מלא."""
+    """
+    זהה ל-fetch_wikipedia_delta._upsert_with_collision_handling - ראו
+    שם לתיעוד מלא. הבדל חשוב מה-DB שם: כאן resolve_title_collisions
+    לא צריכה לשחרר הפניית wikipedia_id (אין מפתח זר שמצביע ל-
+    mechalol_pages), אבל אותה בעיית "התנגשות בתוך האצווה עצמה" (בלי
+    שורה מיושנת ב-DB לנקות) קיימת באותה מידה - אותו נפילה-חזרה
+    לעדכון שורה-שורה.
+    """
     try:
         client.table(TABLE).upsert(rows, on_conflict="id").execute()
+        return
     except Exception as exc:
-        if _is_title_collision(exc) and resolve_title_collisions(client, rows):
-            log("upsert | טופלה התנגשות כותרת, מנסה שוב")
-            client.table(TABLE).upsert(rows, on_conflict="id").execute()
-        else:
+        if not _is_title_collision(exc):
             raise
+        resolve_title_collisions(client, rows)
+
+    log(f"upsert | נופל חזרה לעדכון שורה-שורה ({len(rows)} שורות) בגלל התנגשות כותרת בתוך האצווה")
+    for row in rows:
+        try:
+            client.table(TABLE).upsert([row], on_conflict="id").execute()
+        except Exception as row_exc:
+            if _is_title_collision(row_exc) and resolve_title_collisions(client, [row]):
+                client.table(TABLE).upsert([row], on_conflict="id").execute()
+            else:
+                raise
 
 
 def apply_status_updates(client, status_updates):
