@@ -197,10 +197,18 @@ def _upsert_with_collision_handling(client, rows):
 
 
 def apply_status_updates(client, status_updates):
+    """
+    בדומה ל-apply_creations: status_updates כולל גם title (ראו
+    detect_edited_tracked_changes), אז אותה תקלת התנגשות-כותרת
+    שאפשרית ביצירות אפשרית גם כאן - למשל אם page_id שערכתו כבר
+    במעקב מקבל כותרת שעדיין שייכת בטעות לשורה מיושנת אחרת שלא
+    עודכנה/נמחקה בריצה קודמת. משתמש באותה עטיפת collision-handling
+    כמו apply_creations, במקום upsert ישיר.
+    """
     if not status_updates:
         return
     execute_with_retry(
-        lambda: client.table(TABLE).upsert(status_updates, on_conflict="id").execute(),
+        lambda: _upsert_with_collision_handling(client, status_updates),
         f"עדכון סיווג ל-{len(status_updates)} ערכים קיימים",
         log_fn=log,
     )
