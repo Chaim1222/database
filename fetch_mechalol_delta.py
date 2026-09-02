@@ -218,8 +218,20 @@ def apply_creations(client, creations, own_categories_by_title):
     """
     if not creations:
         return
-    rows = []
+
+    # אותה בעיית page_id כפול באותו חלון דלתא כמו ב-
+    # fetch_wikipedia_delta.apply_creations (ראו שם לתיעוד המלא) - גם
+    # כאן ה-upsert הוא on_conflict="id" יחיד, שנכשל אם page_id מופיע
+    # פעמיים באצווה. מצמצם ל-page_id אחד, שומר את האירוע עם created_at
+    # המאוחר ביותר.
+    latest_by_id = {}
     for c in creations:
+        existing = latest_by_id.get(c["page_id"])
+        if existing is None or c["created_at"] > existing["created_at"]:
+            latest_by_id[c["page_id"]] = c
+
+    rows = []
+    for c in latest_by_id.values():
         classification = classify_page_from_own_categories(
             c["title"], own_categories_by_title.get(c["title"], set())
         )

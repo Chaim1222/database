@@ -216,13 +216,33 @@ def _upsert_with_collision_handling(client, rows):
             raise
 
 
+def _dedupe_creations_by_id(creations):
+    """
+    all_creations (=new_pages+restores+move_creation_events) יכולה
+    להכיל אותו page_id יותר מפעם אחת בתוך אותו חלון דלתא - למשל דף
+    שנוצר ואז נמחק ושוחזר תוך אותו לילה (מופיע גם ב-new_pages וגם
+    ב-restores), או תזוזה החוצה ובחזרה למרחב הראשי תוך אותו חלון (שתי
+    move_creation_events). upsert יחיד עם on_conflict="id" לא יכול
+    לגעת באותה שורה פעמיים באותה פקודה - Postgres נכשל עם 'ON CONFLICT
+    DO UPDATE command cannot affect row a second time' (21000). מצמצם
+    ל-page_id אחד, שומר את האירוע עם created_at המאוחר ביותר - משקף
+    את המצב הסופי בפועל בתום החלון.
+    """
+    latest_by_id = {}
+    for c in creations:
+        existing = latest_by_id.get(c["page_id"])
+        if existing is None or c["created_at"] > existing["created_at"]:
+            latest_by_id[c["page_id"]] = c
+    return list(latest_by_id.values())
+
+
 def apply_creations(client, creations):
     if not creations:
         return
     checked_at = datetime.now(timezone.utc).isoformat()
     rows = [
         {"id": c["page_id"], "title": c["title"], "checked_at": checked_at}
-        for c in creations
+        for c in _dedupe_creations_by_id(creations)
     ]
     execute_with_retry(
         lambda: _upsert_with_collision_handling(client, rows),

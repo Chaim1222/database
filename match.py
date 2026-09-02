@@ -513,9 +513,21 @@ def main():
             wikipedia_id = wikipedia_map.get(key)
 
             if wikipedia_id is not None:
+                match_type = get_match_type(row)
                 updated = dict(row)
-                updated["wikipedia_id"] = wikipedia_id
-                updated["match_type"] = get_match_type(row)
+                # אם ה-status של השורה עצמה כבר קובע MATCH_TYPE_SAME_TITLE_
+                # UNRELATED (למשל 'נוצר במכלול') - זו רק כותרת זהה במקרה,
+                # בלי שום עדות נוספת לקשר אמיתי (לא תבנית {{מיון ויקיפדיה}},
+                # רק היגיינת טקסט/התאמה מדויקת). קישור wikipedia_id כאן
+                # יוצר קשר שגוי - ובפועל זו הייתה הסיבה ל-437 שורות שקושרו
+                # בטעות ל-wikipedia_id (חלקן אף התנגשו עם שורות אחרות שדווקא
+                # הוכיחו את הקשר האמיתי דרך תבנית - ראו ניקוי הנתונים
+                # שבוצע ב-2026-09-01). ממשיכים לתעד את match_type (למעקב/
+                # דוח) בלי ליצור את הקישור בפועל.
+                updated["wikipedia_id"] = (
+                    wikipedia_id if match_type != MATCH_TYPE_SAME_TITLE_UNRELATED else None
+                )
+                updated["match_type"] = match_type
                 updated["maybe_deleted_from_wikipedia"] = False
 
                 if key != title:
@@ -534,9 +546,13 @@ def main():
                 candidate_id = wikipedia_map.get(hygiene(candidate))
 
                 if candidate_id is not None:
+                    match_type = get_match_type(row)
                     updated = dict(row)
-                    updated["wikipedia_id"] = candidate_id
-                    updated["match_type"] = get_match_type(row)
+                    # אותו טעם בדיוק כמו בשלב 1 למעלה - ראו שם לתיעוד המלא.
+                    updated["wikipedia_id"] = (
+                        candidate_id if match_type != MATCH_TYPE_SAME_TITLE_UNRELATED else None
+                    )
+                    updated["match_type"] = match_type
                     updated["normalization_match"] = True
                     updated["normalization_method"] = "+".join(applied)
                     updated["title_normalized"] = candidate
@@ -586,6 +602,21 @@ def main():
 
                     template_matches += 1
                 else:
+                    # לא נמצאה שום התאמה בשום שלב (0-3) - יש לנקות
+                    # wikipedia_id מפורשות, גם אם לשורה הזו *הייתה* עד
+                    # עכשיו התאמה קודמת (updated הוא dict(row), כלומר
+                    # מכיל את הערך הישן אם לא דורסים אותו כאן!). בלי
+                    # השורה הזו, שורת מכלול ששונה שמה ולא נמצאה לה
+                    # התאמה חדשה נשארת מצביעה על ה-wikipedia_id הישן -
+                    # וכל שורת מכלול אחרת (למשל שורה חדשה שנוצרה עם
+                    # הכותרת הישנה שהתפנתה) שכן תואמת את אותו
+                    # wikipedia_id בריצה הזו, "יורשת" אותו בלי שהראשונה
+                    # שוחררה ממנו - שתי שורות מכלול מצביעות על אותו
+                    # ID ויקיפדי בו-זמנית. בסריקה מלאה (אחרי TRUNCATE)
+                    # זה לא נצפה כי wikipedia_id כבר NULL מלכתחילה -
+                    # רק ריצות --scoped (שלא עוברות TRUNCATE בין ריצות)
+                    # חושפות את זה.
+                    updated["wikipedia_id"] = None
                     updated["normalization_match"] = False
                     updated["normalization_method"] = None
                     updated["title_normalized"] = None
