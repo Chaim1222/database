@@ -64,11 +64,21 @@ jobs:
       - name: התקנת ספריות
         run: pip install -r requirements.txt
 
-      # fetch_mechalol.py *חייב* לרוץ לפני fetch_wikipedia.py, גם כאן -
-      # אותה סיבה בדיוק כמו ב-weekly_update.yml (מפתח זר
-      # mechalol_pages.wikipedia_id -> wikipedia_pages.id; ריקון
-      # wikipedia_pages דורש שכל ה-wikipedia_id ב-mechalol_pages כבר
-      # NULL, מובטח רק מיד אחרי ריקון+מילוי טרי של mechalol_pages).
+      # fetch_wikipedia.py *חייב* לרוץ לפני fetch_mechalol.py, גם כאן -
+      # טעות בסדר ההפוך גרמה בעבר לאובדן נתונים אמיתי:
+      # truncate_wikipedia_pages() רץ עם CASCADE בפועל (ראו schema.sql
+      # ו-2026-09 postmortem) - כל TRUNCATE על wikipedia_pages, עם
+      # CASCADE, מרוקן גם את mechalol_pages *לגמרי* (כל הטבלה, לא רק
+      # שורות עם מפתח זר תלוי) - ללא קשר לערכי wikipedia_id ולסדר
+      # הצעדים. לכן mechalol_pages *חייב* להתמלא אחרי הריקון הזה, לא
+      # לפניו. לא רלוונטי במצב mechalol_only (אין ריקון ויקיפדיה בכלל).
+      - name: שליפת כותרות ויקיפדיה
+        if: ${{ inputs.mode == 'all' }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python fetch_wikipedia.py
+
       - name: שליפת נתוני המכלול
         if: ${{ inputs.mode == 'all' || inputs.mode == 'mechalol_only' }}
         env:
@@ -77,13 +87,6 @@ jobs:
           USER_NAME: ${{ secrets.USER_NAME }}
           PASSWORD: ${{ secrets.PASSWORD }}
         run: python fetch_mechalol.py
-
-      - name: שליפת כותרות ויקיפדיה
-        if: ${{ inputs.mode == 'all' }}
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python fetch_wikipedia.py
 
       - name: התאמה בין הכותרות
         if: ${{ inputs.mode == 'match_only' || (inputs.mode == 'all' && success()) }}
