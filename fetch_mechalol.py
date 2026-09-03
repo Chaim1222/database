@@ -18,11 +18,16 @@ cmlimit עד 5000) אבל *לא עוצרת את הריצה* אם זה נכשל -
 האצווה הראשונה עם תוכן אמיתי שהתקבלה בהצלחה מה-API, לא באופן גורף
 בתחילת הריצה - כך שתקלת API בכל אחד משלבי האיסוף (login, קטגוריות,
 מיפוי תאריכים, האצווה הראשונה) לא נוגעת בטבלה הקיימת בכלל. wikipedia_id
-לא נשלח ב-INSERT כאן (נקבע רק ב-match.py), כך שמיד אחרי ריקון+מילוי
-מוצלח כל wikipedia_id הוא NULL - ולכן fetch_wikipedia.py יכול לרוקן את
-wikipedia_pages שלו בבטחה גם אם הוא רץ מיד אחרי. בגלל התלות הזו,
-fetch_mechalol.py *חייב* לרוץ לפני fetch_wikipedia.py בתזמון השבועי
-(ראו weekly_update.yml, וההערה המקבילה בראש fetch_wikipedia.py).
+לא נשלח ב-INSERT כאן (נקבע רק ב-match.py). בגלל מפתח זר
+mechalol_pages.wikipedia_id -> wikipedia_pages.id, ובגלל ש-
+truncate_wikipedia_pages() רץ בפועל עם CASCADE (ראו schema.sql) - כל
+ריקון של wikipedia_pages מרוקן *גם* את mechalol_pages *לגמרי* (כל
+הטבלה, לא רק שורות עם wikipedia_id לא-NULL - זו התנהגות TRUNCATE...
+CASCADE ברמת הטבלה, לא ON DELETE CASCADE ברמת שורה, כך שאיפוס ה-
+wikipedia_id כאן לא "מחסן" מפני זה). בגלל זה, fetch_mechalol.py
+*חייב* לרוץ *אחרי* fetch_wikipedia.py בתזמון השבועי (ראו
+weekly_update.yml, וההערה המקבילה בראש fetch_wikipedia.py) - כדי
+שמכלול יתמלא אחרי שהריקון-עם-CASCADE כבר קרה, לא לפניו.
 """
 
 import json
@@ -684,7 +689,8 @@ def main():
     # ולא מגיעה לכלל ריקון בכלל. מרוקן רק את mechalol_pages - לא נוגע
     # ב-wikipedia_pages (ראו truncate_mechalol_pages() ב-DB, ותיעוד
     # סדר השלבים הנדרש ב-weekly_update.yml ובהערת המודול של
-    # fetch_wikipedia.py - מכלול חייב לרוץ ולהתרוקן+להתמלא לפני ויקיפדיה).
+    # fetch_wikipedia.py - מכלול חייב לרוץ ולהתרוקן+להתמלא *אחרי*
+    # ויקיפדיה, כדי לא להיכתב מעל בריקון-עם-CASCADE שלה).
     truncated = is_resumed
 
     try:

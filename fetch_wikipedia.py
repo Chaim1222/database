@@ -14,11 +14,16 @@ generator/titles שמספקים כמה דפים בבת אחת - "invalidparammix
 (TRUNCATE) את wikipedia_pages בלבד ואז ממלאת מחדש מאפס. הריקון עצל
 (lazy) - קורה רק ממש לפני כתיבת האצווה הראשונה עם תוכן אמיתי שהתקבלה
 בהצלחה מה-API, לא באופן גורף בתחילת הריצה - כך שתקלת API בבקשה
-הראשונה לא נוגעת בטבלה הקיימת בכלל. חייבת לרוץ *אחרי* fetch_mechalol.py
-בתזמון השבועי (ראו weekly_update.yml) - מפתח זר
-mechalol_pages.wikipedia_id -> wikipedia_pages.id, וריקון wikipedia_pages
-דורש שכל ה-wikipedia_id ב-mechalol_pages כבר NULL (מובטח מיד אחרי ריקון
-+מילוי טרי של mechalol_pages, לפני ש-match.py הריץ). id בטבלה הוא
+הראשונה לא נוגעת בטבלה הקיימת בכלל. חייבת לרוץ *לפני* fetch_mechalol.py
+בתזמון השבועי (ראו weekly_update.yml) - truncate_wikipedia_pages()
+רץ בפועל עם CASCADE (ראו schema.sql), ומפתח זר
+mechalol_pages.wikipedia_id -> wikipedia_pages.id גורם ל-TRUNCATE הזה
+לרוקן *לגמרי* גם את mechalol_pages (כל הטבלה, לא רק שורות עם ערך לא-NULL
+בעמודה - זו התנהגות TRUNCATE...CASCADE ברמת הטבלה, לא ON DELETE CASCADE
+ברמת שורה, ולכן היא לא תלויה בערכי wikipedia_id או בסדר "התיאורטי"). לכן
+mechalol_pages *חייב* להתמלא רק אחרי הריקון הזה, לא לפניו - אחרת
+fetch_mechalol.py ממלא אותה ואז fetch_wikipedia.py מוחק את מה שהיא
+עתה מילאה. id בטבלה הוא
 ה-page_id האמיתי בוויקיפדיה (לא bigserial) - יציב וזהה בכל ריצה. אין
 יותר מנגנון "ניקוי דפים שנעלמו" בסוף הריצה - הריקון בתחילתה כבר עושה
 את זה.
@@ -249,10 +254,11 @@ def main():
     # כתיבת האצווה הראשונה שבאמת מתקבלת מה-API עם תוכן, לא באופן גורף
     # בתחילת הריצה. כך אם יש תקלת API כלשהי בבקשה הראשונה עצמה (רשת,
     # חסימה, שגיאה בגוף התשובה) - הריצה נכשלת *לפני* שנוגעים בטבלה
-    # הקיימת בכלל, והנתונים הישנים נשארים שלמים. מרוקן רק את
-    # wikipedia_pages - לא נוגע ב-mechalol_pages בכלל (ראו
+    # הקיימת בכלל, והנתונים הישנים נשארים שלמים. הריקון הזה, בגלל
+    # CASCADE, מרוקן בפועל *גם* את mechalol_pages (ראו
     # truncate_wikipedia_pages() ב-DB, ותיעוד הסדר הנדרש מול
-    # fetch_mechalol.py בהערת המודול למעלה).
+    # fetch_mechalol.py בהערת המודול למעלה) - חייב לרוץ *לפני*
+    # fetch_mechalol.py כדי שמכלול יתמלא אחרי הריקון, לא לפניו.
     # בהמשך ריצה שנעצרה (is_resumed) - הריקון כבר קרה בריצה הקודמת
     # שהצליחה לקבל לפחות אצווה אחת; לא מרוקנים שוב.
     truncated = is_resumed

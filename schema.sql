@@ -161,17 +161,21 @@ create index if not exists idx_wikipedia_is_missing on wikipedia_pages(is_missin
 -- (לא אחת משותפת) בכוונה, כדי שכישלון של אחד הסקריפטים לא יגרום לריקון
 -- הטבלה של השני.
 --
--- הסדר קריטי בגלל המפתח הזר mechalol_pages.wikipedia_id -> wikipedia_pages.id:
--- תמיד יש לרוקן קודם את mechalol_pages (הטבלה המפנה/child) ורק אחר כך
--- את wikipedia_pages (הטבלה המופנית/parent). ריקון wikipedia_pages
--- לבד בזמן שיש עדיין שורות ב-mechalol_pages שמפנות לשורות שלה נכשל
--- עם שגיאת מפתח זר (TRUNCATE לא מרשה את זה, בניגוד ל-DELETE).
--- fetch_mechalol.py לא שולח wikipedia_id ב-INSERT שלו (הוא נקבע רק
--- ב-match.py בסוף השרשרת), כך שמיד אחרי ריצה מוצלחת של
--- truncate_mechalol_pages()+מילוי מחדש, כל wikipedia_id הוא NULL -
--- ולכן truncate_wikipedia_pages() בטוח לגמרי גם אם הוא רץ מיד אחרי.
--- ראו סדר השלבים ב-weekly_update.yml (מכלול תמיד לפני ויקיפדיה) וההערה
--- המתאימה בכל אחד מהסקריפטים. ראו migration_split_truncate_functions.sql.
+-- הסדר קריטי בגלל המפתח הזר mechalol_pages.wikipedia_id -> wikipedia_pages.id,
+-- ובגלל ש-truncate_wikipedia_pages() משתמשת ב-CASCADE (למטה): ב-פוסטגרס,
+-- TRUNCATE...CASCADE לא "מוחק שורות עם מפתח זר תלוי" - הוא מרוקן *לגמרי*
+-- את כל טבלה שיש לה מפתח זר לטבלה המרוקנת, ברמת הטבלה השלמה, ללא קשר
+-- לערכים בפועל בעמודת המפתח הזר (גם אם כולם NULL). לכן: תמיד יש לרוקן
+-- ולמלא קודם את wikipedia_pages (הטבלה המופנית/parent), ורק אחר כך את
+-- mechalol_pages (הטבלה המפנה/child) - הפוך ממה שהיה נהוג פה בעבר. אם
+-- מכלול היה ממולא *לפני* ריקון ויקיפדיה, ה-CASCADE היה מוחק את מה שהוא
+-- עתה מילא (בדיוק התקלה שקרתה בפועל, 2026-09 - ראו postmortem). אחרי
+-- הריקון-עם-CASCADE של ויקיפדיה, mechalol_pages ריקה ממילא (או שעדיין
+-- לא מולאה השבוע) - כך שה-CASCADE לא מזיק, רק מבצע ריקון שהיה קורה
+-- ממילא כמה שניות אחר כך על ידי truncate_mechalol_pages(). ראו סדר
+-- השלבים המעודכן ב-weekly_update.yml/biweekly_full_reconciliation.yml/
+-- initial_run.yml (ויקיפדיה תמיד לפני מכלול) וההערה המתאימה בכל אחד
+-- מהסקריפטים.
 create or replace function truncate_mechalol_pages()
 returns void
 language sql
@@ -179,20 +183,21 @@ as $$
     truncate table mechalol_pages;
 $$;
 
+-- CASCADE כאן הוא במכוון (ראו ההערה למעלה) - לא ניסיון "לעקוף" את
+-- החסימה של פוסטגרס בלי להבין מה הוא עושה. בלי CASCADE, הקריאה הזו
+-- הייתה נכשלת *תמיד* כל עוד קיים מפתח זר מ-mechalol_pages לכאן - גם
+-- אם כל הערכים NULL - כי TRUNCATE רגיל חוסם מטבלה שיש אליה הפניה,
+-- ברמת המטא-דאטה, בלי לבדוק את הנתונים בפועל. RESTART IDENTITY +
+-- statement_timeout מקומי (300 שניות) - זו הגרסה שרצה בפועל בסופרבייס;
+-- ראו גם truncate_pages() הישנה (לא בשימוש, לא נמחקה - migration_split_truncate_functions.sql).
 create or replace function truncate_wikipedia_pages()
 returns void
-language sql
+language plpgsql
 as $$
-    -- לפני הריקון, משחררת כל הפניה קיימת מ-mechalol_pages ל-
-    -- wikipedia_pages (wikipedia_id -> NULL). זה הופך את הריקון לבטוח
-    -- *תמיד* - גם אם משום מה fetch_wikipedia.py רץ לפני
-    -- fetch_mechalol.py השבוע (טעות סדר בתזמון, ריצה ידנית, וכו') -
-    -- לא רק כשהסדר "התיאורטי" נשמר. match.py ממילא מחשב מחדש את
-    -- ה-wikipedia_id של כל שורה מאפס בכל ריצה, כך שאיפוסו כאן לא
-    -- מאבד מידע אמיתי - רק דוחה את החישוב שלו לריצת match.py הבאה,
-    -- בדיוק כפי שהיה קורה גם אם הריקון היה משותף לשתי הטבלאות.
-    update mechalol_pages set wikipedia_id = null where wikipedia_id is not null;
-    truncate table wikipedia_pages;
+begin
+    set local statement_timeout = '300s';
+    truncate table wikipedia_pages restart identity cascade;
+end;
 $$;
 
 -- קריאה מ-match.py (client.rpc) בסוף כל ריצה, אחרי שכל שורות
