@@ -57,13 +57,25 @@ order by task_type, title;
 --    (blacklist_titles: ערכים שבכוונה לא יובאו, אין טעם להציג אותם
 --    כ"חסרים"). התאמה לפי כותרת מדויקת בלבד - כותרת שנוספה לרשימה
 --    השחורה בכתיב שונה מהכתיב המדויק בוויקיפדיה לא תסונן.
+-- מקור האמת: is_missing (מתוחזק ב-recompute_missing_flag/_scoped,
+-- schema.sql) - לא JOIN חי כמו קודם. שינוי מדעת: join חי תמיד היה
+-- מדויק ברגע השאילתה בלי תלות בשום דבר, אבל is_missing כולל גם כותרת
+-- זהה ונירמול קידומת רבנית (לא רק wikipedia_id) - במחיר של פיגור עד
+-- לריצה הלילית הבאה (ראו תיעוד is_missing ב-schema.sql). סדר העמודות
+-- כאן חייב להישאר זהה אם מריצים על view קיים - Postgres לא מרשה
+-- לשנות שם/סדר עמודות ב-CREATE OR REPLACE VIEW.
 create or replace view report_missing_from_mechalol as
-select w.id, w.title, w.checked_at, w.created_at, w.wikidata_desc,
-    w.easy_import_length, w.easy_import_has_images, w.problematic_words_clean,
+select w.id,
+    w.title,
+    w.checked_at,
+    w.wikidata_desc,
+    w.easy_import_length,
+    w.easy_import_has_images,
+    w.problematic_words_clean,
+    w.created_at,
     w.mechalol_redirect_exists
 from wikipedia_pages w
-left join mechalol_pages m on m.wikipedia_id = w.id
-where m.id is null
+where w.is_missing = true
   and not exists (
     select 1 from blacklist_titles b where b.title = w.title
   )

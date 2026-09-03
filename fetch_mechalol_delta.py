@@ -272,7 +272,36 @@ def apply_creations(client, creations, own_categories_by_title):
 def apply_deletions(client, deletions):
     if not deletions:
         return
-    ids = [d["page_id"] for d in deletions if d["page_id"]]
+
+    # שלוש קטגוריות, לפי מקור ומהימנות ה-page_id (ראו pageid_valid
+    # ב-delta_api.fetch_delete_log): 'became_redirect' מגיע מבדיקת
+    # תוכן ישירה על שורה שכבר עוקבים אחריה ב-DB - ה-id שלה תמיד אמין,
+    # בלי קשר לדגל (הוא True קבוע שם, לא אינדיקציה על מהימנות).
+    # לעומת זאת, אירועי יומן ('log_event', מ-fetch_delete_log/
+    # move_deletion_events) הם היסק על בסיס ה-API: pageid_valid=False
+    # אומר "שום דבר לא קיים היום בכותרת" (המחיקה ודאית, אבל אין לנו
+    # page_id אמיתי לדף שנמחק - צריך למחוק לפי כותרת). pageid_valid=
+    # True אומר "יש היום משהו *אחר* תחת הכותרת הזו" - ה-page_id שייך
+    # לאותו דף אחר, לא לדף שנמחק, ומחיקה לפיו הייתה עלולה למחוק שורה
+    # שגויה (דף חדש-לגמרי שבמקרה תפס את אותו page_id) - מדלגים לגמרי;
+    # הדף החדש כבר מטופל בנפרד דרך apply_creations אם הוא בכלל רלוונטי.
+    ids = [d["page_id"] for d in deletions if d["reason"] == "became_redirect"]
+    ids += [
+        d["page_id"] for d in deletions
+        if d["reason"] != "became_redirect" and d["pageid_valid"]
+    ]
+    titles = [
+        d["title"] for d in deletions
+        if d["reason"] != "became_redirect" and not d["pageid_valid"]
+    ]
+
+    if titles:
+        resolved = client.table(TABLE).select("id").in_("title", titles).execute().data
+        resolved_ids = [r["id"] for r in resolved]
+        if resolved_ids:
+            log(f"נפתרו {len(resolved_ids)}/{len(titles)} כותרות למחיקה ל-id (page_id לא אמין במקור)")
+        ids += resolved_ids
+
     if not ids:
         return
     # לשחרר קודם הפניות מ-wikipedia_pages דרך match.py לא נדרש כאן -

@@ -276,7 +276,29 @@ def apply_creations(client, creations):
 def apply_deletions(client, deletions):
     if not deletions:
         return
-    ids = [d["page_id"] for d in deletions if d["page_id"]]
+
+    # ראו apply_deletions המקביל ב-fetch_mechalol_delta.py לתיעוד המלא
+    # של ההבחנה בין 'became_redirect' (id תמיד אמין) לבין 'log_event'
+    # עם pageid_valid=True (page_id שייך לדף *אחר* שתפס את הכותרת -
+    # מדלגים) מול pageid_valid=False (מחיקה ודאית, אין id אמין - פותרים
+    # לפי כותרת).
+    ids = [d["page_id"] for d in deletions if d["reason"] == "became_redirect"]
+    ids += [
+        d["page_id"] for d in deletions
+        if d["reason"] != "became_redirect" and d["pageid_valid"]
+    ]
+    titles = [
+        d["title"] for d in deletions
+        if d["reason"] != "became_redirect" and not d["pageid_valid"]
+    ]
+
+    if titles:
+        resolved = client.table(TABLE).select("id").in_("title", titles).execute().data
+        resolved_ids = [r["id"] for r in resolved]
+        if resolved_ids:
+            log(f"נפתרו {len(resolved_ids)}/{len(titles)} כותרות למחיקה ל-id (page_id לא אמין במקור)")
+        ids += resolved_ids
+
     if not ids:
         return
 

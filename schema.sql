@@ -54,14 +54,38 @@ create table if not exists wikipedia_pages (
     -- תוצאת בדיקה בפועל). ראו migration_add_mechalol_redirect_flag.sql.
     mechalol_redirect_exists boolean,
 
-    -- true אם אין אף שורה ב-mechalol_pages שמצביעה לכאן (wikipedia_id).
-    -- מחושב מחדש בסוף כל ריצה של match.py (recompute_missing_flag,
-    -- למטה) - לא חי, לא מתעדכן אוטומטית בין ריצה לריצה. הוחלף מהצטרפות
-    -- (join) חיה של שתי הטבלאות ב-report_missing_from_mechalol, שהייתה
-    -- לוקחת ~3.7 שניות ועפה על statement_timeout של תפקיד ה-anon -
-    -- ראו migration_add_is_missing_flag.sql.
-    is_missing boolean not null default false
+    -- true אם אין אף שורה ב-mechalol_pages שמצביעה לכאן (wikipedia_id),
+    -- או עם כותרת זהה בדיוק, או עם כותרת זהה אחרי הסרת קידומת "הרב"/
+    -- "רבי" (ראו normalize_person_title, למטה) - שלושת התנאים יחד, לא
+    -- רק wikipedia_id כמו במקור. מחושב מחדש בסוף כל ריצה של match.py
+    -- (recompute_missing_flag/recompute_missing_flag_scoped, למטה) - לא
+    -- חי, לא מתעדכן אוטומטית בין ריצה לריצה. הוחלף מהצטרפות (join) חיה
+    -- של שתי הטבלאות ב-report_missing_from_mechalol, שהייתה לוקחת ~3.7
+    -- שניות ועפה על statement_timeout של תפקיד ה-anon - ראו
+    -- migration_add_is_missing_flag.sql.
+    is_missing boolean not null default false,
+
+    -- מתעד *למה* is_missing=false כשהסיבה אינה wikipedia_id/כותרת זהה
+    -- ממש - כרגע רק 'rav_prefix_normalization' (תוצאת normalize_
+    -- person_title בלבד). NULL כשההתאמה "אמיתית" (wikipedia_id או
+    -- כותרת זהה) או כשעדיין חסר. מאפשר לאתר ולבטל בקלות את כל השורות
+    -- שהוחרגו רק בגלל נירמול קידומת רבנית, בלי לצטט מחדש - ראו
+    -- migration_add_missing_override_reason.sql.
+    missing_override_reason text
 );
+
+-- מסיר קידומת "הרב "/"רבי " מתחילת כותרת בלבד - בכוונה לא נוגע ב"רבנית"
+-- ולא ב-"(רב)" בסוף כותרת (שיקול דעת אנושי מפורש, ראו דיון בפועל).
+-- language sql immutable כדי לאפשר אינדקס-ביטוי עליה בעתיד אם יידרש.
+-- משמש רק בחישוב is_missing (recompute_missing_flag/_scoped, למטה) -
+-- לעולם לא בקישור wikipedia_id עצמו.
+create or replace function normalize_person_title(t text)
+returns text
+language sql
+immutable
+as $$
+    select trim(regexp_replace(t, '^(הרב|רבי)\s+', ''));
+$$;
 
 create table if not exists mechalol_pages (
     id bigint primary key,  -- page_id במכלול
@@ -200,20 +224,66 @@ begin
 end;
 $$;
 
--- קריאה מ-match.py (client.rpc) בסוף כל ריצה, אחרי שכל שורות
--- mechalol_pages כבר עודכנו עם wikipedia_id סופי. מעדכן בעדכון יחיד
--- (לא שורה-שורה) את is_missing עבור כל wikipedia_pages - מריץ עם
--- מפתח השירות (SUPABASE_SERVICE_KEY), לא עם תפקיד ה-anon, כך שלא כפוף
--- ל-statement_timeout הנמוך שלו.
+-- קריאה מ-match.py (client.rpc) בסוף כל ריצה מלאה (לא --scoped), אחרי
+-- שכל שורות mechalol_pages כבר עודכנו עם wikipedia_id סופי. מעדכן
+-- בעדכון יחיד (לא שורה-שורה) את is_missing/missing_override_reason
+-- עבור כל wikipedia_pages - מריץ עם מפתח השירות (SUPABASE_SERVICE_KEY),
+-- לא עם תפקיד ה-anon, כך שלא כפוף ל-statement_timeout הנמוך שלו.
 create or replace function recompute_missing_flag()
 returns void
 language sql
 as $$
     update wikipedia_pages w
     set is_missing = not exists (
-        select 1 from mechalol_pages m where m.wikipedia_id = w.id
-    )
-    where w.is_missing <> not exists (
-        select 1 from mechalol_pages m where m.wikipedia_id = w.id
-    );
+            select 1 from mechalol_pages m
+            where m.wikipedia_id = w.id
+               or m.title = w.title
+               or normalize_person_title(m.title) = normalize_person_title(w.title)
+        ),
+        missing_override_reason = case
+            when exists (select 1 from mechalol_pages m where m.wikipedia_id = w.id or m.title = w.title)
+                then null
+            when exists (select 1 from mechalol_pages m where normalize_person_title(m.title) = normalize_person_title(w.title))
+                then 'rav_prefix_normalization'
+            else null
+        end
+    where w.is_missing is distinct from not exists (
+            select 1 from mechalol_pages m
+            where m.wikipedia_id = w.id
+               or m.title = w.title
+               or normalize_person_title(m.title) = normalize_person_title(w.title)
+        )
+       or w.missing_override_reason is distinct from case
+            when exists (select 1 from mechalol_pages m where m.wikipedia_id = w.id or m.title = w.title)
+                then null
+            when exists (select 1 from mechalol_pages m where normalize_person_title(m.title) = normalize_person_title(w.title))
+                then 'rav_prefix_normalization'
+            else null
+        end;
+$$;
+
+-- זהה ל-recompute_missing_flag אבל מוגבל ל-ids נתונים - קריאה מ-match.py
+-- --scoped (הריצה הלילית) על affected_wikipedia_ids בלבד, כדי לא לסרוק
+-- את כל הטבלה בכל ריצת דלתא. נוצרה ישירות ב-Supabase SQL editor
+-- ב-2026-09-01 ולא הייתה מתועדת כאן עד עכשיו - זה עצמו היה הפער
+-- שהוביל לתיקון schema.sql הזה.
+create or replace function recompute_missing_flag_scoped(ids bigint[])
+returns void
+language sql
+as $$
+    update wikipedia_pages w
+    set is_missing = not exists (
+            select 1 from mechalol_pages m
+            where m.wikipedia_id = w.id
+               or m.title = w.title
+               or normalize_person_title(m.title) = normalize_person_title(w.title)
+        ),
+        missing_override_reason = case
+            when exists (select 1 from mechalol_pages m where m.wikipedia_id = w.id or m.title = w.title)
+                then null
+            when exists (select 1 from mechalol_pages m where normalize_person_title(m.title) = normalize_person_title(w.title))
+                then 'rav_prefix_normalization'
+            else null
+        end
+    where w.id = any(ids);
 $$;
