@@ -45,9 +45,14 @@ def log(message):
 
 def load_missing_rows():
     """
-    שולף את כל השורות מ-report_missing_from_mechalol (id, title) -
-    בעימוד מבוסס-מפתח (id), אותו דפוס בדיוק כמו ב-fetch_wikidata_descriptions.py
+    שולף את כל השורות מ-report_missing_from_mechalol (id, title) שעדיין
+    לא נבדקו לקלות-ייבוא (easy_import_checked = false) - בעימוד מבוסס-
+    מפתח (id), אותו דפוס בדיוק כמו ב-fetch_wikidata_descriptions.py
     ו-check_missing_locked.py.
+
+    הסינון הופך ריצות חוזרות לזולות: כותרת שכבר נבדקה בהצלחה בריצה
+    קודמת (כולל מקרה של "נבדק ואין תוצאה" - ראו fetch_page_data) לא
+    נשלפת ולא נבדקת שוב.
     """
     client = get_client()
     rows = []
@@ -57,6 +62,7 @@ def load_missing_rows():
             return (
                 client.table("report_missing_from_mechalol")
                 .select("id,title")
+                .eq("easy_import_checked", False)
                 .gt("id", last_id)
                 .order("id")
                 .limit(BATCH_SIZE)
@@ -80,10 +86,17 @@ def fetch_page_data(titles):
     שולף באצווה אחת (prop=info|images|revisions) עבור עד API_BATCH_SIZE
     כותרות: אורך בבתים, קיום תמונות, ותוכן מלא (לבדיקת מילים בעייתיות).
 
-    מחזיר {title: {"length": int, "has_images": bool, "clean": bool}}.
-    כותרת שלא הוחזרה בתשובה בכלל (נמחקה/שונתה בדיוק תוך כדי הריצה,
-    או "missing" בתשובת ה-API) - לא נכללת בתוצאה, ולא תעודכן הפעם;
-    תיבדק שוב בריצה הבאה.
+    מחזיר {title: {"length": int|None, "has_images": bool|None,
+    "clean": bool|None, "checked": bool}}.
+
+    כותרת שהוחזרה בתשובה עם "missing" (למשל נמחקה בדיוק תוך כדי הריצה)
+    כן נכללת בתוצאה, עם ערכים None ו-checked=True - זו תוצאה סופית
+    ולגיטימית (הדף לא קיים), לא כשל, ולכן לא צריך לבדוק אותה שוב בכל
+    ריצה עתידית.
+
+    כותרת שלא הוחזרה בתשובה בכלל, או שהאצווה השלמה נכשלה אחרי כל
+    הניסיונות - לא נכללת בתוצאה, checked נשאר False, תיבדק שוב בריצה
+    הבאה (כשל זמני, לא תוצאה סופית).
 
     בדומה ל-fetch_template_titles ב-match.py: אם דף בודד באצווה נעול-
     לקריאה, כל הבקשה עלולה להידחות ברמת ה-API (title="error"). כאן
@@ -116,10 +129,12 @@ def fetch_page_data(titles):
 
     result = {}
     for page in data.get("query", {}).get("pages", []):
+        title = page.get("title")
+
         if page.get("missing"):
+            result[title] = {"length": None, "has_images": None, "clean": None, "checked": True}
             continue
 
-        title = page.get("title")
         length = page.get("length")
 
         images = page.get("images") or []
@@ -132,7 +147,7 @@ def fetch_page_data(titles):
 
         clean = is_clean_of_problematic_words(content)
 
-        result[title] = {"length": length, "has_images": has_images, "clean": clean}
+        result[title] = {"length": length, "has_images": has_images, "clean": clean, "checked": True}
 
     return result
 
@@ -158,10 +173,14 @@ def compute_all(titles):
 def save_results(client, rows, computed):
     """
     מעדכן את wikipedia_pages (עמודות easy_import_length,
-    easy_import_has_images, problematic_words_clean) לפי id, בקבוצות
-    מאוגדות (upsert) - אותו דפוס בדיוק כמו save_descriptions ב-
-    fetch_wikidata_descriptions.py, כולל הכללת title (לא רק id)
+    easy_import_has_images, problematic_words_clean, easy_import_checked)
+    לפי id, בקבוצות מאוגדות (upsert) - אותו דפוס בדיוק כמו save_descriptions
+    ב-fetch_wikidata_descriptions.py, כולל הכללת title (לא רק id)
     למניעת שגיאת not null על ON CONFLICT DO UPDATE.
+
+    easy_import_checked נשמר True רק לשורות שבאמת נבדקו (כולל "missing" -
+    ראו fetch_page_data) - שורה שלא נכללה ב-computed (כשל זמני באצווה
+    שלמה) לא מגיעה לכאן בכלל, ותיבדק שוב בריצה הבאה.
     """
     to_update = [
         {
@@ -170,6 +189,7 @@ def save_results(client, rows, computed):
             "easy_import_length": computed[row["title"]]["length"],
             "easy_import_has_images": computed[row["title"]]["has_images"],
             "problematic_words_clean": computed[row["title"]]["clean"],
+            "easy_import_checked": computed[row["title"]]["checked"],
         }
         for row in rows
         if row["title"] in computed

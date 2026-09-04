@@ -54,10 +54,14 @@ def log(message):
 def load_missing_rows():
     """
     שולף את כל השורות מ-report_missing_from_mechalol (id, title) שעדיין
-    אין להן תאריך יצירה שמור - בעימוד מבוסס-מפתח (id), אותו דפוס בדיוק
-    כמו שאר הסקריפטים המקבילים. הסינון על created_at ריק הופך ריצות
-    חוזרות לזולות: כותרת שכבר טופלה בהצלחה בריצה קודמת (ולא התאפסה מאז
-    בריקון שבועי) לא נשלפת ולא נבדקת שוב.
+    לא נבדקו לתאריך יצירה (created_at_checked = false) - בעימוד מבוסס-
+    מפתח (id), אותו דפוס בדיוק כמו שאר הסקריפטים המקבילים.
+
+    הסינון על created_at_checked (במקום על created_at IS NULL כמו
+    קודם) הוא מה שמאפשר להבדיל בין "עדיין לא נבדק" לבין "נבדק ובאמת
+    אין תשובה" (created_at נשאר NULL בשני המקרים - ראו fetch_created_at
+    ו-compute_all) - כותרת שכבר נבדקה בהצלחה, גם אם התוצאה הייתה
+    "אין תשובה", לא תיבדק שוב.
     """
     client = get_client()
     rows = []
@@ -67,7 +71,7 @@ def load_missing_rows():
             return (
                 client.table("report_missing_from_mechalol")
                 .select("id,title")
-                .is_("created_at", "null")
+                .eq("created_at_checked", False)
                 .gt("id", last_id)
                 .order("id")
                 .limit(BATCH_SIZE)
@@ -89,8 +93,15 @@ def load_missing_rows():
 def fetch_created_at(title):
     """
     בקשה יחידה עבור כותרת יחידה - ראו הערת המודול למעלה למה זה חייב
-    להיות כך (לא אצווה). מחזיר חותמת זמן (str) או None אם הכותרת לא
-    נמצאה בוויקיפדיה, אין לה גרסאות, או שהאצווה נכשלה סופית.
+    להיות כך (לא אצווה). מחזיר זוג (status, value):
+
+    - ("error", None) - האצווה נכשלה סופית אחרי כל הניסיונות (כשל
+      זמני/רשת). לא נחשב "נבדק" - השורה תישאר עם created_at_checked
+      false ותיבדק שוב בריצה הבאה.
+    - ("not_found", None) - הכותרת לא נמצאה בוויקיפדיה או שאין לה
+      גרסאות. זו תוצאה סופית ולגיטימית, לא כשל - השורה כן תסומן
+      created_at_checked=true כדי שלא תיבדק שוב ללא סוף.
+    - ("found", timestamp) - נמצאה חותמת זמן. גם היא מסומנת checked.
     """
     params = {
         "action": "query",
@@ -113,27 +124,29 @@ def fetch_created_at(title):
             break
         except (requests.RequestException, ValueError, RuntimeError) as exc:
             if attempt >= MAX_API_RETRIES:
-                log(f"ERROR | '{title}' | נכשל אחרי {MAX_API_RETRIES} ניסיונות: {exc} - מדלגים")
-                return None
+                log(f"ERROR | '{title}' | נכשל אחרי {MAX_API_RETRIES} ניסיונות: {exc} - מדלגים, ייבדק שוב בריצה הבאה")
+                return "error", None
             log(f"WARNING | '{title}' | ניסיון {attempt}/{MAX_API_RETRIES}: {exc}")
             time.sleep(min(2 ** (attempt - 1), 30))
 
     pages = data.get("query", {}).get("pages", [])
     if not pages or pages[0].get("missing"):
-        return None
+        return "not_found", None
 
     revisions = pages[0].get("revisions") or []
     if not revisions:
-        return None
+        return "not_found", None
 
-    return revisions[0]["timestamp"]
+    return "found", revisions[0]["timestamp"]
 
 
 def flush_buffer(client, buffer):
     """
-    שומר קבוצת תוצאות (id, title, created_at) לטבלת wikipedia_pages -
-    כולל title (לא רק id) למניעת שגיאת not null על ON CONFLICT DO
-    UPDATE, אותו דפוס בדיוק כמו בשאר הסקריפטים המקבילים.
+    שומר קבוצת תוצאות (id, title, created_at, created_at_checked)
+    לטבלת wikipedia_pages - כולל title (לא רק id) למניעת שגיאת not
+    null על ON CONFLICT DO UPDATE, אותו דפוס בדיוק כמו בשאר הסקריפטים
+    המקבילים. created_at_checked תמיד True כאן - שורות עם status
+    "error" לא מגיעות לכלל ל-buffer (ראו compute_all).
     """
     if not buffer:
         return 0
@@ -165,9 +178,17 @@ def compute_all(client, rows):
     total_saved = 0
 
     for i, row in enumerate(rows, start=1):
-        created_at = fetch_created_at(row["title"])
-        if created_at:
-            buffer.append({"id": row["id"], "title": row["title"], "created_at": created_at})
+        status, created_at = fetch_created_at(row["title"])
+        if status != "error":
+            # גם "not_found" (created_at=None) נשמר וגם מסומן checked=True -
+            # זו תוצאה סופית לגיטימית, לא כשל. רק "error" מדולג לגמרי,
+            # כדי שהשורה תישאר checked=false ותיבדק שוב בריצה הבאה.
+            buffer.append({
+                "id": row["id"],
+                "title": row["title"],
+                "created_at": created_at,
+                "created_at_checked": True,
+            })
 
         if i % 200 == 0 or i == total:
             log(f"נבדקו {i}/{total} כותרות")
@@ -188,7 +209,7 @@ def main():
 
     client = get_client()
     rows = load_missing_rows()
-    log(f"נמצאו {len(rows)} כותרות בדוח 'חסר במכלול' שעדיין ללא תאריך יצירה שמור")
+    log(f"נמצאו {len(rows)} כותרות בדוח 'חסר במכלול' שעדיין לא נבדקו לתאריך יצירה")
 
     if not rows:
         log("אין כותרות לעיבוד - מסתיים")

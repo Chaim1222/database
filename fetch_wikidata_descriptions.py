@@ -30,6 +30,7 @@ USER_AGENT = (
     "(https://www.hamichlol.org.il/; geon@hamichlol.org.il)"
 )
 WIKIDATA_CHUNK_SIZE = 50  # אותו גודל בדיוק כמו בדשבורד - אין דגל בוט בוויקינתונים
+MAX_API_RETRIES = 5  # היה חסר - כל שאר הסקריפטים המקבילים כן מנסים שוב
 
 session = requests.Session()
 session.headers.update({"User-Agent": USER_AGENT})
@@ -42,9 +43,14 @@ def log(message):
 
 def load_missing_rows():
     """
-    שולף את כל השורות מ-report_missing_from_mechalol (id, title) -
-    בעימוד לפי BATCH_SIZE, באותו דפוס עימוד מבוסס-מפתח (id) שכבר בשימוש
-    ב-match.py, כדי להימנע מבעיות עימוד-טווח על view שעלול להשתנות.
+    שולף את כל השורות מ-report_missing_from_mechalol (id, title) שעדיין
+    אין להן תיאור ויקינתונים שמור (wikidata_desc IS NULL) - בעימוד לפי
+    BATCH_SIZE, באותו דפוס עימוד מבוסס-מפתח (id) שכבר בשימוש ב-match.py,
+    כדי להימנע מבעיות עימוד-טווח על view שעלול להשתנות.
+
+    הסינון על wikidata_desc ריק הופך ריצות חוזרות לזולות: שורה שכבר
+    טופלה בהצלחה בריצה קודמת (כולל מקרה של תיאור ריק - "" - שנשמר
+    בכוונה, ראו save_descriptions) לא נשלפת ולא נבדקת שוב.
     """
     client = get_client()
     rows = []
@@ -54,6 +60,7 @@ def load_missing_rows():
             return (
                 client.table("report_missing_from_mechalol")
                 .select("id,title")
+                .is_("wikidata_desc", "null")
                 .gt("id", last_id)
                 .order("id")
                 .limit(BATCH_SIZE)
@@ -93,12 +100,22 @@ def fetch_descriptions(titles):
             "languages": "he",
             "format": "json",
         }
-        try:
-            response = session.get(WIKIDATA_API, params=params, timeout=(15, 60))
-            response.raise_for_status()
-            data = response.json()
-        except (requests.RequestException, ValueError) as exc:
-            log(f"שגיאה בקבוצה {i + 1}: {type(exc).__name__}: {exc} - מדלג על הקבוצה")
+        data = None
+        for attempt in range(1, MAX_API_RETRIES + 1):
+            try:
+                response = session.get(WIKIDATA_API, params=params, timeout=(15, 60))
+                response.raise_for_status()
+                data = response.json()
+                break
+            except (requests.RequestException, ValueError) as exc:
+                if attempt >= MAX_API_RETRIES:
+                    log(f"ERROR | קבוצה {i + 1} | נכשל אחרי {MAX_API_RETRIES} ניסיונות: {exc} - מדלגים על הקבוצה")
+                    data = None
+                    break
+                log(f"WARNING | קבוצה {i + 1} | ניסיון {attempt}/{MAX_API_RETRIES}: {exc}")
+                time.sleep(min(2 ** (attempt - 1), 30))
+
+        if data is None:
             continue
 
         for entity in data.get("entities", {}).values():
