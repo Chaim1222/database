@@ -103,10 +103,29 @@ as $$
             when exists (select 1 from mechalol_pages_shadow m where normalize_person_title(m.title) = normalize_person_title(w.title))
                 then 'rav_prefix_normalization'
             else null
+        end
+    -- קריטי, לא רק אופטימיזציה: authenticator (התפקיד ש-PostgREST
+    -- מתחבר דרכו) טוען session_preload_libraries=supautils,safeupdate -
+    -- מרחיב שחוסם UPDATE/DELETE בלי WHERE בכל קריאת RPC, ללא תלות
+    -- ב-SET ROLE פנימי. בלי ה-WHERE הזה, הקריאה הראשונה בפועל דרך
+    -- match.py נכשלה עם 'UPDATE requires a WHERE clause' (SQLSTATE
+    -- 21000) - אומת ותוקן ישירות מול המסד אחרי ריצה חיה. אותו טעם
+    -- בדיוק שבגללו recompute_missing_flag() המקורית כוללת את אותו
+    -- WHERE.
+    where w.is_missing is distinct from not exists (
+            select 1 from mechalol_pages_shadow m
+            where m.wikipedia_id = w.id
+               or m.title = w.title
+               or normalize_person_title(m.title) = normalize_person_title(w.title)
+        )
+       or w.missing_override_reason is distinct from case
+            when exists (select 1 from mechalol_pages_shadow m where m.wikipedia_id = w.id or m.title = w.title)
+                then null
+            when exists (select 1 from mechalol_pages_shadow m where normalize_person_title(m.title) = normalize_person_title(w.title))
+                then 'rav_prefix_normalization'
+            else null
         end;
 $$;
-
--- כמו על truncate_wikipedia_pages/recompute_missing_flag הקיימות
 -- במסד החי (אומת ישירות: proacl שלהן מוגבל ל-postgres+service_role
 -- בלבד, לא ברירת המחדל הפתוחה) - מוסכמת אבטחה קיימת בפרויקט שלא
 -- מתועדת ב-schema.sql. בלעדי זה, anon היה יכול לקרוא לפונקציה הזו
@@ -118,7 +137,6 @@ grant execute on function recompute_missing_flag_shadow() to service_role;
 
 -- =============================================================
 -- שלב 6 — חלון rollback: קידום העותק previous + ריקון, לא ניקוי מיידי
--- =============================================================
 -- =============================================================
 --
 -- נקראת (במקום truncate_wikipedia_pages/truncate_mechalol_pages הישנות
