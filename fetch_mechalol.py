@@ -66,6 +66,7 @@ from config import (
     STATUS_SPLIT_FROM_WIKIPEDIA,
 )
 from supabase_client import get_client
+from table_names import table_name, is_shadow_mode
 
 
 PROGRESS_FILE = "mechalol_progress.json"
@@ -606,7 +607,7 @@ def resolve_title_collisions(client, rows):
     for i in range(0, len(titles), API_BATCH_SIZE_TEMPLATE_CHECK):
         chunk = titles[i:i + API_BATCH_SIZE_TEMPLATE_CHECK]
         result = (
-            client.table("mechalol_pages")
+            client.table(table_name("mechalol_pages"))
             .select("id, title")
             .in_("title", chunk)
             .execute()
@@ -617,13 +618,16 @@ def resolve_title_collisions(client, rows):
 
     if stale_ids:
         log(f"WARNING | התנגשות כותרת/id | מוחק {len(stale_ids)} שורות מיושנות: {stale_ids}")
-        client.table("mechalol_pages").delete().in_("id", stale_ids).execute()
+        client.table(table_name("mechalol_pages")).delete().in_("id", stale_ids).execute()
 
     return bool(stale_ids)
 
 
 def _is_title_collision(exc):
-    return getattr(exc, "code", None) == "23505" and "mechalol_pages_title_key" in str(exc)
+    # אותו טעם בדיוק כמו ב-fetch_wikipedia.py - אומת ישירות מול המסד
+    # ש-LIKE...INCLUDING ALL בונה שם אילוץ חדש לפי שם הטבלה החדשה
+    # (mechalol_pages_shadow_title_key), לא שומר את השם המקורי.
+    return getattr(exc, "code", None) == "23505" and f"{table_name('mechalol_pages')}_title_key" in str(exc)
 
 
 def upsert_rows(client, rows, batch_number, total):
@@ -632,7 +636,7 @@ def upsert_rows(client, rows, batch_number, total):
 
     for attempt in range(1, MAX_SUPABASE_RETRIES + 1):
         try:
-            client.table("mechalol_pages").upsert(rows, on_conflict="id").execute()
+            client.table(table_name("mechalol_pages")).upsert(rows, on_conflict="id").execute()
             log(f"Supabase | אצווה #{batch_number:,} | {len(rows):,} שורות | סה״כ {total:,}")
             return
         except Exception as exc:
@@ -699,8 +703,18 @@ def main():
                 continue
 
             if not truncated:
-                log("ריקון | מרוקן mechalol_pages...")
-                client.rpc("truncate_mechalol_pages").execute()
+                if is_shadow_mode():
+                    # בסבב מראה אין קריאת ריקון נפרדת כאן בכלל - הריקון
+                    # (וגם קידום העותק _previous מהסבב הקודם) כבר בוצע
+                    # פעם אחת, מרוכז, בתחילת fetch_wikipedia.py דרך
+                    # promote_previous_to_shadow_and_truncate() (ראו שלב 2
+                    # ו-6 בתכנון). זה גם מסיר את תלות-הסדר בין שני
+                    # הסקריפטים על טבלאות המראה - הן לא מקושרות במפתח זר
+                    # אחת לשנייה חוץ מבינן לבין עצמן.
+                    log("ריקון | דולג - סבב מראה: הריקון בוצע כבר בתחילת fetch_wikipedia.py")
+                else:
+                    log("ריקון | מרוקן mechalol_pages...")
+                    client.rpc("truncate_mechalol_pages").execute()
                 truncated = True
 
             rows = []

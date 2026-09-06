@@ -39,6 +39,7 @@ from config import (
 from normalize import hygiene, normalize_title
 from supabase_client import get_client, execute_with_retry as _execute_with_retry
 from mechalol_api import log, api_get_with_retry, login as mechalol_login
+from table_names import table_name, rpc_name
 
 
 def execute_with_retry(operation, description):
@@ -70,7 +71,7 @@ def load_wikipedia_map(client):
 
         result = execute_with_retry(
             lambda: (
-                client.table("wikipedia_pages")
+                client.table(table_name("wikipedia_pages"))
                 .select("id, title")
                 .gt("id", last_id)
                 .order("id")
@@ -116,6 +117,10 @@ def load_manual_matches(client):
     {mechalol_page_id: wikipedia_page_id} - טבלה נפרדת, קטנה, לא
     מתרוקנת עם שאר הטבלאות. תחזוקה ידנית בלבד.
     """
+    # manual_matches נשארת ללא table_name() בכוונה - לא טבלת מראה, לא
+    # מתרוקנת/מוחלפת בסבב (ראו התגלית בתכנון: page_id יציב, בלי מפתח
+    # זר אמיתי כלפי wikipedia_pages/mechalol_pages) - אותה טבלה בדיוק
+    # משמשת גם בריצה הרגילה וגם בסבב מראה.
     result = execute_with_retry(
         lambda: client.table("manual_matches").select("mechalol_page_id, wikipedia_page_id").execute(),
         "MANUAL_MATCHES",
@@ -281,7 +286,7 @@ def iter_mechalol_rows(client, only_ids=None):
             chunk = only_ids[i:i + BATCH_SIZE]
             result = execute_with_retry(
                 lambda chunk=chunk: (
-                    client.table("mechalol_pages").select("*").in_("id", chunk).execute()
+                    client.table(table_name("mechalol_pages")).select("*").in_("id", chunk).execute()
                 ),
                 f"MECHALOL scoped chunk={i // BATCH_SIZE + 1}",
             )
@@ -297,7 +302,7 @@ def iter_mechalol_rows(client, only_ids=None):
 
         result = execute_with_retry(
             lambda: (
-                client.table("mechalol_pages")
+                client.table(table_name("mechalol_pages"))
                 .select("*")
                 .gt("id", last_id)
                 .order("id")
@@ -344,7 +349,7 @@ def compute_scoped_ids(client, mechalol_changed_ids, wikipedia_changed_ids):
             chunk = wikipedia_changed_ids[i:i + BATCH_SIZE]
             result = execute_with_retry(
                 lambda chunk=chunk: (
-                    client.table("mechalol_pages").select("id").in_("wikipedia_id", chunk).execute()
+                    client.table(table_name("mechalol_pages")).select("id").in_("wikipedia_id", chunk).execute()
                 ),
                 f"MECHALOL affected-by-wikipedia-change chunk={i // BATCH_SIZE + 1}",
             )
@@ -639,7 +644,7 @@ def main():
                     affected_wikipedia_ids.add(u["wikipedia_id"])
             execute_with_retry(
                 lambda: (
-                    client.table("mechalol_pages")
+                    client.table(table_name("mechalol_pages"))
                     .upsert(updates, on_conflict="id")
                     .execute()
                 ),
@@ -674,6 +679,10 @@ def main():
     recompute_started = time.monotonic()
 
     if only_ids is not None:
+        # recompute_missing_flag_scoped נשארת ללא rpc_name() בכוונה - זו
+        # ריצת --scoped (דלתא לילית) על הטבלאות הפעילות בלבד; היא לא
+        # אמורה לרוץ אף פעם בסבב מראה (הפיוס הדו-שבועי המלא תמיד רץ
+        # בלי --scoped), ואין לה גרסת-מראה מקבילה בתכנון.
         if affected_wikipedia_ids:
             execute_with_retry(
                 lambda: client.rpc(
@@ -685,8 +694,13 @@ def main():
         else:
             log("שלב 2 | דולג - אף שורה לא נגעה ב-wikipedia_id כלשהו (--scoped)")
     else:
+        # rpc_name ממפה ל-recompute_missing_flag_shadow בסבב מראה (ראו
+        # שלב 3.5 בתכנון) - קריטי: הפונקציה הרגילה מקובעת בשם הטבלה
+        # הפעילה, ובלעדי המיפוי הזה is_missing היה מחושב על הטבלה
+        # הלא-נכונה כשרצים על המראה. בריצה הרגילה (--scoped או מלאה,
+        # בלי TARGET_TABLE_SUFFIX) מוחזר השם המקורי ללא שינוי.
         execute_with_retry(
-            lambda: client.rpc("recompute_missing_flag").execute(),
+            lambda: client.rpc(rpc_name("recompute_missing_flag")).execute(),
             "RECOMPUTE_MISSING_FLAG",
         )
 

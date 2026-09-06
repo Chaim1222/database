@@ -54,6 +54,7 @@ from config import (
     API_BATCH_SIZE_TEMPLATE_CHECK,
 )
 from supabase_client import get_client
+from table_names import table_name, rpc_name
 
 PROGRESS_FILE = "wikipedia_progress.json"
 MAX_SUPABASE_RETRIES = 5
@@ -181,7 +182,7 @@ def resolve_title_collisions(client, batch):
     for i in range(0, len(titles), API_BATCH_SIZE_TEMPLATE_CHECK):
         chunk = titles[i:i + API_BATCH_SIZE_TEMPLATE_CHECK]
         result = (
-            client.table("wikipedia_pages")
+            client.table(table_name("wikipedia_pages"))
             .select("id, title")
             .in_("title", chunk)
             .execute()
@@ -197,16 +198,22 @@ def resolve_title_collisions(client, batch):
         # (wikipedia_id=NULL) ייבדקו מחדש אוטומטית ב-match.py בריצה הבאה.
         for i in range(0, len(stale_ids), API_BATCH_SIZE_TEMPLATE_CHECK):
             chunk = stale_ids[i:i + API_BATCH_SIZE_TEMPLATE_CHECK]
-            client.table("mechalol_pages").update({"wikipedia_id": None}).in_("wikipedia_id", chunk).execute()
+            client.table(table_name("mechalol_pages")).update({"wikipedia_id": None}).in_("wikipedia_id", chunk).execute()
 
         print(f"WARNING | התנגשות כותרת/id | מוחק {len(stale_ids)} שורות מיושנות: {stale_ids}")
-        client.table("wikipedia_pages").delete().in_("id", stale_ids).execute()
+        client.table(table_name("wikipedia_pages")).delete().in_("id", stale_ids).execute()
 
     return bool(stale_ids)
 
 
 def _is_title_collision(exc):
-    return getattr(exc, "code", None) == "23505" and "wikipedia_pages_title_key" in str(exc)
+    # שם האילוץ תלוי-סיומת: אומת ישירות מול המסד ש-LIKE...INCLUDING ALL
+    # *לא* שומר את השם המקורי (wikipedia_pages_title_key) על טבלת
+    # המראה - פוסטגרס בונה שם חדש לפי שם הטבלה החדשה
+    # (wikipedia_pages_shadow_title_key). בלי table_name() כאן, זיהוי
+    # ההתנגשות היה נשבר בשקט בסבב מראה - כל שגיאת 23505 הייתה נופלת
+    # לניסיון-חוזר גנרי במקום לטיפול הייעודי (resolve_title_collisions).
+    return getattr(exc, "code", None) == "23505" and f"{table_name('wikipedia_pages')}_title_key" in str(exc)
 
 
 def upsert_batch(client, batch):
@@ -226,7 +233,7 @@ def upsert_batch(client, batch):
 
     for attempt in range(1, MAX_SUPABASE_RETRIES + 1):
         try:
-            client.table("wikipedia_pages").upsert(rows, on_conflict="id").execute()
+            client.table(table_name("wikipedia_pages")).upsert(rows, on_conflict="id").execute()
             return
         except Exception as exc:
             if _is_title_collision(exc) and resolve_title_collisions(client, batch):
@@ -270,8 +277,13 @@ def main():
     try:
         for batch in fetch_all_titles(apcontinue):
             if batch and not truncated:
+                # בסבב מראה (TARGET_TABLE_SUFFIX=_shadow), rpc_name ממפה
+                # לפונקציה promote_previous_to_shadow_and_truncate - זו
+                # גם "מקדמת" את העותק _previous מהסבב הקודם (חלון
+                # rollback) וגם מרוקנת אותו, בפעולה אחת. בריצה הרגילה
+                # (בלי סיומת) מוחזר השם המקורי ללא שינוי בהתנהגות.
                 print("ריקון | מרוקן wikipedia_pages...")
-                client.rpc("truncate_wikipedia_pages").execute()
+                client.rpc(rpc_name("truncate_wikipedia_pages")).execute()
                 truncated = True
             upsert_batch(client, batch)
             total += len(batch)
