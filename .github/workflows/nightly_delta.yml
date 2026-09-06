@@ -2,7 +2,7 @@ name: עדכון מצטבר לילי
 
 on:
   schedule:
-    - cron: "0 2 * * *"  # כל לילה ב-02:00 UTC
+    - cron: "0 22 * * *"  # כל לילה, 22:00 UTC = חצות בישראל בחורף (בקיץ - 01:00, בכוונה לא עוקב שעון קיץ)
   workflow_dispatch:
 
 # אותה קבוצת concurrency כמו initial_run.yml/weekly_update.yml/
