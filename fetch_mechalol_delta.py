@@ -231,6 +231,26 @@ def apply_status_updates(client, status_updates):
     log(f"עודכן סיווג ל-{len(status_updates)} ערכים ב-{TABLE}")
 
 
+def write_status_update_log(client, status_updates):
+    """
+    כותב ל-mechalol_status_update_log - תיעוד קבוע (לא רק בקובץ הזמני
+    mechalol_delta_changed_ids.json) של אילו page_id-ים קיבלו הזדמנות
+    להיבדק מחדש דרך match.py --scoped (כולל TEMPLATE API) בעקבות עריכה
+    רגילה, לא יצירה/מחיקה/שינוי-שם. משמש את log_reconciliation_diff()
+    כדי לא לספור "פער" על שורה שהדלתא כבר ניסתה לטפל בה.
+    """
+    if not status_updates:
+        return
+    rows = [{"page_id": u["id"], "title": u["title"]} for u in status_updates]
+    execute_with_retry(
+        lambda: client.table("mechalol_status_update_log").upsert(
+            rows, on_conflict="page_id,fetched_at", ignore_duplicates=True
+        ).execute(),
+        "כתיבת mechalol_status_update_log",
+        log_fn=log,
+    )
+
+
 def apply_creations(client, creations, own_categories_by_title):
     """
     בשונה מהגרסה הקודמת (שהשתמשה ב-fetch_classification_data/
@@ -499,6 +519,7 @@ def main():
         apply_deletions(client, all_deletions)
         apply_renames(client, renames)
         apply_status_updates(client, status_updates)
+        write_status_update_log(client, status_updates)
         write_changed_ids_file(all_creations, renames, status_updates)
 
     except Exception:

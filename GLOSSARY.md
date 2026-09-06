@@ -20,7 +20,7 @@
 |---|---|
 | `delta_api.py` | מודול משותף: שליפת `recentchanges`/`logevents` ממדיה-ויקי (יצירות, מחיקות, שינויי-שם, עריכות, סטטוס הפניה). |
 | `fetch_wikipedia_delta.py` | מיישם את השינויים שנמצאו ע"י `delta_api.py` על `wikipedia_pages` (בלי TRUNCATE). |
-| `fetch_mechalol_delta.py` | אותו דבר, לצד המכלול. |
+| `fetch_mechalol_delta.py` | אותו דבר, לצד המכלול - כולל גם זיהוי "הפך להפניה"/עדכון-סיווג מעריכה רגילה (`detect_edited_tracked_changes`), ותיעוד קבוע של זה ב-`mechalol_status_update_log`. |
 
 ### העשרה (מריצות אחרי הפיוס, לא בכל ריצה)
 | קובץ | תפקיד |
@@ -39,6 +39,7 @@
 | `validate_before_swap.py` | "שער האימות" - משווה מספר שורות פעיל מול shadow, מחליט אם בטוח להחליף. |
 | `swap_shadow_to_active.py` | מבצע את ההחלפה עצמה (קורא ל-RPC `perform_atomic_swap`), עם ניסיון-חוזר על נעילות זמניות. |
 | `revert_to_previous.py` | רולבק חירום ידני (קורא ל-`revert_atomic_swap`) - לשימוש בתוך חלון ה-rollback בלבד. |
+| `log_reconciliation_diff.py` | תיעוד מדיד: אחרי ההחלפה, משווה את הפעילה מול `_previous` ומוציא כל `id` שהדלתא כבר ידעה עליו - מה שנשאר הוא "מה שהעדכון היומי לא היה יכול לתפוס". שורה חדשה ב-`reconciliation_audit` בכל ריצה. |
 
 ### תשתית משותפת
 | קובץ | תפקיד |
@@ -107,6 +108,17 @@
 | `wikipedia_renames` / `mechalol_renames` | שינויי כותרת (לפי `page_id` יציב). |
 | `sync_watermarks` | חותמת הזמן האחרונה שנקראה בהצלחה מכל אתר - "עד איפה כבר בדקנו". |
 
+### תיעוד עריכות (2026-09) - לתמיכה בביקורת המדויקת
+| טבלה | תפקיד |
+|---|---|
+| `mechalol_status_update_log` | אילו `page_id`-ים במכלול קיבלו הזדמנות להיבדק מחדש דרך `match.py --scoped` (כולל TEMPLATE API) בעקבות עריכה רגילה (לא יצירה/מחיקה/שינוי-שם) - נכתבת ע"י `fetch_mechalol_delta.py`. בלעדיה, `log_reconciliation_diff` לא היה יכול לדעת שהדלתא כבר ניסתה לטפל בשורה. |
+
+### תיעוד מדיד (2026-09) - האם הריצה המלאה עוד נחוצה
+| טבלה | תפקיד |
+|---|---|
+| `reconciliation_audit` | שורה אחת לכל ריצה דו-שבועית שהחליפה בפועל - כמה שורות הושוו, וכמה מהן קיבלו **קישור** שונה (`match_type`/`wikipedia_id`/`is_missing`) למרות שהדלתא לא ידעה עליהן בכלל. בכוונה לא כולל עמודות תוכן (`needs_attention` וכו') - אלה משתנות כל הזמן מעריכה רגילה, לא קשור לפספוס. המטרה: לצבור עדות לאורך זמן אם עדיין יש טעם בריצה המלאה. |
+| `reconciliation_audit_details` | פירוט ברמת שורה לכל "פער לא-מתועד" שנמצא - `page_id`, איזה עמודות השתנו. |
+
 ### ארכיטקטורת המראה (2026-09)
 | טבלה | תפקיד |
 |---|---|
@@ -119,7 +131,7 @@
 
 | View | תפקיד |
 |---|---|
-| `report_missing_from_mechalol` | דפי ויקיפדיה בלי שום התאמה במכלול (`is_missing=true`), מסונן נגד `blacklist_titles`. |
+| `report_missing_from_mechalol` | דפי ויקיפדיה בלי שום התאמה במכלול (`is_missing=true`), מסונן נגד `blacklist_titles`. כולל גם `easy_import_checked`/`created_at_checked` (נוספו ל-view רק ב-2026-09 - `fetch_easy_import_candidates.py`/`fetch_wikipedia_created_at.py` שואלים ומסננים לפיהן, אבל ה-view לא כלל אותן קודם - כל הרצה נכשלה מיד). |
 | `report_possibly_deleted_source` | שורות מכלול שחשודות כ"נמחקו בוויקיפדיה" (`maybe_deleted_from_wikipedia`). |
 | `report_undocumented_import` | שורות עם `status='מיובא ללא תיעוד'` (חסרות תבנית מיון תקינה). |
 | `report_tasks_to_handle` | איחוד של שני הדוחות למעלה, עם עמודת `task_type` להבחנה. |
@@ -140,6 +152,7 @@
 | `forward_fill_enrichment_shadow()` | מעתיקה עמודות העשרה (`wikidata_desc`, `created_at`, `easy_import_*` וכו') מהפעילה ל-shadow, לפי `id`. |
 | `perform_atomic_swap()` | **ההחלפה עצמה**: שינוי שמות אטומי בין shadow לפעילה + בנייה מחדש של ה-views שתלויים בהן. |
 | `revert_atomic_swap()` | רולבק חירום - אותו רעיון הפוך (`_previous` חוזרת לפעילה). |
+| `log_reconciliation_diff()` | משווה פעילה מול `_previous` (בניכוי מה שהדלתא כבר ידעה), כותבת שורה ל-`reconciliation_audit`. |
 | `analyze_pages_tables(table_suffix)` | מרעננת סטטיסטיקות תכנון (`ANALYZE`) על שתי הטבלאות - פעילות או מראה, לפי הסיומת. נוספה אחרי תקלה אמיתית: טבלת מראה טרייה בלי סטטיסטיקות גרמה לתוכנית שאילתה גרועה (דקות במקום שניות) ב-`forward_fill_enrichment_shadow()`. נקראת מ-`fetch_mechalol.py` בסוף המילוי. |
 
 ---
@@ -172,6 +185,10 @@ validate_before_swap.py           # שער אימות: ספירת שורות פ�
         v  (רק אם should_swap=true)
 swap_shadow_to_active.py
    -> perform_atomic_swap()       # ההחלפה עצמה, שניות בודדות
+        |
+        v  (רק אם should_swap=true)
+log_reconciliation_diff.py
+   -> log_reconciliation_diff()   # תיעוד מדיד: פעילה מול _previous, בניכוי מה שהדלתא כבר ידעה
 ```
 
 `TARGET_TABLE_SUFFIX` (משתנה סביבה, `_shadow` או ריק) הוא המתג היחיד שקובע אם סקריפט

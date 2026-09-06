@@ -174,6 +174,15 @@ begin
         alter table mechalol_pages_previous rename to mechalol_pages_shadow;
     end if;
     truncate table mechalol_pages_shadow, wikipedia_pages_shadow;
+
+    -- תיקון: בניגוד ל-perform_atomic_swap/revert_atomic_swap (שכן כוללות
+    -- notify בסוף), הפונקציה הזו לא כללה אותו למרות שהיא גם מבצעת ALTER
+    -- TABLE RENAME - מטמון הסכימה של PostgREST לא התעדכן מיד, וכל קריאת
+    -- client.table("wikipedia_pages_shadow") מ-fetch_wikipedia.py נכשלה
+    -- עם PGRST205 עד שהמטמון התרענן מעצמו (נצפה בפועל בריצה חיה - 2
+    -- כשלים מתוך 5 ניסיונות מותרים, לא ערובה שזה תמיד יספיק).
+    notify pgrst, 'reload schema';
+    notify pgrst, 'reload config';
 end;
 $$;
 

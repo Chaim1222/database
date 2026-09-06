@@ -5,7 +5,7 @@
 2. להריץ את `views.sql`.
 3. להוסיף ב-Secrets של הריפו בגיטהאב: `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `MECHALOL_API_URL`.
 4. לוודא ב-`config.py` שכתובת ה-API של המכלול וכתובות הקטגוריות מדויקות (הוגדרו לפי ההנחות מהשיחה, כדאי לאמת מול השרת בפועל).
-5. לארכיטקטורת המראה (סעיף נפרד למטה): להריץ בנוסף, בסדר הזה, את `migration_add_mirror_tables.sql` → `migration_add_forward_fill_function.sql` → `migration_add_swap_function.sql`.
+5. לארכיטקטורת המראה (סעיף נפרד למטה): להריץ בנוסף, בסדר הזה, את `migration_add_mirror_tables.sql` → `migration_add_forward_fill_function.sql` → `migration_add_swap_function.sql` → `migration_add_analyze_function.sql` → `migration_add_reconciliation_audit.sql`.
 
 ## תיעוד רטרואקטיבי (2026-09)
 כמה אלמנטים היו קיימים בייצור בפועל אך מעולם לא תועדו בשום קובץ בריפו - נוצרו ישירות בעורך ה-SQL של סופרבייס בשלב מסוים, בלי מיגרציה מלווה. התגלו ותועדו תוך כדי בניית ארכיטקטורת המראה למטה (כי היה צריך לשחזר את אותו מצב בדיוק על טבלאות המראה):
@@ -17,6 +17,9 @@
 
 ## ארכיטקטורת המראה עם החלפה אטומית (2026-09)
 `biweekly_full_reconciliation.yml` עבר מ"ריקון+מילוי-מלא ישיר על הטבלאות הפעילות" (שהשאיר את הגאדג'ט בלי דוחות מהימנים לאורך כל משך הריצה) לארכיטקטורת מראה: הריקון-ומילוי-מחדש קורה על `wikipedia_pages_shadow`/`mechalol_pages_shadow` (משתנה הסביבה `TARGET_TABLE_SUFFIX=_shadow`), בעוד הטבלאות הפעילות ממשיכות לשרת כרגיל. בסוף הריצה, אחרי ששער אימות (`validate_before_swap.py`) מוודא שאין ירידה חשודה במספר השורות, `swap_shadow_to_active.py` מבצע החלפת-שמות אטומית (`perform_atomic_swap()` ב-Postgres) - שניות בודדות, לא תלוי בכמות השורות. הטבלה הפעילה הקודמת נשארת בתור `_previous` עד תחילת הסבב הבא (חלון rollback של עד שבועיים; ראו `revert_to_previous.py` לרולבק חירום ידני בתוך החלון). `table_names.py` הוא המודול המרכזי שמפרמט את שמות הטבלאות/RPC לפי `TARGET_TABLE_SUFFIX` בשלושת סקריפטי הליבה (`fetch_wikipedia.py`, `fetch_mechalol.py`, `match.py`) - כל שינוי עתידי בשמות טבלה עובר דרכו, לא מפוזר בקוד.
+
+## תיעוד מדיד: האם הריצה המלאה עדיין נחוצה? (2026-09)
+מיד אחרי כל החלפה, `log_reconciliation_diff.py` מנצל את זה שהטבלה הפעילה הקודמת עוד קיימת (`_previous`) כדי להשוות אותה מול הפעילה החדשה, ולנכות מתוך זה כל `id` שטבלאות הדלתא (`wikipedia_creations`/`mechalol_deletions`/`wikipedia_renames` וכו', וגם `mechalol_status_update_log` - עריכה רגילה שכבר קיבלה הזדמנות להיבדק מחדש דרך `match.py --scoped`) כבר ידעו עליו מאז הריצה המלאה הקודמת, וגם כל `id` עם קיוריישן ידני (`manual_matches`). ההשוואה עצמה מוגבלת בכוונה לעמודות **קישור טהורות** בלבד (`match_type`/`wikipedia_id`, `is_missing`/`missing_override_reason`/`mechalol_redirect_exists`) - לא עמודות תוכן כמו `needs_attention`, שמשתנות כל הזמן מעריכה רגילה ואין להן קשר לפספוס. מה שנשאר הוא בדיוק המדד המבוקש: כמה שורות קיבלו קישור שונה **בלי** שהעדכון היומי `--scoped` היה יכול לדעת על כך בכלל - משתי סיבות לגיטימיות שהדלתא לא תופסת אף אחת מהן: הפיכת ערך להפניה בכיוון "redirect→article" (בניגוד לכיוון ההפוך, `became_redirect`, שכן נרשם - ראו `migration_add_delta_tables.sql`), או תיקון/הוספת תבנית בגוף הערך במכלול שמזיזה את תוצאת שלב ה-TEMPLATE API ב-`match.py` - עריכת תוכן רגילה, לא `move`. אומת בפועל: מתוך 12 השורות בהרצה הראשונה, רוב היו תיקון-תבנית, לא הפיכת הפניה. התוצאה נצברת ב-`reconciliation_audit`/`reconciliation_audit_details` - שאילתה על הטבלה הזו בעוד כמה חודשים תענה על השאלה אם עדיין יש טעם בתדירות הנוכחית של הריצה המלאה.
 
 ## ארכיטקטורה - ריקון ומילוי מחדש בכל ריצה
 `wikipedia_pages` ו-`mechalol_pages` מתרוקנות (`TRUNCATE`) ומתמלאות מחדש **במלואן** בכל ריצה שבועית - לא עדכון הפרשי. `id` בשתי הטבלאות הוא ה-`page_id` האמיתי באתר המקור (לא `bigserial`), כך שהוא יציב וזהה בין ריצות, גם אחרי הריקון.

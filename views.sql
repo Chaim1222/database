@@ -82,7 +82,9 @@ select w.id,
     w.easy_import_has_images,
     w.problematic_words_clean,
     w.created_at,
-    w.mechalol_redirect_exists
+    w.mechalol_redirect_exists,
+    w.easy_import_checked,
+    w.created_at_checked
 from wikipedia_pages w
 where w.is_missing = true
   and not exists (
