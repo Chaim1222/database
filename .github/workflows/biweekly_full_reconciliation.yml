@@ -3,18 +3,27 @@ name: סנכרון דו-שבועי מלא
 # מחליף את weekly_update.yml הישן - התדירות עברה לדו-שבועית (במקור
 # הייתה חודשית, שונה ב-2026-08 - nightly_delta.yml כבר מטפל בעדכון
 # השוטף כל לילה, ואין סיבה שרשת הביטחון תחכה חודש שלם). הריצה הזו
-# היא רשת הביטחון: ריקון+מילוי-מלא רגיל (בדיוק כמו שהיה קודם, אין
-# שינוי בסקריפטים עצמם), שתופסת את הפערים הידועים שהעדכון המצטבר הלילי לא רואה
-# במכוון - בעיקר שינוי סטטוס הפניה<->ערך בלי אירוע יצירה/מחיקה/תזוזה
-# נלווה. לא נוגעת ב-sync_watermarks בכלל - זו נשארת באחריות
-# nightly_delta.yml בלבד, שתי המסלולים בלתי תלויים אחד בשני.
+# היא רשת הביטחון: ריקון+מילוי-מלא רגיל, שתופסת את הפערים הידועים
+# שהעדכון המצטבר הלילי לא רואה במכוון - בעיקר שינוי סטטוס הפניה<->ערך
+# בלי אירוע יצירה/מחיקה/תזוזה נלווה. לא נוגעת ב-sync_watermarks בכלל -
+# זו נשארת באחריות nightly_delta.yml בלבד, שתי המסלולים בלתי תלויים
+# אחד בשני.
 #
-# בסיום מוצלח, מפעילה אוטומטית את enrichment_after_reconciliation.yml
-# (טריגר workflow_run) - ארבעת סקריפטי ההעשרה של דוח "חסר במכלול"
-# (תיאורי ויקינתונים, קלות ייבוא, תאריכי יצירה, הפניות במכלול).
+# ארכיטקטורת מראה עם החלפה אטומית (ראו mirror_architecture_design.md):
+# הריקון-ומילוי-מחדש קורה על wikipedia_pages_shadow/mechalol_pages_shadow
+# (TARGET_TABLE_SUFFIX=_shadow), לא על הטבלאות הפעילות - כך שהן ממשיכות
+# לשרת בקשות בלי הפרעה לאורך כל הריצה (יכולה לקחת זמן משמעותי). רק
+# בסוף, אחרי שער אימות שמוודא שאין ירידה חשודה במספר השורות, ההחלפה
+# עצמה קורית באופן אטומי (רק שינוי שם טבלה - שניות בודדות, לא תלוי
+# בכמות השורות). בלי שלב "ניקוי מראה" בסוף בכוונה - הטבלה הפעילה
+# הקודמת נשארת בתור _previous עד תחילת הסבב הבא (חלון rollback של עד
+# שבועיים), ומתקדמת/מתרוקנת רק אז, בתוך fetch_wikipedia.py עצמו
+# (promote_previous_to_shadow_and_truncate) - לא כצעד נפרד כאן.
 #
-# מחליפים את weekly_update.yml הישן בקובץ הזה (מוחקים את הישן, לא
-# משאירים את שניהם רצים).
+# בסיום מוצלח (ההחלפה בפועל קרתה), מפעילה אוטומטית את
+# enrichment_after_reconciliation.yml (טריגר workflow_run) - ארבעת
+# סקריפטי ההעשרה של דוח "חסר במכלול". הודות ל-forward_fill_enrichment.py
+# למטה, הוא ירוץ מהר משמעותית כי רוב העמודות כבר "נבדקו" והועברו קדימה.
 
 on:
   schedule:
@@ -23,9 +32,9 @@ on:
 
 # אותה קבוצת concurrency כמו initial_run.yml/weekly_update.yml/
 # nightly_delta.yml - ראו הערה מלאה ב-initial_run.yml. חשוב כאן במיוחד:
-# זו הריצה שמבצעת בפועל את הריקון-ומילוי-מחדש (fetch_mechalol.py,
-# fetch_wikipedia.py), כך שהיא הכי רגישה לחפיפה עם ריצה אחרת שנוגעת
-# באותן טבלאות.
+# זו הריצה שמבצעת בפועל את הריקון-ומילוי-מחדש (על טבלאות המראה) ואת
+# ההחלפה עצמה, כך שהיא הכי רגישה לחפיפה עם ריצה אחרת שנוגעת באותן
+# טבלאות.
 concurrency:
   group: mechalol-wikipedia-db-write
   cancel-in-progress: false
@@ -36,6 +45,10 @@ jobs:
     timeout-minutes: 90
     permissions:
       issues: write
+    # הפלט should_swap מגיע מצעד "שער אימות" למטה - "true" אם ניתן
+    # להחליף, "false" אם התגלתה ירידה (חמורה או קלה) במספר השורות.
+    outputs:
+      should_swap: ${{ steps.validate.outputs.should_swap }}
     steps:
       - name: שחזור קוד
         uses: actions/checkout@v4
@@ -48,34 +61,60 @@ jobs:
       - name: התקנת ספריות
         run: pip install -r requirements.txt
 
-      # fetch_wikipedia.py *חייב* לרוץ לפני fetch_mechalol.py - טעות
-      # בסדר ההפוך גרמה בעבר לאובדן נתונים אמיתי: truncate_wikipedia_pages()
-      # רץ עם CASCADE בפועל (ראו schema.sql ו-2026-09 postmortem) - כל
-      # TRUNCATE על wikipedia_pages, עם CASCADE, מרוקן גם את mechalol_pages
-      # *לגמרי* (כל הטבלה, לא רק שורות עם מפתח זר תלוי) - ללא קשר לערכי
-      # wikipedia_id ולסדר הצעדים. לכן mechalol_pages *חייב* להתמלא
-      # אחרי הריקון הזה, לא לפניו.
-      - name: שליפת כותרות ויקיפדיה (מלא)
+      # fetch_wikipedia.py *חייב* לרוץ לפני fetch_mechalol.py - גם על
+      # טבלאות המראה, מאותה סיבה בדיוק כמו על הטבלאות הפעילות (ראו
+      # postmortem 2026-09 ב-schema.sql): הריקון (עכשיו
+      # promote_previous_to_shadow_and_truncate, לא CASCADE, אבל אותו
+      # עיקרון) חייב לקרות לפני מילוי mechalol_pages_shadow, לא אחריו.
+      - name: שליפת כותרות ויקיפדיה למראה
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          TARGET_TABLE_SUFFIX: "_shadow"
         run: python fetch_wikipedia.py
 
-      - name: שליפת נתוני המכלול (מלא)
+      - name: שליפת נתוני המכלול למראה
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           USER_NAME: ${{ secrets.USER_NAME }}
           PASSWORD: ${{ secrets.PASSWORD }}
+          TARGET_TABLE_SUFFIX: "_shadow"
         run: python fetch_mechalol.py
 
-      - name: התאמה מלאה בין הכותרות
+      - name: התאמה מלאה על המראה
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           USER_NAME: ${{ secrets.USER_NAME }}
           PASSWORD: ${{ secrets.PASSWORD }}
+          TARGET_TABLE_SUFFIX: "_shadow"
         run: python match.py --login
+
+      - name: העברת העשרה קדימה
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python forward_fill_enrichment.py
+
+      - name: שער אימות
+        id: validate
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python validate_before_swap.py
+
+      # רץ רק אם שער האימות אישר (should_swap=true) - ירידה קלה
+      # מדלגת על הצעד הזה בלי לשבש את שאר ה-job (הריצה עדיין "מצליחה"
+      # כי ההחלטה לדלג היא תקינה, לא כשל). ירידה חמורה כבר עצרה את
+      # ה-job קודם (validate_before_swap.py יוצא עם קוד 1), אז הצעד
+      # הזה כלל לא מגיע אליו.
+      - name: החלפה אטומית
+        if: steps.validate.outputs.should_swap == 'true'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python swap_shadow_to_active.py
 
       - name: פתיחת Issue בעת כישלון
         if: failure()
