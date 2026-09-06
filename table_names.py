@@ -47,3 +47,13 @@ def rpc_name(base: str) -> str:
     if _SUFFIX and base in _RPC_SHADOW_OVERRIDES:
         return _RPC_SHADOW_OVERRIDES[base]
     return base
+
+
+def current_suffix() -> str:
+    """
+    מחזיר את הסיומת הגולמית (""/"_shadow") - לשימוש במקומות שצריכים
+    להעביר אותה כפרמטר לפונקציית RPC גנרית (כמו analyze_pages_tables),
+    ולא רק לבנות שם טבלה מקומי. עדיפות ל-table_name()/rpc_name() בכל
+    מקום אחר - זה רק למקרה שבו הפונקציה עצמה מקבלת סיומת כארגומנט.
+    """
+    return _SUFFIX

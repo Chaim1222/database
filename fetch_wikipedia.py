@@ -282,7 +282,7 @@ def main():
                 # גם "מקדמת" את העותק _previous מהסבב הקודם (חלון
                 # rollback) וגם מרוקנת אותו, בפעולה אחת. בריצה הרגילה
                 # (בלי סיומת) מוחזר השם המקורי ללא שינוי בהתנהגות.
-                print("ריקון | מרוקן wikipedia_pages...")
+                print(f"ריקון | מרוקן {table_name('wikipedia_pages')}...")
                 client.rpc(rpc_name("truncate_wikipedia_pages")).execute()
                 truncated = True
             upsert_batch(client, batch)

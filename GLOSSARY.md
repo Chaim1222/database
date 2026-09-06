@@ -1,0 +1,196 @@
+# מילון מונחים - השוואת ערכים ויקיפדיה↔מכלול
+
+מסמך אינדקס יחיד: לכל שם קובץ/טבלה/פונקציה/משתנה מרכזי בפרויקט - מה
+הוא, ולמה קוראים לו ככה. המטרה: לפתוח את הקובץ הזה כשנתקלים בשם לא
+מוכר בקוד, ולמצוא הסבר בעברית בלי לחפש בקוד עצמו.
+
+---
+
+## 1. קבצי סקריפט (Python)
+
+### ליבה - מילוי מלא והתאמה
+| קובץ | תפקיד |
+|---|---|
+| `fetch_wikipedia.py` | שולף את **כל** כותרות ויקיפדיה מחדש (`allpages`) ומכניס ל-`wikipedia_pages`. חייב לרוץ **לפני** `fetch_mechalol.py` (ריקון עם CASCADE). |
+| `fetch_mechalol.py` | שולף את **כל** נתוני המכלול מחדש (סטטוס, קטגוריות) ומכניס ל-`mechalol_pages`. |
+| `match.py` | "מנוע ההתאמה" - מקשר כל שורת מכלול לשורת ויקיפדיה מתאימה (אם יש), בארבעה שלבים (ראו §5 "קסקדת ההתאמה"), ובסוף מחשב מחדש את `is_missing`. |
+
+### דלתא (עדכון יומי הפרשי, בלי ריקון)
+| קובץ | תפקיד |
+|---|---|
+| `delta_api.py` | מודול משותף: שליפת `recentchanges`/`logevents` ממדיה-ויקי (יצירות, מחיקות, שינויי-שם, עריכות, סטטוס הפניה). |
+| `fetch_wikipedia_delta.py` | מיישם את השינויים שנמצאו ע"י `delta_api.py` על `wikipedia_pages` (בלי TRUNCATE). |
+| `fetch_mechalol_delta.py` | אותו דבר, לצד המכלול. |
+
+### העשרה (מריצות אחרי הפיוס, לא בכל ריצה)
+| קובץ | תפקיד |
+|---|---|
+| `fetch_wikidata_descriptions.py` | שולף תיאור קצר מוויקינתונים לשורות `report_missing_from_mechalol`. |
+| `fetch_wikipedia_created_at.py` | שולף תאריך יצירת הערך בוויקיפדיה (דורש בקשת API נפרדת - לא ניתן לשלב עם `allpages`). |
+| `fetch_easy_import_candidates.py` | בודק "קלות ייבוא" (אורך, תמונות, ניקיון מילים) דרך `problematic_words.py`. |
+| `check_missing_redirects.py` | בודק אם יש הפניה (redirect) במכלול תחת אותה כותרת. |
+| `problematic_words.py` | ~200 תבניות regex לזיהוי ניסוח בעייתי בטקסט ערך, לשימוש ב-`fetch_easy_import_candidates.py`. |
+
+### ארכיטקטורת המראה (2026-09)
+| קובץ | תפקיד |
+|---|---|
+| `table_names.py` | המודול המרכזי שמתרגם שם טבלה/RPC בסיסי לשם בפועל, לפי `TARGET_TABLE_SUFFIX` (`table_name`, `rpc_name`, `is_shadow_mode`, `current_suffix`). כל שינוי עתידי בשם טבלה עובר דרכו. |
+| `forward_fill_enrichment.py` | קורא ל-RPC שמעתיק עמודות העשרה מהטבלה הפעילה ל-shadow (כדי לא לאבד מידע שכבר נבדק). |
+| `validate_before_swap.py` | "שער האימות" - משווה מספר שורות פעיל מול shadow, מחליט אם בטוח להחליף. |
+| `swap_shadow_to_active.py` | מבצע את ההחלפה עצמה (קורא ל-RPC `perform_atomic_swap`), עם ניסיון-חוזר על נעילות זמניות. |
+| `revert_to_previous.py` | רולבק חירום ידני (קורא ל-`revert_atomic_swap`) - לשימוש בתוך חלון ה-rollback בלבד. |
+
+### תשתית משותפת
+| קובץ | תפקיד |
+|---|---|
+| `config.py` | קבועים: כתובות API, קטגוריות מכלול. |
+| `supabase_client.py` | יצירת חיבור לסופרבייס (`get_client`) + `execute_with_retry` (עטיפת ניסיון-חוזר גנרית לכל קריאת DB). |
+| `normalize.py` | כללי נרמול כותרות חד-כיווניים (מכלול→ויקיפדיה) - `hygiene`, `normalize_title`. |
+| `mechalol_api.py` | פונקציות תקשורת עם ה-API של מכלול: `log()` (לוג עם חותמת זמן), `login()`, `api_get_with_retry`. |
+| `check_missing_locked.py` | בודק כותרות חסומות-ליצירה במכלול (מריץ פעם בחודש). |
+| `quarterly_summary.py` | סיכום רבעוני אוטומטי של רשימות ייבוא. |
+| `dashboard.html` | **לא בשימוש בפועל** - הגאדג'ט האמיתי הוא קובץ JS נפרד במדיה-ויקי (ראו §7). |
+
+---
+
+## 2. קבצי Workflow (GitHub Actions, `.github/workflows/`)
+
+| קובץ | מתי רץ | תפקיד |
+|---|---|---|
+| `initial_run.yml` | ידני, חד-פעמי | מילוי בסיס ראשוני מלא. תומך ב-`mode=mechalol_only` למילוי חוזר של טבלה אחת. |
+| `nightly_delta.yml` | אוטומטי, כל לילה | דלתא: `fetch_mechalol_delta` → `fetch_wikipedia_delta` → `match.py --scoped`. |
+| `biweekly_full_reconciliation.yml` | אוטומטי, 1+15 לחודש | רשת הביטחון המלאה - **מ-2026-09 בארכיטקטורת מראה** (ראו §6). |
+| `enrichment_after_reconciliation.yml` | אוטומטי, אחרי הצלחת הדו-שבועי | ארבעת סקריפטי ההעשרה, מקביל. |
+| `check_missing_locked.yml` | אוטומטי, 1 לחודש | מריץ את `check_missing_locked.py`. |
+| `weekly_update.yml` | **מושבת** | הישן, הוחלף במלואו על ידי הדו-שבועי. נשאר כרפרנס. |
+
+---
+
+## 3. טבלאות (Supabase/Postgres)
+
+### ליבה
+| טבלה | תפקיד | הערה |
+|---|---|---|
+| `wikipedia_pages` | כל דף בוויקיפדיה העברית (מרחב שם ראשי). `id` = ה-`page_id` האמיתי, לא מספר סידורי. |
+| `mechalol_pages` | כל דף במכלול. גם כאן `id` הוא `page_id` אמיתי. |
+
+### עמודות לא-מובנות ב-`wikipedia_pages`
+| עמודה | תפקיד |
+|---|---|
+| `is_missing` | true = יש בוויקיפדיה, אין במכלול. **לא מחושב חי** - מתעדכן רק בסוף `match.py` (`recompute_missing_flag`). |
+| `missing_override_reason` | למה `is_missing=false` כשההתאמה לא "אמיתית" ממש - כרגע רק `'rav_prefix_normalization'` (הוסרה קידומת "הרב/רבי"). |
+| `created_at_checked` / `easy_import_checked` | "נבדק" (true/false) - נפרד מ"יש ערך" (null/לא-null), כי כישלון API לא אמור לספור כ"עדיין לא נבדק" לנצח. |
+| `mechalol_redirect_exists` | יש הפניה במכלול תחת אותה כותרת (גם אם אין ערך מלא). |
+
+### עמודות לא-מובנות ב-`mechalol_pages`
+| עמודה | תפקיד |
+|---|---|
+| `match_type` | תוצאת שלב ההתאמה: `'יובא מוויקיפדיה'` / `'כותרת זהה ללא קשר'` / `'ללא התאמה'`. |
+| `needs_attention` | הכותרת קיימת אבל בלי תוכן ("ערכים לפתיחה"). |
+| `is_dictionary_entry` | תקציר מילוני, לא ערך מלא. |
+| `maybe_deleted_from_wikipedia` | חשוד כמחיקה - מקור ודאי-ויקיפדי, בלי התאמה בריצה הנוכחית. |
+| `normalization_match` / `normalization_method` | ההתאמה נמצאה דרך נרמול/תבנית, לא כותרת זהה - ואיזה כלל בדיוק. |
+| `title_normalized` | הכותרת המנורמלת שנמצאה לה התאמה. |
+| `source_type` | מקור השורה: `created`/`translated`/`pirushon`/`chabadpedia`/`wikishiva`/`wikipedia_documented`/`missing_sort`/`unknown`. |
+
+### תחזוקה ידנית (לא מתרוקנות)
+| טבלה | תפקיד |
+|---|---|
+| `manual_matches` | התאמות שהאוטומציה לא פתרה לבד. מפתח: `mechalol_page_id`/`wikipedia_page_id`. |
+| `blacklist_titles` | כותרות שבכוונה לא יובאו - לא יופיעו כ"חסרות". |
+
+### דלתא (עדכון יומי)
+| טבלה | תפקיד |
+|---|---|
+| `wikipedia_creations` / `mechalol_creations` | דפים חדשים מאז ה-watermark האחרון. |
+| `wikipedia_deletions` / `mechalol_deletions` | דפים שנמחקו. |
+| `wikipedia_renames` / `mechalol_renames` | שינויי כותרת (לפי `page_id` יציב). |
+| `sync_watermarks` | חותמת הזמן האחרונה שנקראה בהצלחה מכל אתר - "עד איפה כבר בדקנו". |
+
+### ארכיטקטורת המראה (2026-09)
+| טבלה | תפקיד |
+|---|---|
+| `wikipedia_pages_shadow` / `mechalol_pages_shadow` | עותק "מאחורי הקלעים" - כאן קורים הריקון/מילוי/התאמה של הריצה הדו-שבועית, בלי לפגוע בטבלה הפעילה. |
+| `wikipedia_pages_previous` / `mechalol_pages_previous` | הטבלה הפעילה **הקודמת**, לאחר ההחלפה - נשמרת כחלון rollback עד הסבב הבא. |
+
+---
+
+## 4. Views (דוחות, `views.sql`)
+
+| View | תפקיד |
+|---|---|
+| `report_missing_from_mechalol` | דפי ויקיפדיה בלי שום התאמה במכלול (`is_missing=true`), מסונן נגד `blacklist_titles`. |
+| `report_possibly_deleted_source` | שורות מכלול שחשודות כ"נמחקו בוויקיפדיה" (`maybe_deleted_from_wikipedia`). |
+| `report_undocumented_import` | שורות עם `status='מיובא ללא תיעוד'` (חסרות תבנית מיון תקינה). |
+| `report_tasks_to_handle` | איחוד של שני הדוחות למעלה, עם עמודת `task_type` להבחנה. |
+
+---
+
+## 5. פונקציות SQL (RPC, נקראות מפייתון דרך `client.rpc(...)`)
+
+| פונקציה | תפקיד |
+|---|---|
+| `normalize_person_title(t)` | מסירה קידומת "הרב "/"רבי " מתחילת כותרת - לשימוש בחישוב `is_missing` בלבד, לא בקישור `wikipedia_id`. |
+| `truncate_wikipedia_pages()` | מרוקנת את `wikipedia_pages` (עם `CASCADE` - מרוקנת גם `mechalol_pages` ברמת-טבלה!). |
+| `truncate_mechalol_pages()` | מרוקנת את `mechalol_pages` בלבד (בלי CASCADE - אין ממה). |
+| `recompute_missing_flag()` | מחשבת מחדש `is_missing`/`missing_override_reason` על **כל** `wikipedia_pages` - נקראת בסוף ריצת `match.py` מלאה. |
+| `recompute_missing_flag_scoped(ids)` | אותו חישוב, מוגבל ל-`ids` נתונים - לשימוש ב-`match.py --scoped` (הדלתא הלילית), כדי לא לסרוק את כל הטבלה כל לילה. |
+| `recompute_missing_flag_shadow()` | גרסת-מראה של `recompute_missing_flag()`, רצה על `wikipedia_pages_shadow`/`mechalol_pages_shadow`. |
+| `promote_previous_to_shadow_and_truncate()` | בתחילת כל סבב מראה: מקדמת את `_previous` (מהסבב הקודם) לתפקיד shadow, ואז מרוקנת. שקולה ל"ריקון" בזרימה הישנה. |
+| `forward_fill_enrichment_shadow()` | מעתיקה עמודות העשרה (`wikidata_desc`, `created_at`, `easy_import_*` וכו') מהפעילה ל-shadow, לפי `id`. |
+| `perform_atomic_swap()` | **ההחלפה עצמה**: שינוי שמות אטומי בין shadow לפעילה + בנייה מחדש של ה-views שתלויים בהן. |
+| `revert_atomic_swap()` | רולבק חירום - אותו רעיון הפוך (`_previous` חוזרת לפעילה). |
+| `analyze_pages_tables(table_suffix)` | מרעננת סטטיסטיקות תכנון (`ANALYZE`) על שתי הטבלאות - פעילות או מראה, לפי הסיומת. נוספה אחרי תקלה אמיתית: טבלת מראה טרייה בלי סטטיסטיקות גרמה לתוכנית שאילתה גרועה (דקות במקום שניות) ב-`forward_fill_enrichment_shadow()`. נקראת מ-`fetch_mechalol.py` בסוף המילוי. |
+
+---
+
+## 6. ארכיטקטורת המראה - סדר הזרימה המלא
+
+```
+fetch_wikipedia.py (TARGET_TABLE_SUFFIX=_shadow)
+   -> promote_previous_to_shadow_and_truncate()   # מקדם+מרוקן shadow
+   -> ממלא wikipedia_pages_shadow מחדש
+        |
+        v
+fetch_mechalol.py (אותה סיומת)
+   -> מדלג על ריקון (כבר קרה למעלה)
+   -> ממלא mechalol_pages_shadow מחדש
+        |
+        v
+match.py (אותה סיומת)
+   -> מתאים כותרות על שתי טבלאות ה-shadow
+   -> recompute_missing_flag_shadow()
+        |
+        v
+forward_fill_enrichment.py
+   -> מעתיק עמודות העשרה מהפעילה ל-shadow (forward_fill_enrichment_shadow)
+        |
+        v
+validate_before_swap.py           # שער אימות: ספירת שורות פעיל מול shadow
+   -> should_swap=true/false (ל-GITHUB_OUTPUT)
+        |
+        v  (רק אם should_swap=true)
+swap_shadow_to_active.py
+   -> perform_atomic_swap()       # ההחלפה עצמה, שניות בודדות
+```
+
+`TARGET_TABLE_SUFFIX` (משתנה סביבה, `_shadow` או ריק) הוא המתג היחיד שקובע אם סקריפט
+עובד על הטבלאות הפעילות או על ה-shadow - מתורגם בפועל דרך `table_names.py`.
+
+---
+
+## 7. מונחים/משתנים חוזרים ששווה להכיר
+
+| מונח | פירוש |
+|---|---|
+| `page_id` | המזהה הקבוע של דף באתר המקור (ויקיפדיה/מכלול) - לא נוצר על ידינו, זה מה שממלא את `id` בטבלאות שלנו. יציב גם אם שם הדף משתנה. |
+| `TARGET_TABLE_SUFFIX` | משתנה סביבה (`_shadow`/ריק) - קובע אם `fetch_wikipedia.py`/`fetch_mechalol.py`/`match.py` עובדים על הטבלאות הפעילות או על ה-shadow. |
+| `--scoped` (דגל ב-`match.py`) | מריץ התאמה רק על שורות שהושפעו מהדלתא האחרונה (לא כל הטבלה) - לשימוש ב-`nightly_delta.yml` בלבד, לא בפיוס המלא. |
+| `watermark` (ב-`sync_watermarks`) | "עד איפה כבר בדקנו" - חותמת הזמן האחרונה שממנה ממשיכה שאילתת הדלתא הבאה. |
+| `service_role` מול `anon` | תפקידי הרשאה בסופרבייס: `service_role` = מפתח שרת (גישה מלאה, עוקף RLS) - בשימוש בסקריפטים. `anon` = ציבור/גאדג'ט (SELECT בלבד). |
+| RLS (Row Level Security) | מנגנון הגנה ברמת-שורה בפוסטגרס - כאן פשוט: מדיניות אחת בשם "קריאה ציבורית", SELECT בלבד ל-`anon`. |
+| הגאדג'ט | קובץ JS במדיה-ויקי (עמוד מיוחד:דף_ריק/ניהול_ייבוא, פונקציה `mchl-dash`) שפונה ישירות ל-PostgREST - **לא** `dashboard.html` שבריפו. |
+
+---
+
+*מסמך זה מתעד את המצב נכון ל-2026-09. עדכן אותו כשמתווספים קבצים/טבלאות/פונקציות חדשים.*

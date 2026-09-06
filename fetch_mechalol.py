@@ -65,8 +65,8 @@ from config import (
     STATUS_KEPT_AFTER_WIKIPEDIA_DELETION,
     STATUS_SPLIT_FROM_WIKIPEDIA,
 )
-from supabase_client import get_client
-from table_names import table_name, is_shadow_mode
+from supabase_client import get_client, execute_with_retry
+from table_names import table_name, is_shadow_mode, current_suffix
 
 
 PROGRESS_FILE = "mechalol_progress.json"
@@ -757,6 +757,21 @@ def main():
         )
 
     clear_progress()
+
+    # ANALYZE על שתי הטבלאות (לא רק mechalol) - תיקון נדרש אחרי תקלה
+    # אמיתית (2026-09): טבלת מראה טרייה-אחרי-מילוי-מלא בלי סטטיסטיקות
+    # עדכניות (autovacuum עוד לא הספיק להגיע אליה) גרמה לתוכנית שאילתה
+    # גרועה (nested loop) ב-forward_fill_enrichment_shadow() בהמשך -
+    # נתקע 10+ דקות במקום שניות. כאן, אחרי ששתי הטבלאות מלאות (זה
+    # הסקריפט השני שרץ), הזמן הנכון לרענן סטטיסטיקות - גם match.py
+    # שרץ אחרי זה נהנה מזה, לא רק ההעשרה בהמשך. לא עוטפים ב-try/except -
+    # כשל כאן אמור לעצור את הריצה כמו כל שלב אחר, לא להיבלע בשקט.
+    log("ANALYZE | מרענן סטטיסטיקות תכנון על שתי הטבלאות...")
+    execute_with_retry(
+        lambda: client.rpc("analyze_pages_tables", {"table_suffix": current_suffix()}).execute(),
+        "ANALYZE_PAGES_TABLES",
+        log_fn=log,
+    )
 
     log(f"הצלחה | הועלו/עודכנו {total:,} ערכים | בקשות API: {api_requests:,}")
 
