@@ -6,6 +6,15 @@
 -- הוסרו (היו תלויים בעמודות שנמחקו עם המעבר לריקון-ומילוי-מחדש):
 -- report_confirmed_deleted_from_wikipedia (deleted_from_wikipedia),
 -- report_title_changed_since_match (matched_title).
+--
+-- ידוע, לא תוקן (2026-09): Supabase security advisor מסמן את כל
+-- ארבעת ה-views למטה כ-"Security Definer View" (ERROR) - הן רצות
+-- בהרשאות היוצר (postgres) ולא בהרשאות השולח, כלומר לא כפופות ל-RLS
+-- של הטבלאות שמתחתן. זה לא נגרם משום שינוי שלנו (זו התנהגות ברירת
+-- המחדל ההיסטורית של views בפוסטגרס, לפני security_invoker ב-PG15+),
+-- וזו הסיבה שהגבלת ה-GRANT למטה קריטית - RLS לא מגן על ה-views האלה
+-- בכל מקרה. לתיקון: ALTER VIEW ... SET (security_invoker = true) על
+-- כל אחד, לא בוצע כאן כי זה משנה התנהגות בפועל ודורש בדיקה נפרדת.
 
 -- 1. חשוד כמחיקה/בעיית התאמה: מקור ודאי-ויקיפדי או לא-ידוע, בלי
 --    התאמה לוויקיפדיה בריצה הנוכחית. עשוי לנבוע ממחיקה אמיתית, מכותרת
@@ -80,3 +89,21 @@ where w.is_missing = true
     select 1 from blacklist_titles b where b.title = w.title
   )
 order by w.title;
+
+-- --- הרשאות: קיימות בייצור, מעולם לא תועדו כאן עד 2026-09 ---
+-- מלכוד שהתגלה בפועל: view חדש שנוצר עם create or replace view רגיל
+-- (כמו שלושת הראשונים למעלה, כשהם נוצרו לראשונה) יורש את אותה ברירת
+-- מחדל רחבה-מדי כמו טבלה חדשה (pg_default_acl) - קיבל בטעות INSERT/
+-- UPDATE/DELETE/TRUNCATE ל-anon/authenticated, לא רק SELECT. אומת מול
+-- המסד ותוקן ב-2026-09 (report_missing_from_mechalol למטה כבר היה
+-- מוגבל נכון מלכתחילה, לא ברור למה רק הוא). ראו migration_document_
+-- rls_and_grants.sql לתיעוד המלא כולל הטבלאות והפונקציות.
+revoke all on report_possibly_deleted_source from anon, authenticated;
+revoke all on report_tasks_to_handle from anon, authenticated;
+revoke all on report_undocumented_import from anon, authenticated;
+revoke all on report_missing_from_mechalol from anon, authenticated;
+
+grant select on report_possibly_deleted_source to anon, authenticated;
+grant select on report_tasks_to_handle to anon, authenticated;
+grant select on report_undocumented_import to anon, authenticated;
+grant select on report_missing_from_mechalol to anon, authenticated;

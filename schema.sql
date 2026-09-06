@@ -12,6 +12,16 @@
 --
 -- manual_matches ו-blacklist_titles הן היחידות שלא מתרוקנות - תחזוקה
 -- ידנית, למקרים שהאוטומציה לא פותרת לבד.
+--
+-- ארכיטקטורת המראה עם החלפה אטומית (2026-09, ראו migration_add_mirror_
+-- tables.sql / migration_add_forward_fill_function.sql / migration_add_
+-- swap_function.sql) *אינה* כלולה בקובץ הזה בכוונה - schema.sql נשאר
+-- "התקנה חד-פעמית על טבלאות חדשות/ריקות" כפי שהיה תמיד; טבלאות המראה
+-- (wikipedia_pages_shadow/mechalol_pages_shadow) והפונקציות הנלוות
+-- (perform_atomic_swap, revert_atomic_swap, promote_previous_to_shadow_
+-- and_truncate, recompute_missing_flag_shadow, forward_fill_enrichment_
+-- shadow) הן שכבה נוספת מעל הסכימה הזו, לא חלק ממנה - להרצה בנפרד,
+-- אחרי schema.sql/views.sql, על מסד שכבר עובד.
 
 create table if not exists wikipedia_pages (
     id bigint primary key,  -- page_id בוויקיפדיה
@@ -71,7 +81,19 @@ create table if not exists wikipedia_pages (
     -- כותרת זהה) או כשעדיין חסר. מאפשר לאתר ולבטל בקלות את כל השורות
     -- שהוחרגו רק בגלל נירמול קידומת רבנית, בלי לצטט מחדש - ראו
     -- migration_add_missing_override_reason.sql.
-    missing_override_reason text
+    missing_override_reason text,
+
+    -- true אם fetch_wikipedia_created_at.py כבר ניסה לשלוף תאריך יצירה
+    -- לשורה הזו (הצליח או נכשל) - שונה מ-created_at is null, כי כישלון
+    -- API לא ייחשב "עדיין לא נבדק" בלי הדגל הזה (אחרת היה נבדק שוב
+    -- לנצח על כל כישלון זמני). ראו migration_add_checked_columns.sql -
+    -- נוצרה ישירות בעורך ה-SQL ב-2026-08/09 ולא הייתה מתועדת כאן עד
+    -- שהתגלה הפער תוך כדי בניית ארכיטקטורת המראה (2026-09).
+    created_at_checked boolean not null default false,
+
+    -- אותו עיקרון בדיוק כמו created_at_checked, עבור fetch_easy_import_
+    -- candidates.py ושלוש עמודות ה"קלות ייבוא" למעלה.
+    easy_import_checked boolean not null default false
 );
 
 -- מסיר קידומת "הרב "/"רבי " מתחילת כותרת בלבד - בכוונה לא נוגע ב"רבנית"
@@ -180,6 +202,42 @@ create index if not exists idx_mechalol_match_type on mechalol_pages(match_type)
 create index if not exists idx_mechalol_wikipedia_id on mechalol_pages(wikipedia_id);
 create index if not exists idx_wikipedia_is_missing on wikipedia_pages(is_missing) where is_missing;
 
+-- שלושת האינדקסים הבאים קיימים בייצור אך לא היו מתועדים כאן עד עכשיו
+-- (התגלה תוך כדי בניית ארכיטקטורת המראה, 2026-09) - קריטיים לביצועים
+-- של recompute_missing_flag/_scoped, שמשווים לפי normalize_person_title
+-- על שתי הטבלאות בכל ריצה.
+create index if not exists idx_wikipedia_pages_title on wikipedia_pages(title);
+create index if not exists idx_wikipedia_norm_person_title on wikipedia_pages(normalize_person_title(title));
+create index if not exists idx_mechalol_norm_person_title on mechalol_pages(normalize_person_title(title));
+
+-- הערה: idx_mechalol_pages_wikipedia_id (בייצור) הוא כפילות מלאה של
+-- idx_mechalol_wikipedia_id שממש למעלה (אותה עמודה, אותו סוג אינדקס) -
+-- לא נוצר כאן בכוונה, לא שווה לשמר כפילות; אם ידוע למה שניהם נוצרו,
+-- שווה לשקול DROP INDEX על אחד מהם בייצור.
+
+-- --- RLS + הרשאות: קיימות בייצור, מעולם לא תועדו בשום קובץ בריפו עד
+-- שהתגלה הפער תוך כדי בניית ארכיטקטורת המראה (migration_add_mirror_
+-- tables.sql, 2026-09) - ראו migration_document_rls_and_grants.sql
+-- לגרסה המלאה כולל הפונקציות הכותבות למטה וה-views ב-views.sql. כלול
+-- כאן בתמצות כדי ש-schema.sql יישאר "אמת יחידה" גם להתקנה חדשה.
+alter table wikipedia_pages enable row level security;
+alter table mechalol_pages enable row level security;
+
+create policy "קריאה ציבורית" on wikipedia_pages
+    for select to anon using (true);
+create policy "קריאה ציבורית" on mechalol_pages
+    for select to anon using (true);
+
+-- pg_default_acl בפרויקט הזה מעניק גישה מלאה (כולל כתיבה/מחיקה/ריקון)
+-- ל-anon/authenticated על כל טבלה חדשה של postgres כברירת מחדל - חובה
+-- לצמצם במפורש, אחרת התקנה חדשה תיפרץ מיד עם ה-CREATE TABLE הראשון.
+revoke all on wikipedia_pages from anon, authenticated;
+revoke all on mechalol_pages from anon, authenticated;
+grant select on wikipedia_pages to anon, authenticated;
+grant select on mechalol_pages to anon, authenticated;
+grant select, insert, update, delete, truncate, references, trigger
+    on wikipedia_pages, mechalol_pages to service_role;
+
 -- קריאות מ-fetch_mechalol.py ו-fetch_wikipedia.py (client.rpc), כל אחת
 -- בתחילת ריצה טרייה משלה, ממש לפני המילוי מחדש - שתי פונקציות נפרדות
 -- (לא אחת משותפת) בכוונה, כדי שכישלון של אחד הסקריפטים לא יגרום לריקון
@@ -287,3 +345,23 @@ as $$
         end
     where w.id = any(ids);
 $$;
+
+-- --- ארבע הפונקציות למעלה: EXECUTE ל-service_role בלבד ---
+-- קיים בייצור, מעולם לא תועד כאן עד שהתגלה תוך כדי בניית ארכיטקטורת
+-- המראה. revoke ... from public *לבדו* אינו מספיק - pg_default_acl
+-- בפרויקט הזה מעניק EXECUTE ברירת מחדל בנפרד גם ל-anon וגם
+-- ל-authenticated, לא רק ל-PUBLIC - יש לנקוב בשמם במפורש (טעות שנפלה
+-- בסבב הראשון של מיגרציית ארכיטקטורת המראה ותוקנה מייד אחרי אימות מול
+-- pg_proc.proacl בפועל).
+revoke all on function truncate_wikipedia_pages() from public, anon, authenticated;
+grant execute on function truncate_wikipedia_pages() to service_role;
+
+revoke all on function truncate_mechalol_pages() from public, anon, authenticated;
+grant execute on function truncate_mechalol_pages() to service_role;
+
+revoke all on function recompute_missing_flag() from public, anon, authenticated;
+grant execute on function recompute_missing_flag() to service_role;
+
+revoke all on function recompute_missing_flag_scoped(bigint[]) from public, anon, authenticated;
+grant execute on function recompute_missing_flag_scoped(bigint[]) to service_role;
+
