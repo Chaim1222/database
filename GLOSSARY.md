@@ -93,6 +93,8 @@
 | `normalization_match` / `normalization_method` | ההתאמה נמצאה דרך נרמול/תבנית, לא כותרת זהה - ואיזה כלל בדיוק. |
 | `title_normalized` | הכותרת המנורמלת שנמצאה לה התאמה. |
 | `source_type` | מקור השורה: `created`/`translated`/`pirushon`/`chabadpedia`/`wikishiva`/`wikipedia_documented`/`missing_sort`/`unknown`. |
+| `template_referenced_title` (2026-09) | השם שתבנית המיון בגוף הערך מצהירה עליו, כשהשם הזה לא נמצא בפועל ב-`wikipedia_pages` - "בעיה בשם" קונקרטית, לא סתם "אין תבנית". `NULL` באין-תבנית או בהתאמה מוצלחת. |
+| `template_check_access_denied_at` (2026-09) | חותמת הזמן האחרונה שבדיקת התבנית נדחתה ע"י ה-API (לרוב דף נעול-לקריאה) ולא בוצעה בכלל. `NULL` אם השורה נבדקה בהצלחה לאחרונה - קשור ישירות לנעילת כותרות (`aspaklaryalockdown`). |
 
 ### תחזוקה ידנית (לא מתרוקנות)
 | טבלה | תפקיד |
@@ -132,9 +134,9 @@
 | View | תפקיד |
 |---|---|
 | `report_missing_from_mechalol` | דפי ויקיפדיה בלי שום התאמה במכלול (`is_missing=true`), מסונן נגד `blacklist_titles`. כולל גם `easy_import_checked`/`created_at_checked` (נוספו ל-view רק ב-2026-09 - `fetch_easy_import_candidates.py`/`fetch_wikipedia_created_at.py` שואלים ומסננים לפיהן, אבל ה-view לא כלל אותן קודם - כל הרצה נכשלה מיד). |
-| `report_possibly_deleted_source` | שורות מכלול שחשודות כ"נמחקו בוויקיפדיה" (`maybe_deleted_from_wikipedia`). |
+| `report_possibly_deleted_source` | שורות מכלול שחשודות כ"נמחקו בוויקיפדיה" (`maybe_deleted_from_wikipedia`) - כולל ערכים מילוניים/ערכים-לפתיחה (מ-2026-09; קודם היו מוסתרים משם בטעות). |
 | `report_undocumented_import` | שורות עם `status='מיובא ללא תיעוד'` (חסרות תבנית מיון תקינה). |
-| `report_tasks_to_handle` | איחוד של שני הדוחות למעלה, עם עמודת `task_type` להבחנה. |
+| `report_tasks_to_handle` | איחוד של ארבעה סוגי משימה, עם עמודת `task_type` להבחנה: חשוד-כמחיקה, סטטוס לא-ברור, שם בתבנית שלא אומת מול ויקיפדיה, ודף נעול שלא ניתן לאמת (מ-2026-09). |
 
 ---
 

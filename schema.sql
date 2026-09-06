@@ -164,7 +164,20 @@ create table if not exists mechalol_pages (
 
     -- מקור השורה: created / translated / pirushon / chabadpedia /
     -- wikishiva / wikipedia_documented / missing_sort / unknown / ...
-    source_type text not null default 'unknown'
+    source_type text not null default 'unknown',
+
+    -- השם שתבנית המיון בגוף הערך מצהירה עליו, כשהשם הזה לא נמצא בפועל
+    -- ב-wikipedia_pages (תבנית שגויה/מיושנת, או שהערך בוויקיפדיה שונה
+    -- שם/נמחק בלי שהתבנית עודכנה) - "בעיה בשם" קונקרטית, לא סתם "אין
+    -- תבנית". NULL באין-תבנית או בהתאמה מוצלחת. נוספה 2026-09 - ראו
+    -- migration_add_template_reference_problem.sql.
+    template_referenced_title text,
+
+    -- חותמת הזמן של הפעם האחרונה שבדיקת תבנית המיון נדחתה על ידי
+    -- ה-API (לרוב כי הדף נעול-לקריאה), ולכן לא בוצעה בכלל. NULL אם
+    -- השורה נבדקה בהצלחה (בכל שלב) בריצה האחרונה שנגעה בה. נוספה
+    -- 2026-09 - ראו migration_add_template_reference_problem.sql.
+    template_check_access_denied_at timestamptz
 );
 
 -- התאמות ידניות - היחידה שלא מתרוקנת בריצה השבועית. למקרים שהאוטומציה

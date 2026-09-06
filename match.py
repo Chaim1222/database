@@ -25,6 +25,7 @@ import re
 import time
 import json
 import os
+from datetime import datetime, timezone
 
 from config import (
     BATCH_SIZE,
@@ -226,7 +227,14 @@ def fetch_template_titles(titles):
 def resolve_pending_via_template(pending, wikipedia_map):
     """
     pending: [(row, title), ...]
-    מחזיר {row_id: (wikipedia_id, matched_title) or None}
+    מחזיר {row_id: result}, כאשר result אחד מ:
+    - None - לא הצלחנו לבדוק בכלל (חסימת גישה), או שאין תבנית בעמוד
+    - (wikipedia_id, template_value) - הצלחה, השם בתבנית נמצא בפועל
+    - ("unresolved", template_value) - יש תבנית עם שם מפורש, אבל השם
+      הזה *לא* נמצא ב-wikipedia_pages בכלל - "בעיה בשם": או שהתבנית
+      במכלול שגויה/מיושנת, או שהערך בוויקיפדיה שונה שם/נמחק בלי
+      שהתבנית עודכנה בהתאם. שונה מהותית מ"אין תבנית בכלל" - יש כאן
+      עדות קונקרטית לבעיה ספציפית, לא רק העדר-מידע.
     """
     resolved = {}
 
@@ -258,7 +266,7 @@ def resolve_pending_via_template(pending, wikipedia_map):
             if wikipedia_id is not None:
                 resolved[row["id"]] = (wikipedia_id, template_value)
             else:
-                resolved[row["id"]] = None
+                resolved[row["id"]] = ("unresolved", template_value)
 
         log(f"TEMPLATE API | אצווה {i // API_BATCH_SIZE_TEMPLATE_CHECK + 1} | {len(chunk)} כותרות נבדקו")
 
@@ -465,6 +473,10 @@ def main():
     template_matches = 0
     unmatched = 0
     access_denied_skipped = 0
+    # ספירה נפרדת מתוך unmatched - כמה מהן זו לא סתם "אין תבנית", אלא
+    # תבנית עם שם מפורש שנכשל באימות (בעיה קונקרטית בשם, לא רק העדר-
+    # מידע). ראו resolve_pending_via_template ו-report_tasks_to_handle.
+    template_name_problem = 0
     # נאסף רק בשביל --scoped (ראו שלב 2 למטה) - כל wikipedia_id שנגע
     # בשורת מכלול שעברה בלולאה הזו, לפני או אחרי השינוי (row המקורי +
     # updated החדש) - הקבוצה הזו היא בדיוק מה שעשוי להשפיע על
@@ -508,6 +520,10 @@ def main():
                 updated["normalization_match"] = True
                 updated["normalization_method"] = "התאמה_ידנית"
                 updated["title_normalized"] = None
+                # מנקים דגל "בעיה בשם" ישן (אם היה) - יש עכשיו התאמה
+                # ידנית מפורשת, לא רלוונטי יותר גם אם הייתה בעיה בעבר.
+                updated["template_referenced_title"] = None
+                updated["template_check_access_denied_at"] = None
 
                 updates.append(updated)
                 manual_matched += 1
@@ -534,6 +550,10 @@ def main():
                 )
                 updated["match_type"] = match_type
                 updated["maybe_deleted_from_wikipedia"] = False
+                # מנקים דגל "בעיה בשם" ישן (אם היה) - נמצאה עכשיו התאמה
+                # מדויקת/היגיינת-טקסט, גם אם בעבר לא נמצאה תבנית תקינה.
+                updated["template_referenced_title"] = None
+                updated["template_check_access_denied_at"] = None
 
                 if key != title:
                     updated["normalization_match"] = True
@@ -562,6 +582,10 @@ def main():
                     updated["normalization_method"] = "+".join(applied)
                     updated["title_normalized"] = candidate
                     updated["maybe_deleted_from_wikipedia"] = False
+                    # מנקים דגל "בעיה בשם" ישן (אם היה) - נמצאה עכשיו
+                    # התאמה דרך נרמול.
+                    updated["template_referenced_title"] = None
+                    updated["template_check_access_denied_at"] = None
 
                     updates.append(updated)
                     normalization_matches += 1
@@ -581,15 +605,23 @@ def main():
 
             for row, title in pending:
                 if row["id"] not in resolved:
-                    # לא הוכרע בריצה הזו (למשל דף נעול-לקריאה) - לא
-                    # רושמים שום מסקנה, לא מעדכנים את השורה כלל.
+                    # לא הוכרע בריצה הזו (למשל דף נעול-לקריאה) - שונה
+                    # מ"שם בתבנית לא אומת" (שם ל-content יש גישה, רק
+                    # השם עצמו שגוי): כאן אין גישה בכלל ל-content, אז
+                    # אין שום עדות על תוכן התבנית. מעדכנים רק את חותמת
+                    # הזמן הזו (לא שאר השורה) - מאפשר לדעת "כמה זמן
+                    # הדף הזה כבר לא ניתן לבדיקה", בלי לגעת בשום מסקנה
+                    # אחרת על השורה.
+                    updated = dict(row)
+                    updated["template_check_access_denied_at"] = datetime.now(timezone.utc).isoformat()
+                    updates.append(updated)
                     access_denied_skipped += 1
                     continue
 
                 result = resolved[row["id"]]
                 updated = dict(row)
 
-                if result:
+                if result and result[0] != "unresolved":
                     wikipedia_id, template_value = result
                     updated["wikipedia_id"] = wikipedia_id
                     updated["match_type"] = get_match_type(row)
@@ -597,6 +629,10 @@ def main():
                     updated["normalization_method"] = "תבנית_מיון"
                     updated["title_normalized"] = template_value
                     updated["maybe_deleted_from_wikipedia"] = False
+                    # מנקים דגל "בעיה בשם" ישן (אם היה) - התבנית כן
+                    # אומתה בהצלחה הפעם.
+                    updated["template_referenced_title"] = None
+                    updated["template_check_access_denied_at"] = None
 
                     # תבנית מיון תקינה שאומתה בפועל מול ה-API היא הוכחה
                     # ישירה לייבוא מתועד - לא ניחוש לפי חברות בקטגוריה.
@@ -625,6 +661,22 @@ def main():
                     updated["normalization_match"] = False
                     updated["normalization_method"] = None
                     updated["title_normalized"] = None
+
+                    # result[0]=="unresolved" - יש תבנית עם שם מפורש, אבל
+                    # השם הזה לא נמצא ב-wikipedia_pages - "בעיה בשם" ממש
+                    # (תבנית שגויה/מיושנת במכלול, או שהערך בוויקיפדיה
+                    # שונה שם/נמחק). שונה מ"אין תבנית בכלל" (result is
+                    # None) - שם template_referenced_title נשאר None.
+                    # ראו report_tasks_to_handle - זו בדיוק העדות שצריך
+                    # כדי להבחין בין השניים בדוח.
+                    updated["template_referenced_title"] = result[1] if result else None
+                    if result:
+                        template_name_problem += 1
+                    # השורה הגיעה לכאן דרך resolved (לא access_denied_
+                    # skipped, שנטפל בנפרד למעלה) - כלומר בפועל כן הייתה
+                    # גישה לתוכן הפעם, גם אם לא נמצאה בו התאמה. מנקים
+                    # דגל "חסום-גישה" ישן, לא רלוונטי יותר.
+                    updated["template_check_access_denied_at"] = None
 
                     # לא נמצאה התאמה בשום שלב. אם המקור ודאי-ויקיפדי או
                     # לא-ידוע (לא נוצר במכלול/חב"דפדיה/ויקישיבה, ולא ידוע
@@ -658,6 +710,7 @@ def main():
             f"הותאמו={matched_total:,} | ידני={manual_matched:,} | "
             f"מדויק={exact_matches:,} | נרמול={normalization_matches:,} | "
             f"תבנית={template_matches:,} | ללא_התאמה={unmatched:,} | "
+            f"בעיית_שם_בתבנית={template_name_problem:,} | "
             f"נדחה_ללא_הכרעה={access_denied_skipped:,} | "
             f"ידני_לא_נמצא={manual_unresolved:,}"
         )
@@ -715,6 +768,7 @@ def main():
         f"סיום | נבדקו={total:,} | הותאמו={matched_total:,} | ידני={manual_matched:,} | "
         f"מדויק={exact_matches:,} | נרמול={normalization_matches:,} | "
         f"תבנית={template_matches:,} | ללא_התאמה={unmatched:,} | "
+        f"בעיית_שם_בתבנית={template_name_problem:,} | "
         f"נדחה_ללא_הכרעה={access_denied_skipped:,} | ידני_לא_נמצא={manual_unresolved:,}"
         + (f" | נדחה_ללא_בדיקת_תבנית={template_check_deferred:,}" if args.skip_template_check else "")
     )
