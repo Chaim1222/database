@@ -86,9 +86,9 @@ def main():
     log("START | validate_before_swap.py")
 
     wikipedia_active = count_rows(client, "wikipedia_pages")
-    wikipedia_new = count_rows(client, "wikipedia_pages_shadow")
+    wikipedia_new = count_rows(client, "wikipedia_pages_temp")
     mechalol_active = count_rows(client, "mechalol_pages")
-    mechalol_new = count_rows(client, "mechalol_pages_shadow")
+    mechalol_new = count_rows(client, "mechalol_pages_temp")
 
     log(
         f"ספירה | wikipedia_pages: פעיל={wikipedia_active:,} מראה={wikipedia_new:,} | "

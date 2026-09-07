@@ -517,9 +517,6 @@ def main():
                 updated["wikipedia_id"] = wikipedia_page_id
                 updated["match_type"] = get_match_type(row)
                 updated["maybe_deleted_from_wikipedia"] = False
-                updated["normalization_match"] = True
-                updated["normalization_method"] = "התאמה_ידנית"
-                updated["title_normalized"] = None
                 # מנקים דגל "בעיה בשם" ישן (אם היה) - יש עכשיו התאמה
                 # ידנית מפורשת, לא רלוונטי יותר גם אם הייתה בעיה בעבר.
                 updated["template_referenced_title"] = None
@@ -555,11 +552,6 @@ def main():
                 updated["template_referenced_title"] = None
                 updated["template_check_access_denied_at"] = None
 
-                if key != title:
-                    updated["normalization_match"] = True
-                    updated["normalization_method"] = "היגיינת_טקסט"
-                    updated["title_normalized"] = key
-
                 updates.append(updated)
                 exact_matches += 1
                 continue
@@ -578,9 +570,6 @@ def main():
                         candidate_id if match_type != MATCH_TYPE_SAME_TITLE_UNRELATED else None
                     )
                     updated["match_type"] = match_type
-                    updated["normalization_match"] = True
-                    updated["normalization_method"] = "+".join(applied)
-                    updated["title_normalized"] = candidate
                     updated["maybe_deleted_from_wikipedia"] = False
                     # מנקים דגל "בעיה בשם" ישן (אם היה) - נמצאה עכשיו
                     # התאמה דרך נרמול.
@@ -625,9 +614,6 @@ def main():
                     wikipedia_id, template_value = result
                     updated["wikipedia_id"] = wikipedia_id
                     updated["match_type"] = get_match_type(row)
-                    updated["normalization_match"] = True
-                    updated["normalization_method"] = "תבנית_מיון"
-                    updated["title_normalized"] = template_value
                     updated["maybe_deleted_from_wikipedia"] = False
                     # מנקים דגל "בעיה בשם" ישן (אם היה) - התבנית כן
                     # אומתה בהצלחה הפעם.
@@ -658,9 +644,6 @@ def main():
                     # רק ריצות --scoped (שלא עוברות TRUNCATE בין ריצות)
                     # חושפות את זה.
                     updated["wikipedia_id"] = None
-                    updated["normalization_match"] = False
-                    updated["normalization_method"] = None
-                    updated["title_normalized"] = None
 
                     # result[0]=="unresolved" - יש תבנית עם שם מפורש, אבל
                     # השם הזה לא נמצא ב-wikipedia_pages - "בעיה בשם" ממש
@@ -747,10 +730,10 @@ def main():
         else:
             log("שלב 2 | דולג - אף שורה לא נגעה ב-wikipedia_id כלשהו (--scoped)")
     else:
-        # rpc_name ממפה ל-recompute_missing_flag_shadow בסבב מראה (ראו
+        # rpc_name ממפה ל-recompute_missing_flag_temp בסבב זמני (ראו
         # שלב 3.5 בתכנון) - קריטי: הפונקציה הרגילה מקובעת בשם הטבלה
         # הפעילה, ובלעדי המיפוי הזה is_missing היה מחושב על הטבלה
-        # הלא-נכונה כשרצים על המראה. בריצה הרגילה (--scoped או מלאה,
+        # הלא-נכונה כשרצים על הזמנית. בריצה הרגילה (--scoped או מלאה,
         # בלי TARGET_TABLE_SUFFIX) מוחזר השם המקורי ללא שינוי.
         execute_with_retry(
             lambda: client.rpc(rpc_name("recompute_missing_flag")).execute(),

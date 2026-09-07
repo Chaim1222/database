@@ -207,12 +207,14 @@ def resolve_title_collisions(client, batch):
 
 
 def _is_title_collision(exc):
-    # שם האילוץ תלוי-סיומת: אומת ישירות מול המסד ש-LIKE...INCLUDING ALL
-    # *לא* שומר את השם המקורי (wikipedia_pages_title_key) על טבלת
-    # המראה - פוסטגרס בונה שם חדש לפי שם הטבלה החדשה
-    # (wikipedia_pages_shadow_title_key). בלי table_name() כאן, זיהוי
-    # ההתנגשות היה נשבר בשקט בסבב מראה - כל שגיאת 23505 הייתה נופלת
-    # לניסיון-חוזר גנרי במקום לטיפול הייעודי (resolve_title_collisions).
+    # שם האילוץ תלוי-מצב: table_name() בונה את שם הטבלה הנוכחי
+    # (wikipedia_pages או wikipedia_pages_temp, לפי TARGET_TABLE_SUFFIX),
+    # ו-perform_atomic_swap שומר על כך שהאילוץ ייקרא בהתאם לשם הטבלה
+    # בפועל בכל swap (ראו migration_finalize_temp_pages_naming.sql).
+    # בלי table_name() כאן וישירות "wikipedia_pages_title_key" קבוע,
+    # זיהוי ההתנגשות היה נשבר בשקט בסבב זמני - כל שגיאת 23505 הייתה
+    # נופלת לניסיון-חוזר גנרי במקום לטיפול הייעודי (resolve_title_
+    # collisions).
     return getattr(exc, "code", None) == "23505" and f"{table_name('wikipedia_pages')}_title_key" in str(exc)
 
 
@@ -277,11 +279,12 @@ def main():
     try:
         for batch in fetch_all_titles(apcontinue):
             if batch and not truncated:
-                # בסבב מראה (TARGET_TABLE_SUFFIX=_shadow), rpc_name ממפה
-                # לפונקציה promote_previous_to_shadow_and_truncate - זו
-                # גם "מקדמת" את העותק _previous מהסבב הקודם (חלון
-                # rollback) וגם מרוקנת אותו, בפעולה אחת. בריצה הרגילה
-                # (בלי סיומת) מוחזר השם המקורי ללא שינוי בהתנהגות.
+                # בסבב זמני (TARGET_TABLE_SUFFIX=_temp), rpc_name ממפה
+                # לפונקציה truncate_temp_pages - מרוקנת את שתי הטבלאות
+                # הזמניות יחד, כרשת ביטחון (הן כבר אמורות להיות ריקות
+                # מסוף הסבב הקודם, אחרי truncate_temp_pages.py בסיום
+                # אותו סבב). בריצה הרגילה (בלי סיומת) מוחזר השם המקורי
+                # ללא שינוי בהתנהגות.
                 print(f"ריקון | מרוקן {table_name('wikipedia_pages')}...")
                 client.rpc(rpc_name("truncate_wikipedia_pages")).execute()
                 truncated = True

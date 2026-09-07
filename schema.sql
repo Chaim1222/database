@@ -13,15 +13,16 @@
 -- manual_matches ו-blacklist_titles הן היחידות שלא מתרוקנות - תחזוקה
 -- ידנית, למקרים שהאוטומציה לא פותרת לבד.
 --
--- ארכיטקטורת המראה עם החלפה אטומית (2026-09, ראו migration_add_mirror_
+-- ארכיטקטורת ההחלפה האטומית (2026-09, ראו migration_add_mirror_
 -- tables.sql / migration_add_forward_fill_function.sql / migration_add_
--- swap_function.sql) *אינה* כלולה בקובץ הזה בכוונה - schema.sql נשאר
--- "התקנה חד-פעמית על טבלאות חדשות/ריקות" כפי שהיה תמיד; טבלאות המראה
--- (wikipedia_pages_shadow/mechalol_pages_shadow) והפונקציות הנלוות
--- (perform_atomic_swap, revert_atomic_swap, promote_previous_to_shadow_
--- and_truncate, recompute_missing_flag_shadow, forward_fill_enrichment_
--- shadow) הן שכבה נוספת מעל הסכימה הזו, לא חלק ממנה - להרצה בנפרד,
--- אחרי schema.sql/views.sql, על מסד שכבר עובד.
+-- swap_function.sql / migration_finalize_temp_pages_naming.sql - האחרון
+-- שינה שם מ"shadow"/"previous" ל"temp" בכל השכבה) *אינה* כלולה בקובץ
+-- הזה בכוונה - schema.sql נשאר "התקנה חד-פעמית על טבלאות חדשות/ריקות"
+-- כפי שהיה תמיד; הטבלאות הזמניות (wikipedia_pages_temp/mechalol_pages_
+-- temp) והפונקציות הנלוות (perform_atomic_swap, truncate_temp_pages,
+-- recompute_missing_flag_temp, forward_fill_enrichment_temp) הן שכבה
+-- נוספת מעל הסכימה הזו, לא חלק ממנה - להרצה בנפרד, אחרי schema.sql/
+-- views.sql, על מסד שכבר עובד.
 
 create table if not exists wikipedia_pages (
     id bigint primary key,  -- page_id בוויקיפדיה
@@ -127,9 +128,6 @@ create table if not exists mechalol_pages (
         )
     ),
 
-    -- רק כאשר status = מיובא ומתועד, בפורמט YYYY-MM (נגזר מקטגוריית "עודכן לאחרונה ב-X")
-    last_update_month text,
-
     -- מפתח זר לטבלת ויקיפדיה - id שם הוא בעצמו page_id בוויקיפדיה,
     -- אז השדה הזה הוא בפועל page_id של הדף המתאים בוויקיפדיה
     wikipedia_id bigint references wikipedia_pages(id),
@@ -151,16 +149,6 @@ create table if not exists mechalol_pages (
     -- מועמד ל-manual_matches אם זה חוזר על עצמו שבוע-שבוע). לא מסומן
     -- על שורות שמקורן ודאי לא-ויקיפדי (נוצר במכלול/חב"דפדיה/ויקישיבה/פוצל).
     maybe_deleted_from_wikipedia boolean not null default false,
-
-    -- ההתאמה נמצאה דרך נרמול/תבנית מיון/manual_matches, לא כותרת זהה במדויק
-    normalization_match boolean not null default false,
-
-    -- שם הכלל/כללים שהובילו להתאמה (למשל 'כתיב_אלוהים+קרבן_לקורבן',
-    -- 'תבנית_מיון', 'התאמה_ידנית')
-    normalization_method text,
-
-    -- הכותרת המנורמלת שנמצאה עבורה התאמה בוויקיפדיה
-    title_normalized text,
 
     -- מקור השורה: created / translated / pirushon / chabadpedia /
     -- wikishiva / wikipedia_documented / missing_sort / unknown / ...

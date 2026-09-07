@@ -66,7 +66,7 @@ from config import (
     STATUS_SPLIT_FROM_WIKIPEDIA,
 )
 from supabase_client import get_client, execute_with_retry
-from table_names import table_name, is_shadow_mode, current_suffix
+from table_names import table_name, is_temp_mode, current_suffix
 
 
 PROGRESS_FILE = "mechalol_progress.json"
@@ -439,15 +439,9 @@ def classify_page_from_own_categories(title, own_categories):
     else:
         status, source_type = STATUS_IMPORTED_UNDOCUMENTED, "unknown"
 
-    last_update_month = (
-        None if (own_categories & _CREATED_SOURCE_CATEGORIES) or CATEGORY_MISSING_SORT_TEMPLATE in own_categories
-        else (parse_month_from_category(last_update_cat) if last_update_cat else None)
-    )
-
     return {
         "status": status,
         "source_type": source_type,
-        "last_update_month": last_update_month,
         "needs_attention": CATEGORY_PAGES_TO_OPEN in own_categories,
         "is_dictionary_entry": CATEGORY_DICTIONARY_ENTRIES in own_categories,
     }
@@ -490,14 +484,6 @@ def fetch_classification_data():
         f"פוצלו_מוויקיפדיה={len(categories['split_from_wikipedia']):,}"
     )
 
-    # מקור מכלולי-פנימי/חיצוני-לא-ויקיפדי, או ויקיפדי-היסטורי-בלבד,
-    # לעניין last_update_month (אין להם קטגוריית עדכון חודשי רלוונטית)
-    categories["created_sources"] = (
-        categories["created"] | categories["translated"] | categories["pirushonim"]
-        | categories["chabadpedia"] | categories["wikishiva"]
-        | categories["deleted_on_wikipedia_kept"] | categories["split_from_wikipedia"]
-    )
-
     last_update_map = get_last_update_map()
 
     return categories, last_update_map
@@ -533,15 +519,9 @@ def classify_page(title, categories, last_update_map):
     else:
         status, source_type = STATUS_IMPORTED_UNDOCUMENTED, "unknown"
 
-    last_update_month = (
-        None if title in categories["created_sources"] or title in categories["missing_sort"]
-        else last_update_map.get(title)
-    )
-
     return {
         "status": status,
         "source_type": source_type,
-        "last_update_month": last_update_month,
         "needs_attention": title in categories["pages_to_open"],
         "is_dictionary_entry": title in categories["dictionary_entries"],
     }
@@ -624,9 +604,10 @@ def resolve_title_collisions(client, rows):
 
 
 def _is_title_collision(exc):
-    # אותו טעם בדיוק כמו ב-fetch_wikipedia.py - אומת ישירות מול המסד
-    # ש-LIKE...INCLUDING ALL בונה שם אילוץ חדש לפי שם הטבלה החדשה
-    # (mechalol_pages_shadow_title_key), לא שומר את השם המקורי.
+    # אותו טעם בדיוק כמו ב-fetch_wikipedia.py - שם האילוץ תלוי-מצב
+    # (table_name()), ו-perform_atomic_swap שומר על כך שהוא ייקרא
+    # בהתאם לשם הטבלה בפועל בכל swap (ראו
+    # migration_finalize_temp_pages_naming.sql).
     return getattr(exc, "code", None) == "23505" and f"{table_name('mechalol_pages')}_title_key" in str(exc)
 
 
@@ -703,15 +684,16 @@ def main():
                 continue
 
             if not truncated:
-                if is_shadow_mode():
-                    # בסבב מראה אין קריאת ריקון נפרדת כאן בכלל - הריקון
-                    # (וגם קידום העותק _previous מהסבב הקודם) כבר בוצע
-                    # פעם אחת, מרוכז, בתחילת fetch_wikipedia.py דרך
-                    # promote_previous_to_shadow_and_truncate() (ראו שלב 2
-                    # ו-6 בתכנון). זה גם מסיר את תלות-הסדר בין שני
-                    # הסקריפטים על טבלאות המראה - הן לא מקושרות במפתח זר
-                    # אחת לשנייה חוץ מבינן לבין עצמן.
-                    log("ריקון | דולג - סבב מראה: הריקון בוצע כבר בתחילת fetch_wikipedia.py")
+                if is_temp_mode():
+                    # בסבב זמני אין קריאת ריקון נפרדת כאן בכלל - הריקון
+                    # של שתי הטבלאות הזמניות כבר בוצע פעם אחת, מרוכז,
+                    # בתחילת fetch_wikipedia.py דרך truncate_temp_pages()
+                    # (רשת ביטחון - הן כבר אמורות היו להיות ריקות מסוף
+                    # הסבב הקודם, אחרי log_reconciliation_diff). זה גם
+                    # מסיר את תלות-הסדר בין שני הסקריפטים על הטבלאות
+                    # הזמניות - הן לא מקושרות במפתח זר אחת לשנייה חוץ
+                    # מבינן לבין עצמן.
+                    log("ריקון | דולג - סבב זמני: הריקון בוצע כבר בתחילת fetch_wikipedia.py")
                 else:
                     log("ריקון | מרוקן mechalol_pages...")
                     client.rpc("truncate_mechalol_pages").execute()
@@ -759,9 +741,9 @@ def main():
     clear_progress()
 
     # ANALYZE על שתי הטבלאות (לא רק mechalol) - תיקון נדרש אחרי תקלה
-    # אמיתית (2026-09): טבלת מראה טרייה-אחרי-מילוי-מלא בלי סטטיסטיקות
+    # אמיתית (2026-09): טבלה זמנית טרייה-אחרי-מילוי-מלא בלי סטטיסטיקות
     # עדכניות (autovacuum עוד לא הספיק להגיע אליה) גרמה לתוכנית שאילתה
-    # גרועה (nested loop) ב-forward_fill_enrichment_shadow() בהמשך -
+    # גרועה (nested loop) ב-forward_fill_enrichment_temp() בהמשך -
     # נתקע 10+ דקות במקום שניות. כאן, אחרי ששתי הטבלאות מלאות (זה
     # הסקריפט השני שרץ), הזמן הנכון לרענן סטטיסטיקות - גם match.py
     # שרץ אחרי זה נהנה מזה, לא רק ההעשרה בהמשך. לא עוטפים ב-try/except -

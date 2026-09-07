@@ -31,15 +31,15 @@
 | `check_missing_redirects.py` | בודק אם יש הפניה (redirect) במכלול תחת אותה כותרת. |
 | `problematic_words.py` | ~200 תבניות regex לזיהוי ניסוח בעייתי בטקסט ערך, לשימוש ב-`fetch_easy_import_candidates.py`. |
 
-### ארכיטקטורת המראה (2026-09)
+### ארכיטקטורת ההחלפה האטומית (2026-09, שינוי מינוח shadow/previous→temp)
 | קובץ | תפקיד |
 |---|---|
-| `table_names.py` | המודול המרכזי שמתרגם שם טבלה/RPC בסיסי לשם בפועל, לפי `TARGET_TABLE_SUFFIX` (`table_name`, `rpc_name`, `is_shadow_mode`, `current_suffix`). כל שינוי עתידי בשם טבלה עובר דרכו. |
-| `forward_fill_enrichment.py` | קורא ל-RPC שמעתיק עמודות העשרה מהטבלה הפעילה ל-shadow (כדי לא לאבד מידע שכבר נבדק). |
-| `validate_before_swap.py` | "שער האימות" - משווה מספר שורות פעיל מול shadow, מחליט אם בטוח להחליף. |
-| `swap_shadow_to_active.py` | מבצע את ההחלפה עצמה (קורא ל-RPC `perform_atomic_swap`), עם ניסיון-חוזר על נעילות זמניות. |
-| `revert_to_previous.py` | רולבק חירום ידני (קורא ל-`revert_atomic_swap`) - לשימוש בתוך חלון ה-rollback בלבד. |
-| `log_reconciliation_diff.py` | תיעוד מדיד: אחרי ההחלפה, משווה את הפעילה מול `_previous` ומוציא כל `id` שהדלתא כבר ידעה עליו - מה שנשאר הוא "מה שהעדכון היומי לא היה יכול לתפוס". שורה חדשה ב-`reconciliation_audit` בכל ריצה. |
+| `table_names.py` | המודול המרכזי שמתרגם שם טבלה/RPC בסיסי לשם בפועל, לפי `TARGET_TABLE_SUFFIX` (`table_name`, `rpc_name`, `is_temp_mode`, `current_suffix`). כל שינוי עתידי בשם טבלה עובר דרכו. |
+| `forward_fill_enrichment.py` | קורא ל-RPC שמעתיק עמודות העשרה מהטבלה הפעילה לזמנית (כדי לא לאבד מידע שכבר נבדק). |
+| `validate_before_swap.py` | "שער האימות" - משווה מספר שורות פעיל מול זמנית, מחליט אם בטוח להחליף. |
+| `swap_temp_to_active.py` | מבצע את ההחלפה עצמה (קורא ל-RPC `perform_atomic_swap`), עם ניסיון-חוזר על נעילות זמניות. |
+| `log_reconciliation_diff.py` | תיעוד מדיד: מיד אחרי ההחלפה (לפני שהטבלה הזמנית מתרוקנת), משווה את הפעילה מולה ומוציא כל `id` שהדלתא כבר ידעה עליו - מה שנשאר הוא "מה שהעדכון היומי לא היה יכול לתפוס". שורה חדשה ב-`reconciliation_audit` בכל ריצה. |
+| `truncate_temp_pages.py` | שלב אחרון בסבב - מריק את הטבלה הזמנית, אחרי שהלוג כבר ניצל אותה. אין יותר חלון rollback (הוסר בכוונה, ראו README.md) - אין עוד שימוש ל-`revert_to_previous.py`/`revert_atomic_swap` שהוסרו. |
 
 ### תשתית משותפת
 | קובץ | תפקיד |
@@ -121,11 +121,10 @@
 | `reconciliation_audit` | שורה אחת לכל ריצה דו-שבועית שהחליפה בפועל - כמה שורות הושוו, וכמה מהן קיבלו **קישור** שונה (`match_type`/`wikipedia_id`/`is_missing`) למרות שהדלתא לא ידעה עליהן בכלל. בכוונה לא כולל עמודות תוכן (`needs_attention` וכו') - אלה משתנות כל הזמן מעריכה רגילה, לא קשור לפספוס. המטרה: לצבור עדות לאורך זמן אם עדיין יש טעם בריצה המלאה. |
 | `reconciliation_audit_details` | פירוט ברמת שורה לכל "פער לא-מתועד" שנמצא - `page_id`, איזה עמודות השתנו. |
 
-### ארכיטקטורת המראה (2026-09)
+### ארכיטקטורת ההחלפה האטומית (2026-09)
 | טבלה | תפקיד |
 |---|---|
-| `wikipedia_pages_shadow` / `mechalol_pages_shadow` | עותק "מאחורי הקלעים" - כאן קורים הריקון/מילוי/התאמה של הריצה הדו-שבועית, בלי לפגוע בטבלה הפעילה. |
-| `wikipedia_pages_previous` / `mechalol_pages_previous` | הטבלה הפעילה **הקודמת**, לאחר ההחלפה - נשמרת כחלון rollback עד הסבב הבא. |
+| `wikipedia_pages_temp` / `mechalol_pages_temp` | טבלה זמנית קבועה אחת (לא נבנית מחדש בכל סבב) עם שני תפקידים לפי שלב: (1) בזמן הריצה - כאן קורים הריקון/מילוי/התאמה של הריצה השבועית, בלי לפגוע בטבלה הפעילה; (2) מיד אחרי ה-swap ועד לריקון בסוף הסבב - מחזיקה את מה שהיה פעיל רגע לפני כן, ל-`log_reconciliation_diff.py`. |
 
 ---
 
@@ -149,52 +148,55 @@
 | `truncate_mechalol_pages()` | מרוקנת את `mechalol_pages` בלבד (בלי CASCADE - אין ממה). |
 | `recompute_missing_flag()` | מחשבת מחדש `is_missing`/`missing_override_reason` על **כל** `wikipedia_pages` - נקראת בסוף ריצת `match.py` מלאה. |
 | `recompute_missing_flag_scoped(ids)` | אותו חישוב, מוגבל ל-`ids` נתונים - לשימוש ב-`match.py --scoped` (הדלתא הלילית), כדי לא לסרוק את כל הטבלה כל לילה. |
-| `recompute_missing_flag_shadow()` | גרסת-מראה של `recompute_missing_flag()`, רצה על `wikipedia_pages_shadow`/`mechalol_pages_shadow`. |
-| `promote_previous_to_shadow_and_truncate()` | בתחילת כל סבב מראה: מקדמת את `_previous` (מהסבב הקודם) לתפקיד shadow, ואז מרוקנת. שקולה ל"ריקון" בזרימה הישנה. |
-| `forward_fill_enrichment_shadow()` | מעתיקה עמודות העשרה (`wikidata_desc`, `created_at`, `easy_import_*` וכו') מהפעילה ל-shadow, לפי `id`. |
-| `perform_atomic_swap()` | **ההחלפה עצמה**: שינוי שמות אטומי בין shadow לפעילה + בנייה מחדש של ה-views שתלויים בהן. |
-| `revert_atomic_swap()` | רולבק חירום - אותו רעיון הפוך (`_previous` חוזרת לפעילה). |
-| `log_reconciliation_diff()` | משווה פעילה מול `_previous` (בניכוי מה שהדלתא כבר ידעה), כותבת שורה ל-`reconciliation_audit`. |
-| `analyze_pages_tables(table_suffix)` | מרעננת סטטיסטיקות תכנון (`ANALYZE`) על שתי הטבלאות - פעילות או מראה, לפי הסיומת. נוספה אחרי תקלה אמיתית: טבלת מראה טרייה בלי סטטיסטיקות גרמה לתוכנית שאילתה גרועה (דקות במקום שניות) ב-`forward_fill_enrichment_shadow()`. נקראת מ-`fetch_mechalol.py` בסוף המילוי. |
+| `recompute_missing_flag_temp()` | גרסה-זמנית של `recompute_missing_flag()`, רצה על `wikipedia_pages_temp`/`mechalol_pages_temp`. |
+| `truncate_temp_pages()` | מריקה את שתי הטבלאות הזמניות יחד. נקראת פעמיים בכל סבב: בתחילתו (רשת ביטחון, דרך `truncate_wikipedia_pages` הממופה) ובסופו, אחרי שהלוג רץ (`truncate_temp_pages.py`). מחליפה את `promote_previous_to_shadow_and_truncate()` הישנה - אין יותר "קידום" בכלל, הטבלאות הזמניות קבועות. |
+| `forward_fill_enrichment_temp()` | מעתיקה עמודות העשרה (`wikidata_desc`, `created_at`, `easy_import_*` וכו') מהפעילה לזמנית, לפי `id`. |
+| `perform_atomic_swap()` | **ההחלפה עצמה**: שלוש החלפות שם אטומיות לכל טבלה (לא שתיים - הפעילה הקודמת חוזרת מיד להיות "_temp" הקבועה, אין יותר "_previous" נפרד), שינוי שם אוטומטי לכל אינדקס/אילוץ בשתי הטבלאות (כך שהשם תמיד ישקף את התפקיד הנוכחי - לא נשאר שריד מדור swap קודם), ובנייה מחדש של ה-views שתלויים בהן. `revert_atomic_swap()` הוסרה - אין יותר חלון rollback. |
+| `log_reconciliation_diff()` | משווה פעילה מול הטבלה הזמנית (מיד אחרי swap, לפני שהיא מתרוקנת) - בניכוי מה שהדלתא כבר ידעה, כותבת שורה ל-`reconciliation_audit`. |
+| `analyze_pages_tables(table_suffix)` | מרעננת סטטיסטיקות תכנון (`ANALYZE`) על שתי הטבלאות - פעילות או זמניות, לפי הסיומת (`''`/`'_temp'`). נוספה אחרי תקלה אמיתית: טבלה זמנית טרייה בלי סטטיסטיקות גרמה לתוכנית שאילתה גרועה (דקות במקום שניות) ב-`forward_fill_enrichment_temp()`. נקראת מ-`fetch_mechalol.py` בסוף המילוי. |
 
 ---
 
-## 6. ארכיטקטורת המראה - סדר הזרימה המלא
+## 6. ארכיטקטורת ההחלפה האטומית - סדר הזרימה המלא
 
 ```
-fetch_wikipedia.py (TARGET_TABLE_SUFFIX=_shadow)
-   -> promote_previous_to_shadow_and_truncate()   # מקדם+מרוקן shadow
-   -> ממלא wikipedia_pages_shadow מחדש
+fetch_wikipedia.py (TARGET_TABLE_SUFFIX=_temp)
+   -> truncate_temp_pages()   # רשת ביטחון - מרוקן את שתי הזמניות (כבר אמורות היו ריקות)
+   -> ממלא wikipedia_pages_temp מחדש
         |
         v
 fetch_mechalol.py (אותה סיומת)
    -> מדלג על ריקון (כבר קרה למעלה)
-   -> ממלא mechalol_pages_shadow מחדש
+   -> ממלא mechalol_pages_temp מחדש
         |
         v
 match.py (אותה סיומת)
-   -> מתאים כותרות על שתי טבלאות ה-shadow
-   -> recompute_missing_flag_shadow()
+   -> מתאים כותרות על שתי הטבלאות הזמניות
+   -> recompute_missing_flag_temp()
         |
         v
 forward_fill_enrichment.py
-   -> מעתיק עמודות העשרה מהפעילה ל-shadow (forward_fill_enrichment_shadow)
+   -> מעתיק עמודות העשרה מהפעילה לזמנית (forward_fill_enrichment_temp)
         |
         v
-validate_before_swap.py           # שער אימות: ספירת שורות פעיל מול shadow
+validate_before_swap.py           # שער אימות: ספירת שורות פעיל מול זמנית
    -> should_swap=true/false (ל-GITHUB_OUTPUT)
         |
         v  (רק אם should_swap=true)
-swap_shadow_to_active.py
+swap_temp_to_active.py
    -> perform_atomic_swap()       # ההחלפה עצמה, שניות בודדות
         |
         v  (רק אם should_swap=true)
 log_reconciliation_diff.py
-   -> log_reconciliation_diff()   # תיעוד מדיד: פעילה מול _previous, בניכוי מה שהדלתא כבר ידעה
+   -> log_reconciliation_diff()   # תיעוד מדיד: פעילה מול הטבלה הזמנית, בניכוי מה שהדלתא כבר ידעה
+        |
+        v  (רק אם should_swap=true)
+truncate_temp_pages.py
+   -> truncate_temp_pages()       # מריק את הטבלה הזמנית - אין חלון rollback
 ```
 
-`TARGET_TABLE_SUFFIX` (משתנה סביבה, `_shadow` או ריק) הוא המתג היחיד שקובע אם סקריפט
-עובד על הטבלאות הפעילות או על ה-shadow - מתורגם בפועל דרך `table_names.py`.
+`TARGET_TABLE_SUFFIX` (משתנה סביבה, `_temp` או ריק) הוא המתג היחיד שקובע אם סקריפט
+עובד על הטבלאות הפעילות או על הזמניות - מתורגם בפועל דרך `table_names.py`.
 
 ---
 
@@ -203,7 +205,7 @@ log_reconciliation_diff.py
 | מונח | פירוש |
 |---|---|
 | `page_id` | המזהה הקבוע של דף באתר המקור (ויקיפדיה/מכלול) - לא נוצר על ידינו, זה מה שממלא את `id` בטבלאות שלנו. יציב גם אם שם הדף משתנה. |
-| `TARGET_TABLE_SUFFIX` | משתנה סביבה (`_shadow`/ריק) - קובע אם `fetch_wikipedia.py`/`fetch_mechalol.py`/`match.py` עובדים על הטבלאות הפעילות או על ה-shadow. |
+| `TARGET_TABLE_SUFFIX` | משתנה סביבה (`_temp`/ריק) - קובע אם `fetch_wikipedia.py`/`fetch_mechalol.py`/`match.py` עובדים על הטבלאות הפעילות או על הזמניות. |
 | `--scoped` (דגל ב-`match.py`) | מריץ התאמה רק על שורות שהושפעו מהדלתא האחרונה (לא כל הטבלה) - לשימוש ב-`nightly_delta.yml` בלבד, לא בפיוס המלא. |
 | `watermark` (ב-`sync_watermarks`) | "עד איפה כבר בדקנו" - חותמת הזמן האחרונה שממנה ממשיכה שאילתת הדלתא הבאה. |
 | `service_role` מול `anon` | תפקידי הרשאה בסופרבייס: `service_role` = מפתח שרת (גישה מלאה, עוקף RLS) - בשימוש בסקריפטים. `anon` = ציבור/גאדג'ט (SELECT בלבד). |
