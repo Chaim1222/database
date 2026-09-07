@@ -12,6 +12,14 @@ params של אירוע move (target_title/target_ns כאן למטה) *לא* או
 בבדיקה החיה - הם לפי תיעוד ה-API הרשמי הסטנדרטי של מדיה-ויקי, ולא
 נבדקו ישירות מול המכלול. מומלץ לאמת מדגם אמיתי (הרצת fetch_move_log
 עם start_ts קרוב ולוג הדפסה גולמי) לפני ריצת ייצור ראשונה.
+
+תיקון (2026-09): אומת בפועל מול ריצת ייצור אמיתית (ראו postmortem
+שינויי-שם) - שדה pageid של אירוע logevents מסוג move *אינו* מזהה הדף
+שהועבר. הוא מזהה הדף שיושב כרגע בכותרת הישנה - כלומר ההפניה החדשה
+שנוצרת שם עם ההעברה (ומכאן בדיוק דפוס "pageid=0 כשלא נשאר דבר בכותרת
+הישנה" שתועד למעלה - זו בדיוק ההתנהגות של הפניה, לא של הדף שהועבר).
+מזהה הדף שהועבר עצמו יציב ולא משתנה בהעברה - ונפתר עכשיו בנפרד, לפי
+הכותרת החדשה (target_title), ב-resolve_page_ids_by_title. ראו שם.
 """
 
 import time
@@ -125,6 +133,85 @@ def fetch_redirect_status(api_url, titles):
             if page.get("missing"):
                 continue
             result[page["title"]] = bool(page.get("redirect"))
+
+    return result
+
+
+def resolve_page_ids_by_title(api_url, titles):
+    """
+    prop=info&titles=... (POST, אותו טעם בדיוק כמו fetch_redirect_status -
+    כותרות עבריות מקודדות עלולות לחצות מגבלת אורך URL ב-GET).
+
+    משמשת ב-fetch_move_log לפתרון מזהה-הדף האמיתי והיציב של הצד שהועבר
+    באירוע move - לפי הכותרת החדשה (target_title), שהיא הכותרת האמיתית
+    הנוכחית של הדף שהועבר. ראו הערת התיקון במודול למעלה להסבר המלא
+    למה שדה pageid הגולמי של אירוע move לא אמין לצורך הזה.
+
+    מחזיר {title: pageid} רק עבור כותרות שנמצאו בפועל (title קיים) -
+    כותרת "missing" (למשל נמחקה שוב אחרי ההעברה, לפני שהספקנו לשלוף)
+    לא נכללת, והקורא אמור ליפול-חזרה על ה-pageid הגולמי במקרה כזה.
+    """
+    if not titles:
+        return {}
+
+    result = {}
+    for i in range(0, len(titles), API_BATCH_SIZE_REDIRECT_CHECK):
+        batch = titles[i:i + API_BATCH_SIZE_REDIRECT_CHECK]
+        params = {
+            "action": "query",
+            "prop": "info",
+            "titles": "|".join(batch),
+            "formatversion": "2",
+            "format": "json",
+        }
+        data = _api_post_with_retry(api_url, params, f"פתרון מזהה-דף לפי כותרת חדשה | אצווה {i // API_BATCH_SIZE_REDIRECT_CHECK + 1}")
+        for page in data.get("query", {}).get("pages", []):
+            if page.get("missing"):
+                continue
+            pageid = page.get("pageid")
+            if pageid:
+                result[page["title"]] = pageid
+
+    return result
+
+
+def fetch_latest_revision_timestamps(api_url, pageids):
+    """
+    prop=revisions&pageids=...&rvlimit=1 (הגרסה האחרונה בלבד לכל דף) -
+    בדיוק כמו resolve_page_ids_by_title, POST בגלל אורך URL, אבל לפי
+    pageids (מספרים, לא כותרות מקודדות - GET מספיק כאן, POST רק לעקביות
+    עם שאר הפונקציות במודול).
+
+    משמשת ב-log_reconciliation_diff.py לסיווג "תזמון בלבד" מול "פער
+    עיצוב אמיתי": דף ששינה בפועל *אחרי* watermark הדלתא האחרונה לא
+    היה אמור להיתפס באותה ריצת דלתא - זה תזמון, לא פער. דף ששינה
+    *לפני* ה-watermark ועדיין לא נתפס - זה כן פער אמיתי.
+
+    מחזיר {pageid: latest_timestamp_str} רק עבור pageid-ים שנמצאו
+    בפועל (title/page לא "missing").
+    """
+    if not pageids:
+        return {}
+
+    result = {}
+    for i in range(0, len(pageids), API_BATCH_SIZE_REDIRECT_CHECK):
+        batch = pageids[i:i + API_BATCH_SIZE_REDIRECT_CHECK]
+        params = {
+            "action": "query",
+            "prop": "revisions",
+            "pageids": "|".join(str(p) for p in batch),
+            "rvlimit": 1,
+            "rvprop": "timestamp",
+            "formatversion": "2",
+            "format": "json",
+        }
+        data = _api_post_with_retry(api_url, params, f"גרסה אחרונה לפי page_id | אצווה {i // API_BATCH_SIZE_REDIRECT_CHECK + 1}")
+        for page in data.get("query", {}).get("pages", []):
+            if page.get("missing"):
+                continue
+            revisions = page.get("revisions") or []
+            if revisions:
+                result[page["pageid"]] = revisions[0]["timestamp"]
 
     return result
 
@@ -297,7 +384,14 @@ def fetch_move_log(api_url, since_ts):
     (ראו הערת המודול למעלה) - מומלץ לאמת לפני ריצת ייצור ראשונה.
 
     old_title_pageid_valid: כמו pageid_valid ב-fetch_delete_log - דפוס
-    לא-מתועד-רשמית, גולמי בלבד.
+    לא-מתועד-רשמית, גולמי בלבד. שים לב: זה עדיין מתאר את שדה ה-pageid
+    הגולמי מהאירוע (מזהה הדף בכותרת הישנה) - לא את page_id הסופי
+    המוחזר (ראו הבא).
+
+    page_id בתוצאה הסופית: פותר ומתוקן מול target_title (הכותרת
+    החדשה) לפני ההחזרה - ראו resolve_page_ids_by_title ותיקון
+    2026-09 בהערת המודול. זה מזהה הדף היציב האמיתי שהועבר, לא בהכרח
+    זהה ל-pageid הגולמי שהיה באירוע.
 
     מחזיר רשימת dict: page_id, old_title, new_title, old_ns, new_ns,
     renamed_at, action, suppressredirect, old_title_pageid_valid.
@@ -336,7 +430,7 @@ def fetch_move_log(api_url, since_ts):
                 continue
 
             results.append({
-                "page_id": entry.get("pageid", 0),
+                "page_id": entry.get("pageid", 0),  # גיבוי בלבד - ראו תיקון למטה
                 "old_title": title,
                 "new_title": target_title,
                 "old_ns": entry.get("ns", 0),
@@ -350,5 +444,16 @@ def fetch_move_log(api_url, since_ts):
         lecontinue = data.get("continue", {}).get("lecontinue")
         if not lecontinue:
             break
+
+    # תיקון: page_id הגולמי מהאירוע (למעלה) הוא מזהה הדף שיושב כרגע
+    # בכותרת הישנה, לא מזהה הדף שהועבר - ראו הערת המודול. פותרים כאן
+    # את המזהה האמיתי לפי הכותרת החדשה (target_title/new_title), ומחליפים
+    # כשההתאמה נמצאת; כשלא (למשל נמחק שוב מיד אחרי) - נשאר הגיבוי הגולמי.
+    target_titles = sorted({r["new_title"] for r in results})
+    resolved_ids = resolve_page_ids_by_title(api_url, target_titles)
+    for r in results:
+        resolved = resolved_ids.get(r["new_title"])
+        if resolved:
+            r["page_id"] = resolved
 
     return results
