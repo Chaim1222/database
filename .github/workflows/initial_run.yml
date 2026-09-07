@@ -77,7 +77,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python fetch_wikipedia.py
+        run: python scripts/fetch_wikipedia.py
 
       - name: שליפת נתוני המכלול
         if: ${{ inputs.mode == 'all' || inputs.mode == 'mechalol_only' }}
@@ -86,7 +86,7 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           USER_NAME: ${{ secrets.USER_NAME }}
           PASSWORD: ${{ secrets.PASSWORD }}
-        run: python fetch_mechalol.py
+        run: python scripts/fetch_mechalol.py
 
       - name: התאמה בין הכותרות
         if: ${{ inputs.mode == 'match_only' || (inputs.mode == 'all' && success()) }}
@@ -96,7 +96,7 @@ jobs:
           USER_NAME: ${{ secrets.USER_NAME }}
           PASSWORD: ${{ secrets.PASSWORD }}
         run: >
-          python match.py
+          python scripts/match.py
           ${{ inputs.skip_template_check == true && '--skip-template-check' || '' }}
           ${{ inputs.login == true && '--login' || '' }}
 

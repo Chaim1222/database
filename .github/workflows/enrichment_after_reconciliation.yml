@@ -52,7 +52,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python fetch_wikidata_descriptions.py
+        run: python scripts/fetch_wikidata_descriptions.py
 
       - name: פתיחת Issue בעת כישלון
         if: failure()
@@ -90,7 +90,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python fetch_easy_import_candidates.py
+        run: python scripts/fetch_easy_import_candidates.py
 
       - name: פתיחת Issue בעת כישלון
         if: failure()
@@ -128,7 +128,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python fetch_wikipedia_created_at.py
+        run: python scripts/fetch_wikipedia_created_at.py
 
       - name: פתיחת Issue בעת כישלון
         if: failure()
@@ -168,7 +168,7 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           USER_NAME: ${{ secrets.USER_NAME }}
           PASSWORD: ${{ secrets.PASSWORD }}
-        run: python check_missing_redirects.py
+        run: python scripts/check_missing_redirects.py
 
       - name: פתיחת Issue בעת כישלון
         if: failure()
@@ -206,7 +206,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python check_missing_locked.py
+        run: python scripts/check_missing_locked.py
 
       - name: פתיחת Issue בעת כישלון
         if: failure()

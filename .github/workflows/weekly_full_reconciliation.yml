@@ -71,7 +71,7 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           TARGET_TABLE_SUFFIX: "_temp"
-        run: python fetch_wikipedia.py
+        run: python scripts/fetch_wikipedia.py
 
       - name: שליפת נתוני המכלול לטבלה הזמנית
         env:
@@ -80,7 +80,7 @@ jobs:
           USER_NAME: ${{ secrets.USER_NAME }}
           PASSWORD: ${{ secrets.PASSWORD }}
           TARGET_TABLE_SUFFIX: "_temp"
-        run: python fetch_mechalol.py
+        run: python scripts/fetch_mechalol.py
 
       - name: התאמה מלאה על הטבלה הזמנית
         env:
@@ -89,20 +89,20 @@ jobs:
           USER_NAME: ${{ secrets.USER_NAME }}
           PASSWORD: ${{ secrets.PASSWORD }}
           TARGET_TABLE_SUFFIX: "_temp"
-        run: python match.py --login
+        run: python scripts/match.py --login
 
       - name: העברת העשרה קדימה
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python forward_fill_enrichment.py
+        run: python scripts/forward_fill_enrichment.py
 
       - name: שער אימות
         id: validate
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python validate_before_swap.py
+        run: python scripts/validate_before_swap.py
 
       # רץ רק אם שער האימות אישר (should_swap=true) - ירידה קלה
       # מדלגת על הצעד הזה בלי לשבש את שאר ה-job (הריצה עדיין "מצליחה"
@@ -114,7 +114,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python swap_temp_to_active.py
+        run: python scripts/swap_temp_to_active.py
 
       # רק אחרי החלפה אטומית שבאמת קרתה - ראו התיעוד בתוך הסקריפט
       # עצמו (log_reconciliation_diff.py): בלי החלפה, הטבלה הזמנית לא
@@ -124,7 +124,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python log_reconciliation_diff.py
+        run: python scripts/log_reconciliation_diff.py
 
       # שלב אחרון: מרוקן את הטבלה הזמנית (שמחזיקה כרגע את מה שהיה
       # פעיל לפני ה-swap) - אחרי שהלוג כבר ניצל אותה להשוואה. אין חלון
@@ -135,7 +135,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python truncate_temp_pages.py
+        run: python scripts/truncate_temp_pages.py
 
       - name: פתיחת Issue בעת כישלון
         if: failure()

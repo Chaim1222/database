@@ -43,13 +43,13 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python fetch_mechalol_delta.py
+        run: python scripts/fetch_mechalol_delta.py
 
       - name: עדכון מצטבר - ויקיפדיה
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python fetch_wikipedia_delta.py
+        run: python scripts/fetch_wikipedia_delta.py
 
       # --scoped: בודק רק שורות מכלול שהעדכון המצטבר הזה נגע בהן (ישירות, או
       # דרך wikipedia_id שהצביע לדף שהשתנה) - לא סריקה מלאה. קורא את
@@ -61,7 +61,7 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           USER_NAME: ${{ secrets.USER_NAME }}
           PASSWORD: ${{ secrets.PASSWORD }}
-        run: python match.py --scoped --login
+        run: python scripts/match.py --scoped --login
 
       - name: פתיחת Issue בעת כישלון
         if: failure()
