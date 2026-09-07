@@ -9,16 +9,16 @@ name: סנכרון שבועי מלא
 # מחיקה/תזוזה נלווה. לא נוגעת ב-sync_watermarks בכלל - זו נשארת באחריות
 # nightly_delta.yml בלבד, שתי המסלולים בלתי תלויים אחד בשני.
 #
-# ארכיטקטורת מראה עם החלפה אטומית (ראו mirror_architecture_design.md):
-# הריקון-ומילוי-מחדש קורה על wikipedia_pages_shadow/mechalol_pages_shadow
-# (TARGET_TABLE_SUFFIX=_shadow), לא על הטבלאות הפעילות - כך שהן ממשיכות
-# לשרת בקשות בלי הפרעה לאורך כל הריצה (יכולה לקחת זמן משמעותי). רק
-# בסוף, אחרי שער אימות שמוודא שאין ירידה חשודה במספר השורות, ההחלפה
-# עצמה קורית באופן אטומי (רק שינוי שם טבלה - שניות בודדות, לא תלוי
-# בכמות השורות). בלי שלב "ניקוי מראה" בסוף בכוונה - הטבלה הפעילה
-# הקודמת נשארת בתור _previous עד תחילת הסבב הבא (חלון rollback של עד
-# שבוע), ומתקדמת/מתרוקנת רק אז, בתוך fetch_wikipedia.py עצמו
-# (promote_previous_to_shadow_and_truncate) - לא כצעד נפרד כאן.
+# ארכיטקטורת החלפה אטומית עם טבלאות זמניות (ראו mirror_architecture_
+# design.md + README.md): הריקון-ומילוי-מחדש קורה על wikipedia_pages_temp/
+# mechalol_pages_temp (TARGET_TABLE_SUFFIX=_temp), לא על הטבלאות הפעילות -
+# כך שהן ממשיכות לשרת בקשות בלי הפרעה לאורך כל הריצה (יכולה לקחת זמן
+# משמעותי). רק בסוף, אחרי שער אימות שמוודא שאין ירידה חשודה במספר השורות,
+# ההחלפה עצמה קורית באופן אטומי (רק שינוי שם טבלה - שניות בודדות, לא תלוי
+# בכמות השורות). אין חלון rollback - הוסר בכוונה (2026-09, ראו README.md):
+# מיד אחרי ההחלפה, מה שהיה פעיל רגע קודם יושב תחת השם הקבוע "_temp",
+# log_reconciliation_diff.py משווה מולו ומתעד, ואז truncate_temp_pages.py
+# מרוקן אותו - הכל באותה ריצה, לא ממתין לסבב הבא.
 #
 # בסיום מוצלח (ההחלפה בפועל קרתה), מפעילה אוטומטית את
 # enrichment_after_reconciliation.yml (טריגר workflow_run) - ארבעת
@@ -32,7 +32,7 @@ on:
 
 # אותה קבוצת concurrency כמו initial_run.yml/weekly_update.yml/
 # nightly_delta.yml - ראו הערה מלאה ב-initial_run.yml. חשוב כאן במיוחד:
-# זו הריצה שמבצעת בפועל את הריקון-ומילוי-מחדש (על טבלאות המראה) ואת
+# זו הריצה שמבצעת בפועל את הריקון-ומילוי-מחדש (על הטבלאות הזמניות) ואת
 # ההחלפה עצמה, כך שהיא הכי רגישה לחפיפה עם ריצה אחרת שנוגעת באותן
 # טבלאות.
 concurrency:
@@ -62,33 +62,33 @@ jobs:
         run: pip install -r requirements.txt
 
       # fetch_wikipedia.py *חייב* לרוץ לפני fetch_mechalol.py - גם על
-      # טבלאות המראה, מאותה סיבה בדיוק כמו על הטבלאות הפעילות (ראו
-      # postmortem 2026-09 ב-schema.sql): הריקון (עכשיו
-      # promote_previous_to_shadow_and_truncate, לא CASCADE, אבל אותו
-      # עיקרון) חייב לקרות לפני מילוי mechalol_pages_shadow, לא אחריו.
-      - name: שליפת כותרות ויקיפדיה למראה
+      # הטבלאות הזמניות, מאותה סיבה בדיוק כמו על הטבלאות הפעילות (ראו
+      # postmortem 2026-09 ב-schema.sql): הריקון (truncate_temp_pages,
+      # רשת ביטחון בלבד - הטבלאות כבר אמורות להיות ריקות מסוף הסבב
+      # הקודם) חייב לקרות לפני מילוי mechalol_pages_temp, לא אחריו.
+      - name: שליפת כותרות ויקיפדיה לטבלה הזמנית
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          TARGET_TABLE_SUFFIX: "_shadow"
+          TARGET_TABLE_SUFFIX: "_temp"
         run: python fetch_wikipedia.py
 
-      - name: שליפת נתוני המכלול למראה
+      - name: שליפת נתוני המכלול לטבלה הזמנית
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           USER_NAME: ${{ secrets.USER_NAME }}
           PASSWORD: ${{ secrets.PASSWORD }}
-          TARGET_TABLE_SUFFIX: "_shadow"
+          TARGET_TABLE_SUFFIX: "_temp"
         run: python fetch_mechalol.py
 
-      - name: התאמה מלאה על המראה
+      - name: התאמה מלאה על הטבלה הזמנית
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           USER_NAME: ${{ secrets.USER_NAME }}
           PASSWORD: ${{ secrets.PASSWORD }}
-          TARGET_TABLE_SUFFIX: "_shadow"
+          TARGET_TABLE_SUFFIX: "_temp"
         run: python match.py --login
 
       - name: העברת העשרה קדימה
@@ -114,7 +114,28 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python swap_shadow_to_active.py
+        run: python swap_temp_to_active.py
+
+      # רק אחרי החלפה אטומית שבאמת קרתה - ראו התיעוד בתוך הסקריפט
+      # עצמו (log_reconciliation_diff.py): בלי החלפה, הטבלה הזמנית לא
+      # השתנתה הסבב הזה, אין מה להשוות מולה.
+      - name: תיעוד פערי פיוס
+        if: steps.validate.outputs.should_swap == 'true'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python log_reconciliation_diff.py
+
+      # שלב אחרון: מרוקן את הטבלה הזמנית (שמחזיקה כרגע את מה שהיה
+      # פעיל לפני ה-swap) - אחרי שהלוג כבר ניצל אותה להשוואה. אין חלון
+      # rollback (הוסר בכוונה, ראו README.md) - מכאן והלאה אין עותק של
+      # המצב הקודם עד שסבב מלא נוסף ירוץ.
+      - name: ריקון הטבלה הזמנית
+        if: steps.validate.outputs.should_swap == 'true'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python truncate_temp_pages.py
 
       - name: פתיחת Issue בעת כישלון
         if: failure()
