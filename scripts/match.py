@@ -366,6 +366,73 @@ def compute_scoped_ids(client, mechalol_changed_ids, wikipedia_changed_ids):
     return scoped
 
 
+def compute_stale_ids(client):
+    """
+    מחזיר את קבוצת ה-id-ים ב-mechalol_pages של כל "המלאי התקוע" -
+    שורות שסומנו בעבר כבעייתיות ולא נגעה בהן שום דלתא מאז, ולכן
+    compute_scoped_ids לבדו לא היה מכניס אותן לסקופ. המטרה: להעביר
+    אותן שוב דרך שלבי ההתאמה (0-4) מול המצב העדכני של wikipedia_pages
+    (שכבר עודכן על ידי fetch_wikipedia_delta.py קודם באותה ריצה) -
+    אם הבעיה נפתרה מאז (הדף חזר/שונה-שם-בחזרה/שויך ידנית), match.py
+    ינקה את הדגל לבד, בדיוק כמו לכל שורה אחרת בסקופ.
+
+    שלוש קבוצות, כולן בשאילתה טהורה על המסד - אפס קריאות רשת:
+
+    1. maybe_deleted_from_wikipedia = true - שורות מכלול שלא נמצאה
+       להן התאמה ויקיפדית בריצה קודמת (המונה "חשוד כמחיקה"). הרוב
+       המכריע נובע מבעיית תבנית/כותרת, לא ממחיקה אמיתית - ולכן צפוי
+       להיפתר ברגע שיעברו שוב את שלב 4 מול המצב הנוכחי.
+
+       כיוון "חסר במכלול" (is_missing על הצד הוויקיפדי) לא נסרק כאן
+       בנפרד בכוונה: כדי לתפוס אותו צריך לסרוק את *כל* טבלת המכלול לפי
+       כותרת בכל לילה (אין wikipedia_id על שורות לא-מותאמות, אז אין
+       דרך זולה לגשר) - יקר מדי לריצה לילית, ומנוגד לרוח ה"סריקה
+       ממוקדת". רובו ממילא מכוסה: שורת מכלול שבאמת תואמת דף is_missing
+       היא כמעט תמיד גם maybe_deleted_from_wikipedia=true (קבוצה 1),
+       ואחרי שהיא מותאמת מחדש, שלב 2 (recompute_missing_flag_scoped)
+       מוריד את הדגל מהדף הוויקיפדי עצמו. שאריות נדירות (שורה שלא
+       סומנה כבעייתית וגם לא הותאמה) נתפסות בפיוס התקופתי המלא.
+
+    2. כל שורת מכלול שיש לה רשומה ב-manual_matches - שיוך ידני שאולי
+       נוסף מאז הריצה האחרונה שנגעה בה. אם הדגל שלה לא התעדכן, מספיק
+       להכניס אותה לסקופ ושלב 0 (manual_matches) יטפל בה. הטבלה קטנה
+       וממילא נטענת במלואה בכל ריצה, אז זה זול.
+    """
+    stale = set()
+
+    # קבוצה 1: maybe_deleted_from_wikipedia = true (מעומד לפי id, כמו
+    # load_wikipedia_map - כדי לא לפספס שורות מעבר לגבול ה-BATCH_SIZE)
+    last_id = 0
+    while True:
+        result = execute_with_retry(
+            lambda last_id=last_id: (
+                client.table(table_name("mechalol_pages"))
+                .select("id")
+                .eq("maybe_deleted_from_wikipedia", True)
+                .gt("id", last_id)
+                .order("id")
+                .limit(BATCH_SIZE)
+                .execute()
+            ),
+            f"STALE maybe_deleted after_id={last_id}",
+        )
+        rows = result.data or []
+        if not rows:
+            break
+        stale.update(row["id"] for row in rows)
+        last_id = rows[-1]["id"]
+
+    # קבוצה 2: כל mechalol_page_id שיש לו שיוך ידני. manual_matches
+    # קטנה - שליפה אחת מספיקה.
+    result = execute_with_retry(
+        lambda: client.table("manual_matches").select("mechalol_page_id").execute(),
+        "STALE manual_matches",
+    )
+    stale.update(row["mechalol_page_id"] for row in (result.data or []))
+
+    return stale
+
+
 def get_match_type(row):
     if row.get("status") in NOT_REALLY_IMPORTED_STATUSES:
         return MATCH_TYPE_SAME_TITLE_UNRELATED
@@ -463,7 +530,20 @@ def main():
             )
         else:
             only_ids = compute_scoped_ids(client, mechalol_changed or [], wikipedia_changed or [])
-            log(f"שלב 0 | מצומצם ל-{len(only_ids):,} שורות מכלול (--scoped)")
+            delta_count = len(only_ids)
+
+            # בנוסף לשורות שהדלתא של הלילה נגעה בהן, מצרפים לסקופ את כל
+            # "המלאי התקוע" - שורות שסומנו כבעייתיות בעבר ואף דלתא מאז לא
+            # נגעה בהן, כדי לבדוק אם הבעיה כבר נפתרה (הדף חזר/שויך ידנית/
+            # תבנית תוקנה). אפס קריאות רשת - הכול מול המצב שכבר במסד. ראו
+            # compute_stale_ids לפירוט הקבוצות.
+            stale_ids = compute_stale_ids(client)
+            only_ids |= stale_ids
+            log(
+                f"שלב 0 | מצומצם ל-{len(only_ids):,} שורות מכלול (--scoped) | "
+                f"מתוכן {delta_count:,} מהדלתא + {len(stale_ids):,} מלאי תקוע "
+                f"({len(only_ids):,} אחרי איחוד)"
+            )
 
     total = 0
     manual_matched = 0
