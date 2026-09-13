@@ -25,9 +25,14 @@ untracked_changes_found הגולמי, שנשאר ללא שינוי לצורך ר
 
 הרצה:
     python log_reconciliation_diff.py
+
+השלמת ריצה שנעצרה (ה-RPC הסתיים אבל הסיווג נכשל באמצע) - מסווג
+ביקורת קיימת בלי ליצור חדשה:
+    python log_reconciliation_diff.py --classify-only <audit_id>
 """
 
 from datetime import datetime
+import sys
 
 from config import WIKIPEDIA_API, MECHALOL_API
 from delta_api import fetch_latest_revision_timestamps
@@ -137,6 +142,30 @@ def main():
 
     log("=" * 80)
     log("START | log_reconciliation_diff.py")
+
+    # מצב השלמה: --classify-only <audit_id> מדלג לגמרי על קריאת ה-RPC
+    # ומריץ רק את שלב הסיווג על ביקורת קיימת. נחוץ כשריצה קודמת יצרה
+    # את שורת הביקורת ואת שורות הפרטים בהצלחה (ה-RPC הסתיים) אבל
+    # classify_timing נכשל באמצע - קריאה חוזרת ל-RPC הייתה יוצרת
+    # ביקורת חדשה עם watermark מתקדם, ומשאירה את הביקורת התקועה בלי
+    # סיווג לתמיד. classify_timing אידמפוטנטית - בטוח להריץ שוב.
+    if len(sys.argv) >= 2 and sys.argv[1] == "--classify-only":
+        if len(sys.argv) != 3:
+            log("ERROR | שימוש: python log_reconciliation_diff.py --classify-only <audit_id>")
+            sys.exit(1)
+        try:
+            audit_id = int(sys.argv[2])
+        except ValueError:
+            log(f"ERROR | audit_id חייב להיות מספר שלם, התקבל: {sys.argv[2]!r}")
+            sys.exit(1)
+
+        log(f"מצב השלמה | classify-only | audit_id={audit_id}")
+        log("סיווג תזמון מול פער עיצוב אמיתי (בדיקת API חי)...")
+        genuine_count = classify_timing(client, audit_id)
+        log(f"סיווג הושלם | פערים אמיתיים (לא-תזמון) = {genuine_count:,}")
+        log("=" * 80)
+        log("סיום | log_reconciliation_diff.py")
+        return
 
     result = execute_with_retry(
         lambda: client.rpc("log_reconciliation_diff").execute(),
