@@ -177,10 +177,12 @@ def resolve_page_ids_by_title(api_url, titles):
 
 def fetch_latest_revision_timestamps(api_url, pageids):
     """
-    prop=revisions&pageids=...&rvlimit=1 (הגרסה האחרונה בלבד לכל דף) -
-    בדיוק כמו resolve_page_ids_by_title, POST בגלל אורך URL, אבל לפי
-    pageids (מספרים, לא כותרות מקודדות - GET מספיק כאן, POST רק לעקביות
-    עם שאר הפונקציות במודול).
+    prop=revisions&pageids=... ללא rvlimit - ברירת המחדל מחזירה ממילא
+    את הגרסה האחרונה בלבד לכל דף. אסור לצרף כאן rvlimit/rvdir/rvstart
+    וכו' עם pageids מרובים: הם מותרים רק על דף בודד, ובאצווה גורמים
+    ל-invalidparammix (בדיוק כמו במגבלה המתועדת ב-fetch_wikipedia*).
+    POST בגלל אורך URL, אבל לפי pageids (מספרים, לא כותרות מקודדות -
+    GET מספיק כאן, POST רק לעקביות עם שאר הפונקציות במודול).
 
     משמשת ב-log_reconciliation_diff.py לסיווג "תזמון בלבד" מול "פער
     עיצוב אמיתי": דף ששינה בפועל *אחרי* watermark הדלתא האחרונה לא
@@ -200,7 +202,6 @@ def fetch_latest_revision_timestamps(api_url, pageids):
             "action": "query",
             "prop": "revisions",
             "pageids": "|".join(str(p) for p in batch),
-            "rvlimit": 1,
             "rvprop": "timestamp",
             "formatversion": "2",
             "format": "json",
