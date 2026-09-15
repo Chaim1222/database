@@ -38,8 +38,8 @@
 | `forward_fill_enrichment.py` | קורא ל-RPC שמעתיק עמודות העשרה מהטבלה הפעילה לזמנית (כדי לא לאבד מידע שכבר נבדק). |
 | `validate_before_swap.py` | "שער האימות" - משווה מספר שורות פעיל מול זמנית, מחליט אם בטוח להחליף. |
 | `swap_temp_to_active.py` | מבצע את ההחלפה עצמה (קורא ל-RPC `perform_atomic_swap`), עם ניסיון-חוזר על נעילות זמניות. |
-| `log_reconciliation_diff.py` | תיעוד מדיד: מיד אחרי ההחלפה (לפני שהטבלה הזמנית מתרוקנת), משווה את הפעילה מולה ומוציא כל `id` שהדלתא כבר ידעה עליו - מה שנשאר הוא "מה שהעדכון היומי לא היה יכול לתפוס". שורה חדשה ב-`reconciliation_audit` בכל ריצה. |
-| `truncate_temp_pages.py` | שלב אחרון בסבב - מריק את הטבלה הזמנית, אחרי שהלוג כבר ניצל אותה. אין יותר חלון rollback (הוסר בכוונה, ראו README.md) - אין עוד שימוש ל-`revert_to_previous.py`/`revert_atomic_swap` שהוסרו. |
+| `log_reconciliation_diff.py` | תיעוד מדיד בשני שלבים: `--record-only` מיד אחרי ההחלפה משווה את הפעילה מול הזמנית ושומר את הביקורת; אחרי הריקון, `--classify-only <audit_id>` מסווג מול הממשקים החיים אם הפער הוא תזמון בלבד. הרצה בלי דגל עדיין עושה את שני השלבים ברצף לשימוש ידני. |
+| `truncate_temp_pages.py` | מריק את הטבלאות הזמניות מיד אחרי ששורת הביקורת והפרטים נשמרו, ולפני סיווג התזמון מול הרשת. כך כשל מאוחר בסיווג לא משאיר עותק מלא תקוע. אין יותר חלון rollback. |
 
 ### תשתית משותפת
 | קובץ | תפקיד |
@@ -79,7 +79,7 @@
 | עמודה | תפקיד |
 |---|---|
 | `is_missing` | true = יש בוויקיפדיה, אין במכלול. **לא מחושב חי** - מתעדכן רק בסוף `match.py` (`recompute_missing_flag`). |
-| `missing_override_reason` | למה `is_missing=false` כשההתאמה לא "אמיתית" ממש - כרגע רק `'rav_prefix_normalization'` (הוסרה קידומת "הרב/רבי"). |
+| `missing_override_reason` | למה `is_missing=false` כשההתאמה לא "אמיתית" ממש - כרגע רק `'rav_prefix_normalization'` (הוסרה קידומת "הרב/רבי"). המועמדים עצמם נחשפים ב-`report_rav_prefix_normalization`. |
 | `created_at_checked` / `easy_import_checked` | "נבדק" (true/false) - נפרד מ"יש ערך" (null/לא-null), כי כישלון API לא אמור לספור כ"עדיין לא נבדק" לנצח. |
 | `mechalol_redirect_exists` | יש הפניה במכלול תחת אותה כותרת (גם אם אין ערך מלא). |
 
@@ -124,7 +124,7 @@
 ### ארכיטקטורת ההחלפה האטומית (2026-09)
 | טבלה | תפקיד |
 |---|---|
-| `wikipedia_pages_temp` / `mechalol_pages_temp` | טבלה זמנית קבועה אחת (לא נבנית מחדש בכל סבב) עם שני תפקידים לפי שלב: (1) בזמן הריצה - כאן קורים הריקון/מילוי/התאמה של הריצה השבועית, בלי לפגוע בטבלה הפעילה; (2) מיד אחרי ה-swap ועד לריקון בסוף הסבב - מחזיקה את מה שהיה פעיל רגע לפני כן, ל-`log_reconciliation_diff.py`. |
+| `wikipedia_pages_temp` / `mechalol_pages_temp` | טבלה זמנית קבועה אחת (לא נבנית מחדש בכל סבב) עם שני תפקידים לפי שלב: (1) בזמן הריצה - כאן קורים הריקון/מילוי/התאמה של הריצה השבועית, בלי לפגוע בטבלה הפעילה; (2) מיד אחרי ה-swap ועד ששמירת הביקורת מסתיימת - מחזיקה את מה שהיה פעיל רגע לפני כן, ל-`log_reconciliation_diff.py --record-only`. מיד אחר כך היא מתרוקנת, עוד לפני סיווג התזמון. |
 
 ---
 
@@ -136,6 +136,7 @@
 | `report_possibly_deleted_source` | שורות מכלול שחשודות כ"נמחקו בוויקיפדיה" (`maybe_deleted_from_wikipedia`) - כולל ערכים מילוניים/ערכים-לפתיחה (מ-2026-09; קודם היו מוסתרים משם בטעות). |
 | `report_undocumented_import` | שורות עם `status='מיובא ללא תיעוד'` (חסרות תבנית מיון תקינה). |
 | `report_tasks_to_handle` | איחוד של ארבעה סוגי משימה, עם עמודת `task_type` להבחנה: חשוד-כמחיקה, סטטוס לא-ברור, שם בתבנית שלא אומת מול ויקיפדיה, ודף נעול שלא ניתן לאמת (מ-2026-09). |
+| `report_rav_prefix_normalization` | ערכי ויקיפדיה שלא נחשבים חסרים רק בזכות הסרת הקידומת "הרב"/"רבי". מציג את כל המועמדים במכלול ואת `candidate_count`, בלי ליצור התאמה ובלי לבחור מועמד. |
 
 ---
 
@@ -149,10 +150,10 @@
 | `recompute_missing_flag()` | מחשבת מחדש `is_missing`/`missing_override_reason` על **כל** `wikipedia_pages` - נקראת בסוף ריצת `match.py` מלאה. |
 | `recompute_missing_flag_scoped(ids)` | אותו חישוב, מוגבל ל-`ids` נתונים - לשימוש ב-`match.py --scoped` (הדלתא הלילית), כדי לא לסרוק את כל הטבלה כל לילה. |
 | `recompute_missing_flag_temp()` | גרסה-זמנית של `recompute_missing_flag()`, רצה על `wikipedia_pages_temp`/`mechalol_pages_temp`. |
-| `truncate_temp_pages()` | מריקה את שתי הטבלאות הזמניות יחד. נקראת פעמיים בכל סבב: בתחילתו (רשת ביטחון, דרך `truncate_wikipedia_pages` הממופה) ובסופו, אחרי שהלוג רץ (`truncate_temp_pages.py`). מחליפה את `promote_previous_to_shadow_and_truncate()` הישנה - אין יותר "קידום" בכלל, הטבלאות הזמניות קבועות. |
+| `truncate_temp_pages()` | מריקה את שתי הטבלאות הזמניות יחד. נקראת פעמיים בכל סבב: בתחילתו (רשת ביטחון, דרך `truncate_wikipedia_pages` הממופה) ואחרי שההשוואה נשמרה במסד (`truncate_temp_pages.py`), לפני סיווג התזמון מול הרשת. מחליפה את `promote_previous_to_shadow_and_truncate()` הישנה - אין יותר "קידום" בכלל, הטבלאות הזמניות קבועות. |
 | `forward_fill_enrichment_temp()` | מעתיקה עמודות העשרה (`wikidata_desc`, `created_at`, `easy_import_*` וכו') מהפעילה לזמנית, לפי `id`. |
 | `perform_atomic_swap()` | **ההחלפה עצמה**: שלוש החלפות שם אטומיות לכל טבלה (לא שתיים - הפעילה הקודמת חוזרת מיד להיות "_temp" הקבועה, אין יותר "_previous" נפרד), שינוי שם אוטומטי לכל אינדקס/אילוץ בשתי הטבלאות (כך שהשם תמיד ישקף את התפקיד הנוכחי - לא נשאר שריד מדור swap קודם), ובנייה מחדש של ה-views שתלויים בהן. `revert_atomic_swap()` הוסרה - אין יותר חלון rollback. |
-| `log_reconciliation_diff()` | משווה פעילה מול הטבלה הזמנית (מיד אחרי swap, לפני שהיא מתרוקנת) - בניכוי מה שהדלתא כבר ידעה, כותבת שורה ל-`reconciliation_audit`. |
+| `log_reconciliation_diff()` | משווה פעילה מול הטבלה הזמנית (מיד אחרי swap, לפני שהיא מתרוקנת) - בניכוי מה שהדלתא כבר ידעה, וכותבת שורה ל-`reconciliation_audit` ואת פרטי הפערים. סיווג התזמון מתבצע אחר כך בפייתון ואינו צריך את הטבלה הזמנית. |
 | `analyze_pages_tables(table_suffix)` | מרעננת סטטיסטיקות תכנון (`ANALYZE`) על שתי הטבלאות - פעילות או זמניות, לפי הסיומת (`''`/`'_temp'`). נוספה אחרי תקלה אמיתית: טבלה זמנית טרייה בלי סטטיסטיקות גרמה לתוכנית שאילתה גרועה (דקות במקום שניות) ב-`forward_fill_enrichment_temp()`. נקראת מ-`fetch_mechalol.py` בסוף המילוי. |
 
 ---
@@ -187,12 +188,16 @@ swap_temp_to_active.py
    -> perform_atomic_swap()       # ההחלפה עצמה, שניות בודדות
         |
         v  (רק אם should_swap=true)
-log_reconciliation_diff.py
-   -> log_reconciliation_diff()   # תיעוד מדיד: פעילה מול הטבלה הזמנית, בניכוי מה שהדלתא כבר ידעה
+log_reconciliation_diff.py --record-only
+   -> log_reconciliation_diff()   # שומר את ההשוואה ואת פרטי הפערים במסד
         |
         v  (רק אם should_swap=true)
 truncate_temp_pages.py
-   -> truncate_temp_pages()       # מריק את הטבלה הזמנית - אין חלון rollback
+   -> truncate_temp_pages()       # מריק מיד את הטבלאות הזמניות
+        |
+        v  (רק אם should_swap=true)
+log_reconciliation_diff.py --classify-only <audit_id>
+   -> classify_timing()           # מסווג מול הממשקים החיים; לא תלוי עוד בטבלאות הזמניות
 ```
 
 `TARGET_TABLE_SUFFIX` (משתנה סביבה, `_temp` או ריק) הוא המתג היחיד שקובע אם סקריפט
