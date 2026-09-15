@@ -16,9 +16,10 @@ name: סנכרון שבועי מלא
 # משמעותי). רק בסוף, אחרי שער אימות שמוודא שאין ירידה חשודה במספר השורות,
 # ההחלפה עצמה קורית באופן אטומי (רק שינוי שם טבלה - שניות בודדות, לא תלוי
 # בכמות השורות). אין חלון rollback - הוסר בכוונה (2026-09, ראו README.md):
-# מיד אחרי ההחלפה, מה שהיה פעיל רגע קודם יושב תחת השם הקבוע "_temp",
-# log_reconciliation_diff.py משווה מולו ומתעד, ואז truncate_temp_pages.py
-# מרוקן אותו - הכל באותה ריצה, לא ממתין לסבב הבא.
+# מיד אחרי ההחלפה, מה שהיה פעיל רגע קודם יושב תחת השם הקבוע "_temp".
+# קודם log_reconciliation_diff.py שומר את ההשוואה במסד; מיד אחר כך
+# truncate_temp_pages.py מרוקן את הטבלאות הזמניות; ורק אז מתבצע סיווג
+# התזמון מול הממשקים החיים. כך כשל בסיווג לא משאיר עותק מלא תקוע.
 #
 # בסיום מוצלח (ההחלפה בפועל קרתה), מפעילה אוטומטית את
 # enrichment_after_reconciliation.yml (טריגר workflow_run) - ארבעת
@@ -116,26 +117,37 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: python scripts/swap_temp_to_active.py
 
-      # רק אחרי החלפה אטומית שבאמת קרתה - ראו התיעוד בתוך הסקריפט
-      # עצמו (log_reconciliation_diff.py): בלי החלפה, הטבלה הזמנית לא
-      # השתנתה הסבב הזה, אין מה להשוות מולה.
-      - name: תיעוד פערי פיוס
+      # רק אחרי החלפה אטומית שבאמת קרתה. בשלב הזה נשמרת ההשוואה
+      # עצמה במסד, אבל עדיין לא מתבצע הסיווג מול הממשקים החיים.
+      # אם השמירה נכשלת, הצעד נכשל והריקון שאחריו לא ירוץ - כדי לא
+      # לאבד את המצב הקודם לפני שהפערים נשמרו.
+      - name: שמירת פערי פיוס
+        id: reconciliation_audit
         if: steps.validate.outputs.should_swap == 'true'
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python scripts/log_reconciliation_diff.py
+        run: python scripts/log_reconciliation_diff.py --record-only
 
-      # שלב אחרון: מרוקן את הטבלה הזמנית (שמחזיקה כרגע את מה שהיה
-      # פעיל לפני ה-swap) - אחרי שהלוג כבר ניצל אותה להשוואה. אין חלון
-      # rollback (הוסר בכוונה, ראו README.md) - מכאן והלאה אין עותק של
-      # המצב הקודם עד שסבב מלא נוסף ירוץ.
+      # ברגע שההשוואה נשמרה, אין עוד צורך בטבלאות הזמניות לצורך
+      # הסיווג. מרוקנים אותן מיד, לפני כל קריאת רשת נוספת, כדי שכשל
+      # מאוחר יותר לא ישאיר מאות אלפי שורות כפולות עד הסבב הבא.
       - name: ריקון הטבלה הזמנית
         if: steps.validate.outputs.should_swap == 'true'
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: python scripts/truncate_temp_pages.py
+
+      # הסיווג משתמש רק בביקורת שכבר נשמרה ובממשקים החיים; הוא לא
+      # תלוי יותר בטבלאות הזמניות. אם הוא נכשל, הריצה תסומן ככשל אבל
+      # האחסון כבר נוקה, ואפשר להשלים ידנית עם אותו audit_id.
+      - name: סיווג פערי פיוס
+        if: steps.validate.outputs.should_swap == 'true' && steps.reconciliation_audit.outputs.audit_id != ''
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python scripts/log_reconciliation_diff.py --classify-only "${{ steps.reconciliation_audit.outputs.audit_id }}"
 
       - name: פתיחת Issue בעת כישלון
         if: failure()
