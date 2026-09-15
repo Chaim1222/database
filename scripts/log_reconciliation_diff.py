@@ -13,21 +13,25 @@ migration_add_reconciliation_timing_classification.sql) - משווה את
 תוספת (2026-09): שינוי שקרה סתם *אחרי* watermark הדלתא האחרונה הוא
 תזמון בלבד - לא פער עיצוב (הדלתא הבאה תתפוס אותו ממילא) - אבל אין
 דרך לדעת את זה מתוך המסד המקומי לבד, רק מבדיקת הגרסה האמיתית האחרונה
-של הדף מול ה-API החי. אחרי שקוראים ל-log_reconciliation_diff(),
-classify_timing() בודקת כל שורה חדשה בדיוק ככה ומסמנת is_timing_only
-בהתאם - כדי שהמונה untracked_changes_genuine (בניגוד ל-
-untracked_changes_found הגולמי, שנשאר ללא שינוי לצורך רציפות) ישקף
-רק פערים שהדלתא הייתה אמורה לתפוס ולא תפסה.
+של הדף מול ה-API החי. אחרי שהפערים נשמרים במסד, classify_timing()
+בודקת כל שורה חדשה בדיוק ככה ומסמנת is_timing_only בהתאם - כדי
+שהמונה untracked_changes_genuine (בניגוד ל-untracked_changes_found
+הגולמי, שנשאר ללא שינוי לצורך רציפות) ישקף רק פערים שהדלתא הייתה
+אמורה לתפוס ולא תפסה.
 
-נקרא רק אחרי swap_temp_to_active.py, ולפני truncate_temp_pages.py -
-ורק כשההחלפה באמת קרתה (should_swap=true) - אם ההחלפה דולגה, הטבלה
-הזמנית לא השתנתה הסבב הזה, אין מה להשוות.
+בריצה השבועית שני השלבים מופרדים בכוונה: קודם נשמרת הביקורת בזמן
+שהטבלה הזמנית עדיין מחזיקה את המצב הקודם; מיד אחר כך הטבלה הזמנית
+מתרוקנת; ורק אז מתבצע סיווג התזמון מול הממשקים החיים. כך כשל בסיווג
+לא משאיר מאות אלפי שורות בטבלאות הזמניות. אם שמירת הביקורת עצמה
+נכשלת, הריקון לא מתבצע והמצב הקודם נשמר לצורך ניסיון חוזר.
 
-הרצה:
+הרצה רגילה (שמירה + סיווג, לשימוש ידני):
     python log_reconciliation_diff.py
 
-השלמת ריצה שנעצרה (ה-RPC הסתיים אבל הסיווג נכשל באמצע) - מסווג
-ביקורת קיימת בלי ליצור חדשה:
+שמירת ביקורת בלבד, לפני ריקון הטבלאות הזמניות:
+    python log_reconciliation_diff.py --record-only
+
+סיווג ביקורת קיימת בלי ליצור חדשה:
     python log_reconciliation_diff.py --classify-only <audit_id>
 """
 
@@ -40,6 +44,33 @@ from mechalol_api import log
 from supabase_client import get_client, execute_with_retry
 
 API_BY_SIDE = {"wikipedia": WIKIPEDIA_API, "mechalol": MECHALOL_API}
+
+
+def _write_audit_id_output(audit_id):
+    import os
+
+    output_path = os.environ.get("GITHUB_OUTPUT")
+    if not output_path:
+        log("קובץ הפלט של סביבת ההרצה לא מוגדר - מדלג על כתיבת מזהה הביקורת")
+        return
+
+    with open(output_path, "a", encoding="utf-8") as f:
+        f.write(f"audit_id={audit_id}\n")
+
+
+def record_audit(client):
+    result = execute_with_retry(
+        lambda: client.rpc("log_reconciliation_diff").execute(),
+        "LOG_RECONCILIATION_DIFF",
+        log_fn=log,
+    )
+    audit_id = result.data
+    if audit_id is None:
+        raise RuntimeError("log_reconciliation_diff() לא החזירה מזהה ביקורת - לא בטוח לרוקן את הטבלאות הזמניות")
+
+    audit_id = int(audit_id)
+    log(f"עודכן | reconciliation_audit קיבלה שורה חדשה | audit_id={audit_id}")
+    return audit_id
 
 
 def _parse_ts(ts_str):
@@ -143,6 +174,21 @@ def main():
     log("=" * 80)
     log("START | log_reconciliation_diff.py")
 
+    # מצב שמירה בלבד: יוצר את הביקורת בזמן שהטבלאות הזמניות עדיין
+    # מחזיקות את המצב הקודם, וכותב את המזהה לפלט של סביבת ההרצה.
+    # אם השמירה עצמה נכשלת או לא מחזירה מזהה - יוצאים בכשל, כדי שהשלב
+    # הבא לא ירוקן את הטבלאות הזמניות לפני שההשוואה נשמרה.
+    if len(sys.argv) >= 2 and sys.argv[1] == "--record-only":
+        if len(sys.argv) != 2:
+            log("ERROR | שימוש: python log_reconciliation_diff.py --record-only")
+            sys.exit(1)
+
+        audit_id = record_audit(client)
+        _write_audit_id_output(audit_id)
+        log("=" * 80)
+        log("סיום | log_reconciliation_diff.py (שמירה בלבד)")
+        return
+
     # מצב השלמה: --classify-only <audit_id> מדלג לגמרי על קריאת ה-RPC
     # ומריץ רק את שלב הסיווג על ביקורת קיימת. נחוץ כשריצה קודמת יצרה
     # את שורת הביקורת ואת שורות הפרטים בהצלחה (ה-RPC הסתיים) אבל
@@ -167,21 +213,14 @@ def main():
         log("סיום | log_reconciliation_diff.py")
         return
 
-    result = execute_with_retry(
-        lambda: client.rpc("log_reconciliation_diff").execute(),
-        "LOG_RECONCILIATION_DIFF",
-        log_fn=log,
-    )
-    audit_id = result.data
+    if len(sys.argv) != 1:
+        log("ERROR | אפשרויות נתמכות: --record-only או --classify-only <audit_id>")
+        sys.exit(1)
 
-    log(f"עודכן | reconciliation_audit קיבלה שורה חדשה | audit_id={audit_id}")
-
-    if audit_id is not None:
-        log("סיווג תזמון מול פער עיצוב אמיתי (בדיקת API חי)...")
-        genuine_count = classify_timing(client, audit_id)
-        log(f"סיווג הושלם | פערים אמיתיים (לא-תזמון) = {genuine_count:,}")
-    else:
-        log("WARNING | log_reconciliation_diff() לא החזירה audit_id - מדלגים על סיווג התזמון")
+    audit_id = record_audit(client)
+    log("סיווג תזמון מול פער עיצוב אמיתי (בדיקת API חי)...")
+    genuine_count = classify_timing(client, audit_id)
+    log(f"סיווג הושלם | פערים אמיתיים (לא-תזמון) = {genuine_count:,}")
 
     log("=" * 80)
     log("סיום | log_reconciliation_diff.py")
