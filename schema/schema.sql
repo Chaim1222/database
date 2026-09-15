@@ -80,8 +80,9 @@ create table if not exists wikipedia_pages (
     -- ממש - כרגע רק 'rav_prefix_normalization' (תוצאת normalize_
     -- person_title בלבד). NULL כשההתאמה "אמיתית" (wikipedia_id או
     -- כותרת זהה) או כשעדיין חסר. מאפשר לאתר ולבטל בקלות את כל השורות
-    -- שהוחרגו רק בגלל נירמול קידומת רבנית, בלי לצטט מחדש - ראו
-    -- migration_add_missing_override_reason.sql.
+    -- שהוחרגו רק בגלל נירמול קידומת רבנית, בלי לחשב מחדש - ראו
+    -- migration_add_missing_override_reason.sql. להצגת המועמד או המועמדים
+    -- שגרמו להחרגה ראו report_rav_prefix_normalization ב-views.sql.
     missing_override_reason text,
 
     -- true אם fetch_wikipedia_created_at.py כבר ניסה לשלוף תאריך יצירה

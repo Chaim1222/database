@@ -11,7 +11,7 @@
 -- report_title_changed_since_match (matched_title).
 --
 -- ידוע, לא תוקן (2026-09): Supabase security advisor מסמן את כל
--- ארבעת ה-views למטה כ-"Security Definer View" (ERROR) - הן רצות
+-- חמשת ה-views למטה כ-"Security Definer View" (ERROR) - הן רצות
 -- בהרשאות היוצר (postgres) ולא בהרשאות השולח, כלומר לא כפופות ל-RLS
 -- של הטבלאות שמתחתן. זה לא נגרם משום שינוי שלנו (זו התנהגות ברירת
 -- המחדל ההיסטורית של views בפוסטגרס, לפני security_invoker ב-PG15+),
@@ -110,6 +110,41 @@ where w.is_missing = true
   )
 order by w.title;
 
+
+-- 5. התאמות קידומת רבנית לבדיקה: ערכי ויקיפדיה שסומנו כלא-חסרים רק
+--    מפני שנמצאה במכלול כותרת זהה אחרי הסרת הקידומת "הרב"/"רבי".
+--    אין כאן יצירת wikipedia_id ואין בחירת מועמד: אם כמה דפי מכלול
+--    מתנרמלים לאותו שם, כולם מוצגים ו-candidate_count מציין כמה נמצאו.
+create or replace view report_rav_prefix_normalization as
+with candidates as (
+    select
+        w.id as wikipedia_id,
+        w.title as wikipedia_title,
+        normalize_person_title(w.title) as normalized_title,
+        m.id as mechalol_id,
+        m.title as mechalol_title,
+        m.status as mechalol_status,
+        m.source_type as mechalol_source_type,
+        m.match_type as mechalol_match_type,
+        count(*) over (partition by w.id) as candidate_count
+    from wikipedia_pages w
+    join mechalol_pages m
+      on normalize_person_title(m.title) = normalize_person_title(w.title)
+    where w.missing_override_reason = 'rav_prefix_normalization'
+)
+select
+    wikipedia_id,
+    wikipedia_title,
+    normalized_title,
+    mechalol_id,
+    mechalol_title,
+    mechalol_status,
+    mechalol_source_type,
+    mechalol_match_type,
+    candidate_count
+from candidates
+order by wikipedia_title, mechalol_title;
+
 -- --- הרשאות: קיימות בייצור, מעולם לא תועדו כאן עד 2026-09 ---
 -- מלכוד שהתגלה בפועל: view חדש שנוצר עם create or replace view רגיל
 -- (כמו שלושת הראשונים למעלה, כשהם נוצרו לראשונה) יורש את אותה ברירת
@@ -122,8 +157,10 @@ revoke all on report_possibly_deleted_source from anon, authenticated;
 revoke all on report_tasks_to_handle from anon, authenticated;
 revoke all on report_undocumented_import from anon, authenticated;
 revoke all on report_missing_from_mechalol from anon, authenticated;
+revoke all on report_rav_prefix_normalization from anon, authenticated;
 
 grant select on report_possibly_deleted_source to anon, authenticated;
 grant select on report_tasks_to_handle to anon, authenticated;
 grant select on report_undocumented_import to anon, authenticated;
 grant select on report_missing_from_mechalol to anon, authenticated;
+grant select on report_rav_prefix_normalization to anon, authenticated;
