@@ -8,15 +8,18 @@ import unittest
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts"))
 
 from suspicious_words import (  # noqa: E402
-    compile_lists, is_clean, load_lists, mask_wikitext, parse_bmh, parse_bomah, scan, split_alternatives,
+    compile_lists, is_clean, load_lists, mask_wikitext, parse_bmh, parse_bomah, read_snapshot, scan,
+    split_alternatives,
 )
 
-LISTS = load_lists("snapshot")
+# LISTS - שתי רשימות המקור בלבד; FULL - כולל תוספות ומותרות.
+LISTS = compile_lists(read_snapshot("bmh.txt"), read_snapshot("bomah.txt"))
+FULL = load_lists("snapshot")
 
 
-def found(text, category=None, scope="visible"):
+def found(text, category=None, scope="visible", lists=LISTS, word_start=True):
     cats = {category} if category else None
-    return [m.text for m in scan(text, LISTS, scope, cats)]
+    return [m.text for m in scan(text, lists, scope, cats, word_start=word_start)]
 
 
 class SplitAlternativesTest(unittest.TestCase):
@@ -123,6 +126,16 @@ class ScanTest(unittest.TestCase):
         self.assertTrue(found("נמצא מין חדש של ציפור", "bmh_dark_red"))
         self.assertFalse(scan("נמצא מין חדש של ציפור", LISTS, categories={"bmh_dark_red"}, allowlist=[r"מין חדש"]))
 
+    def test_word_start_rejects_match_inside_word(self):
+        for text in ("פסטיבל אשדודאנס", "חזונות הנביאים", "ג'וזפין בייקר", "מדינת אבחזיה", "האמינית"):
+            self.assertEqual(found(text), [], text)
+            self.assertTrue(found(text, word_start=False), text)
+
+    def test_word_start_keeps_prefixed_and_context_patterns(self):
+        self.assertTrue(found("תעשיית הפורנו", "bmh_dark_red"))
+        self.assertTrue(found("ולסביות", "bmh_dark_red"))
+        self.assertTrue(found("מסיבה עם אורגיה גדולה", "bmh_dark_red"))
+
     def test_is_clean_uses_only_blocking_categories(self):
         self.assertTrue(is_clean("לפני מיליון שנה", LISTS))
         self.assertFalse(is_clean("תעשיית הפורנו", LISTS))
@@ -130,3 +143,28 @@ class ScanTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ExtraAndAllowTest(unittest.TestCase):
+    def test_extra_lists_compile_without_problems(self):
+        self.assertFalse([p for p in FULL.problems if p[0].startswith(("extra", "allow"))])
+        self.assertTrue(any(p.category.key == "extra_modesty" for p in FULL.patterns))
+        self.assertGreater(len(FULL.allow), 10)
+
+    def test_extra_patterns(self):
+        self.assertTrue(found("אלבום Fuck You", "extra_modesty", lists=FULL))
+        self.assertTrue(found("אלוף בפיתוח גוף", "extra_modesty", lists=FULL))
+
+    def test_allowlist_examples(self):
+        for text in ("המין האנושי", "מינים בסכנת הכחדה", 'אתר מורשת של אונסק"ו', "בואנוס איירס",
+                     "הקיסר אדריאנוס", "הממצאים חשפו", "דוכס סקסוניה", "טרנסילבניה", "כל מיני כלים",
+                     "בשוגג או באונס"):
+            self.assertFalse([m for m in scan(text, FULL) if m.category.blocking], text)
+
+    def test_allowlist_does_not_hide_the_real_word(self):
+        for text in ("היא הייתה אנוסה", "הוא אנס אותה", "זוג מאותו המין", "טרנסג'נדר", "תעשיית הפורנו"):
+            self.assertTrue([m for m in scan(text, FULL) if m.category.blocking], text)
+
+    def test_allow_on_link_target(self):
+        self.assertFalse(found("[[מין (טקסונומיה)|מין]] של ציפור", "bmh_dark_red", lists=FULL))
+        self.assertTrue(found("[[מין (טקסונומיה)|מין]] של ציפור", "bmh_dark_red"))

@@ -7,6 +7,7 @@ const core = require('../gadget/Gadget-wikitextWordCheck.js');
 
 const read = (f) => fs.readFileSync(path.join(__dirname, '..', 'scripts', 'suspicious_words_lists', f), 'utf8');
 const LISTS = core.compileLists(read('bmh.txt'), read('bomah.txt'));
+const FULL = core.compileLists(read('bmh.txt'), read('bomah.txt'), read('extra.txt'), read('allow.txt'));
 const found = (text, cat, raw) => core.scan(text, LISTS, { categories: cat ? [cat] : null, raw }).map((m) => m.text);
 
 test('all patterns compile, broken ones reported', () => {
@@ -44,4 +45,21 @@ test('allow list and line numbers', () => {
 	const [m] = core.scan(t, LISTS, { categories: ['bmh_dark_red'] });
 	assert.strictEqual(m.line, 2);
 	assert.deepStrictEqual(core.scan(t, LISTS, { categories: ['bmh_dark_red'], allow: ['מין חדש'] }), []);
+});
+
+test('word start rejects matches inside words', () => {
+	for (const t of ['פסטיבל אשדודאנס', 'חזונות הנביאים', "ג'וזפין בייקר", 'האמינית']) {
+		assert.deepStrictEqual(found(t), [], t);
+		assert.ok(core.scan(t, LISTS, { wordStart: false }).length, t);
+	}
+});
+
+test('extra and allow lists', () => {
+	assert.strictEqual(FULL.problems.filter((p) => /^(extra|allow)/.test(p.category.key)).length, 0);
+	const blocking = (t) => core.scan(t, FULL).filter((m) => m.category.blocking);
+	for (const t of ['המין האנושי', 'מינים בסכנת הכחדה', 'בואנוס איירס', 'הממצאים חשפו', 'טרנסילבניה', 'כל מיני כלים'])
+		assert.deepStrictEqual(blocking(t), [], t);
+	for (const t of ['היא הייתה אנוסה', 'זוג מאותו המין', 'תעשיית הפורנו', 'אלבום Fuck You', 'אלוף בפיתוח גוף'])
+		assert.ok(blocking(t).length, t);
+	assert.deepStrictEqual(blocking('[[מין (טקסונומיה)|מין]] של ציפור'), []);
 });

@@ -17,6 +17,15 @@
  *   - מציג כל התאמה (לא רק הראשונה), עם שורה והקשר; לחיצה מסמנת
  *     אותה בתיבת העריכה.
  *   - בונה את הדוח מצמתי טקסט בלבד - תוכן הדף לא מוזרק כ-HTML.
+ *   - "תחילת מילה": התאמה נספרת רק אם יש בה תחילת מילה (אולי אחרי
+ *     אותיות שימוש) - "דול|פין", "ח|זונות", "אשדוד|אנס" לא נתפסים.
+ *   - שני דפים נוספים, באותו פורמט כמו בומח (*ביטוי// הסבר):
+ *       המכלול:בודק מילים חשודות/תוספות - תבניות חדשות (בלוק ראשון
+ *         חמור, בלוק שני אחרי <!-- --> לבדיקה).
+ *       המכלול:בודק מילים חשודות/מותרות - ביטויים מותרים (למשל
+ *         "המין האנושי", "בואנוס איירס"); התאמה שכולה בתוכם לא מוצגת.
+ *     דף שעדיין לא קיים - מדלגים עליו. התוכן המוצע לשניהם נמצא בריפו
+ *     (scripts/suspicious_words_lists/extra.txt, allow.txt), עם מדידה לכל שורה.
  *
  * הגדרה אישית (common.js), אופציונלי:
  *   window.wikitextWordCheckAllow = ['מין חדש', 'כלי זין'];
@@ -27,6 +36,9 @@
 
 	var BMH_PAGE = 'המכלול:בדיקת מילים חשודות';
 	var BOMAH_PAGE = 'המכלול:בודק מילים חשודות';
+	// שני דפים נוספים באותו פורמט (*ביטוי// הסבר). דף שלא קיים - מדלגים עליו.
+	var EXTRA_PAGE = 'המכלול:בודק מילים חשודות/תוספות';
+	var ALLOW_PAGE = 'המכלול:בודק מילים חשודות/מותרות';
 	var HEB = String.fromCharCode(0x590) + '-' + String.fromCharCode(0x5FF);
 
 	// לפי שם הכותרת בדף ולא לפי מיקום, כך ששינוי סדר בדף לא יזיז צבעים.
@@ -42,6 +54,11 @@
 		{ key: 'bomah_modesty', label: 'בומח - צניעות', color: '#ff5555', blocking: true },
 		{ key: 'bomah_general', label: 'בומח - כללי', color: '#eeee99', blocking: false }
 	];
+	var EXTRA_CATEGORIES = [
+		{ key: 'extra_modesty', label: 'תוספות - צניעות', color: '#ff5555', blocking: true },
+		{ key: 'extra_general', label: 'תוספות - כללי', color: '#eeee99', blocking: false }
+	];
+	var ALLOW_CATEGORY = { key: 'allow', label: 'מותרות', color: '', blocking: false };
 
 	var FIXES = {
 		'(?<!יו)א[ו]*נ[ו]*ס^ק': {
@@ -49,8 +66,8 @@
 			why: '^ באמצע תבנית הוא "תחילת הטקסט" - התבנית לא התאימה אף פעם. הכוונה: לא ואחריו ק.'
 		},
 		'רומ+[נן]+^יה': {
-			to: 'רומ+[נן]+(?!יה)',
-			why: '^ באמצע תבנית - לא התאימה אף פעם. הכוונה: לא ואחריו יה.'
+			to: 'רומ+[נן]+(?![יה])',
+			why: '^ באמצע תבנית - לא התאימה אף פעם. הכוונה: [^יה] (לא ואחריו י או ה), כלומר לא רומני/רומנים/רומניה.'
 		},
 		'(?<!ל)לסביםוזית': {
 			to: 'לסבי(?:ם|ות|ית)',
@@ -135,13 +152,15 @@
 		return result;
 	}
 
-	// כמו בבומח: רק אחרי -----, רק שורות שמתחילות ב-* ומכילות //.
-	function parseBomah(text) {
+	// פורמט בומח (גם לתוספות ולמותרות): רק אחרי -----, בלוק לכל קטגוריה
+	// (מופרדים ב-<!-- -->), רק שורות שמתחילות ב-* ומכילות //. מה שלפני
+	// ה-// הראשון הוא התבנית, ומה שאחריו - ההסבר.
+	function parseAnnotated(text, categories) {
 		var body = text.indexOf('-----') >= 0 ? text.slice(text.indexOf('-----') + 5) : text;
 		var blocks = body.split(/<!--\s*-->/);
 		var result = [], ignored = [];
-		BOMAH_CATEGORIES.forEach(function (category, idx) {
-			var sources = [];
+		categories.forEach(function (category, idx) {
+			var sources = [], notes = [];
 			(blocks[idx] || '').split('\n').forEach(function (line) {
 				line = line.trim();
 				if (line.indexOf('//') < 0) return;
@@ -149,22 +168,39 @@
 					ignored.push({ category: category, line: line });
 					return;
 				}
-				sources.push(line.slice(1).split('//')[0].trim());
+				var cut = line.indexOf('//');
+				sources.push(line.slice(1, cut).trim());
+				notes.push(line.slice(cut + 2).trim());
 			});
-			result.push({ category: category, sources: sources });
+			result.push({ category: category, sources: sources, notes: notes });
 		});
 		return { lists: result, ignored: ignored };
 	}
 
-	function compileLists(bmhText, bomahText) {
-		var parsed = [], problems = [], patterns = [];
+	function parseBomah(text) {
+		return parseAnnotated(text, BOMAH_CATEGORIES);
+	}
+
+	function compileLists(bmhText, bomahText, extraText, allowText) {
+		var parsed = [], problems = [], patterns = [], allow = [];
 		if (bmhText != null) parsed = parsed.concat(parseBmh(bmhText));
-		if (bomahText != null) {
-			var bomah = parseBomah(bomahText);
-			parsed = parsed.concat(bomah.lists);
-			bomah.ignored.forEach(function (x) {
+		[[bomahText, BOMAH_CATEGORIES], [extraText, EXTRA_CATEGORIES]].forEach(function (pair) {
+			if (pair[0] == null) return;
+			var res = parseAnnotated(pair[0], pair[1]);
+			parsed = parsed.concat(res.lists);
+			res.ignored.forEach(function (x) {
 				problems.push({ category: x.category, source: x.line,
-					message: 'השורה לא מתחילה ב-* ולכן בומח מתעלם ממנה.' });
+					message: 'השורה לא מתחילה ב-* ולכן מתעלמים ממנה.' });
+			});
+		});
+		if (allowText != null) {
+			var res = parseAnnotated(allowText, [ALLOW_CATEGORY]);
+			res.lists[0].sources.forEach(function (source, idx) {
+				try {
+					allow.push({ source: source, regex: new RegExp(source, 'gi'), reason: res.lists[0].notes[idx] });
+				} catch (e) {
+					problems.push({ category: ALLOW_CATEGORY, source: source, message: 'ביטוי מותר לא תקין: ' + e.message });
+				}
 			});
 		}
 		parsed.forEach(function (list) {
@@ -181,8 +217,8 @@
 				var effective = fix ? fix.to : source;
 				var regex;
 				try {
-					// רישיות כמו במקור: בומח עם דגל i, במח בלי (לכן יש בו sex|Sex|SEX).
-					regex = new RegExp(effective, list.category.key.indexOf('bomah') === 0 ? 'gi' : 'g');
+					// רישיות כמו במקור: במח בלי דגל i (לכן יש בו sex|Sex|SEX), בומח והתוספות עם.
+					regex = new RegExp(effective, list.category.key.indexOf('bmh') === 0 ? 'g' : 'gi');
 				} catch (e) {
 					problems.push({ category: list.category, source: source, message: 'תבנית לא תקינה: ' + e.message });
 					return;
@@ -191,7 +227,7 @@
 				patterns.push({ category: list.category, source: source, regex: regex });
 			});
 		});
-		return { patterns: patterns, problems: problems };
+		return { patterns: patterns, problems: problems, allow: allow };
 	}
 
 	// ===== מיסוך ויקיטקסט =====
@@ -329,17 +365,62 @@
 
 	// ===== סריקה =====
 
+	// אותיות השימוש שיכולות להיות צמודות לפני מילה.
+	var PREFIX_LETTERS = 'ובכלמשה';
+	var LETTER_RE = /[A-Za-z\u05D0-\u05EA]/;
+
+	// האם start הוא תחילת מילה, או שלפניו רק עד 3 אותיות שימוש ואז תחילת
+	// מילה. "הפורנו"/"ולסבית" - כן; "דול|פין"/"ני|זונה" - לא.
+	function startsWord(text, start) {
+		var j = start, prefixes = 0;
+		while (j > 0 && LETTER_RE.test(text[j - 1])) {
+			if (PREFIX_LETTERS.indexOf(text[j - 1]) < 0 || prefixes === 3) return false;
+			j--;
+			prefixes++;
+		}
+		return true;
+	}
+
+	// האם יש בתוך ההתאמה אות שהיא תחילת מילה - לא רק הראשונה, כי תבניות
+	// כמו .?.?סקסואל תופסות גם תווים מהמילה הקודמת. תבנית שמתחילה ב-[^...]
+	// צורכת את התו שלפני המילה, ולכן הוא לא נספר.
+	function containsWordStart(text, start, end, source) {
+		if (source.indexOf('[^') === 0) start++;
+		for (var i = start; i < end; i++) {
+			if (LETTER_RE.test(text[i]) && startsWord(text, i)) return true;
+		}
+		return false;
+	}
+
 	function scan(wikitext, lists, options) {
 		options = options || {};
 		var masked = options.raw ? wikitext : maskWikitext(wikitext);
+		// ביטויים מותרים נבדקים גם על הגולמי (קישור שלם לפי היעד שלו) וגם על
+		// הממוסך (ביטוי מוצג שמפוצל בסימון).
 		var allowed = [];
-		(options.allow || []).forEach(function (pattern) {
-			var re = new RegExp(pattern, 'gi'), m;
-			while ((m = re.exec(wikitext)) !== null) {
-				allowed.push([m.index, m.index + m[0].length]);
-				if (!m[0].length) re.lastIndex++;
-			}
+		var allowRegexes = (lists.allow || []).map(function (a) { return a.regex; })
+			.concat((options.allow || []).map(function (p) { return new RegExp(p, 'gi'); }));
+		allowRegexes.forEach(function (re) {
+			(masked === wikitext ? [wikitext] : [wikitext, masked]).forEach(function (text) {
+				var m;
+				re.lastIndex = 0;
+				while ((m = re.exec(text)) !== null) {
+					if (m[0].length) allowed.push([m.index, m.index + m[0].length]);
+					else re.lastIndex++;
+				}
+			});
 		});
+		// מיקומי ירידות השורה, לחישוב מספר שורה בחיפוש בינארי (ולא slice+split לכל התאמה).
+		var newlines = [];
+		for (var n = wikitext.indexOf('\n'); n >= 0; n = wikitext.indexOf('\n', n + 1)) newlines.push(n);
+		function lineOf(pos) {
+			var lo = 0, hi = newlines.length;
+			while (lo < hi) {
+				var mid = (lo + hi) >> 1;
+				if (newlines[mid] < pos) lo = mid + 1; else hi = mid;
+			}
+			return lo + 1;
+		}
 		var bySpan = {}, result = [];
 		lists.patterns.forEach(function (p) {
 			if (options.categories && options.categories.indexOf(p.category.key) < 0) return;
@@ -354,6 +435,8 @@
 				while (start < end && /\s/.test(hay[start])) start++;
 				while (end > start && /\s/.test(hay[end - 1])) end--;
 				if (start === end) continue;
+				// ברירת מחדל: פעיל (wordStart: false - לתפוס גם באמצע מילה).
+				if (options.wordStart !== false && !containsWordStart(hay, m.index, end, p.source)) continue;
 				if (allowed.some(function (a) { return a[0] <= start && end <= a[1]; })) continue;
 				var key = p.category.key + ':' + start + ':' + end;
 				if (bySpan[key]) {
@@ -363,7 +446,7 @@
 				bySpan[key] = {
 					category: p.category, patterns: [p.source], start: start, end: end,
 					text: wikitext.slice(start, end),
-					line: wikitext.slice(0, start).split('\n').length
+					line: lineOf(start)
 				};
 				result.push(bySpan[key]);
 			}
@@ -389,13 +472,13 @@
 		if (!listsPromise) {
 			listsPromise = new mw.Api().get({
 				action: 'query', prop: 'revisions', rvprop: 'content', rvslots: 'main',
-				titles: [BMH_PAGE, BOMAH_PAGE].join('|'), formatversion: 2
+				titles: [BMH_PAGE, BOMAH_PAGE, EXTRA_PAGE, ALLOW_PAGE].join('|'), formatversion: 2
 			}).then(function (data) {
 				var texts = {};
 				data.query.pages.forEach(function (page) {
 					texts[page.title] = page.revisions ? page.revisions[0].slots.main.content : null;
 				});
-				return compileLists(texts[BMH_PAGE], texts[BOMAH_PAGE]);
+				return compileLists(texts[BMH_PAGE], texts[BOMAH_PAGE], texts[EXTRA_PAGE], texts[ALLOW_PAGE]);
 			});
 			listsPromise.fail(function () { listsPromise = null; });
 		}

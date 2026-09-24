@@ -15,7 +15,7 @@
   `*תבנית//`, שני בלוקים מופרדים ב-`<!-- -->`. משמשת את הבודק
   שרץ על תיבת העריכה בסקריפט העדכון.
 
-שלושה דברים שהמנוע עושה מעבר להעברה ישירה של הרשימות:
+ארבעה דברים שהמנוע עושה מעבר להעברה ישירה של הרשימות:
 
 1. **תיקון תבניות שבורות** (FIXES למטה) - תבניות שבפועל אף פעם לא
    מתאימות (למשל `^ק` במקום `[^ק]`), או שמתאימות לכל דבר (חלופה
@@ -32,9 +32,14 @@
    נשאר. `scope="raw"` מדלג על המיסוך (שימושי לרשימה הסגולה, שמחפשת
    דווקא סימני ויקי כמו "ויקיפדיה:").
 
-3. **רשימת היתרים** (allowlist) - ביטויים רגולריים שהתאמה שנופלת
-   כולה בתוכם לא מדווחת (למשל "מין חדש" = species). ריקה כברירת
-   מחדל - ההחלטה מה מותר שייכת לעורכים, לא לקוד.
+3. **רשימת מותרות ותוספות** - suspicious_words_lists/allow.txt (ביטויים
+   שהתאמה שנופלת כולה בתוכם לא מדווחת, למשל "המין האנושי") ו-extra.txt
+   (תבניות חדשות), בפורמט של בומח עם הסבר ומדידה לכל שורה. מיועדים
+   להפוך לדפים במכלול (EXTRA_PAGE, ALLOW_PAGE) - ההחלטה מה מותר ומה
+   נוסף שייכת לעורכים. המדידה: evaluate_suspicious_words.py.
+
+4. **תחילת מילה** (ברירת מחדל) - התאמה נספרת רק אם יש בה תחילת מילה
+   (אולי אחרי אותיות שימוש), כך ש"דול|פין" ו"ח|זונות" לא נתפסים.
 
 הבדלים מכוונים מהגאדג'טים ב-JS:
 - רישיות כמו במקור: בומח רץ ללא תלות ברישיות (דגל i), במח רץ תלוי רישיות
@@ -70,6 +75,10 @@ REQUEST_HEADERS = {
 
 BMH_PAGE = "המכלול:בדיקת מילים חשודות"
 BOMAH_PAGE = "המכלול:בודק מילים חשודות"
+# שני דפים חדשים (הצעה), באותו פורמט כמו בומח: `*ביטוי// הסבר`.
+# כל עוד הדפים לא קיימים במכלול, התוכן נלקח מהקבצים שבריפו.
+EXTRA_PAGE = "המכלול:בודק מילים חשודות/תוספות"
+ALLOW_PAGE = "המכלול:בודק מילים חשודות/מותרות"
 
 LISTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "suspicious_words_lists")
 
@@ -106,6 +115,11 @@ BOMAH_CATEGORIES = [
     Category("bomah_general", "בומח - כללי", "#eeee99", "bomah", False),
 ]
 
+EXTRA_CATEGORIES = [
+    Category("extra_modesty", "תוספות - צניעות", "#ff5555", "extra", True),
+    Category("extra_general", "תוספות - כללי", "#eeee99", "extra", False),
+]
+
 # הרשימה הסגולה מחפשת סימני ויקי ("ויקיפדיה:", "תמונה חילופית") -
 # אלה בדרך כלל בדיוק מה שהמיסוך מסיר, ולכן היא רצה על הטקסט הגולמי.
 RAW_SCOPE_CATEGORIES = {"bmh_purple"}
@@ -128,8 +142,9 @@ FIXES = {
         "`^` באמצע תבנית הוא עוגן תחילת טקסט, ולכן התבנית לא התאימה אף פעם. הכוונה: 'לא ואחריו ק'.",
     ),
     "רומ+[נן]+^יה": Fix(
-        "רומ+[נן]+(?!יה)",
-        "`^` באמצע תבנית - לא התאימה אף פעם. הכוונה: 'לא ואחריו יה'.",
+        "רומ+[נן]+(?![יה])",
+        "`^` באמצע תבנית - לא התאימה אף פעם. הכוונה: `[^יה]` (לא ואחריו י או ה, כמו ברשימה האדומה) - "
+        "כלומר לא 'רומני'/'רומנים'/'רומניה'.",
     ),
     "(?<!ל)לסביםוזית": Fix(
         "לסבי(?:ם|ות|ית)",
@@ -187,9 +202,17 @@ class Pattern:
 
 
 @dataclass
+class Allowed:
+    source: str
+    regex: re.Pattern
+    reason: str
+
+
+@dataclass
 class Lists:
     patterns: list = field(default_factory=list)
     problems: list = field(default_factory=list)   # [(category_key, source, message)]
+    allow: list = field(default_factory=list)      # [Allowed]
 
     def categories(self):
         seen = {}
@@ -253,17 +276,18 @@ def parse_bmh(wikitext):
     return result
 
 
-def parse_bomah(wikitext):
+def parse_annotated(wikitext, categories):
     """
-    ({Category: [pattern source, ...]}, [שורות שהגאדג'ט מתעלם מהן]).
-    כמו בגאדג'ט: רק מה שאחרי `-----`, רק שורות שמתחילות ב-`*` ומכילות
-    `//`, והתבנית היא מה שלפני ה-`//` הראשון.
+    פורמט בומח (משמש גם לתוספות ולמותרות): רק מה שאחרי `-----`, בלוקים
+    מופרדים ב-`<!-- -->` (בלוק לכל קטגוריה), רק שורות שמתחילות ב-`*`
+    ומכילות `//`. התבנית היא מה שלפני ה-`//` הראשון, וההסבר - מה שאחריו.
+    מחזיר ({Category: [(pattern, explanation), ...]}, [(Category, שורה שהתעלמנו ממנה)]).
     """
     body = wikitext.split("-----", 1)[1] if "-----" in wikitext else wikitext
     blocks = re.split(r"<!--\s*-->", body)
     result, ignored = {}, []
-    for category, block in zip(BOMAH_CATEGORIES, blocks):
-        sources = []
+    for category, block in zip(categories, blocks):
+        items = []
         for line in block.splitlines():
             line = line.strip()
             if "//" not in line:
@@ -271,13 +295,20 @@ def parse_bomah(wikitext):
             if not line.startswith("*"):
                 ignored.append((category, line))
                 continue
-            sources.append(line[1:].split("//")[0].strip())
-        result[category] = sources
+            pattern, _, explanation = line[1:].partition("//")
+            items.append((pattern.strip(), explanation.strip()))
+        result[category] = items
     return result, ignored
 
 
-def compile_lists(bmh_text=None, bomah_text=None):
-    """בונה Lists משני הדפים (כל אחד אופציונלי)."""
+def parse_bomah(wikitext):
+    """({Category: [pattern source, ...]}, [שורות שהגאדג'ט מתעלם מהן]) - כמו בגאדג'ט."""
+    parsed, ignored = parse_annotated(wikitext, BOMAH_CATEGORIES)
+    return {c: [p for p, _ in items] for c, items in parsed.items()}, ignored
+
+
+def compile_lists(bmh_text=None, bomah_text=None, extra_text=None, allow_text=None):
+    """בונה Lists מהדפים (כל אחד אופציונלי)."""
     lists = Lists()
     parsed = {}
     if bmh_text is not None:
@@ -290,6 +321,21 @@ def compile_lists(bmh_text=None, bomah_text=None):
                 category.key, line,
                 "השורה לא מתחילה ב-* - הגאדג'ט מתעלם ממנה (ומצרף אותה בשקט לשורה הקודמת).",
             ))
+    if extra_text is not None:
+        extra, ignored = parse_annotated(extra_text, EXTRA_CATEGORIES)
+        parsed.update({c: [p for p, _ in items] for c, items in extra.items()})
+        for category, line in ignored:
+            lists.problems.append((category.key, line, "השורה לא מתחילה ב-* - מתעלמים ממנה."))
+    if allow_text is not None:
+        allow_category = Category("allow", "מותרות", "", "allow", False)
+        allowed, ignored = parse_annotated(allow_text, [allow_category])
+        for pattern, reason in allowed.get(allow_category, []):
+            try:
+                lists.allow.append(Allowed(pattern, re.compile(pattern, re.IGNORECASE), reason))
+            except re.error as exc:
+                lists.problems.append(("allow", pattern, f"ביטוי מותר לא תקין: {exc}; הושמט."))
+        for _, line in ignored:
+            lists.problems.append(("allow", line, "השורה לא מתחילה ב-* - מתעלמים ממנה."))
 
     for category, sources in parsed.items():
         seen = set()
@@ -307,7 +353,11 @@ def compile_lists(bmh_text=None, bomah_text=None):
             regex = None
             if effective is not None:
                 try:
-                    regex = re.compile(effective, re.IGNORECASE if category.source == "bomah" else 0)
+                    # רישיות כמו במקור: במח תלוי רישיות, בומח (והתוספות, באותו פורמט) לא.
+                    # re.ASCII - כמו ב-JS (שבו נכתבו הרשימות): \w/\W/\b מתייחסים רק לאותיות
+                    # לטיניות, כך ש-`מינ(י|יו)ת(\W)` תופס גם את "מיניותן", כמו בגאדג'ט.
+                    flags = re.ASCII | (0 if category.source == "bmh" else re.IGNORECASE)
+                    regex = re.compile(effective, flags)
                 except re.error as exc:
                     lists.problems.append((category.key, source, f"לא מתקמפלת בפייתון: {exc}; הושמטה."))
                     effective = None
@@ -341,12 +391,22 @@ def fetch_raw(api, title):
 
 def load_lists(source="snapshot"):
     """
-    source="live" - קורא את שני הדפים מהמכלול (מקור האמת).
-    source="snapshot" - העותק שבריפו (suspicious_words_lists/).
+    source="live" - קורא את הדפים מהמכלול (מקור האמת). דפי התוספות
+    והמותרות - אם עדיין לא נוצרו במכלול, מהקבצים שבריפו.
+    source="snapshot" - הכל מהעותק שבריפו (suspicious_words_lists/).
     """
     if source == "live":
-        return compile_lists(fetch_raw(MECHALOL_API, BMH_PAGE), fetch_raw(MECHALOL_API, BOMAH_PAGE))
-    return compile_lists(read_snapshot("bmh.txt"), read_snapshot("bomah.txt"))
+        def live_or_file(page, name):
+            try:
+                return fetch_raw(MECHALOL_API, page)
+            except LookupError:
+                return read_snapshot(name)
+        return compile_lists(
+            fetch_raw(MECHALOL_API, BMH_PAGE), fetch_raw(MECHALOL_API, BOMAH_PAGE),
+            live_or_file(EXTRA_PAGE, "extra.txt"), live_or_file(ALLOW_PAGE, "allow.txt"),
+        )
+    return compile_lists(read_snapshot("bmh.txt"), read_snapshot("bomah.txt"),
+                         read_snapshot("extra.txt"), read_snapshot("allow.txt"))
 
 
 # ============================================================
@@ -540,7 +600,38 @@ def _context(text, start, end, width=40):
     return (left + "【" + text[start:end] + "】" + right).replace("\n", " ⏎ ")
 
 
-def scan(wikitext, lists, scope="visible", categories=None, allowlist=()):
+# אותיות השימוש שיכולות להיות צמודות לפני מילה ("ו", "ה", "ב"... ושילובים כמו "וכש").
+PREFIX_LETTERS = "ובכלמשה"
+_LETTER_RE = re.compile(r"[A-Za-zא-ת]")   # זהה ל-LETTER_RE בגאדג'ט
+
+
+def _starts_word(text, start):
+    """
+    True אם start הוא תחילת מילה, או שלפניו רק אותיות שימוש (עד 3) ולפניהן
+    תחילת מילה. כך "הפורנו"/"ולסבית" עוברים, ו"דול|פין"/"ני|זונה" לא.
+    """
+    j, prefixes = start, 0
+    while j > 0 and _LETTER_RE.match(text[j - 1]):
+        if text[j - 1] not in PREFIX_LETTERS or prefixes == 3:
+            return False
+        j -= 1
+        prefixes += 1
+    return True
+
+
+def _contains_word_start(text, start, end, source):
+    """
+    האם יש בתוך ההתאמה אות שהיא תחילת מילה (ראו _starts_word). לא רק
+    האות הראשונה, כי תבניות כמו `.?.?סקסואל` או `(\s|\S)?[^גי]אורגיה`
+    תופסות בכוונה גם תווים מהמילה הקודמת. תבנית שמתחילה ב-`[^...]`
+    צורכת את התו שלפני המילה - לכן הוא לא נספר ("ה|אמינית" לא, " מינית" כן).
+    """
+    if source.startswith("[^"):
+        start += 1
+    return any(_LETTER_RE.match(text[i]) and _starts_word(text, i) for i in range(start, end))
+
+
+def scan(wikitext, lists, scope="visible", categories=None, allowlist=(), word_start=True):
     """
     מחזיר [Match] ממוין לפי מיקום.
 
@@ -548,13 +639,22 @@ def scan(wikitext, lists, scope="visible", categories=None, allowlist=()):
     ב-RAW_SCOPE_CATEGORIES רצות תמיד על הטקסט הגולמי.
     scope="raw" - כל הוויקיטקסט, כמו בבומח.
     categories - קבוצת מפתחות קטגוריה (None = הכל).
-    allowlist - ביטויים רגולריים; התאמה שכולה בתוך התאמה של אחד מהם
-    לא מדווחת.
+    allowlist - ביטויים רגולריים נוספים על lists.allow; התאמה שכולה בתוך
+    התאמה של אחד מהם לא מדווחת. הביטויים המותרים נבדקים גם על הטקסט
+    הגולמי וגם על הממוסך: על הגולמי אפשר לתפוס קישור שלם לפי היעד שלו
+    (`\[\[מין \(טקסונומיה\)\|[^\]]*\]\]`), ועל הממוסך - ביטוי מוצג
+    שמפוצל בסימון (למשל "כל [[מיני]] X" נראה בממוסך כמו "כל   מיני   X").
+    word_start - רק התאמות שמכילות תחילת מילה (או תחילת מילה אחרי אותיות
+    שימוש) - ראו _contains_word_start. ברירת מחדל: פעיל. במדידה על 2,020
+    ערכי מכלול הוריד התראות שווא מ-25.6% ל-18.4%, ומ-1,300 ערכים חסומים
+    "אבדו" רק 9 - וכולם נתפסו קודם בטעות (אשדוד|אנס, ח|זונות, ג'וז|פין).
     """
     masked = mask_wikitext(wikitext) if scope == "visible" else wikitext
     allowed = []
-    for pattern in allowlist:
-        allowed.extend((m.start(), m.end()) for m in re.finditer(pattern, wikitext, re.IGNORECASE))
+    regexes = [a.regex for a in lists.allow] + [re.compile(p, re.IGNORECASE) for p in allowlist]
+    for regex in regexes:
+        for text in {wikitext, masked}:
+            allowed.extend(m.span() for m in regex.finditer(text) if m.end() > m.start())
 
     by_span = {}   # (category, start, end) -> Match
     for p in lists.patterns:
@@ -570,6 +670,8 @@ def scan(wikitext, lists, scope="visible", categories=None, allowlist=()):
                 end -= 1
             if start == end:
                 continue
+            if word_start and not _contains_word_start(haystack, m.start(), end, p.source):
+                continue
             if any(a <= start and end <= b for a, b in allowed):
                 continue
             key = (p.category.key, start, end)
@@ -584,10 +686,10 @@ def scan(wikitext, lists, scope="visible", categories=None, allowlist=()):
     return sorted(by_span.values(), key=lambda m: (m.start, m.end, m.category.key))
 
 
-def is_clean(wikitext, lists, scope="visible", allowlist=()):
+def is_clean(wikitext, lists, scope="visible", allowlist=(), word_start=True):
     """True אם אין אף התאמה בקטגוריה חוסמת (אדום כהה / בומח-צניעות)."""
     blocking = {c.key for c in lists.categories() if c.blocking}
-    return not scan(wikitext, lists, scope, blocking, allowlist)
+    return not scan(wikitext, lists, scope, blocking, allowlist, word_start)
 
 
 # ============================================================
@@ -630,6 +732,7 @@ def main(argv=None):
     parser.add_argument("--scope", choices=["visible", "raw"], default="visible")
     parser.add_argument("--only-blocking", action="store_true", help="רק קטגוריות חוסמות")
     parser.add_argument("--allow", action="append", default=[], help="ביטוי רגולרי מותר (אפשר כמה פעמים)")
+    parser.add_argument("--no-word-start", action="store_true", help="לתפוס גם באמצע מילה, כמו בגאדג'טים המקוריים")
     parser.add_argument("--json", action="store_true", help="פלט JSON")
     args = parser.parse_args(argv)
 
@@ -659,7 +762,7 @@ def main(argv=None):
             wikitext, title = f.read(), args.file
 
     categories = {c.key for c in lists.categories() if c.blocking} if args.only_blocking else None
-    matches = scan(wikitext, lists, args.scope, categories, args.allow)
+    matches = scan(wikitext, lists, args.scope, categories, args.allow, not args.no_word_start)
 
     if args.json:
         json.dump([m.to_dict() for m in matches], sys.stdout, ensure_ascii=False, indent=2)
