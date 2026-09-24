@@ -1,0 +1,224 @@
+{
+ "source": "https://claude.ai/artifact/5VmQ2qfduxyJjiPnbkaUpz",
+ "exported": "2026-09-24T22:00:51.494Z",
+ "note": "גיבוי ההחלטות מדף הסקירה - עוד לא הוחלו על הרשימות",
+ "decisions": {
+  "f-i5omcw": {
+   "at": "2026-09-24T20:57:34.373Z",
+   "decision": "real",
+   "kind": "finding",
+   "level": null,
+   "note": ""
+  },
+  "w0357": {
+   "at": "2026-09-24T20:27:22.996Z",
+   "decision": "approve",
+   "kind": "word",
+   "level": null,
+   "note": ""
+  },
+  "w0359": {
+   "at": "2026-09-24T20:34:25.564Z",
+   "decision": "approve",
+   "kind": "word",
+   "level": null,
+   "note": ""
+  },
+  "w0363": {
+   "at": "2026-09-24T20:29:38.868Z",
+   "decision": "approve",
+   "kind": "word",
+   "level": null,
+   "note": ""
+  },
+  "w0364": {
+   "at": "2026-09-24T20:34:45.062Z",
+   "decision": "approve",
+   "kind": "word",
+   "level": null,
+   "note": ""
+  },
+  "w0365": {
+   "at": "2026-09-24T20:34:54.509Z",
+   "decision": "approve",
+   "kind": "word",
+   "level": null,
+   "note": ""
+  },
+  "w0366": {
+   "at": "2026-09-24T20:29:12.357Z",
+   "decision": "approve",
+   "kind": "word",
+   "level": "review",
+   "note": ""
+  },
+  "w0372": {
+   "at": "2026-09-24T20:35:03.861Z",
+   "decision": "approve",
+   "kind": "word",
+   "level": "review",
+   "note": ""
+  },
+  "w0377": {
+   "at": "2026-09-24T20:32:21.087Z",
+   "decision": "approve",
+   "kind": "word",
+   "level": null,
+   "note": ""
+  },
+  "w0378": {
+   "at": "2026-09-24T20:32:59.784Z",
+   "decision": "approve",
+   "kind": "word",
+   "level": null,
+   "note": ""
+  },
+  "w0380": {
+   "at": "2026-09-24T20:34:31.395Z",
+   "decision": "approve",
+   "kind": "word",
+   "level": null,
+   "note": ""
+  },
+  "w0384": {
+   "at": "2026-09-24T20:30:04.425Z",
+   "decision": "approve",
+   "kind": "word",
+   "level": null,
+   "note": ""
+  },
+  "w0385": {
+   "at": "2026-09-24T20:32:38.940Z",
+   "decision": "approve",
+   "kind": "word",
+   "level": null,
+   "note": ""
+  },
+  "w0386": {
+   "at": "2026-09-24T20:33:16.946Z",
+   "decision": "approve",
+   "kind": "word",
+   "level": null,
+   "note": ""
+  },
+  "w0388": {
+   "at": "2026-09-24T20:29:27.699Z",
+   "decision": "approve",
+   "kind": "word",
+   "level": null,
+   "note": ""
+  },
+  "w0393": {
+   "at": "2026-09-24T20:34:15.844Z",
+   "decision": "approve",
+   "kind": "word",
+   "level": null,
+   "note": ""
+  },
+  "w0394": {
+   "at": "2026-09-24T20:34:39.425Z",
+   "decision": "approve",
+   "kind": "word",
+   "level": null,
+   "note": ""
+  },
+  "w0395": {
+   "at": "2026-09-24T20:31:01.457Z",
+   "decision": "approve",
+   "kind": "word",
+   "level": null,
+   "note": ""
+  },
+  "w0403": {
+   "at": "2026-09-24T20:27:41.527Z",
+   "decision": "approve",
+   "kind": "word",
+   "level": null,
+   "note": ""
+  },
+  "w0404": {
+   "at": "2026-09-24T20:33:39.098Z",
+   "decision": "approve",
+   "kind": "word",
+   "level": null,
+   "note": ""
+  },
+  "w0408": {
+   "at": "2026-09-24T20:32:53.476Z",
+   "decision": "approve",
+   "kind": "word",
+   "level": null,
+   "note": ""
+  },
+  "w0409": {
+   "at": "2026-09-24T20:34:01.903Z",
+   "decision": "approve",
+   "kind": "word",
+   "level": null,
+   "note": "מה עם זיקפה?"
+  },
+  "w0410": {
+   "at": "2026-09-24T20:30:42.586Z",
+   "decision": "approve",
+   "kind": "word",
+   "level": null,
+   "note": ""
+  },
+  "w0411": {
+   "at": "2026-09-24T20:30:34.469Z",
+   "decision": "approve",
+   "kind": "word",
+   "level": null,
+   "note": ""
+  },
+  "w0412": {
+   "at": "2026-09-24T20:30:54.994Z",
+   "decision": "approve",
+   "kind": "word",
+   "level": null,
+   "note": ""
+  },
+  "w0414": {
+   "at": "2026-09-24T20:34:10.560Z",
+   "decision": "approve",
+   "kind": "word",
+   "level": null,
+   "note": ""
+  },
+  "w0416": {
+   "at": "2026-09-24T20:32:45.073Z",
+   "decision": "approve",
+   "kind": "word",
+   "level": null,
+   "note": ""
+  },
+  "w0419": {
+   "at": "2026-09-24T20:33:24.821Z",
+   "decision": "approve",
+   "kind": "word",
+   "level": null,
+   "note": ""
+  },
+  "w0422": {
+   "at": "2026-09-24T20:33:30.807Z",
+   "decision": "approve",
+   "kind": "word",
+   "level": null,
+   "note": ""
+  },
+  "w0424": {
+   "at": "2026-09-24T20:30:23.857Z",
+   "decision": "reject",
+   "kind": "word",
+   "level": null,
+   "note": ""
+  },
+  "w0427": {
+   "at": "2026-09-24T20:32:00.577Z",
+   "decision": "approve",
+   "kind": "word",
+   "level": "problem",
+   "note": ""
+  }
+ }
+}

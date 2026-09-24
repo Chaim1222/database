@@ -11,12 +11,14 @@
  *   node word-filter/tools/evaluate.js fetch-blacklist [--ids-file ids.txt]
  *        בלי --ids-file: מזהים מסופרבייס (SUPABASE_URL + SUPABASE_SERVICE_KEY).
  *   node word-filter/tools/evaluate.js fetch-mechalol dev 500
+ *   node word-filter/tools/evaluate.js fetch-random wiki-random wikipedia 2000   (מדגם מייצג מוויקיפדיה)
  *   node word-filter/tools/evaluate.js fetch-ids dev mechalol word-filter/corpus-ids/dev.txt
  *        שחזור מדגם קיים לפי מזהים (blacklist: wikipedia; dev/holdout: mechalol).
  *   node word-filter/tools/evaluate.js report [--lost]      טבלת תצורות, ומה אבד בכל שלב
  *   node word-filter/tools/evaluate.js noisy [N]            הרשומות שתופסות הכי הרבה במכלול
  *   node word-filter/tools/evaluate.js candidates file.txt  מדידת תבניות מועמדות (שורה לכל תבנית)
  *   node word-filter/tools/evaluate.js evidence out.json    נתונים לכל רשומה - לדף הסקירה
+ *   node word-filter/tools/evaluate.js contexts out.json    הקשרים מהמדגם האקראי מוויקיפדיה - לסיווג בעייתי/תמים
  *
  * ויקיפדיה מגבילה קצב (HTTP 429) - ההורדה ממתינה, וממשיכה מאיפה שעצרה.
  *
@@ -29,7 +31,13 @@ const fs = require('fs');
 const path = require('path');
 const { engine, CORPUS_DIR, LISTS_DIR, readJson, loadLists, apiGet, contentOf, isRedirect, loadCorpora, sleep } = require('./lib');
 
-const OTHER = (name) => name !== 'blacklist';
+// שלושה סוגי מאגרים: blacklist (ערכים שנחסמו - הקשר בעייתי כמעט תמיד), wiki-* (מדגם
+// אקראי מוויקיפדיה - מייצג את הערכים שבודקים לפני ייבוא), וכל השאר - מדגמי מכלול
+// (תוכן שכבר סונן - הקשר תמים כמעט תמיד).
+const sideOf = (name) => (name === 'blacklist' ? 'blacklist' : name.startsWith('wiki') ? 'wikipedia' : 'mechalol');
+const OTHER = (name) => sideOf(name) === 'mechalol';
+const SIDES = ['blacklist', 'wikipedia', 'mechalol'];
+const EXAMPLES = { blacklist: 4, wikipedia: 12, mechalol: 4 };
 
 function corpusPath(name) {
 	fs.mkdirSync(CORPUS_DIR, { recursive: true });
@@ -69,20 +77,23 @@ async function fetchByIds(name, wiki, ids) {
 	}
 }
 
-async function fetchMechalol(name, count) {
+// מדגם אקראי (מרחב הערכים, בלי הפניות). מוויקיפדיה - בלי ערכי blacklist,
+// כדי שהמדגם ייצג ערכים רגילים ולא את הערכים שנחסמו בגלל התוכן שלהם.
+async function fetchRandom(name, wiki, count) {
 	const file = corpusPath(name);
 	const pages = loadFile(file);
+	const exclude = wiki === 'wikipedia' ? new Set(Object.keys(loadFile(corpusPath('blacklist')))) : new Set();
 	while (Object.keys(pages).length < count) {
 		// אצווה עם דף נעול-לקריאה נדחית כולה (ראו match.py) - מדלגים עליה.
-		const data = await apiGet('mechalol', { action: 'query', generator: 'random', grnnamespace: 0, grnlimit: 50,
-			prop: 'revisions', rvprop: 'content', rvslots: 'main' });
+		const data = await apiGet(wiki, { action: 'query', generator: 'random', grnnamespace: 0, grnlimit: 50,
+			grnfilterredir: 'nonredirects', prop: 'revisions', rvprop: 'content', rvslots: 'main' });
 		for (const page of (data.query || {}).pages || []) {
 			const text = contentOf(page);
-			if (text && !isRedirect(text)) pages[page.pageid] = { title: page.title, text };
+			if (text && !isRedirect(text) && !exclude.has(String(page.pageid))) pages[page.pageid] = { title: page.title, text };
 		}
 		fs.writeFileSync(file, JSON.stringify(pages));
 		console.log(`${name}: ${Object.keys(pages).length}`);
-		await sleep(1000);
+		await sleep(wiki === 'wikipedia' ? 2000 : 1000);
 	}
 }
 
@@ -134,8 +145,8 @@ function context(text, start, end, width = 30) {
 }
 
 /*
- * לכל רשומה (כולל הצעות): בכמה ערכים חסומים ובכמה ערכי מכלול היא תופסת
- * (אחרי תחילת מילה ומותרות), עם דוגמאות. לכל ביטוי מותר: כמה התאמות הוא
+ * לכל רשומה (כולל הצעות): בכמה ערכים חסומים, בכמה ערכי ויקיפדיה אקראיים ובכמה
+ * ערכי מכלול היא תופסת (אחרי תחילת מילה ומותרות), עם דוגמאות. לכל ביטוי מותר: כמה התאמות הוא
  * מבטל בכל מאגר, עם דוגמאות. בנוסף - ערכי מכלול עם בעיה ודאית.
  */
 function evidence() {
@@ -143,14 +154,15 @@ function evidence() {
 	const words = readJson('words.json'), allow = readJson('allow.json');
 	const lists = loadLists({ words, allow, suggested: true });
 	const bare = loadLists({ words, allow: { entries: [] }, suggested: true });
-	const stat = () => ({ blacklist: new Set(), mechalol: new Set(), examples: { blacklist: [], mechalol: [] } });
+	const stat = () => ({ sets: Object.fromEntries(SIDES.map((x) => [x, new Set()])),
+		examples: Object.fromEntries(SIDES.map((x) => [x, []])) });
 	const entryStats = Object.fromEntries(words.entries.map((e) => [e.id, stat()]));
 	const allowStats = Object.fromEntries(allow.entries.map((e) => [e.id, stat()]));
 	const findings = [];
 	const totals = {};
 
 	for (const [corpus, pages] of Object.entries(corpora)) {
-		const side = OTHER(corpus) ? 'mechalol' : 'blacklist';
+		const side = sideOf(corpus);
 		totals[side] = (totals[side] || 0) + Object.keys(pages).length;
 		for (const [id, page] of Object.entries(pages)) {
 			const key = corpus + ':' + id;
@@ -158,10 +170,10 @@ function evidence() {
 			for (const m of matches) {
 				for (const e of m.entries) {
 					const st = entryStats[e.id];
-					if (!st[side].has(key) && st.examples[side].length < 4) {
+					if (!st.sets[side].has(key) && st.examples[side].length < EXAMPLES[side]) {
 						st.examples[side].push({ title: page.title, context: context(page.text, m.start, m.end) });
 					}
-					st[side].add(key);
+					st.sets[side].add(key);
 				}
 			}
 			if (side === 'mechalol' && engine.verdict(matches) === 'problem') {
@@ -185,16 +197,44 @@ function evidence() {
 				const hit = unallowed.find((m) => spans.some(([s, e]) => s <= m.start && m.end <= e));
 				if (!hit) continue;
 				const st = allowStats[a.entry.id];
-				if (!st[side].has(key) && st.examples[side].length < 4) {
+				if (!st.sets[side].has(key) && st.examples[side].length < EXAMPLES[side]) {
 					st.examples[side].push({ title: page.title, context: context(page.text, hit.start, hit.end) });
 				}
-				st[side].add(key);
+				st.sets[side].add(key);
 			}
 		}
 	}
 	const flatten = (stats) => Object.fromEntries(Object.entries(stats).map(([id, st]) => [id,
-		{ blacklist: st.blacklist.size, mechalol: st.mechalol.size, examples: st.examples }]));
+		{ ...Object.fromEntries(SIDES.map((x) => [x, st.sets[x].size])), examples: st.examples }]));
 	return { generated: new Date().toISOString(), totals, entries: flatten(entryStats), allow: flatten(allowStats), findings };
+}
+
+/*
+ * כל ההקשרים של כל רשומת צניעות במדגם האקראי מוויקיפדיה (מופע ראשון בכל ערך,
+ * עד 40 לרשומה), עם הקשר רחב - לסיווג "בעייתי / תמים" לפי ההקשר.
+ */
+function contexts() {
+	const corpora = requireCorpora();
+	const words = readJson('words.json');
+	const lists = loadLists({ words, suggested: true });
+	const out = {};
+	for (const [corpus, pages] of Object.entries(corpora)) {
+		if (sideOf(corpus) !== 'wikipedia') continue;
+		for (const [id, page] of Object.entries(pages)) {
+			const seen = new Set();
+			for (const m of engine.scan(page.text, lists)) {
+				for (const e of m.entries) {
+					if (e.topic !== 'modesty' || seen.has(e.id)) continue;
+					seen.add(e.id);
+					out[e.id] = out[e.id] || [];
+					if (out[e.id].length < 40) {
+						out[e.id].push({ ref: id + ':' + m.start, title: page.title, context: context(page.text, m.start, m.end, 70) });
+					}
+				}
+			}
+		}
+	}
+	return out;
 }
 
 function candidates(file) {
@@ -204,7 +244,7 @@ function candidates(file) {
 	for (const [corpus, pages] of Object.entries(corpora)) {
 		for (const [id, page] of Object.entries(pages)) {
 			masked[corpus + ':' + id] = { corpus, text: engine.maskWikitext(page.text) };
-			if (!OTHER(corpus) && engine.verdict(engine.scan(page.text, lists)) === 'clean') missed.add(corpus + ':' + id);
+			if (sideOf(corpus) === 'blacklist' && engine.verdict(engine.scan(page.text, lists)) === 'clean') missed.add(corpus + ':' + id);
 		}
 	}
 	for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
@@ -212,17 +252,17 @@ function candidates(file) {
 		if (!pattern || pattern.startsWith('#')) continue;
 		const probe = engine.compileLists({ entries: [{ id: 'c', pattern, level: 'problem', topic: 'modesty', status: 'active' }] },
 			{ entries: [] });
-		const hits = { blacklist: new Set(), mechalol: new Set() };
+		const hits = { blacklist: new Set(), wikipedia: new Set(), mechalol: new Set() };
 		let example = '';
 		for (const [key, { corpus, text }] of Object.entries(masked)) {
 			const found = engine.scan(text, probe, { raw: true });
 			if (!found.length) continue;
-			hits[OTHER(corpus) ? 'mechalol' : 'blacklist'].add(key);
+			hits[sideOf(corpus)].add(key);
 			if (OTHER(corpus) && !example) example = context(text, found[0].start, found[0].end, 25);
 		}
 		const newly = [...hits.blacklist].filter((k) => missed.has(k)).length;
 		console.log(`+${String(newly).padStart(3)} חסרים | חסומים ${String(hits.blacklist.size).padStart(4)} | ` +
-			`מכלול ${String(hits.mechalol.size).padStart(3)} | ${pattern}${example ? '  | ' + example : ''}`);
+			`ויקיפדיה אקראי ${String(hits.wikipedia.size).padStart(3)} | מכלול ${String(hits.mechalol.size).padStart(3)} | ${pattern}${example ? '  | ' + example : ''}`);
 	}
 }
 
@@ -239,12 +279,14 @@ function noisy(limit) {
 async function main() {
 	const [cmd, ...rest] = process.argv.slice(2);
 	if (cmd === 'fetch-blacklist') await fetchBlacklist(rest[0] === '--ids-file' ? rest[1] : null);
-	else if (cmd === 'fetch-mechalol') await fetchMechalol(rest[0], Number(rest[1]));
+	else if (cmd === 'fetch-mechalol') await fetchRandom(rest[0], 'mechalol', Number(rest[1]));
+	else if (cmd === 'fetch-random') await fetchRandom(rest[0], rest[1], Number(rest[2]));
 	else if (cmd === 'fetch-ids') await fetchByIds(rest[0], rest[1], fs.readFileSync(rest[2], 'utf8').split(/[,\s]+/));
 	else if (cmd === 'report') report(rest.includes('--lost'));
 	else if (cmd === 'noisy') noisy(Number(rest[0]) || 40);
 	else if (cmd === 'candidates') candidates(rest[0]);
 	else if (cmd === 'evidence') fs.writeFileSync(rest[0], JSON.stringify(evidence(), null, 1));
+	else if (cmd === 'contexts') fs.writeFileSync(rest[0], JSON.stringify(contexts(), null, 1));
 	else {
 		console.log(fs.readFileSync(__filename, 'utf8').split('*/')[0]);
 		process.exitCode = 1;

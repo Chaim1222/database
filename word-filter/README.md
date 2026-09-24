@@ -23,6 +23,8 @@
 | `tools/build-lists.js` | ההסבה החד-פעמית מהדפים הקיימים ל-JSON - לתיעוד. |
 | `sources/` | העותקים של הדפים המקוריים ושל ההצעות, שמהם נבנה ה-JSON. |
 | `review/` | דף הסקירה המשותף (`index.html`), הנתונים שלו ו-`build-data.js` שמרכיב אותם. |
+| `analysis/` | סיווג מופעי המילים במדגם האקראי מוויקיפדיה (בעייתי / תמים / לא ברור) - הבסיס להחלטה על רמה. |
+| `decisions/` | גיבויים של ההחלטות מדף הסקירה. |
 | `corpus-ids/` | מזהי הדפים של מדגמי המדידה - לשחזור מדויק (`evaluate.js fetch-ids`). |
 | `NOTES.md` | יומן העבודה: מצב נוכחי, החלטות ונימוקים, ממצאים, מה ממתין. **להתחיל ממנו בכל סשן.** |
 
@@ -62,10 +64,12 @@ node --test word-filter/tests/*.test.js
 node word-filter/tools/evaluate.js fetch-blacklist --ids-file ids.txt   # או מסופרבייס עם SUPABASE_URL/SUPABASE_SERVICE_KEY
 node word-filter/tools/evaluate.js fetch-mechalol dev 500
 node word-filter/tools/evaluate.js fetch-mechalol holdout 1500
+node word-filter/tools/evaluate.js fetch-random wiki-random wikipedia 2000   # מדגם מייצג מוויקיפדיה (בלי blacklist)
+node word-filter/tools/evaluate.js contexts /tmp/contexts.json    # הקשרי המופעים במדגם האקראי - לסיווג
 node word-filter/tools/evaluate.js fetch-ids dev mechalol word-filter/corpus-ids/dev.txt   # שחזור מדגם קיים
 node word-filter/tools/evaluate.js report --lost        # אחרי כל שינוי ברשימות
 node word-filter/tools/evaluate.js noisy 40             # הרשומות שתופסות הכי הרבה במכלול
 node word-filter/tools/evaluate.js candidates cands.txt # תבנית מועמדת: כמה חסומים היא מוסיפה, כמה מכלול היא תופסת
 ```
 
-`check.js` מחזיר קוד יציאה 2 לבעיה ודאית, 1 ללבדיקה, 0 לנקי. המאגרים נשמרים ב-`.word-filter-corpus/` (מחוץ ל-git).
+`check.js` מחזיר קוד יציאה 2 לבעיה ודאית, 1 ללבדיקה, 0 לנקי. המאגרים נשמרים ב-`.word-filter-corpus/` (מחוץ ל-git); עותק דחוס בענף `word-filter-corpus`. **המדד המייצג הוא `wiki-random`**: ב-blacklist המילים כמעט תמיד בהקשר בעייתי ובמכלול כמעט תמיד תמים, כך ששניהם לא מלמדים איך מילה מתנהגת בערכים רגילים.
