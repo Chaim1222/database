@@ -9,7 +9,7 @@
 
 - המשתמש כותב בעברית; לענות בעברית.
 - החלטות על רשימות המילים (מה בעייתי, באיזו רמה) הן של המשתמש. מילים או רמות חדשות נכנסות עם `status: "suggested"` ומוצגות לאישור - לא מופעלות על דעת עצמנו.
-- כל שינוי ברשימות: להריץ `node --test word-filter/tests/*.test.js` ו-`node word-filter/tools/evaluate.js report --lost` (דורש את המדגמים - ראו NOTES סעיף 8).
+- כל שינוי ברשימות: להריץ `node --test word-filter/tests/*.test.js` ו-`node word-filter/tools/evaluate.js report --lost` (דורש את המדגמים - שחזור מהענף `word-filter-corpus`, ראו NOTES סעיף 8).
 - בסוף כל סשן שבו השתנה משהו מהותי ב-word-filter: לעדכן את `word-filter/NOTES.md` (מצב, החלטות, ממצאים, היסטוריה) ולבצע commit - הקונטיינר נמחק, ורק מה שבריפו נשמר.
 - מבנה הקוד: ב-word-filter - JavaScript בלבד (המנוע הוא קובץ הגאדג'ט, והכלים ב-Node משתמשים בו). הצינור בפייתון (`scripts/`) שייך לפרויקט ההשוואה.
 - פרויקט סופרבייס: `hgsyzaghedqsypisbvev` (גישה דרך כלי ה-MCP; לא נגיש ישירות מהקונטיינר).
