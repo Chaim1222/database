@@ -36,11 +36,17 @@ from config import (
     STATUS_IMPORTED_DOCUMENTED,
     MATCH_TYPE_IMPORTED,
     MATCH_TYPE_SAME_TITLE_UNRELATED,
+    MATCH_TYPE_NO_MATCH,
 )
 from normalize import hygiene, normalize_title
 from supabase_client import get_client, execute_with_retry as _execute_with_retry
 from mechalol_api import log, api_get_with_retry, login as mechalol_login
 from table_names import table_name, rpc_name
+
+
+# גודל צ'אנק לקריאות recompute_missing_flag_scoped/_by_titles - שומר
+# כל קריאה קצרה (מתחת ל-statement_timeout) גם בלילה עמוס.
+RECOMPUTE_CHUNK_SIZE = 500
 
 
 def execute_with_retry(operation, description):
@@ -430,6 +436,34 @@ def compute_stale_ids(client):
     )
     stale.update(row["mechalol_page_id"] for row in (result.data or []))
 
+    # קבוצה 3: שורות ש-wikipedia_id שלהן ריק אבל match_type עדיין מעיד על
+    # התאמה. כך נראית שורה שהקישור שלה שוחרר מבחוץ - fetch_wikipedia_delta.py
+    # מאפס wikipedia_id לפני מחיקת דף ויקיפדיה (מפתח זר), ואז compute_
+    # scoped_ids כבר לא מוצא אותה לפי wikipedia_id. בלי הקבוצה הזו השורה
+    # נשארה "מיובאת" בלי קישור ובלי שום סימון לבדיקה עד הריצה השבועית.
+    # כולל גם ~400 שורות "כותרת זהה ללא קשר" (wikipedia_id ריק בכוונה) -
+    # הן מותאמות מחדש בשלב 1 לפי כותרת, בלי קריאת רשת, אז זה זול.
+    last_id = 0
+    while True:
+        result = execute_with_retry(
+            lambda last_id=last_id: (
+                client.table(table_name("mechalol_pages"))
+                .select("id")
+                .is_("wikipedia_id", "null")
+                .neq("match_type", MATCH_TYPE_NO_MATCH)
+                .gt("id", last_id)
+                .order("id")
+                .limit(BATCH_SIZE)
+                .execute()
+            ),
+            f"STALE released-link after_id={last_id}",
+        )
+        rows = result.data or []
+        if not rows:
+            break
+        stale.update(row["id"] for row in rows)
+        last_id = rows[-1]["id"]
+
     return stale
 
 
@@ -519,6 +553,7 @@ def main():
     log(f"שלב 0 הושלם | כותרות={len(wikipedia_map):,} | התאמות_ידניות={len(manual_matches):,}")
 
     only_ids = None
+    wikipedia_changed = None
     if args.scoped:
         mechalol_changed = _load_changed_ids("mechalol_delta_changed_ids.json")
         wikipedia_changed = _load_changed_ids("wikipedia_delta_changed_ids.json")
@@ -562,6 +597,9 @@ def main():
     # updated החדש) - הקבוצה הזו היא בדיוק מה שעשוי להשפיע על
     # is_missing, ולא יותר מזה.
     affected_wikipedia_ids = set()
+    # כותרות כל שורות המכלול שעברו בלולאה - לחישוב is_missing לפי כותרת
+    # ב---scoped (ראו שלב 2).
+    scoped_titles = set()
     template_check_deferred = 0
 
     log("שלב 1 | מתאים כותרות מכלול...")
@@ -579,6 +617,7 @@ def main():
             if not title:
                 log(f"WARNING | שורה id={row.get('id')} ללא כותרת - דולגה")
                 continue
+            scoped_titles.add(title)
 
             # 0. התאמה ידנית - טבלה נפרדת, לא מתרוקנת, לפי id (=page_id) קבוע.
             if row["id"] in manual_matches:
@@ -724,6 +763,11 @@ def main():
                     # רק ריצות --scoped (שלא עוברות TRUNCATE בין ריצות)
                     # חושפות את זה.
                     updated["wikipedia_id"] = None
+                    # מאותה סיבה בדיוק - גם match_type חייב להתאפס במפורש,
+                    # אחרת בריצת --scoped נשאר הערך הישן ("יובא מוויקיפדיה")
+                    # על שורה שכבר אין לה שום קישור. בסריקה מלאה זה ממילא
+                    # ברירת המחדל של הטבלה אחרי הריקון.
+                    updated["match_type"] = MATCH_TYPE_NO_MATCH
 
                     # result[0]=="unresolved" - יש תבנית עם שם מפורש, אבל
                     # השם הזה לא נמצא ב-wikipedia_pages - "בעיה בשם" ממש
@@ -746,8 +790,12 @@ def main():
                     # מראש כערך שנמחק בוויקיפדיה והוחלט להשאירו) - זה חשוד
                     # כבעיית התאמה שדורשת בדיקה ידנית (ואולי הוספה ל-
                     # manual_matches, אם המקור הוא כותרת שונה/דף נעול).
-                    if row.get("status") not in WIKIPEDIA_MATCH_NOT_EXPECTED_STATUSES:
-                        updated["maybe_deleted_from_wikipedia"] = True
+                    # נקבע במפורש לשני הכיוונים (לא רק True) - בריצת --scoped
+                    # שורה שהסטטוס שלה השתנה לסטטוס לא-ויקיפדי הייתה נשארת
+                    # עם True ישן.
+                    updated["maybe_deleted_from_wikipedia"] = (
+                        row.get("status") not in WIKIPEDIA_MATCH_NOT_EXPECTED_STATUSES
+                    )
 
                     unmatched += 1
 
@@ -795,20 +843,48 @@ def main():
     recompute_started = time.monotonic()
 
     if only_ids is not None:
-        # recompute_missing_flag_scoped נשארת ללא rpc_name() בכוונה - זו
-        # ריצת --scoped (דלתא לילית) על הטבלאות הפעילות בלבד; היא לא
-        # אמורה לרוץ אף פעם בסבב מראה (הפיוס הדו-שבועי המלא תמיד רץ
-        # בלי --scoped), ואין לה גרסת-מראה מקבילה בתכנון.
-        if affected_wikipedia_ids:
+        # recompute_missing_flag_scoped/_by_titles נשארות ללא rpc_name()
+        # בכוונה - זו ריצת --scoped (דלתא לילית) על הטבלאות הפעילות בלבד;
+        # היא לא רצה אף פעם על הטבלאות הזמניות.
+        #
+        # "חסר במכלול" אמור לשקף את המצב הנוכחי, ולכן הקבוצה לחישוב מחדש
+        # כוללת (תיקון 2026-09 - קודם רק הראשונה):
+        # 1. wikipedia_id שנגע בשורת מכלול שנבדקה הלילה.
+        # 2. כל דף ויקיפדיה שנוצר/שוחזר/שונה שמו הלילה - שורה חדשה נכנסת
+        #    עם is_missing=false כברירת מחדל, ובלי זה ערך חדש בוויקיפדיה
+        #    לא הופיע בדוח עד הריצה השבועית.
+        # 3. wikipedia_id של שורות מכלול שנמחקו הלילה.
+        # 4. לפי כותרת: כל כותרת מכלול שנבדקה הלילה או שהתפנתה (מחיקה/
+        #    שם ישן) - is_missing תלוי גם בכותרת זהה ובנרמול "הרב/רבי",
+        #    לא רק ב-wikipedia_id.
+        released = _load_changed_ids("mechalol_delta_released.json") or {}
+        ids_to_recompute = (
+            affected_wikipedia_ids
+            | set(wikipedia_changed or [])
+            | set(released.get("wikipedia_ids", []))
+        )
+        titles_to_recompute = scoped_titles | set(released.get("titles", []))
+
+        ids_list = sorted(ids_to_recompute)
+        for i in range(0, len(ids_list), RECOMPUTE_CHUNK_SIZE):
+            chunk = ids_list[i:i + RECOMPUTE_CHUNK_SIZE]
             execute_with_retry(
-                lambda: client.rpc(
-                    "recompute_missing_flag_scoped", {"ids": list(affected_wikipedia_ids)}
-                ).execute(),
+                lambda chunk=chunk: client.rpc("recompute_missing_flag_scoped", {"ids": chunk}).execute(),
                 "RECOMPUTE_MISSING_FLAG_SCOPED",
             )
-            log(f"שלב 2 | ממוקד ל-{len(affected_wikipedia_ids):,} wikipedia_id")
-        else:
-            log("שלב 2 | דולג - אף שורה לא נגעה ב-wikipedia_id כלשהו (--scoped)")
+
+        titles_list = sorted(titles_to_recompute)
+        for i in range(0, len(titles_list), RECOMPUTE_CHUNK_SIZE):
+            chunk = titles_list[i:i + RECOMPUTE_CHUNK_SIZE]
+            execute_with_retry(
+                lambda chunk=chunk: client.rpc("recompute_missing_flag_by_titles", {"titles": chunk}).execute(),
+                "RECOMPUTE_MISSING_FLAG_BY_TITLES",
+            )
+
+        log(
+            f"שלב 2 | ממוקד ל-{len(ids_list):,} wikipedia_id "
+            f"ו-{len(titles_list):,} כותרות מכלול (--scoped)"
+        )
     else:
         # rpc_name ממפה ל-recompute_missing_flag_temp בסבב זמני (ראו
         # שלב 3.5 בתכנון) - קריטי: הפונקציה הרגילה מקובעת בשם הטבלה

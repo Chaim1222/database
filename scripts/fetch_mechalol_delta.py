@@ -289,41 +289,70 @@ def apply_creations(client, creations, own_categories_by_title):
     log(f"עודכנו {len(rows)} יצירות/שחזורים ב-{TABLE}")
 
 
+def resolve_deletion_ids(client, table, deletions):
+    """
+    מחזירה את ה-id-ים שבאמת צריך למחוק מ-table עבור רשימת מחיקות.
+
+    'became_redirect' מגיע מבדיקת תוכן ישירה על שורה שכבר עוקבים אחריה
+    ב-DB - ה-id שלה תמיד אמין.
+
+    אירועי יומן ('log_event', מ-fetch_delete_log/move_deletion_events):
+    שדה pageid של logevents הוא הדף שיושב *כרגע* בכותרת (ראו הערת
+    המודול ב-delta_api.py), לא הדף שנמחק. לכן:
+    - pageid_valid=False: שום דבר לא קיים היום בכותרת - מוחקים לפי כותרת.
+    - pageid_valid=True: יש היום דף *אחר* בכותרת (למשל דף שהועבר אליה
+      אחרי שהיעד נמחק כדי לפנות מקום, או דף ששוחזר/נוצר מחדש). ה-page_id
+      הזה חי - אסור למחוק אותו. מוחקים רק שורות אחרות שעדיין רשומות
+      בכותרת הזו (id שונה) - אלה הדף שנמחק בפועל.
+    (תיקון 2026-09: קודם נמחק דווקא ה-page_id החי - ראו "משמעת סיעתית".)
+    """
+    ids = {d["page_id"] for d in deletions if d["reason"] == "became_redirect"}
+
+    log_events = [d for d in deletions if d["reason"] != "became_redirect"]
+    live_id_by_title = {
+        d["title"]: d.get("live_page_id", d["page_id"]) for d in log_events if d["pageid_valid"]
+    }
+    titles = sorted({d["title"] for d in log_events})
+
+    for i in range(0, len(titles), ID_LOOKUP_BATCH_SIZE):
+        chunk = titles[i:i + ID_LOOKUP_BATCH_SIZE]
+        rows = execute_with_retry(
+            lambda chunk=chunk: client.table(table).select("id, title").in_("title", chunk).execute(),
+            f"פתרון כותרות למחיקה ({table})",
+            log_fn=log,
+        ).data or []
+        for row in rows:
+            if row["id"] != live_id_by_title.get(row["title"]):
+                ids.add(row["id"])
+
+    return sorted(ids)
+
+
 def apply_deletions(client, deletions):
+    """
+    מוחקת את השורות, ומחזירה את מה ש"השתחרר" במחיקה - כותרות ו-
+    wikipedia_id של השורות שנמחקו - כדי ש-match.py --scoped יחשב מחדש
+    is_missing לדפי הוויקיפדיה שהיו מותאמים אליהן (אחרת ערך שנמחק
+    במכלול לא היה חוזר ל"חסר במכלול" עד הריצה השבועית).
+    """
+    released = {"titles": [], "wikipedia_ids": []}
     if not deletions:
-        return
+        return released
 
-    # שלוש קטגוריות, לפי מקור ומהימנות ה-page_id (ראו pageid_valid
-    # ב-delta_api.fetch_delete_log): 'became_redirect' מגיע מבדיקת
-    # תוכן ישירה על שורה שכבר עוקבים אחריה ב-DB - ה-id שלה תמיד אמין,
-    # בלי קשר לדגל (הוא True קבוע שם, לא אינדיקציה על מהימנות).
-    # לעומת זאת, אירועי יומן ('log_event', מ-fetch_delete_log/
-    # move_deletion_events) הם היסק על בסיס ה-API: pageid_valid=False
-    # אומר "שום דבר לא קיים היום בכותרת" (המחיקה ודאית, אבל אין לנו
-    # page_id אמיתי לדף שנמחק - צריך למחוק לפי כותרת). pageid_valid=
-    # True אומר "יש היום משהו *אחר* תחת הכותרת הזו" - ה-page_id שייך
-    # לאותו דף אחר, לא לדף שנמחק, ומחיקה לפיו הייתה עלולה למחוק שורה
-    # שגויה (דף חדש-לגמרי שבמקרה תפס את אותו page_id) - מדלגים לגמרי;
-    # הדף החדש כבר מטופל בנפרד דרך apply_creations אם הוא בכלל רלוונטי.
-    ids = [d["page_id"] for d in deletions if d["reason"] == "became_redirect"]
-    ids += [
-        d["page_id"] for d in deletions
-        if d["reason"] != "became_redirect" and d["pageid_valid"]
-    ]
-    titles = [
-        d["title"] for d in deletions
-        if d["reason"] != "became_redirect" and not d["pageid_valid"]
-    ]
-
-    if titles:
-        resolved = client.table(TABLE).select("id").in_("title", titles).execute().data
-        resolved_ids = [r["id"] for r in resolved]
-        if resolved_ids:
-            log(f"נפתרו {len(resolved_ids)}/{len(titles)} כותרות למחיקה ל-id (page_id לא אמין במקור)")
-        ids += resolved_ids
-
+    ids = resolve_deletion_ids(client, TABLE, deletions)
     if not ids:
-        return
+        return released
+
+    for i in range(0, len(ids), ID_LOOKUP_BATCH_SIZE):
+        chunk = ids[i:i + ID_LOOKUP_BATCH_SIZE]
+        rows = execute_with_retry(
+            lambda chunk=chunk: client.table(TABLE).select("title, wikipedia_id").in_("id", chunk).execute(),
+            "שליפת שורות לפני מחיקה",
+            log_fn=log,
+        ).data or []
+        released["titles"] += [r["title"] for r in rows]
+        released["wikipedia_ids"] += [r["wikipedia_id"] for r in rows if r.get("wikipedia_id")]
+
     # לשחרר קודם הפניות מ-wikipedia_pages דרך match.py לא נדרש כאן -
     # מכלול הוא הטבלה המפנה (child) ב-wikipedia_id, DELETE שורה ממנה
     # לא נתקל באילוץ מפתח זר (בניגוד ל-TRUNCATE של wikipedia_pages,
@@ -334,6 +363,7 @@ def apply_deletions(client, deletions):
         log_fn=log,
     )
     log(f"נמחקו {len(ids)} דפים מ-{TABLE}")
+    return released
 
 
 def apply_renames(client, renames):
@@ -433,6 +463,26 @@ def write_changed_ids_file(all_creations, renames, status_updates):
     log(f"נכתב mechalol_delta_changed_ids.json | {len(ids)} id-ים")
 
 
+def write_released_file(released, renames):
+    """
+    כותב mechalol_delta_released.json - כותרות מכלול שהתפנו (שורות
+    שנמחקו + הכותרת הישנה של כל שינוי-שם) ו-wikipedia_id של שורות
+    שנמחקו. match.py --scoped מחשב מחדש is_missing לדפי ויקיפדיה עם
+    הכותרות/המזהים האלה - "חסר במכלול" אמור לשקף את המצב הנוכחי גם
+    כשמשהו *נעלם* מהמכלול, לא רק כשמשהו נוסף.
+    """
+    payload = {
+        "titles": sorted(set(released["titles"]) | {mv["old_title"] for mv in renames}),
+        "wikipedia_ids": sorted(set(released["wikipedia_ids"])),
+    }
+    with open("mechalol_delta_released.json", "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False)
+    log(
+        f"נכתב mechalol_delta_released.json | {len(payload['titles'])} כותרות, "
+        f"{len(payload['wikipedia_ids'])} wikipedia_id"
+    )
+
+
 def main():
     import argparse
 
@@ -470,6 +520,9 @@ def main():
             "deleted_at": mv["renamed_at"],
             "pageid_valid": mv["old_title_pageid_valid"],
             "reason": "log_event",
+            # page_id כאן הוא הדף שיצא ממרחב הערכים (הוא זה שצריך למחוק);
+            # הדף החי בכותרת הישנה הוא ההפניה שנשארה - ראו resolve_deletion_ids.
+            "live_page_id": mv["old_title_pageid"],
         }
         for mv in move_deletions
     ]
@@ -516,11 +569,12 @@ def main():
     try:
         write_delta_tables(client, all_creations, all_deletions, renames)
         apply_creations(client, all_creations, own_categories_by_title)
-        apply_deletions(client, all_deletions)
+        released = apply_deletions(client, all_deletions)
         apply_renames(client, renames)
         apply_status_updates(client, status_updates)
         write_status_update_log(client, status_updates)
         write_changed_ids_file(all_creations, renames, status_updates)
+        write_released_file(released, renames)
 
     except Exception:
         log("שגיאה - ה-watermark לא יתעדכן, הריצה הבאה תכסה מחדש את אותו טווח")

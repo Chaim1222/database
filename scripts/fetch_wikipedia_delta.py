@@ -277,37 +277,21 @@ def apply_deletions(client, deletions):
     if not deletions:
         return
 
-    # ראו apply_deletions המקביל ב-fetch_mechalol_delta.py לתיעוד המלא
-    # של ההבחנה בין 'became_redirect' (id תמיד אמין) לבין 'log_event'
-    # עם pageid_valid=True (page_id שייך לדף *אחר* שתפס את הכותרת -
-    # מדלגים) מול pageid_valid=False (מחיקה ודאית, אין id אמין - פותרים
-    # לפי כותרת).
-    ids = [d["page_id"] for d in deletions if d["reason"] == "became_redirect"]
-    ids += [
-        d["page_id"] for d in deletions
-        if d["reason"] != "became_redirect" and d["pageid_valid"]
-    ]
-    titles = [
-        d["title"] for d in deletions
-        if d["reason"] != "became_redirect" and not d["pageid_valid"]
-    ]
-
-    if titles:
-        resolved = client.table(TABLE).select("id").in_("title", titles).execute().data
-        resolved_ids = [r["id"] for r in resolved]
-        if resolved_ids:
-            log(f"נפתרו {len(resolved_ids)}/{len(titles)} כותרות למחיקה ל-id (page_id לא אמין במקור)")
-        ids += resolved_ids
+    # ראו resolve_deletion_ids ב-fetch_mechalol_delta.py לתיעוד המלא:
+    # 'became_redirect' - id אמין; 'log_event' - מוחקים לפי כותרת, ואם
+    # יש כרגע דף חי בכותרת (pageid_valid=True) לא מוחקים דווקא אותו.
+    ids = resolve_deletion_ids(client, TABLE, deletions)
 
     if not ids:
         return
 
     # mechalol_pages.wikipedia_id הוא מפתח זר בלי ON DELETE (ברירת מחדל
     # RESTRICT - ראו schema.sql) - DELETE ישיר על wikipedia_pages היה
-    # נכשל אם קיימת שורת mechalol_pages שמצביעה לאחד ה-id-ים האלה. לכן
-    # קודם משחררים כל הפניה כזו ל-NULL (בדיוק כמו truncate_wikipedia_pages()
-    # ו-resolve_title_collisions ב-fetch_wikipedia.py) - match.py יחשב
-    # מחדש מאפס בריצה הבאה אם צריך.
+    # נכשל אם קיימת שורת מכלול שמצביעה לאחד ה-id-ים האלה. לכן קודם
+    # משחררים כל הפניה כזו ל-NULL. השורות המשוחררות נכנסות לבדיקה
+    # חוזרת בריצת match.py --scoped של אותו לילה דרך compute_stale_ids
+    # (קבוצה 3: wikipedia_id ריק אבל match_type עדיין לא "ללא התאמה") -
+    # לא דרך changed_ids, כי שם החיפוש הוא לפי wikipedia_id שכבר אופס.
     execute_with_retry(
         lambda: client.table("mechalol_pages").update({"wikipedia_id": None}).in_("wikipedia_id", ids).execute(),
         f"שחרור {len(ids)} הפניות wikipedia_id לפני מחיקה",
@@ -319,6 +303,30 @@ def apply_deletions(client, deletions):
         log_fn=log,
     )
     log(f"נמחקו {len(ids)} דפים מ-{TABLE}")
+
+
+def resolve_deletion_ids(client, table, deletions):
+    """זהה ל-fetch_mechalol_delta.resolve_deletion_ids - ראו שם לתיעוד מלא."""
+    ids = {d["page_id"] for d in deletions if d["reason"] == "became_redirect"}
+
+    log_events = [d for d in deletions if d["reason"] != "became_redirect"]
+    live_id_by_title = {
+        d["title"]: d.get("live_page_id", d["page_id"]) for d in log_events if d["pageid_valid"]
+    }
+    titles = sorted({d["title"] for d in log_events})
+
+    for i in range(0, len(titles), ID_LOOKUP_BATCH_SIZE):
+        chunk = titles[i:i + ID_LOOKUP_BATCH_SIZE]
+        rows = execute_with_retry(
+            lambda chunk=chunk: client.table(table).select("id, title").in_("title", chunk).execute(),
+            f"פתרון כותרות למחיקה ({table})",
+            log_fn=log,
+        ).data or []
+        for row in rows:
+            if row["id"] != live_id_by_title.get(row["title"]):
+                ids.add(row["id"])
+
+    return sorted(ids)
 
 
 def apply_renames(client, renames):
@@ -485,6 +493,9 @@ def main():
             "deleted_at": mv["renamed_at"],
             "pageid_valid": mv["old_title_pageid_valid"],
             "reason": "log_event",
+            # page_id כאן הוא הדף שיצא ממרחב הערכים (הוא זה שצריך למחוק);
+            # הדף החי בכותרת הישנה הוא ההפניה שנשארה - ראו resolve_deletion_ids.
+            "live_page_id": mv["old_title_pageid"],
         }
         for mv in move_deletions
     ]
