@@ -37,7 +37,8 @@
    מחדל - ההחלטה מה מותר שייכת לעורכים, לא לקוד.
 
 הבדלים מכוונים מהגאדג'טים ב-JS:
-- כל התבניות רצות ללא תלות ברישיות (IGNORECASE), כמו בבומח.
+- רישיות כמו במקור: בומח רץ ללא תלות ברישיות (דגל i), במח רץ תלוי רישיות
+  (לכן יש בו sex|Sex|SEX בנפרד, ו-ass לא תופס את Assembly).
 - lookbehind באורך משתנה (`(?<!ארי|ת)`) לא נתמך בפייתון - התיקונים
   מפצלים אותו ל-lookbehind נפרד לכל חלופה.
 - שורה בבומח שלא מתחילה ב-`*` מתעלמים ממנה, בדיוק כמו בגאדג'ט (שם
@@ -306,7 +307,7 @@ def compile_lists(bmh_text=None, bomah_text=None):
             regex = None
             if effective is not None:
                 try:
-                    regex = re.compile(effective, re.IGNORECASE)
+                    regex = re.compile(effective, re.IGNORECASE if category.source == "bomah" else 0)
                 except re.error as exc:
                     lists.problems.append((category.key, source, f"לא מתקמפלת בפייתון: {exc}; הושמטה."))
                     effective = None

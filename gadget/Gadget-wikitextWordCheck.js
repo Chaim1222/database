@@ -181,7 +181,8 @@
 				var effective = fix ? fix.to : source;
 				var regex;
 				try {
-					regex = new RegExp(effective, 'gi');
+					// רישיות כמו במקור: בומח עם דגל i, במח בלי (לכן יש בו sex|Sex|SEX).
+					regex = new RegExp(effective, list.category.key.indexOf('bomah') === 0 ? 'gi' : 'g');
 				} catch (e) {
 					problems.push({ category: list.category, source: source, message: 'תבנית לא תקינה: ' + e.message });
 					return;
