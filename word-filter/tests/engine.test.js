@@ -69,9 +69,9 @@ test('three-level verdict', () => {
 	assert.strictEqual(verdict('תעשיית הפורנו'), 'problem');
 	assert.strictEqual(verdict('סיפור אהבה'), 'review');
 	// נושאים שאינם צניעות הם הערות ניסוח: נמצאים, אבל לא משנים את רמת הדף.
-	assert.strictEqual(verdict('לפני מיליון שנה'), 'clean');
-	assert.strictEqual(engine.scan('לפני מיליון שנה', FULL)[0].topic, 'dating');
-	assert.strictEqual(engine.verdict(engine.scan('לפני מיליון שנה', FULL), ['dating']), 'review');
+	assert.strictEqual(verdict('נפטר בשנת 419 לפנה"ס'), 'clean');
+	assert.strictEqual(engine.scan('נפטר בשנת 419 לפנה"ס', FULL)[0].topic, 'dating');
+	assert.strictEqual(engine.verdict(engine.scan('נפטר בשנת 419 לפנה"ס', FULL), ['dating']), 'review');
 	assert.strictEqual(verdict('שלום עולם'), 'clean');
 	const [m] = engine.scan('שורה\nמשהו פורנו כאן', FULL);
 	assert.strictEqual(m.line, 2);
@@ -96,4 +96,15 @@ test('case sensitivity follows the source list', () => {
 test('wiki leftovers are checked on visible text only', () => {
 	assert.deepStrictEqual(texts('{{ויקיפדיה}} [[ויקיפדיה:מדיניות|מדיניות]] <!-- ויקיפדיה -->'), []);
 	assert.ok(texts('הערך הועתק מוויקיפדיה').length);
+});
+
+// גיל העולם (הכרעת חיים 2026-09-24): חמור, נספר ברמה. הרשומות עדיין בגדר הצעה.
+test('age of the world counts in the verdict; recent dates do not', () => {
+	for (const t of ['לפני כ-30 מיליון שנה', 'חיו כאן לפני 30,000 שנה', 'כמעט 14 אלף שנה', 'מסביבות 4000 לפנה"ס',
+		'באלף הרביעי לפני הספירה', 'היווצרות כדור הארץ', 'המפץ הגדול', 'חיו בקרטיקון', 'בתקופת הפלייסטוקן'])
+		assert.strictEqual(verdict(t), 'problem', t);
+	for (const t of ['לפני 5,000 שנה', 'בן 4000 שנים', 'אלף שנים', 'המתוארכות ל-2250 לפנה"ס', 'באלף השלישי לפנה"ס',
+		'נסע לטריאסטה', 'לפני 1,000 שנה'])
+		assert.notStrictEqual(verdict(t), 'problem', t);
+	assert.strictEqual(engine.verdict(engine.scan('לפני מיליון שנה', ACTIVE)), 'clean'); // לא פעיל עד אישור
 });
