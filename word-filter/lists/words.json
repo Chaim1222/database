@@ -1,0 +1,5107 @@
+{
+	"version": 1,
+	"levels": {
+		"problem": "בעיה ודאית",
+		"review": "לבדיקה (דו-משמעי)"
+	},
+	"topics": {
+		"modesty": "צניעות",
+		"faith": "אמונה ונצרות",
+		"dating": "תיארוך ומדע",
+		"wiki": "שאריות מוויקיפדיה"
+	},
+	"statuses": {
+		"active": "פעיל",
+		"suggested": "הצעה - לא פעיל עד אישור"
+	},
+	"entries": [
+		{
+			"id": "w0001",
+			"pattern": "סקס",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0002",
+			"pattern": "\\sמין",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0003",
+			"pattern": "זנות?",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0004",
+			"pattern": "(?<!ארי|ת|מ)זונ(?:ה|ות)",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			],
+			"original": "[^(ת|מ|ארי)]זונ(ה|ות)",
+			"note": "במקור [^(ת|מ|ארי)] - רשימת אותיות אסורות, לא \"לא אחרי המילה\". הכוונה: לא תזונה, מזונות, אריזונה."
+		},
+		{
+			"id": "w0005",
+			"pattern": "(?<!ארי|ת)זונה",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			],
+			"original": "[^(ת|ארי)]זונה",
+			"note": "במקור [^(ת|ארי)] - רשימת אותיות במקום \"לא אחרי המילה\"."
+		},
+		{
+			"id": "w0006",
+			"pattern": "(\\s|^)זונ(ה|ות)",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0007",
+			"pattern": "([^ז]ב|[^מר]ו|[^ה]ה|[יכלמש]|\\s)זנות",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0008",
+			"pattern": "תשוקה",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0009",
+			"pattern": "סרסור",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0010",
+			"pattern": "נערו?ת ליווי",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0011",
+			"pattern": "יצאנית",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0012",
+			"pattern": "(ה|\\s)זימה",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0013",
+			"pattern": "יחסי מין",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0014",
+			"pattern": "הומו(?!גני|לוגי|ת|ר)",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0015",
+			"pattern": "טרנסג'נדר",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0016",
+			"pattern": "הטרוסקסואל",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0017",
+			"pattern": ".?.?.?.?.?.?סקסואל.?.?",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0018",
+			"pattern": "לסבי[ות]",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0019",
+			"pattern": "[^שז]מינ(י|יו)ת(\\W)",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0020",
+			"pattern": " מיני",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0021",
+			"pattern": "(ניצול|אופי|אופן|אקט|תוכן|העדפה|חד|חינוך) ה?מיני",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0022",
+			"pattern": "מיניים",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0023",
+			"pattern": "פורנו",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0024",
+			"pattern": "חו?שו?פ[הניות]*",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0025",
+			"pattern": "איידס",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0026",
+			"pattern": "אי?ברי? ה?מין",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0027",
+			"pattern": "((?<!יו)א[ו]*נ[ו]*ס[^קח]|(?:^|[^\\u0590-\\u05FF])(אנס|נאנס|תאנס)(?=[^\\u0590-\\u05FF]|$))",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0028",
+			"pattern": "לאונן",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0029",
+			"pattern": "מאונן",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0030",
+			"pattern": "מאוננ(ת|ים|ות)",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0031",
+			"pattern": "יחסי אהבה",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0032",
+			"pattern": "[^ט]רומ+[נן]+[^יה]",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0033",
+			"pattern": "עי?רו[מהם]",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0034",
+			"pattern": "אינטימי",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0035",
+			"pattern": "[מל]התאהב",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0036",
+			"pattern": "פדופיל",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0037",
+			"pattern": "הרמון",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0038",
+			"pattern": "פי?לגש",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0039",
+			"pattern": "דוגמנ[ית]",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0040",
+			"pattern": "שדיים",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0041",
+			"pattern": "שדיה",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0042",
+			"pattern": "דגדגן",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0043",
+			"pattern": "מאהב[ת]",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0044",
+			"pattern": "[מלה]*תאהב",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0045",
+			"pattern": "קונדום",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0046",
+			"pattern": "אמצעי מניעה",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0047",
+			"pattern": "(\\s|^)[ו]*וסת",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0048",
+			"pattern": "ילד[ים]* לא חוקי[ים]*",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0049",
+			"pattern": "ב[ןת]+ לא חוקי[תיים]*",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0050",
+			"pattern": "משגל",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0051",
+			"pattern": "א[י]*רוטי",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0052",
+			"pattern": "להט\"ב",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0053",
+			"pattern": "חד-מיני",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0054",
+			"pattern": "מערומיה",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0055",
+			"pattern": "בתול[הותי]",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0056",
+			"pattern": "אורגזמה",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0057",
+			"pattern": "נואף",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0058",
+			"pattern": "ניאוף",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0059",
+			"pattern": "לנאוף",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0060",
+			"pattern": "נאף",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0061",
+			"pattern": "בן[-]זוגו",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0062",
+			"pattern": "יצא מהארון",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0063",
+			"pattern": "ה?גאים",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0064",
+			"pattern": "[ה]גאה",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0065",
+			"pattern": "א[י]רוטי",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0066",
+			"pattern": "סטרייט",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0067",
+			"pattern": "BDSM",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0068",
+			"pattern": "בדס\"מ",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0069",
+			"pattern": "מצעדי? ה?גאוו?ה",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0070",
+			"pattern": "נאהבים",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0071",
+			"pattern": "אהובתו",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0072",
+			"pattern": "[ה]סקסולוג*",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0073",
+			"pattern": "להט\"בים",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0074",
+			"pattern": "פלי?רטו?ט",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0075",
+			"pattern": "(\\s|\\S|^\\|\\[)?[^גי]אורגי(ה|ות)(\\s|\\S|$|\\])?",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0076",
+			"pattern": "sex",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0077",
+			"pattern": "(\\s|^)ass",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0078",
+			"pattern": "מלכת היופי",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0079",
+			"pattern": "מיס (יוניברס|תבל|עולם)",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0080",
+			"pattern": " מיס ",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0081",
+			"pattern": "איבר מינ",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0082",
+			"pattern": "בן זוגו",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0083",
+			"pattern": "בת זוגה",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0084",
+			"pattern": "תחרות יופי",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0085",
+			"pattern": "נודי(סט|זם)",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0086",
+			"pattern": "אינוס",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0087",
+			"pattern": "דראג קווין",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0088",
+			"pattern": "פרשת המין",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0089",
+			"pattern": "זוג מאותו המין",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0090",
+			"pattern": "מצעד הגאווה",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0091",
+			"pattern": "מין אנאלי",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0092",
+			"pattern": "מגע ה?מיני",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0093",
+			"pattern": "חשק ה?מיני",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0094",
+			"pattern": "תפקוד ה?מיני",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0095",
+			"pattern": "מיניות",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0096",
+			"pattern": "שמוק",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0097",
+			"pattern": "gay",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0098",
+			"pattern": "עבריין מין",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0099",
+			"pattern": "ינות המין",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0100",
+			"pattern": "עבירו?ת מין",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0101",
+			"pattern": "תזדיינו",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0102",
+			"pattern": "מעשה מגונה",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0103",
+			"pattern": "מעשים מגונים",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0104",
+			"pattern": "לזיין",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0105",
+			"pattern": "פלייבוי",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0106",
+			"pattern": "שפחות מין",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0107",
+			"pattern": "מערכת יחסים",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"במח/ירוק",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0108",
+			"pattern": "מלכת יופי",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0109",
+			"pattern": "להטב\"ק",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0110",
+			"pattern": "החל לצאת",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0111",
+			"pattern": "קוויר",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0112",
+			"pattern": "Sex",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0113",
+			"pattern": "SEX",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0114",
+			"pattern": "(?<!כלי )(?<![\\u0590-\\u05FF])זין(?![\\u0590-\\u05FF])",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			],
+			"original": "{{כ}}(?<=\\s)זין",
+			"note": "במקור {{כ}}(?<=\\s)זין - אחרי }} לא יכול לבוא רווח, לא התאימה אף פעם. הכוונה: \"זין\" כמילה בודדת, לא \"כלי זין\"."
+		},
+		{
+			"id": "w0115",
+			"pattern": "הזין",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0116",
+			"pattern": "זיין",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0117",
+			"pattern": "מזיין",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0118",
+			"pattern": "ציצי ",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0119",
+			"pattern": "מזוין",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0120",
+			"pattern": "גייז",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0121",
+			"pattern": "טרנס",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0122",
+			"pattern": "נ?או?נסו?",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0123",
+			"pattern": "אותו המין",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0124",
+			"pattern": "חזיה",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0125",
+			"pattern": "חזיות",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0126",
+			"pattern": "חשק המיני",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0127",
+			"pattern": "נזיין",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0128",
+			"pattern": " מינית",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0129",
+			"pattern": "תקף מינית",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0130",
+			"pattern": "התעללות מינית",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0131",
+			"pattern": "קהילה ה?גאה",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0132",
+			"pattern": "אפרודיזיאק",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0133",
+			"pattern": "חילופי זוגות",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0134",
+			"pattern": "מעשה סדום",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0135",
+			"pattern": "מעשי סדום",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0136",
+			"pattern": "בית בושת",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0137",
+			"pattern": "ניצול מיני",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0138",
+			"pattern": "תפקוד מיני",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0139",
+			"pattern": "GLBT",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום כהה",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0140",
+			"pattern": "נאנסה",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום כהה"
+			]
+		},
+		{
+			"id": "w0141",
+			"pattern": "אבולוצי[הונרית]",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום בהיר",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0142",
+			"pattern": "ברירה [ה]*טבעית",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום בהיר",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0143",
+			"pattern": "התפתחות החיים",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום בהיר",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0144",
+			"pattern": "מוצא החיים",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום בהיר",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0145",
+			"pattern": "אדם קדמון",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום בהיר",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0146",
+			"pattern": "אדם הקדמון",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום בהיר",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0147",
+			"pattern": "מ[י]*ליו[ןני]* שנ[יםה]",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום בהיר"
+			]
+		},
+		{
+			"id": "w0148",
+			"pattern": "מ[י]ליארד[י]* שנ[הים]",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום בהיר"
+			]
+		},
+		{
+			"id": "w0149",
+			"pattern": "000 שנה",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום בהיר"
+			]
+		},
+		{
+			"id": "w0150",
+			"pattern": "000 שנ[הים]*",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום בהיר"
+			]
+		},
+		{
+			"id": "w0151",
+			"pattern": "אלף שנ[הים]",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום בהיר",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0152",
+			"pattern": "פרה[י]*[\\sהי]*סטורי[הים]*",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום בהיר"
+			]
+		},
+		{
+			"id": "w0153",
+			"pattern": "לפני זמנ[י]*נו",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום בהיר",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0154",
+			"pattern": "גיל היקום",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום בהיר",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0155",
+			"pattern": "ביקורת המקרא",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום בהיר",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0156",
+			"pattern": "פרשנות [ה]*מקרא",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום בהיר"
+			]
+		},
+		{
+			"id": "w0157",
+			"pattern": "מסורת [ה]*מקרא",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום בהיר"
+			]
+		},
+		{
+			"id": "w0158",
+			"pattern": "ה[יו]*צרות כדור הארץ",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום בהיר",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0159",
+			"pattern": "ה[יו]*וצרות היקום",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום בהיר",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0160",
+			"pattern": "((השלישי|הרביעי|החמישי|השישי|השביעי|השמיני|התשיעי|העשירי) (לפנה\"ס|לפני הספירה))",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום בהיר",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0161",
+			"pattern": "ההחלפה האמריקנית הגדולה",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום בהיר"
+			]
+		},
+		{
+			"id": "w0162",
+			"pattern": "לפנה\"ס",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום בהיר",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0163",
+			"pattern": "מתוארכת",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום בהיר",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0164",
+			"pattern": "מתוארך",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום בהיר",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0165",
+			"pattern": "מתוארכות",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום בהיר",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0166",
+			"pattern": "מתוארכים",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום בהיר",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0167",
+			"pattern": "מיוקן",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום בהיר",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0168",
+			"pattern": "פליוקן",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום בהיר",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0169",
+			"pattern": "רביעון",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום בהיר",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0170",
+			"pattern": "שלישון",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום בהיר"
+			]
+		},
+		{
+			"id": "w0171",
+			"pattern": "פלאוקן",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום בהיר",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0172",
+			"pattern": "פלאוגן",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום בהיר"
+			]
+		},
+		{
+			"id": "w0173",
+			"pattern": "אאוקן",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום בהיר"
+			]
+		},
+		{
+			"id": "w0174",
+			"pattern": "אוליגוקן",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום בהיר"
+			]
+		},
+		{
+			"id": "w0175",
+			"pattern": "פליסטוקן",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום בהיר",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0176",
+			"pattern": "קרטיקון",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום בהיר"
+			]
+		},
+		{
+			"id": "w0177",
+			"pattern": "הולוקן",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום בהיר",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0178",
+			"pattern": "קמבריון",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום בהיר",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0179",
+			"pattern": "אורדוביק",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום בהיר",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0180",
+			"pattern": "קרבון",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום בהיר",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0181",
+			"pattern": "פלאוזואיקון",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום בהיר",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0182",
+			"pattern": "מזוזואיקון",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום בהיר",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0183",
+			"pattern": "קנוזואיקון",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום בהיר",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0184",
+			"pattern": "נאוגן",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום בהיר"
+			]
+		},
+		{
+			"id": "w0185",
+			"pattern": "פנרוזואיקון",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום בהיר"
+			]
+		},
+		{
+			"id": "w0186",
+			"pattern": "ארכאיקון",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום בהיר"
+			]
+		},
+		{
+			"id": "w0187",
+			"pattern": "האדן",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום בהיר"
+			]
+		},
+		{
+			"id": "w0188",
+			"pattern": "טריאס",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום בהיר"
+			]
+		},
+		{
+			"id": "w0189",
+			"pattern": "פרוטרוזואיקון",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום בהיר"
+			]
+		},
+		{
+			"id": "w0190",
+			"pattern": "נאוליתית",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום בהיר",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0191",
+			"pattern": "כלכוליתית",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/אדום בהיר",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0192",
+			"pattern": "0,000",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום בהיר"
+			]
+		},
+		{
+			"id": "w0193",
+			"pattern": "אמינות המקרא",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום בהיר"
+			]
+		},
+		{
+			"id": "w0194",
+			"pattern": "אלף (השמיני|השביעי|התשיעי)",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום בהיר"
+			]
+		},
+		{
+			"id": "w0195",
+			"pattern": "תקופת הקרח",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום בהיר"
+			]
+		},
+		{
+			"id": "w0196",
+			"pattern": "טורון",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום בהיר"
+			]
+		},
+		{
+			"id": "w0197",
+			"pattern": "4000 לפנה\"ס",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום בהיר"
+			]
+		},
+		{
+			"id": "w0198",
+			"pattern": "5000 לפנה\"ס",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום בהיר"
+			]
+		},
+		{
+			"id": "w0199",
+			"pattern": "6000 לפנה\"ס",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום בהיר"
+			]
+		},
+		{
+			"id": "w0200",
+			"pattern": "7000 לפנה\"ס",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום בהיר"
+			]
+		},
+		{
+			"id": "w0201",
+			"pattern": "8000 לפנה\"ס",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום בהיר"
+			]
+		},
+		{
+			"id": "w0202",
+			"pattern": "9000 לפנה\"ס",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום בהיר"
+			]
+		},
+		{
+			"id": "w0203",
+			"pattern": "ג[י]*אולוג",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/אדום בהיר"
+			]
+		},
+		{
+			"id": "w0204",
+			"pattern": "סירוס",
+			"level": "review",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/ירוק",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0205",
+			"pattern": "מחוץ לנישואין",
+			"level": "review",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/ירוק",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0206",
+			"pattern": "נישואים פתוחים",
+			"level": "review",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/ירוק",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0207",
+			"pattern": "נישואים גאים",
+			"level": "review",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/ירוק",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0208",
+			"pattern": "בת לויה",
+			"level": "review",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/ירוק",
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0209",
+			"pattern": "בת לוויה",
+			"level": "review",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/ירוק",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0210",
+			"pattern": "אהב[תוה]*",
+			"level": "review",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/ירוק"
+			]
+		},
+		{
+			"id": "w0211",
+			"pattern": "הצעת [ה]*נישואי[םן]*",
+			"level": "review",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/ירוק"
+			]
+		},
+		{
+			"id": "w0212",
+			"pattern": "אקרנים",
+			"level": "review",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/ירוק",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0213",
+			"pattern": "שחיינית",
+			"level": "review",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/ירוק",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0214",
+			"pattern": "יפהפייה",
+			"level": "review",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/ירוק"
+			]
+		},
+		{
+			"id": "w0215",
+			"pattern": "חיזור[הים]",
+			"level": "review",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/ירוק",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0216",
+			"pattern": "אישות",
+			"level": "review",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/ירוק",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0217",
+			"pattern": "נרתיק",
+			"level": "review",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/ירוק",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0218",
+			"pattern": "אש[כך][יהום]*(\\s|$)",
+			"level": "review",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/ירוק"
+			]
+		},
+		{
+			"id": "w0219",
+			"pattern": "(\\s|[בכמה]|^)פין",
+			"level": "review",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/ירוק"
+			]
+		},
+		{
+			"id": "w0220",
+			"pattern": "(?<!דו)לפין",
+			"level": "review",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/ירוק"
+			],
+			"original": "[^(דו)]לפין",
+			"note": "במקור [^(דו)] - חוסם כל ד או ו, לא את \"דו\" (דולפין)."
+		},
+		{
+			"id": "w0221",
+			"pattern": "כ[ו]*ח גברא",
+			"level": "review",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/ירוק",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0222",
+			"pattern": "הזד[ו]*וגות",
+			"level": "review",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/ירוק",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0223",
+			"pattern": "מאוהב",
+			"level": "review",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/ירוק"
+			]
+		},
+		{
+			"id": "w0224",
+			"pattern": "היא נמשכה",
+			"level": "review",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/ירוק"
+			]
+		},
+		{
+			"id": "w0225",
+			"pattern": "הוא נמשך",
+			"level": "review",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/ירוק"
+			]
+		},
+		{
+			"id": "w0226",
+			"pattern": "נשקה",
+			"level": "review",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/ירוק"
+			]
+		},
+		{
+			"id": "w0227",
+			"pattern": "בעילה אסורה",
+			"level": "review",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/ירוק"
+			]
+		},
+		{
+			"id": "w0228",
+			"pattern": "הזדווגות",
+			"level": "review",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/ירוק"
+			]
+		},
+		{
+			"id": "w0229",
+			"pattern": "להזדווג",
+			"level": "review",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/ירוק"
+			]
+		},
+		{
+			"id": "w0230",
+			"pattern": "חיזור",
+			"level": "review",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/ירוק"
+			]
+		},
+		{
+			"id": "w0231",
+			"pattern": "לחזר",
+			"level": "review",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/ירוק"
+			]
+		},
+		{
+			"id": "w0232",
+			"pattern": "מחזר",
+			"level": "review",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/ירוק"
+			]
+		},
+		{
+			"id": "w0233",
+			"pattern": "ייחום",
+			"level": "review",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/ירוק"
+			]
+		},
+		{
+			"id": "w0234",
+			"pattern": "תאוה",
+			"level": "review",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/ירוק"
+			]
+		},
+		{
+			"id": "w0235",
+			"pattern": "(?<=\\s)ישו(?=\\s)",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/כחול"
+			]
+		},
+		{
+			"id": "w0236",
+			"pattern": "השילוש הקדוש",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/כחול",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0237",
+			"pattern": "הברית החדשה",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/כחול",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0238",
+			"pattern": "הבשורה על פי",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/כחול",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0239",
+			"pattern": "יהוה",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/צהוב"
+			]
+		},
+		{
+			"id": "w0240",
+			"pattern": "יְהוָה",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/צהוב"
+			]
+		},
+		{
+			"id": "w0241",
+			"pattern": "אלוהים",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/צהוב"
+			]
+		},
+		{
+			"id": "w0242",
+			"pattern": "אלהים",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/צהוב"
+			]
+		},
+		{
+			"id": "w0243",
+			"pattern": "אלוהי",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/צהוב"
+			]
+		},
+		{
+			"id": "w0244",
+			"pattern": "אלהי",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/צהוב"
+			]
+		},
+		{
+			"id": "w0245",
+			"pattern": "אלוה",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/צהוב"
+			]
+		},
+		{
+			"id": "w0246",
+			"pattern": "(?<![\\u0590-\\u05FF])שדי(?![\\u0590-\\u05FF])",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/צהוב",
+				"בומח/כללי"
+			],
+			"original": "שדי$",
+			"note": "במקור $ - מתאים רק בסוף הדף. הכוונה: מילה בודדת."
+		},
+		{
+			"id": "w0247",
+			"pattern": "אלוהות",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/צהוב"
+			]
+		},
+		{
+			"id": "w0248",
+			"pattern": "אלהות",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/צהוב"
+			]
+		},
+		{
+			"id": "w0249",
+			"pattern": "אֲדֹנָי יְהוִה",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/צהוב",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0250",
+			"pattern": "אדני יהוה",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/צהוב",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0251",
+			"pattern": "אלוהיו",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/צהוב"
+			]
+		},
+		{
+			"id": "w0252",
+			"pattern": "אלהיו",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/צהוב"
+			]
+		},
+		{
+			"id": "w0253",
+			"pattern": "אלוהיך",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/צהוב"
+			]
+		},
+		{
+			"id": "w0254",
+			"pattern": "אלהיך",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/צהוב"
+			]
+		},
+		{
+			"id": "w0255",
+			"pattern": "אלוהינו",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/צהוב"
+			]
+		},
+		{
+			"id": "w0256",
+			"pattern": "אלהינו",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/צהוב"
+			]
+		},
+		{
+			"id": "w0257",
+			"pattern": "אלוהיכם",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/צהוב"
+			]
+		},
+		{
+			"id": "w0258",
+			"pattern": "אלהיכם",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/צהוב"
+			]
+		},
+		{
+			"id": "w0259",
+			"pattern": "אלוהיהם",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/צהוב"
+			]
+		},
+		{
+			"id": "w0260",
+			"pattern": "(\\s|^)יה(\\s|$)",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/צהוב",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0261",
+			"pattern": "האל(?![ימות]|קט)",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/צהוב"
+			],
+			"original": "האל[^ימות(קט)]",
+			"note": "במקור (קט) בתוך [] - חוסם ק או ט בודדים, לא את הרצף \"קט\"."
+		},
+		{
+			"id": "w0262",
+			"pattern": "האלים",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/צהוב"
+			]
+		},
+		{
+			"id": "w0263",
+			"pattern": "[^ר]אלים",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/צהוב"
+			]
+		},
+		{
+			"id": "w0264",
+			"pattern": "מיתולוגיה",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/צהוב",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0265",
+			"pattern": "משפט העברי",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/צהוב",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0266",
+			"pattern": "פי התורה",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/צהוב",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0267",
+			"pattern": "הלכה [ה]*יהודית",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/צהוב",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0268",
+			"pattern": "פי התנ\"ך",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/צהוב",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0269",
+			"pattern": "פי המסופר בתנ\"ך",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/צהוב",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0270",
+			"pattern": "פי התלמוד",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/צהוב",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0271",
+			"pattern": "פי הגמרא",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/צהוב",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0272",
+			"pattern": "פי חז\"ל",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/צהוב",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0273",
+			"pattern": "מיסטי[יםקה]*",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/צהוב"
+			]
+		},
+		{
+			"id": "w0274",
+			"pattern": "חוק [ה]*מקראי",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/צהוב",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0275",
+			"pattern": "מסורת [ה]*יהודית",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/צהוב",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0276",
+			"pattern": "ח[ו]*קר[י]* [ה]*מקרא",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/צהוב"
+			]
+		},
+		{
+			"id": "w0277",
+			"pattern": "דמות מקראית",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/צהוב",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0278",
+			"pattern": "הקדוש",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/צהוב",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0279",
+			"pattern": "אֱלֹהֵי",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/צהוב",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0280",
+			"pattern": " אֵל ",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/צהוב"
+			]
+		},
+		{
+			"id": "w0281",
+			"pattern": "אֱלֹהֶ",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/צהוב",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0282",
+			"pattern": "אֱלֹהִים",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"במח/צהוב",
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0283",
+			"pattern": "תמונה חילופית",
+			"level": "review",
+			"topic": "wiki",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/סגול"
+			]
+		},
+		{
+			"id": "w0284",
+			"pattern": "תמונה מוחלפת",
+			"level": "review",
+			"topic": "wiki",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/סגול"
+			]
+		},
+		{
+			"id": "w0285",
+			"pattern": "ויקיפדיה:",
+			"level": "review",
+			"topic": "wiki",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/סגול"
+			]
+		},
+		{
+			"id": "w0286",
+			"pattern": "ו[ו]*יקיפדיה",
+			"level": "review",
+			"topic": "wiki",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/סגול"
+			]
+		},
+		{
+			"id": "w0287",
+			"pattern": "בעבודה",
+			"level": "review",
+			"topic": "wiki",
+			"status": "active",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
+				"במח/סגול"
+			]
+		},
+		{
+			"id": "w0288",
+			"pattern": "פין(?!\\w)",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0289",
+			"pattern": "אינוס(?!בך)",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0290",
+			"pattern": "אונס(?!ק)",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0291",
+			"pattern": "אנס[ו]",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0292",
+			"pattern": "סקס(?!וניה)",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0293",
+			"pattern": "סקסו[אלס]",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0294",
+			"pattern": "(?<!מ)הומואספ",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0295",
+			"pattern": "(?<!מ)הומו(?!גני|לוגי|ר)",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0296",
+			"pattern": "(\\s|ה)מין(?!ימליים|ימום)",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0297",
+			"pattern": "זנות",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0298",
+			"pattern": "(?<!ארי)[מ]זונ[הות]",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0299",
+			"pattern": "[מ]זונות",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0300",
+			"pattern": "דראג",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0301",
+			"pattern": "נערת ליווי",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0302",
+			"pattern": "זימה(?!ה)",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0303",
+			"pattern": "יחסי-מין",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0304",
+			"pattern": "לסבי(?:ם|ות|ית)",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			],
+			"original": "(?<!ל)לסביםוזית",
+			"note": "במקור טקסט משובש (לסביםוזית) - לא התאים אף פעם."
+		},
+		{
+			"id": "w0305",
+			"pattern": "אופי מיני",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0306",
+			"pattern": "אופן מיני",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0307",
+			"pattern": "אקט ה?מיני",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0308",
+			"pattern": "תוכן מיני",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0309",
+			"pattern": "מעשיה מגונה",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0310",
+			"pattern": "ח[ו]*ש[ו]פ[הניות](?!ה)",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0311",
+			"pattern": "א[י]*בר מין",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0312",
+			"pattern": "א[י]בר[י] [ה]*מין",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0313",
+			"pattern": "(?<!יו)א[ו]*נ[ו]*ס(?!ק)",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			],
+			"original": "(?<!יו)א[ו]*נ[ו]*ס^ק",
+			"note": "במקור ^ק - באמצע תבנית ^ הוא \"תחילת טקסט\", ולכן לא התאימה אף פעם. הכוונה: לא ואחריו ק (אונסק\"ו)."
+		},
+		{
+			"id": "w0314",
+			"pattern": "רומ+[נן]+(?![יה])",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			],
+			"original": "רומ+[נן]+^יה",
+			"note": "במקור ^יה - לא התאימה אף פעם. הכוונה: [^יה], לא ואחריו י או ה (רומני, רומניה)."
+		},
+		{
+			"id": "w0315",
+			"pattern": "ע[י]*רו(?!י)[מים]+",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0316",
+			"pattern": "פ[י]*לגש",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0317",
+			"pattern": "העדפה מינית",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0318",
+			"pattern": "(\\s|^)[ו]וסת",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0319",
+			"pattern": "ילד[ים] לא חוקי[ים]",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0320",
+			"pattern": "ב[ןת]+ לא חוקי[תיים]",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0321",
+			"pattern": "מגע מיני",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0322",
+			"pattern": "חד מיני",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0323",
+			"pattern": "הומופוב",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0324",
+			"pattern": "בתולה",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0325",
+			"pattern": "(יצא|יציאה) מהארון",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0326",
+			"pattern": "[^ש]מיני(ו)?ת(?!ימליים|ימום)",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0327",
+			"pattern": "הגאים",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0328",
+			"pattern": "נער[ו]ת ליווי",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0329",
+			"pattern": "פל[י]*רט[ו]*ט",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0330",
+			"pattern": "[^ג]אורגיה",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0331",
+			"pattern": "[^ג]אורגיות",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0332",
+			"pattern": "מיס יוניברס",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0333",
+			"pattern": "מיס תבל",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0334",
+			"pattern": "מיס עולם",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0335",
+			"pattern": "נודיסטים",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/צניעות"
+			]
+		},
+		{
+			"id": "w0336",
+			"pattern": "(מיליו[ןנ]י?|מיליארדי?) שנ[הי]ם?",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0337",
+			"pattern": "000 שנ[הים]",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0338",
+			"pattern": "פרה[י][\\sהי]סטורי[הים]",
+			"level": "review",
+			"topic": "dating",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0339",
+			"pattern": "הצעת [ה]נישואי[םן]",
+			"level": "review",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0340",
+			"pattern": "(?<!או)ישו(\\s|$)",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0341",
+			"pattern": "(?<!ג)ג[י]*אולוג(?!יה)",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0342",
+			"pattern": "אש[כך][יהום](\\s|$)",
+			"level": "review",
+			"topic": "modesty",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0343",
+			"pattern": "יהוה|יְהוָה",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0344",
+			"pattern": "אלוהים|אלהים|אלוהי|אלהי|אלוה|אלוהות|אלהות",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0345",
+			"pattern": "אלוהיו|אלהיו|אלוהיך|אלהיך|אלוהינו|אלהינו|אלוהיכם|אלהיכם|אלוהיהם",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0346",
+			"pattern": "(ה\\s)אל(\\s|ים)(?!יאנס)",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0347",
+			"pattern": "(?<![\\u0590-\\u05FF])אלים(?![\\u0590-\\u05FF])",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/כללי"
+			],
+			"original": "^(אלים)$",
+			"note": "במקור ^...$ - מתאים רק אם כל הדף הוא המילה. הכוונה: מילה בודדת."
+		},
+		{
+			"id": "w0348",
+			"pattern": "(?<!אסלא)מיסטי[יםקה]",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0349",
+			"pattern": "ח[ו]קר[י] [ה]*מקרא",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0350",
+			"pattern": "אֵל",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0351",
+			"pattern": "המחבר המקראי",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0352",
+			"pattern": "המספר המקראי",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0353",
+			"pattern": "פרשנות המקראית",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0354",
+			"pattern": "פרשנות מקראית",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0355",
+			"pattern": "המסורת המקראית",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0356",
+			"pattern": "מסורת מקראית",
+			"level": "review",
+			"topic": "faith",
+			"status": "active",
+			"reviewed": false,
+			"sources": [
+				"בומח/כללי"
+			]
+		},
+		{
+			"id": "w0357",
+			"pattern": "\\bfuck\\w*",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude"
+			],
+			"note": "קללה באנגלית (fuck, fucking). +14 חסרים (שמות שירים ואלבומים), מכלול 3 - כולם בכותרת של מקור באנגלית."
+		},
+		{
+			"id": "w0358",
+			"pattern": "\\bmotherf\\w*",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude"
+			],
+			"note": "קללה באנגלית. +1 חסרים, מכלול 0."
+		},
+		{
+			"id": "w0359",
+			"pattern": "\\bbitch\\w*",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude"
+			],
+			"note": "קללה באנגלית. +3 חסרים, מכלול 0."
+		},
+		{
+			"id": "w0360",
+			"pattern": "\\bslut\\w*",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude"
+			],
+			"note": "כינוי גנאי מיני באנגלית. +1 חסרים, מכלול 0."
+		},
+		{
+			"id": "w0361",
+			"pattern": "\\bwhore\\w*",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude"
+			],
+			"note": "\"זונה\" באנגלית. מכלול 0."
+		},
+		{
+			"id": "w0362",
+			"pattern": "\\bpuss(?:y|ies)\\b",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude"
+			],
+			"note": "כינוי גס באנגלית. מכלול 0."
+		},
+		{
+			"id": "w0363",
+			"pattern": "\\bporn\\w*",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude"
+			],
+			"note": "פורנוגרפיה באנגלית (הרשימות תופסות רק \"פורנו\" בעברית). מכלול 1 - שם סרט אסטוני."
+		},
+		{
+			"id": "w0364",
+			"pattern": "\\bnude\\w*",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude"
+			],
+			"note": "עירום באנגלית (nude, nudes, nudity). מכלול 0. בכוונה לא naked - תפס את \"The Naked Gun\"."
+		},
+		{
+			"id": "w0365",
+			"pattern": "\\bsexy\\b",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude"
+			],
+			"note": "\"סקסי\" באנגלית. מכלול 0. (sexual לא נכלל - מופיע בשמות מאמרים מדעיים.)"
+		},
+		{
+			"id": "w0366",
+			"pattern": "\\bhorny\\b",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude"
+			],
+			"note": "באנגלית - מגורה מינית. מכלול 0."
+		},
+		{
+			"id": "w0367",
+			"pattern": "\\bstrip(?:per|pers|tease)\\b",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude"
+			],
+			"note": "חשפנות באנגלית. מכלול 0."
+		},
+		{
+			"id": "w0368",
+			"pattern": "\\blingerie\\b",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude"
+			],
+			"note": "הלבשה תחתונה באנגלית. מכלול 0."
+		},
+		{
+			"id": "w0369",
+			"pattern": "פאקינג",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude"
+			],
+			"note": "תעתיק עברי של fucking. +4 חסרים, מכלול 0. (\"פאק\" לבד לא נכלל - שם קוריאני במכלול; \"ביץ'\" לא - beach.)"
+		},
+		{
+			"id": "w0370",
+			"pattern": "פוסי(?![א-ת])",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude"
+			],
+			"note": "כינוי גס (pussy) בתעתיק עברי. +1 חסרים, מכלול 0."
+		},
+		{
+			"id": "w0371",
+			"pattern": "\\bIFBB\\b",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude"
+			],
+			"note": "הפדרציה הבינלאומית לפיתוח גוף - ערכי פיתוח גוף חסומים (תמונות גוף חשוף). +6 חסרים, מכלול 0."
+		},
+		{
+			"id": "w0372",
+			"pattern": "פיתוח גוף",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude"
+			],
+			"note": "ענף פיתוח הגוף. +11 חסרים, מכלול 0."
+		},
+		{
+			"id": "w0373",
+			"pattern": "מפתח(?:י|ת)? גוף",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude"
+			],
+			"note": "\"מפתח גוף\", \"מפתחי גוף\", \"מפתחת גוף\". +8 חסרים, מכלול 0."
+		},
+		{
+			"id": "w0374",
+			"pattern": "מר (?:אולימפיה|יוניברס|אמריקה)",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude"
+			],
+			"note": "תחרויות פיתוח גוף. +7 חסרים, מכלול 0."
+		},
+		{
+			"id": "w0375",
+			"pattern": "ביקיני",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude"
+			],
+			"note": "בגד ים חושפני. מכלול 0."
+		},
+		{
+			"id": "w0376",
+			"pattern": "חוטיני",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude"
+			],
+			"note": "תחתון חושפני. +1 חסרים, מכלול 0."
+		},
+		{
+			"id": "w0377",
+			"pattern": "נשיק(?:ה|ות|ת)(?![א-ת])",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude"
+			],
+			"note": "נשיקה, נשיקות. +4 חסרים, מכלול 0."
+		},
+		{
+			"id": "w0378",
+			"pattern": "מתנשק[א-ת]*",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude"
+			],
+			"note": "מתנשק, מתנשקים. מכלול 0."
+		},
+		{
+			"id": "w0379",
+			"pattern": "(?<![א-ת])ישוע(?![א-ת])",
+			"level": "review",
+			"topic": "faith",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude"
+			],
+			"note": "שמו של ישו בכתיב המלא (הרשימה הכחולה תופסת רק \"ישו\" בין רווחים). +4 חסרים, מכלול 0."
+		},
+		{
+			"id": "w0380",
+			"pattern": "בגד(?:י)? (?:ים|רחצה)",
+			"level": "review",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude"
+			],
+			"note": "בגד ים - לבדיקת תמונות. מכלול 0."
+		},
+		{
+			"id": "w0381",
+			"pattern": "הלבשה תחתונה",
+			"level": "review",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude"
+			],
+			"note": "מכלול 3 (למשל עסק של הלבשה תחתונה), ולכן לבדיקה ולא חוסם."
+		},
+		{
+			"id": "w0382",
+			"pattern": "גרבונים",
+			"level": "review",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude"
+			],
+			"note": "מכלול 0."
+		},
+		{
+			"id": "w0383",
+			"pattern": "קברט",
+			"level": "review",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude"
+			],
+			"note": "מופעי קברט. +4 חסרים, מכלול 0."
+		},
+		{
+			"id": "w0384",
+			"pattern": "רקדני(?:ת|יות)(?![א-ת])",
+			"level": "review",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude"
+			],
+			"note": "רקדנית, רקדניות - ערכים על רקדניות (תמונות). +6 חסרים, מכלול 1."
+		},
+		{
+			"id": "w0385",
+			"pattern": "מועדוני? לילה",
+			"level": "review",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude"
+			],
+			"note": "מועדון לילה. +4 חסרים, מכלול 1."
+		},
+		{
+			"id": "w0386",
+			"pattern": "שוכב(?:ת|ים|ות)? עם|שכב(?:ה|ו)? עם",
+			"level": "review",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude"
+			],
+			"note": "לשון נקייה ליחסים. מכלול 0, אבל מופיע גם בציטוטי פסוקים - לכן לבדיקה."
+		},
+		{
+			"id": "w0387",
+			"pattern": "להשתין",
+			"level": "review",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude"
+			],
+			"note": "מכלול 0."
+		},
+		{
+			"id": "w0388",
+			"pattern": "אוננות",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "שם העצם (ברשימות יש רק את הפעלים לאונן/מאונן)."
+		},
+		{
+			"id": "w0389",
+			"pattern": "נואפ(?:ת|ים|ות)(?![א-ת])",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "נואפת, נואפים (ברשימות יש רק \"נואף\")."
+		},
+		{
+			"id": "w0390",
+			"pattern": "שרמוט(?:ה|ות)",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "כינוי גס לזונה."
+		},
+		{
+			"id": "w0391",
+			"pattern": "קוקסינל",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "כינוי גנאי."
+		},
+		{
+			"id": "w0392",
+			"pattern": "סט(?:ר|רי)פטיז",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "חשפנות (סטריפטיז/סטרפטיז)."
+		},
+		{
+			"id": "w0393",
+			"pattern": "ויברטור|דילדו",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "אביזרי מין."
+		},
+		{
+			"id": "w0394",
+			"pattern": "פוליאמורי",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "פוליאמוריה."
+		},
+		{
+			"id": "w0395",
+			"pattern": "(?:מין|סקס) אוראלי",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "ברשימות יש \"מין אנאלי\" אבל לא אוראלי."
+		},
+		{
+			"id": "w0396",
+			"pattern": "סטוץ",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "סלנג - קשר מיני חד-פעמי."
+		},
+		{
+			"id": "w0397",
+			"pattern": "אונליפאנס|OnlyFans",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "אתר תוכן מיני."
+		},
+		{
+			"id": "w0398",
+			"pattern": "הנטאי|\\bhentai\\b",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "אנימה פורנוגרפית."
+		},
+		{
+			"id": "w0399",
+			"pattern": "מילף|\\bMILF\\b",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "סלנג מיני."
+		},
+		{
+			"id": "w0400",
+			"pattern": "(?<![א-ת])כוסי(?:ת|יות)(?![א-ת])",
+			"level": "review",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "סלנג גס, אבל גם \"כוסית\" = כוס קטנה - לכן לבדיקה."
+		},
+		{
+			"id": "w0401",
+			"pattern": "מניאק",
+			"level": "review",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "קללה (לא מינית)."
+		},
+		{
+			"id": "w0402",
+			"pattern": "(?<![א-ת])[ובלה]?פרוצ(?:ה|ות)(?![א-ת])",
+			"level": "review",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "זונה - אבל גם \"פרוצה\" = פרוצה/פתוחה (עיר פרוצה)."
+		},
+		{
+			"id": "w0403",
+			"pattern": "פטמ(?:ה|ות)(?![א-ת])",
+			"level": "review",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "פטמה - אבל גם פטמת האתרוג."
+		},
+		{
+			"id": "w0404",
+			"pattern": "משכב זכר",
+			"level": "review",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "מונח הלכתי - מופיע גם בערכי הלכה."
+		},
+		{
+			"id": "w0405",
+			"pattern": "גילוי עריות|(?<![א-ת])[ובלה]?עריות(?![א-ת])",
+			"level": "review",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "מונח הלכתי."
+		},
+		{
+			"id": "w0406",
+			"pattern": "מחשוף",
+			"level": "review",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "מחשוף בבגד - אבל גם מחשוף פיננסי/בנקאי."
+		},
+		{
+			"id": "w0407",
+			"pattern": "חצאית מיני|מיני[- ]?חצאית|מיניז?סקירט",
+			"level": "review",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "חצאית קצרה."
+		},
+		{
+			"id": "w0408",
+			"pattern": "שפיכה",
+			"level": "review",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "שפיכת זרע - אבל גם שפיכה/שפיכת דמים."
+		},
+		{
+			"id": "w0409",
+			"pattern": "(?<![א-ת])[וה]?זקפה(?![א-ת])",
+			"level": "review",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "זקפה - אבל גם זקיפה (חשבונאות)."
+		},
+		{
+			"id": "w0410",
+			"pattern": "\\bLGBT\\w*",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "באנגלית, כמו להט\"ב ברשימה האדומה."
+		},
+		{
+			"id": "w0411",
+			"pattern": "\\b(?:lesbian|homosexual|bisexual|transgender)\\w*",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "באנגלית, כמו המקבילות העבריות ברשימה האדומה."
+		},
+		{
+			"id": "w0412",
+			"pattern": "\\bqueer\\w*",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "באנגלית, כמו \"קוויר\" ברשימה האדומה."
+		},
+		{
+			"id": "w0413",
+			"pattern": "\\b(?:blow|hand)job\\w*",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "מין - באנגלית."
+		},
+		{
+			"id": "w0414",
+			"pattern": "\\borgasm\\w*",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "באנגלית (אורגזמה ברשימה האדומה)."
+		},
+		{
+			"id": "w0415",
+			"pattern": "\\bmasturbat\\w*",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "אוננות - באנגלית."
+		},
+		{
+			"id": "w0416",
+			"pattern": "\\berotic\\w*",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "ארוטי - באנגלית."
+		},
+		{
+			"id": "w0417",
+			"pattern": "\\bfetish\\w*",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "פטיש מיני - באנגלית."
+		},
+		{
+			"id": "w0418",
+			"pattern": "\\bthreesome\\w*|\\borg(?:y|ies)\\b",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "באנגלית."
+		},
+		{
+			"id": "w0419",
+			"pattern": "\\bprostitut\\w*|\\bbrothel\\w*",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "זנות, בית בושת - באנגלית."
+		},
+		{
+			"id": "w0420",
+			"pattern": "\\b(?:cunt|twat|wank)\\w*",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "קללות גסות - באנגלית."
+		},
+		{
+			"id": "w0421",
+			"pattern": "\\bboobs?\\b|\\btits\\b",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "סלנג לחזה (\"tit\" לבד לא - שם של ציפור)."
+		},
+		{
+			"id": "w0422",
+			"pattern": "\\b(?:penis|vagina|clitor|testicl)\\w*",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "איברי מין - באנגלית."
+		},
+		{
+			"id": "w0423",
+			"pattern": "\\bnipples?\\b",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "באנגלית."
+		},
+		{
+			"id": "w0424",
+			"pattern": "\\bpant(?:y|ies)\\b",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "תחתונים - באנגלית."
+		},
+		{
+			"id": "w0425",
+			"pattern": "\\bplayboy\\b",
+			"level": "problem",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "ברשימה האדומה יש רק \"פלייבוי\" בעברית."
+		},
+		{
+			"id": "w0426",
+			"pattern": "\\bhooker\\w*",
+			"level": "review",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "זונה - אבל גם עמדה ברוגבי."
+		},
+		{
+			"id": "w0427",
+			"pattern": "\\b(?:rape[ds]?|raping|rapist\\w*)\\b",
+			"level": "review",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "אונס - אבל גם שם של יצירות (\"The Rape of the Sabine Women\")."
+		},
+		{
+			"id": "w0428",
+			"pattern": "\\bXXX\\b",
+			"level": "review",
+			"topic": "modesty",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (מילה חדשה)"
+			],
+			"note": "תוכן למבוגרים - אבל גם הספרה הרומית 30 (Super Bowl XXX)."
+		}
+	]
+}
