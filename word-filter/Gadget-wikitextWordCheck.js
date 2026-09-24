@@ -301,7 +301,21 @@
 				}
 			});
 		});
-		return result.sort(function (a, b) { return a.start - b.start || a.end - b.end; });
+		// התאמה שכלולה בהתאמה אחרת ("מיני" בתוך "מיניות", "לפנה"ס" בתוך "4000 לפנה"ס") מתמזגת
+		// בה, כדי שכל מילה תופיע פעם אחת. הרמה - הגבוהה; הנושא - של הרמה הגבוהה, ועדיפות לנושא שנספר.
+		result.sort(function (a, b) { return a.start - b.start || b.end - a.end; });
+		var merged = [];
+		result.forEach(function (m) {
+			var outer = merged[merged.length - 1];
+			if (!outer || m.start >= outer.end || m.end > outer.end) { merged.push(m); return; }
+			m.entries.forEach(function (e) { if (outer.entries.indexOf(e) < 0) outer.entries.push(e); });
+			var counts = function (x) { return VERDICT_TOPICS.indexOf(x.topic) >= 0; };
+			if (LEVELS[m.level] > LEVELS[outer.level] || (m.level === outer.level && counts(m) && !counts(outer))) {
+				outer.level = m.level;
+				outer.topic = m.topic;
+			}
+		});
+		return merged;
 	}
 
 	// נושאים שקובעים את רמת הדף. השאר - הערות ניסוח (ראו בראש הקובץ).
@@ -318,8 +332,42 @@
 		return level;
 	}
 
+	// המשפט שבו נמצאה ההתאמה, כטקסט קריא (בלי קישורים, תבניות והערות שוליים), לתצוגה
+	// מחוץ לעורך - למשל בדשבורד, שבו הטקסט המלא לא מול העיניים. מחזיר {before, text, after}.
+	var MARK_OPEN = '\u0001', MARK_CLOSE = '\u0002';
+	function contextOf(wikitext, match, maxSide) {
+		maxSide = maxSide || 160;
+		var start = match.start, end = match.end;
+		var from = start, to = end;
+		while (from > 0 && start - from < maxSide && wikitext[from - 1] !== '\n' &&
+			!(/[.!?]/.test(wikitext[from - 1]) && /\s/.test(wikitext[from] || ''))) from--;
+		while (to < wikitext.length && to - end < maxSide && wikitext[to] !== '\n' &&
+			!(/[.!?]/.test(wikitext[to]) && /\s|$/.test(wikitext[to + 1] || ''))) to++;
+		if (to < wikitext.length && /[.!?]/.test(wikitext[to])) to++;
+		var raw = wikitext.slice(from, start) + MARK_OPEN + wikitext.slice(start, end) + MARK_CLOSE + wikitext.slice(end, to);
+		var marked = function (t) { return t.indexOf(MARK_OPEN) >= 0 || t.indexOf(MARK_CLOSE) >= 0; };
+		var clean = raw
+			// תבנית או הערת שוליים שנחתכו בגבול החלון
+			.replace(/^[^{}]*\}\}/, function (t) { return marked(t) ? t : ''; })
+			.replace(/<ref[^>\/]*>(?![\s\S]*<\/ref>)[\s\S]*$|\{\{[^{}]*$/, function (t) { return marked(t) ? t : ''; })
+			.replace(/<ref[^>]*\/>|<ref[^>]*>[\s\S]*?<\/ref>|<!--[\s\S]*?-->/g, function (t) { return marked(t) ? t : ''; })
+			.replace(/\{\{[^{}]*\}\}/g, function (t) { return marked(t) ? t.slice(2, -2) : ''; })
+			.replace(/\[\[([^\[\]|]*)\|([^\[\]]*)\]\]/g, function (t, target, label) { return marked(target) ? target : label; })
+			.replace(/\[\[([^\[\]]*)\]\]/g, '$1')
+			.replace(/\[https?:[^\s\]]+ ?([^\]]*)\]/g, '$1')
+			.replace(/<[^>]+>|'{2,}/g, '')
+			.replace(/\s+/g, ' ');
+		var a = clean.indexOf(MARK_OPEN), b = clean.indexOf(MARK_CLOSE);
+		if (a < 0 || b < a) { clean = raw.replace(/\s+/g, ' '); a = clean.indexOf(MARK_OPEN); b = clean.indexOf(MARK_CLOSE); }
+		return {
+			before: (from > 0 && start - from >= maxSide ? '…' : '') + clean.slice(0, a).replace(/^\s+/, ''),
+			text: clean.slice(a + 1, b),
+			after: clean.slice(b + 1).replace(/\s+$/, '') + (to < wikitext.length && to - end >= maxSide ? '…' : '')
+		};
+	}
+
 	var core = {
-		compileLists: compileLists, maskWikitext: maskWikitext, scan: scan, verdict: verdict,
+		compileLists: compileLists, maskWikitext: maskWikitext, scan: scan, verdict: verdict, contextOf: contextOf,
 		VERDICT_TOPICS: VERDICT_TOPICS, LEVEL_LABELS: LEVEL_LABELS, TOPIC_LABELS: TOPIC_LABELS
 	};
 
@@ -382,8 +430,7 @@
 				.prepend(swatch(g.color)));
 			var $ul = el('ul');
 			items.forEach(function (m) {
-				var before = text.slice(Math.max(m.start - 35, 0), m.start).replace(/\n/g, ' ');
-				var after = text.slice(m.end, m.end + 35).replace(/\n/g, ' ');
+				var ctx = contextOf(text, m, 80);
 				var tip = m.entries.map(function (e) {
 					return e.pattern + (e.note ? ' - ' + e.note : '') + (e.status === 'suggested' ? ' (הצעה)' : '');
 				}).join('\n');
@@ -394,9 +441,9 @@
 						.textSelection('setSelection', { start: m.start, end: m.end })
 						.textSelection('scrollToCaretPosition');
 				});
-				$ul.append(el('li').append($link, ' [' + (TOPIC_LABELS[m.topic] || m.topic) + ']: …',
-					document.createTextNode(before), el('mark', m.text, { background: counted(m) ? LEVEL_COLORS[m.level] : g.color }),
-					document.createTextNode(after), '…'));
+				$ul.append(el('li').append($link, ' [' + (TOPIC_LABELS[m.topic] || m.topic) + ']: ',
+					document.createTextNode(ctx.before), el('mark', ctx.text, { background: counted(m) ? LEVEL_COLORS[m.level] : g.color }),
+					document.createTextNode(ctx.after)));
 			});
 			$panel.append($ul);
 		});

@@ -106,5 +106,19 @@ test('age of the world counts in the verdict; recent dates do not', () => {
 	for (const t of ['לפני 5,000 שנה', 'בן 4000 שנים', 'אלף שנים', 'המתוארכות ל-2250 לפנה"ס', 'באלף השלישי לפנה"ס',
 		'נסע לטריאסטה', 'לפני 1,000 שנה'])
 		assert.notStrictEqual(verdict(t), 'problem', t);
-	assert.strictEqual(engine.verdict(engine.scan('לפני מיליון שנה', ACTIVE)), 'clean'); // לא פעיל עד אישור
+	// רשומות התיארוך הישנות שחיים העביר לגיל העולם - פעילות.
+	assert.strictEqual(engine.verdict(engine.scan('לפני מיליון שנה', ACTIVE)), 'problem');
+	assert.strictEqual(engine.verdict(engine.scan('נסע לטריאסטה', ACTIVE)), 'review');
+	assert.strictEqual(engine.verdict(engine.scan('חיו לפני 30,000 שנה', ACTIVE)), 'clean'); // w0429 - עדיין הצעה
+});
+
+test('contained matches merge; sentence context is readable text', () => {
+	const t = 'משפט קודם. [[קטגוריה:שירים על מיניות]]';
+	const ms = engine.scan(t, FULL).filter((m) => m.topic === 'modesty');
+	assert.strictEqual(ms.length, 1);
+	assert.strictEqual(ms[0].text, 'מיניות');
+	const src = 'פתיחה. היא דיברה על [[אלימות מינית בטבח|האלימות המינית]] שבוצעה<ref>{{צ-מאמר|שם=x}}</ref> בטבח. סוף.';
+	const [m] = engine.scan(src, FULL).filter((x) => x.topic === 'modesty');
+	const c = engine.contextOf(src, m);
+	assert.deepStrictEqual([c.before, c.text, c.after], ['היא דיברה על האלימות ', 'המינית', ' שבוצעה בטבח.']);
 });

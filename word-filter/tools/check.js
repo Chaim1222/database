@@ -38,7 +38,7 @@ async function main() {
 	if (args.json) {
 		console.log(JSON.stringify({ verdict: level, matches: matches.map((m) => ({
 			start: m.start, end: m.end, text: m.text, line: m.line, level: m.level, topic: m.topic,
-			entries: m.entries.map((e) => e.id),
+			entries: m.entries.map((e) => e.id), context: engine.contextOf(text, m),
 		})) }, null, 2));
 	} else {
 		console.log(`== ${args.title || args.file}: ${engine.LEVEL_LABELS[level]} (${matches.length} התאמות) ==`);
@@ -52,8 +52,8 @@ async function main() {
 			if (!items.length) continue;
 			console.log(`\n--- ${label}: ${items.length} ---`);
 			for (const m of items) {
-				const ctx = (text.slice(Math.max(m.start - 30, 0), m.start) + '【' + m.text + '】' + text.slice(m.end, m.end + 30))
-					.replace(/\n/g, ' ⏎ ');
+				const c = engine.contextOf(text, m);
+				const ctx = c.before + '【' + c.text + '】' + c.after;
 				console.log(`  שורה ${m.line} [${engine.TOPIC_LABELS[m.topic]}] ${m.entries.map((e) => e.id).join(',')}: ${ctx}`);
 			}
 		}
