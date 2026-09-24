@@ -1,0 +1,80 @@
+name: סינון תוכן - חסר במכלול
+
+# סורק את ערכי "חסר במכלול" לפי רשימות המילים (word-filter/) ושומר את
+# התוצאות ב-word_filter_results בסופבייס - רמה (בעיה ודאית / לבדיקה /
+# דורש ניסוח / נקי), תמונות, וכל התאמה עם המשפט שלה. הדשבורד מסנן לפיהן.
+# ראו word-filter/tools/scan-missing.js.
+#
+# הסריקה מדלגת על ערך שלא השתנה (אותה גרסה בוויקיפדיה, אותן רשימות),
+# ולכן ריצה רגילה קצרה: בעיקר ערכים חדשים ברשימה. שינוי ברשימות או
+# במנוע (push ל-main) = סריקה מחדש של הכל (כ-15 דקות).
+#
+# מתי רץ:
+#   - אחרי העדכון הלילי ואחרי הסנכרון השבועי (רשימת החסרים התעדכנה).
+#   - כשהרשימות או המנוע משתנים ב-main.
+#   - ידנית (workflow_dispatch), עם אפשרות לסרוק הכל מחדש.
+
+on:
+  workflow_run:
+    workflows: ["עדכון מצטבר לילי", "סנכרון שבועי מלא"]
+    types: [completed]
+  push:
+    # זמני - הרצה ראשונה מהענף, לפני המיזוג. להסיר לפני המיזוג.
+    branches: [main, claude/relaxed-clarke-nent4s]
+    paths:
+      - ".github/workflows/word_filter_scan.yml"
+      - "word-filter/lists/**"
+      - "word-filter/Gadget-wikitextWordCheck.js"
+      - "word-filter/tools/scan-missing.js"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "לסרוק הכל מחדש, גם מה שלא השתנה"
+        type: boolean
+        default: false
+
+# ריצה אחת בכל פעם; ריצה חדשה מחכה (לא מבטלת) - הסריקה ממשיכה מאיפה
+# שהקודמת עצרה בזכות הדילוג על מה שכבר נסרק.
+concurrency:
+  group: word-filter-scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: שחזור קוד
+        uses: actions/checkout@v4
+
+      - name: התקנת Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: בדיקות המנוע
+        run: node --test word-filter/tests/*.test.js
+
+      - name: סריקת החסרים
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: node word-filter/tools/scan-missing.js --prune ${{ inputs.force && '--force' || '' }}
+
+      - name: פתיחת Issue בעת כישלון
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `כשל בסינון התוכן של "חסר במכלול" - ${new Date().toISOString().slice(0, 10)}`,
+              body: `פרטי הריצה: ${runUrl}`,
+              labels: ["automation-failure"],
+            });
