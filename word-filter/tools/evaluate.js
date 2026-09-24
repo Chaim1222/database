@@ -11,6 +11,8 @@
  *   node word-filter/tools/evaluate.js fetch-blacklist [--ids-file ids.txt]
  *        בלי --ids-file: מזהים מסופרבייס (SUPABASE_URL + SUPABASE_SERVICE_KEY).
  *   node word-filter/tools/evaluate.js fetch-mechalol dev 500
+ *   node word-filter/tools/evaluate.js fetch-ids dev mechalol word-filter/corpus-ids/dev.txt
+ *        שחזור מדגם קיים לפי מזהים (blacklist: wikipedia; dev/holdout: mechalol).
  *   node word-filter/tools/evaluate.js report [--lost]      טבלת תצורות, ומה אבד בכל שלב
  *   node word-filter/tools/evaluate.js noisy [N]            הרשומות שתופסות הכי הרבה במכלול
  *   node word-filter/tools/evaluate.js candidates file.txt  מדידת תבניות מועמדות (שורה לכל תבנית)
@@ -46,18 +48,24 @@ async function fetchBlacklist(idsFile) {
 			{ headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: 'Bearer ' + SUPABASE_SERVICE_KEY } });
 		ids = (await res.json()).map((r) => String(r.wikipedia_id || ''));
 	}
-	const file = corpusPath('blacklist');
+	await fetchByIds('blacklist', 'wikipedia', ids);
+}
+
+// הורדת מאגר לפי רשימת מזהי דפים - כך אפשר לשחזר בדיוק את אותו מדגם
+// (word-filter/corpus-ids/). התוכן עצמו עשוי להשתנות מאז.
+async function fetchByIds(name, wiki, ids) {
+	const file = corpusPath(name);
 	const pages = loadFile(file);
-	const todo = [...new Set(ids.filter(Boolean))].filter((id) => !pages[id]);
+	const todo = [...new Set(ids.map((x) => x.trim()).filter(Boolean))].filter((id) => !pages[id]);
 	for (let i = 0; i < todo.length; i += 50) {
 		const chunk = todo.slice(i, i + 50);
-		const data = await apiGet('wikipedia', { action: 'query', pageids: chunk.join('|'), prop: 'revisions',
+		const data = await apiGet(wiki, { action: 'query', pageids: chunk.join('|'), prop: 'revisions',
 			rvprop: 'content', rvslots: 'main' });
 		for (const page of (data.query || {}).pages || []) pages[page.pageid] = { title: page.title, text: contentOf(page) };
 		for (const id of chunk) pages[id] = pages[id] || { title: null, text: null };
 		fs.writeFileSync(file, JSON.stringify(pages));
-		console.log(`blacklist: ${Object.keys(pages).length}`);
-		await sleep(2000);
+		console.log(`${name}: ${Object.keys(pages).length}`);
+		await sleep(wiki === 'wikipedia' ? 2000 : 1000);
 	}
 }
 
@@ -232,6 +240,7 @@ async function main() {
 	const [cmd, ...rest] = process.argv.slice(2);
 	if (cmd === 'fetch-blacklist') await fetchBlacklist(rest[0] === '--ids-file' ? rest[1] : null);
 	else if (cmd === 'fetch-mechalol') await fetchMechalol(rest[0], Number(rest[1]));
+	else if (cmd === 'fetch-ids') await fetchByIds(rest[0], rest[1], fs.readFileSync(rest[2], 'utf8').split(/[,\s]+/));
 	else if (cmd === 'report') report(rest.includes('--lost'));
 	else if (cmd === 'noisy') noisy(Number(rest[0]) || 40);
 	else if (cmd === 'candidates') candidates(rest[0]);

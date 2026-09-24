@@ -22,6 +22,9 @@
 | `tools/apply-decisions.js` | מחיל את ההחלטות מדף הסקירה על קובצי ה-JSON. |
 | `tools/build-lists.js` | ההסבה החד-פעמית מהדפים הקיימים ל-JSON - לתיעוד. |
 | `sources/` | העותקים של הדפים המקוריים ושל ההצעות, שמהם נבנה ה-JSON. |
+| `review/` | דף הסקירה המשותף (`index.html`), הנתונים שלו ו-`build-data.js` שמרכיב אותם. |
+| `corpus-ids/` | מזהי הדפים של מדגמי המדידה - לשחזור מדויק (`evaluate.js fetch-ids`). |
+| `NOTES.md` | יומן העבודה: מצב נוכחי, החלטות ונימוקים, ממצאים, מה ממתין. **להתחיל ממנו בכל סשן.** |
 
 ### שדות רשומה (`words.json`)
 
@@ -59,6 +62,7 @@ node --test word-filter/tests/*.test.js
 node word-filter/tools/evaluate.js fetch-blacklist --ids-file ids.txt   # או מסופרבייס עם SUPABASE_URL/SUPABASE_SERVICE_KEY
 node word-filter/tools/evaluate.js fetch-mechalol dev 500
 node word-filter/tools/evaluate.js fetch-mechalol holdout 1500
+node word-filter/tools/evaluate.js fetch-ids dev mechalol word-filter/corpus-ids/dev.txt   # שחזור מדגם קיים
 node word-filter/tools/evaluate.js report --lost        # אחרי כל שינוי ברשימות
 node word-filter/tools/evaluate.js noisy 40             # הרשומות שתופסות הכי הרבה במכלול
 node word-filter/tools/evaluate.js candidates cands.txt # תבנית מועמדת: כמה חסומים היא מוסיפה, כמה מכלול היא תופסת

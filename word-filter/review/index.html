@@ -1,0 +1,485 @@
+<title>סקירת מילים חשודות</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root {
+	--paper: #f4f5f2;
+	--surface: #ffffff;
+	--ink: #1b2320;
+	--muted: #5d6964;
+	--line: #dcdfda;
+	--accent: #1f5f5b;
+	--accent-soft: #e2eeec;
+	--problem: #b3261e;
+	--problem-soft: #fbe9e7;
+	--review: #8a5d00;
+	--review-soft: #fbf1d9;
+	--ok: #2e7d4f;
+	--ok-soft: #e3f2e8;
+	--no: #5b6360;
+	--no-soft: #eceeec;
+	--mark: #ffe08a;
+	--display: "Frank Ruhl Libre", "David Libre", Georgia, serif;
+	--body: "Assistant", "Segoe UI", Arial, sans-serif;
+	--mono: "IBM Plex Mono", ui-monospace, "Courier New", monospace;
+}
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) {
+		color-scheme: dark;
+		--paper: #131715; --surface: #1b201e; --ink: #e6ebe8; --muted: #9ba7a1; --line: #2d3431;
+		--accent: #6bbdb3; --accent-soft: #1d3432; --problem: #f08a80; --problem-soft: #3a1f1c;
+		--review: #e6b54a; --review-soft: #352b15; --ok: #74c996; --ok-soft: #1a3325; --no: #a3aaa7; --no-soft: #262b29;
+		--mark: #6b5514;
+	}
+}
+:root[data-theme="dark"] {
+	color-scheme: dark;
+	--paper: #131715; --surface: #1b201e; --ink: #e6ebe8; --muted: #9ba7a1; --line: #2d3431;
+	--accent: #6bbdb3; --accent-soft: #1d3432; --problem: #f08a80; --problem-soft: #3a1f1c;
+	--review: #e6b54a; --review-soft: #352b15; --ok: #74c996; --ok-soft: #1a3325; --no: #a3aaa7; --no-soft: #262b29;
+	--mark: #6b5514;
+}
+* { box-sizing: border-box; }
+body { background: var(--paper); color: var(--ink); font: 16px/1.55 var(--body); }
+.wrap { max-width: 1080px; margin: 0 auto; padding-inline: 16px; padding-block: 0 48px; }
+header.top {
+	position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--paper);
+	border-bottom: 1px solid var(--line); padding-block: 14px 0;
+}
+.titlebar { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 20px; }
+h1 { font: 700 1.7rem/1.2 var(--display); margin: 0; text-wrap: balance; }
+.sub { color: var(--muted); font-size: 0.92rem; margin: 2px 0 0; }
+.save-state { font-size: 0.85rem; color: var(--muted); }
+.save-state.warn { color: var(--problem); }
+nav.tabs { display: flex; gap: 4px; margin-top: 12px; overflow-x: auto; }
+nav.tabs button {
+	font: 600 0.95rem var(--body); color: var(--muted); background: none; border: 0; border-bottom: 3px solid transparent;
+	padding: 8px 12px 9px; cursor: pointer; white-space: nowrap;
+}
+nav.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+nav.tabs .count { font-variant-numeric: tabular-nums; font-weight: 400; color: var(--muted); }
+.intro { color: var(--muted); max-width: 70ch; margin: 18px 0 10px; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; margin: 10px 0 14px; }
+.toolbar input[type="search"] {
+	flex: 1 1 220px; min-width: 0; font: inherit; padding: 7px 10px; border: 1px solid var(--line); border-radius: 6px;
+	background: var(--surface); color: var(--ink);
+}
+.toolbar select { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); }
+.toolbar label { display: inline-flex; gap: 6px; align-items: center; color: var(--muted); font-size: 0.95rem; }
+.shown { color: var(--muted); font-size: 0.88rem; font-variant-numeric: tabular-nums; }
+
+.row {
+	background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px;
+	display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 18px; margin-bottom: 10px;
+}
+.row.done { background: color-mix(in srgb, var(--surface) 70%, var(--paper)); }
+.head { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; }
+code.pat {
+	font: 500 0.95rem/1.4 var(--mono); direction: ltr; unicode-bidi: isolate; background: var(--accent-soft);
+	padding: 2px 7px; border-radius: 4px; overflow-wrap: anywhere;
+}
+.pill { font-size: 0.78rem; font-weight: 700; letter-spacing: 0.02em; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+.pill.problem { background: var(--problem-soft); color: var(--problem); }
+.pill.review { background: var(--review-soft); color: var(--review); }
+.pill.topic { background: none; color: var(--muted); border: 1px solid var(--line); font-weight: 600; }
+.pill.decided-approve, .pill.decided-real { background: var(--ok-soft); color: var(--ok); }
+.pill.decided-reject, .pill.decided-false { background: var(--no-soft); color: var(--no); }
+.note { margin: 4px 0 0; max-width: 72ch; }
+.meta { color: var(--muted); font-size: 0.85rem; margin: 2px 0 0; }
+.meta s { color: var(--muted); }
+.evidence { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 0.9rem; margin-top: 6px; font-variant-numeric: tabular-nums; }
+.evidence b { font-weight: 700; }
+.evidence .hot { color: var(--problem); }
+details.ex { margin-top: 4px; font-size: 0.9rem; }
+details.ex summary { cursor: pointer; color: var(--accent); font-weight: 600; }
+.ex h4 { font: 600 0.85rem var(--body); color: var(--muted); margin: 8px 0 2px; }
+.ex ul { margin: 0; padding-inline-start: 18px; }
+.ex li { margin: 3px 0; overflow-wrap: anywhere; }
+.ex .t { color: var(--muted); }
+mark { background: var(--mark); color: inherit; padding: 0 1px; border-radius: 2px; }
+.actions { display: flex; flex-direction: column; gap: 8px; align-items: stretch; min-width: 210px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button {
+	flex: 1; font: 600 0.88rem var(--body); padding: 6px 10px; border: 0; background: var(--surface); color: var(--muted);
+	cursor: pointer; white-space: nowrap;
+}
+.seg button + button { border-inline-start: 1px solid var(--line); }
+.seg button[aria-pressed="true"].approve, .seg button[aria-pressed="true"].real { background: var(--ok-soft); color: var(--ok); }
+.seg button[aria-pressed="true"].reject, .seg button[aria-pressed="true"].false { background: var(--no-soft); color: var(--no); }
+.seg button[aria-pressed="true"].problem { background: var(--problem-soft); color: var(--problem); }
+.seg button[aria-pressed="true"].review { background: var(--review-soft); color: var(--review); }
+.seg-label { font-size: 0.78rem; color: var(--muted); margin-bottom: -4px; }
+textarea {
+	font: inherit; font-size: 0.9rem; min-height: 2.4em; resize: vertical; padding: 5px 8px; border: 1px solid var(--line);
+	border-radius: 6px; background: var(--surface); color: var(--ink);
+}
+button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible {
+	outline: 2px solid var(--accent); outline-offset: 2px;
+}
+button:disabled, textarea:disabled { opacity: 0.55; cursor: not-allowed; }
+.empty { color: var(--muted); padding: 24px 0; }
+@media (max-width: 720px) {
+	header.top { position: static; }
+	.row { grid-template-columns: 1fr; }
+	.actions { min-width: 0; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
+</style>
+
+<div dir="rtl">
+	<header class="top">
+		<div class="wrap">
+			<div class="titlebar">
+				<div>
+					<h1>סקירת מילים חשודות</h1>
+					<p class="sub" id="sub">טוען נתונים…</p>
+				</div>
+				<span class="save-state" id="save-state">מתחבר לשמירה…</span>
+			</div>
+			<nav class="tabs" role="tablist" id="tabs"></nav>
+		</div>
+	</header>
+	<main class="wrap">
+		<p class="intro" id="intro"></p>
+		<div class="toolbar">
+			<input type="search" id="q" placeholder="חיפוש בתבנית, בהסבר או בדוגמאות" aria-label="חיפוש">
+			<select id="topic" aria-label="נושא"><option value="">כל הנושאים</option></select>
+			<label><input type="checkbox" id="open-only"> רק מה שעוד לא הוחלט</label>
+			<span class="shown" id="shown"></span>
+		</div>
+		<div id="list"></div>
+	</main>
+</div>
+
+<script>
+(function () {
+	'use strict';
+	var TABS = [
+		{ id: 'suggested', label: 'מילים שהצעתי', kind: 'word',
+			intro: 'מילים ותבניות שהוספתי על דעתי - לא פעילות עד שתאשר. ליד כל אחת: בכמה ערכים חסומים היא מופיעה ובכמה ערכי מכלול (שם היא כנראה התראת שווא, או תוכן שכדאי לנקות). אפשר לשנות רמה ולכתוב הערה.' },
+		{ id: 'allow', label: 'ביטויים מותרים', kind: 'allow',
+			intro: 'ביטויים שבתוכם מילה חשודה אינה בעיה ("המין האנושי", "בואנוס איירס"). ליד כל אחד: כמה התאמות הוא מבטל בערכים החסומים (כדאי שיהיה נמוך) וכמה במכלול.' },
+		{ id: 'existing', label: 'רשימות קיימות', kind: 'word',
+			intro: 'התבניות מהדפים "בדיקת מילים חשודות" ו"בודק מילים חשודות". הרמה נקבעה לפי הרשימה שממנה הגיעו (אדום כהה ובומח-צניעות = בעיה ודאית). ממוינות לפי מספר ערכי המכלול שהן תופסות - החשודות ברמה שגויה בראש.' },
+		{ id: 'findings', label: 'ממצאים במכלול', kind: 'finding',
+			intro: 'ערכים מהמדגם האקראי של המכלול (2,020 ערכים) עם התאמה ברמת "בעיה ודאית" בצניעות. חלקם תוכן שכדאי לנקות, וחלקם התראות שווא שיעזרו לשפר את הרשימות. בראש: ערכים שנתפסו במילה נדירה במכלול - שם הסיכוי לבעיה אמיתית גבוה יותר. ליד כל התאמה - מזהה הרשומה שתפסה אותה.' }
+	];
+	var DECISIONS = {
+		word: [['approve', 'לאשר'], ['reject', 'לדחות']],
+		allow: [['approve', 'לאשר'], ['reject', 'לדחות']],
+		finding: [['real', 'בעיה אמיתית'], ['false', 'התראת שווא']]
+	};
+	var DECIDED_LABELS = { approve: 'אושר', reject: 'נדחה', real: 'בעיה אמיתית', false: 'התראת שווא' };
+	var LEVEL_LABELS = { problem: 'בעיה ודאית', review: 'לבדיקה' };
+
+	var data = null, db = null, decisions = {}, active = 'suggested', rows = {};
+	var $ = function (id) { return document.getElementById(id); };
+
+	function el(tag, cls, text) {
+		var e = document.createElement(tag);
+		if (cls) e.className = cls;
+		if (text != null) e.textContent = text;
+		return e;
+	}
+	// הקשר עם 【מילה】 -> טקסט עם <mark>, בלי innerHTML.
+	function contextNode(ctx) {
+		var span = el('span');
+		var parts = String(ctx).split(/【|】/);
+		parts.forEach(function (p, i) { span.appendChild(i % 2 ? el('mark', null, p) : document.createTextNode(p)); });
+		return span;
+	}
+	function itemsFor(tab) {
+		if (!data) return [];
+		if (tab === 'suggested') return data.words.filter(function (w) { return w.status === 'suggested'; });
+		if (tab === 'existing') return data.words.filter(function (w) { return w.status === 'active'; });
+		if (tab === 'allow') return data.allow;
+		return data.findings;
+	}
+	function kindOf(tab) { return TABS.filter(function (t) { return t.id === tab; })[0].kind; }
+	function isDone(id) { var d = decisions[id]; return !!(d && d.decision); }
+
+	// ===== שמירה =====
+	var pending = {};
+	function saveState(text, warn) {
+		var s = $('save-state');
+		s.textContent = text;
+		s.className = 'save-state' + (warn ? ' warn' : '');
+	}
+	function write(id, kind, patch) {
+		var next = Object.assign({ kind: kind, decision: null, level: null, note: '' }, decisions[id] || {}, patch,
+			{ at: new Date().toISOString() });
+		decisions[id] = next;
+		refreshRow(id);
+		updateCounts();
+		if (!db) return;
+		// כתיבה אחת בכל פעם לכל מסמך: אם יש כתיבה בדרך, רק הגרסה האחרונה תישלח אחריה.
+		if (pending[id]) { pending[id].next = next; return; }
+		pending[id] = { next: null };
+		saveState('שומר…');
+		db.collection('decisions').doc(id).set(next).then(function () {
+			var again = pending[id].next;
+			delete pending[id];
+			if (again) write(id, kind, again); else if (!Object.keys(pending).length) saveState('כל ההחלטות נשמרו');
+		}, function (e) {
+			delete pending[id];
+			saveState('השמירה נכשלה (' + (e && e.code) + ') - רעננו את הדף ונסו שוב', true);
+		});
+	}
+
+	// ===== שורות =====
+	function evidenceBlock(item, kind) {
+		var box = el('div');
+		var ev = item.ev;
+		if (kind === 'finding') {
+			var ul = el('ul');
+			item.matches.forEach(function (m) {
+				var li = el('li');
+				li.appendChild(contextNode(m.context));
+				li.appendChild(el('span', 't', '  (' + m.entries.join(', ') + ')'));
+				ul.appendChild(li);
+			});
+			box.appendChild(ul);
+			return box;
+		}
+		if (!ev) return box;
+		var line = el('div', 'evidence');
+		var totals = data.totals;
+		var b = el('span');
+		b.appendChild(document.createTextNode(kind === 'allow' ? 'מבטל בחסומים: ' : 'ערכים חסומים: '));
+		b.appendChild(el('b', null, ev.b + ' / ' + totals.blacklist));
+		var m = el('span', ev.m ? 'hot' : '');
+		m.appendChild(document.createTextNode(kind === 'allow' ? 'מבטל במכלול: ' : 'ערכי מכלול: '));
+		m.appendChild(el('b', null, ev.m + ' / ' + totals.mechalol));
+		line.appendChild(b);
+		line.appendChild(m);
+		box.appendChild(line);
+		if (ev.xb.length || ev.xm.length) {
+			var det = el('details', 'ex');
+			det.appendChild(el('summary', null, 'דוגמאות'));
+			det.addEventListener('toggle', function once() {
+				if (!det.open || det.dataset.filled) return;
+				det.dataset.filled = '1';
+				[['xm', 'מהמכלול'], ['xb', 'מהערכים החסומים (ויקיפדיה)']].forEach(function (pair) {
+					if (!ev[pair[0]].length) return;
+					det.appendChild(el('h4', null, pair[1]));
+					var ul = el('ul');
+					ev[pair[0]].forEach(function (x) {
+						var li = el('li');
+						li.appendChild(el('span', 't', x.title + ': '));
+						li.appendChild(contextNode(x.context));
+						ul.appendChild(li);
+					});
+					det.appendChild(ul);
+				});
+			});
+			box.appendChild(det);
+		}
+		return box;
+	}
+
+	function seg(options, current, onPick, disabled) {
+		var wrap = el('div', 'seg');
+		options.forEach(function (o) {
+			var btn = el('button', o[0], o[1]);
+			btn.type = 'button';
+			btn.setAttribute('aria-pressed', String(current === o[0]));
+			btn.disabled = disabled;
+			btn.addEventListener('click', function () { onPick(current === o[0] ? null : o[0]); });
+			wrap.appendChild(btn);
+		});
+		return wrap;
+	}
+
+	function buildRow(item, kind) {
+		var row = el('article', 'row');
+		row.dataset.id = item.id;
+		var main = el('div');
+		var actions = el('div', 'actions');
+		row.appendChild(main);
+		row.appendChild(actions);
+		rows[item.id] = { row: row, main: main, actions: actions, item: item, kind: kind,
+			search: [item.pattern, item.note, item.title, JSON.stringify(item.ev || item.matches || '')].join(' ') };
+		fillRow(item.id);
+		return row;
+	}
+
+	function fillRow(id) {
+		var r = rows[id], item = r.item, kind = r.kind, d = decisions[id] || {};
+		r.main.textContent = '';
+		r.actions.textContent = '';
+		var head = el('div', 'head');
+		if (kind === 'finding') {
+			head.appendChild(el('strong', null, item.title));
+		} else {
+			head.appendChild(el('code', 'pat', item.pattern));
+			if (kind === 'word') {
+				var level = d.level || item.level;
+				head.appendChild(el('span', 'pill ' + level, LEVEL_LABELS[level] + (d.level && d.level !== item.level ? ' (שונה)' : '')));
+				head.appendChild(el('span', 'pill topic', data.topics[item.topic] || item.topic));
+			}
+		}
+		if (d.decision) head.appendChild(el('span', 'pill decided-' + d.decision, DECIDED_LABELS[d.decision]));
+		r.main.appendChild(head);
+		if (item.note) r.main.appendChild(el('p', 'note', item.note));
+		if (kind !== 'finding') {
+			var meta = el('p', 'meta');
+			meta.appendChild(document.createTextNode(item.id + ' · ' + item.sources.join(', ')));
+			if (item.original) {
+				meta.appendChild(document.createTextNode(' · במקור: '));
+				var s = el('s');
+				s.appendChild(el('code', 'pat', item.original));
+				meta.appendChild(s);
+			}
+			r.main.appendChild(meta);
+		}
+		r.main.appendChild(evidenceBlock(item, kind));
+		r.row.classList.toggle('done', !!d.decision);
+
+		var off = !db;
+		r.actions.appendChild(seg(DECISIONS[kind], d.decision || null, function (v) { write(id, kind, { decision: v }); }, off));
+		if (kind === 'word') {
+			r.actions.appendChild(el('span', 'seg-label', 'רמה'));
+			r.actions.appendChild(seg([['problem', 'בעיה ודאית'], ['review', 'לבדיקה']], d.level || item.level, function (v) {
+				write(id, kind, { level: v && v !== item.level ? v : null });
+			}, off));
+		}
+		var ta = el('textarea');
+		ta.id = 'note-' + id;
+		ta.placeholder = 'הערה (לא חובה)';
+		ta.value = d.note || '';
+		ta.disabled = off;
+		ta.setAttribute('aria-label', 'הערה ל-' + id);
+		ta.addEventListener('change', function () { write(id, kind, { note: ta.value.trim() }); });
+		r.actions.appendChild(ta);
+	}
+
+	function refreshRow(id) {
+		if (!rows[id]) return;
+		var focused = document.activeElement && document.activeElement.id === 'note-' + id;
+		if (focused) return; // לא לדרוס הערה שמקלידים עכשיו
+		fillRow(id);
+	}
+
+	// ===== לשוניות וסינון =====
+	function updateCounts() {
+		TABS.forEach(function (t) {
+			var items = itemsFor(t.id);
+			var done = items.filter(function (i) { return isDone(i.id); }).length;
+			var c = document.querySelector('#tab-' + t.id + ' .count');
+			if (c) c.textContent = ' ' + done + '/' + items.length;
+		});
+		if (data) {
+			var all = data.words.length + data.allow.length + data.findings.length;
+			var decided = Object.keys(decisions).filter(isDone).length;
+			$('sub').textContent = 'הוחלטו ' + decided + ' מתוך ' + all + ' · מדגם: ' + data.totals.blacklist +
+				' ערכים חסומים מוויקיפדיה, ' + data.totals.mechalol + ' ערכים אקראיים מהמכלול';
+		}
+	}
+
+	function sortItems(tab, items) {
+		// ממצאים: קודם אלה שנתפסו במילה נדירה במכלול (סביר יותר שזו בעיה אמיתית).
+		var hitsById = {};
+		data.words.forEach(function (w) { hitsById[w.id] = w.ev ? w.ev.m : 0; });
+		var key = function (i) {
+			if (tab === 'findings') {
+				var rarest = Infinity;
+				i.matches.forEach(function (m) { m.entries.forEach(function (id) { rarest = Math.min(rarest, hitsById[id]); }); });
+				return [rarest, 0];
+			}
+			return [-(i.ev ? i.ev.m : 0), -(i.ev ? i.ev.b : 0)];
+		};
+		return items.slice().sort(function (a, b) {
+			var ka = key(a), kb = key(b);
+			return ka[0] - kb[0] || ka[1] - kb[1] || (a.id < b.id ? -1 : 1);
+		});
+	}
+
+	function renderTab() {
+		var tab = TABS.filter(function (t) { return t.id === active; })[0];
+		$('intro').textContent = tab.intro;
+		document.querySelectorAll('nav.tabs button').forEach(function (b) {
+			b.setAttribute('aria-selected', String(b.dataset.tab === active));
+		});
+		$('topic').disabled = tab.kind !== 'word';
+		var list = $('list');
+		list.textContent = '';
+		var items = sortItems(active, itemsFor(active));
+		if (!items.length) list.appendChild(el('p', 'empty', 'אין פריטים בלשונית הזו.'));
+		items.forEach(function (i) { list.appendChild(rows[i.id] ? rows[i.id].row : buildRow(i, tab.kind)); });
+		applyFilter();
+		try { localStorage.setItem('review-tab', active); } catch (e) { /* לא חובה */ }
+	}
+
+	function applyFilter() {
+		var q = $('q').value.trim().toLowerCase();
+		var topic = $('topic').value;
+		var openOnly = $('open-only').checked;
+		var shown = 0, total = 0;
+		itemsFor(active).forEach(function (i) {
+			var r = rows[i.id];
+			if (!r) return;
+			total++;
+			var ok = (!q || r.search.toLowerCase().indexOf(q) >= 0) && (!topic || r.kind !== 'word' || i.topic === topic) &&
+				(!openOnly || !isDone(i.id));
+			r.row.hidden = !ok;
+			if (ok) shown++;
+		});
+		$('shown').textContent = 'מוצגים ' + shown + ' מתוך ' + total;
+	}
+
+	function start() {
+		var tabs = $('tabs');
+		TABS.forEach(function (t) {
+			var b = el('button', null, t.label);
+			b.type = 'button';
+			b.id = 'tab-' + t.id;
+			b.dataset.tab = t.id;
+			b.setAttribute('role', 'tab');
+			b.appendChild(el('span', 'count'));
+			b.addEventListener('click', function () { active = t.id; renderTab(); });
+			tabs.appendChild(b);
+		});
+		Object.keys(data.topics).forEach(function (k) {
+			var o = el('option', null, data.topics[k]);
+			o.value = k;
+			$('topic').appendChild(o);
+		});
+		['q', 'topic', 'open-only'].forEach(function (id) { $(id).addEventListener('input', applyFilter); });
+		try {
+			var saved = localStorage.getItem('review-tab');
+			if (saved && TABS.some(function (t) { return t.id === saved; })) active = saved;
+		} catch (e) { /* לא חובה */ }
+		updateCounts();
+		renderTab();
+	}
+
+	fetch('review-data.json').then(function (r) { return r.json(); }).then(function (d) {
+		data = d;
+		start();
+	}).catch(function () {
+		$('sub').textContent = 'לא הצלחתי לטעון את נתוני הסקירה. רעננו את הדף.';
+	});
+
+	var useDb = window.claude && window.claude.use ? window.claude.use('db') : Promise.resolve(null);
+	useDb.then(function (handle) {
+		if (!handle) {
+			saveState('השמירה לא זמינה בתצוגה הזו - אפשר לעיין, אבל לא לסמן החלטות', true);
+			return;
+		}
+		db = handle;
+		saveState('ההחלטות נשמרות אוטומטית');
+		db.collection('decisions').limit(1000).onSnapshot(function (snap) {
+			snap.docs.forEach(function (doc) {
+				if (pending[doc.id]) return;
+				decisions[doc.id] = doc.data();
+			});
+			Object.keys(rows).forEach(refreshRow);
+			if (data) { updateCounts(); applyFilter(); }
+		}, function (e) {
+			saveState('החיבור לשמירה נותק (' + (e && e.code) + ') - רעננו את הדף', true);
+		});
+		Object.keys(rows).forEach(refreshRow);
+	});
+}());
+</script>
