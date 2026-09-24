@@ -810,15 +810,18 @@
 
 	function fetchLastSyncTime() {
 		return withRetry(function () {
+			// זמן הריצה האחרונה של העדכון הלילי (sync_watermarks, שתי שורות).
+			// קודם: מיון כל wikipedia_pages לפי checked_at - סריקה מלאה של
+			// 405 אלף שורות בכל רענון, שחרגה מזמן הריצה המותר כשהמטמון קר.
 			var params = new URLSearchParams();
-			params.set('select', 'checked_at');
-			params.set('order', 'checked_at.desc');
-			var url = SUPABASE_URL + '/rest/v1/wikipedia_pages?' + params.toString();
+			params.set('select', 'last_synced_ts');
+			params.set('order', 'last_synced_ts.desc');
+			var url = SUPABASE_URL + '/rest/v1/sync_watermarks?' + params.toString();
 			return fetch(url, { headers: pgHeaders({ Range: '0-0' }) }).then(function (res) {
 				if (!res.ok) throw new Error('HTTP ' + res.status);
 				return res.json();
 			}).then(function (data) {
-				return (data && data.length) ? data[0].checked_at : null;
+				return (data && data.length) ? data[0].last_synced_ts : null;
 			});
 		});
 	}

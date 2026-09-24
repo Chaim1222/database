@@ -37,6 +37,8 @@ where status = 'מיובא ללא תיעוד'
   and is_dictionary_entry = false
 order by title;
 
+-- (שינוי ב-WHERE כאן מחייב לעדכן גם את mechalol_pages_tasks_idx - ראו
+-- migration_report_partial_indexes.sql)
 -- 3. משימות לטיפול - עמודת task_type מבחינה בין סוגים שדורשים פעולה
 --    שונה (הופרדו 2026-09, קודם היו מעורבים):
 --    א. שם בתבנית המיון לא קיים בוויקיפדיה (template_referenced_title) -

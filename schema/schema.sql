@@ -445,3 +445,10 @@ create policy "מנהלים מורשים מנהלים התאמות ידניות"
     to authenticated
     using (is_manual_match_admin())
     with check (is_manual_match_admin());
+
+-- אינדקסים חלקיים לדוחות (ראו migration_report_partial_indexes.sql) - התנאי
+-- זהה בדיוק ל-WHERE של ה-view ב-views.sql; שינוי באחד מחייב שינוי בשני.
+create index if not exists mechalol_pages_tasks_idx on mechalol_pages (title) where needs_attention = false and is_dictionary_entry = false and (maybe_deleted_from_wikipedia = true or status = 'מיובא ללא תיעוד' or (template_referenced_title is not null and status <> 'נשמר במכלול למרות מחיקה בוויקיפדיה') or template_check_access_denied_at is not null);
+create index if not exists mechalol_pages_maybe_deleted_idx on mechalol_pages (title) where maybe_deleted_from_wikipedia = true;
+create index if not exists mechalol_pages_undocumented_idx on mechalol_pages (title) where status = 'מיובא ללא תיעוד' and needs_attention = false and is_dictionary_entry = false;
+create index if not exists wikipedia_pages_rav_override_idx on wikipedia_pages (title) where missing_override_reason = 'rav_prefix_normalization';
