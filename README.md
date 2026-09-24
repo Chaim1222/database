@@ -49,6 +49,9 @@
 - **`manual_matches`** - התאמות שהאוטומציה לא יכולה לפתור לבד (למשל כותרת שונה + דף נעול-לקריאה). מפתח: `mechalol_page_id`/`wikipedia_page_id`.
 - **`blacklist_titles`** - כותרות שבכוונה לא יובאו למכלול, לא יופיעו כ"חסרות" ב-`report_missing_from_mechalol`.
 
+## סינון מילים חשודות על ויקיטקסט
+כלי נפרד לבדיקת ערכים (לפני ייבוא ובתוך המכלול) לפי רשימות המילים החשודות - גאדג'ט לאתר וכלי מדידה, ב-JavaScript. הכל בתיקייה `word-filter/`, והתיעוד ב-[`word-filter/README.md`](word-filter/README.md). `scripts/problematic_words.py` (עמודת `problematic_words_clean`) עדיין לא עבר אליו.
+
 ## הרצה
 - הרצה ראשונית: `workflow_dispatch` על `initial_run.yml`. אם נעצר באמצע (מגבלת זמן), פשוט להריץ שוב - ההתקדמות נשמרת (ובמצב הזה, הריקון **לא** חוזר על עצמו, כדי לא לאבד את מה שכבר נטען). תומך גם ב-`mode=mechalol_only` למילוי חוזר של טבלה אחת בלבד, בלי לגעת בשנייה.
 - עדכון שוטף (יומי): `nightly_delta.yml`, רץ אוטומטית כל לילה ב-22:00 UTC. לא מרוקן כלום - קורא `recentchanges`/`logevents` משני האתרים (יצירות/מחיקות/שינויי-שם/עריכות) ומעדכן רק את מה שהשתנה, דרך `fetch_wikipedia_delta.py` → `fetch_mechalol_delta.py` → `match.py --scoped`.
