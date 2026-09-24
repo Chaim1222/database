@@ -100,6 +100,17 @@ jobs:
           ${{ inputs.skip_template_check == true && '--skip-template-check' || '' }}
           ${{ inputs.login == true && '--login' || '' }}
 
+      # אחרי הצלחה מלאה - מאפסים את קובצי ההתקדמות לפני השמירה. בלי זה,
+      # wikipedia_progress.json נשמר במטמון עם done=true, והרצה ידנית
+      # הבאה (בתוך תוקף המטמון) הייתה משחזרת אותו ומדלגת בשקט על שליפת
+      # ויקיפדיה. שומרים קובץ ריק ({}) ולא מוחקים - אחרת השחזור הבא היה
+      # מוצא מטמון ישן יותר דרך restore-keys.
+      - name: איפוס קובצי התקדמות אחרי הצלחה
+        if: ${{ success() && inputs.mode != 'match_only' }}
+        run: |
+          echo '{}' > wikipedia_progress.json
+          echo '{}' > mechalol_progress.json
+
       - name: שמירת התקדמות (אם הריצה נעצרה באמצע)
         if: ${{ always() && inputs.mode != 'match_only' }}
         uses: actions/cache/save@v4

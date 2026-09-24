@@ -25,8 +25,17 @@
 		match_type: 'סוג התאמה', wikipedia_id: 'קישור לוויקיפדיה', checked_at: 'נבדק בתאריך',
 		wikidata_desc: 'תיאור (ויקינתונים)', created_at: 'תאריך יצירה בוויקיפדיה',
 		mechalol_redirect_exists: 'קיים במכלול כהפניה', task_type: 'סוג משימה',
-		manual_match_action: 'שיוך ידני'
+		manual_match_action: 'שיוך ידני',
+		wikipedia_title: 'ערך בוויקיפדיה', mechalol_title: 'דף מקביל במכלול',
+		mechalol_status: 'סטטוס במכלול', candidate_count: 'מספר מועמדים',
+		mechalol_id: 'מזהה מכלול'
 	};
+	// מפתח ייחודי לשורה. ברוב ה-views זה id; ב-report_rav_prefix_normalization
+	// אין id - כל שורה היא זוג (ערך ויקיפדיה, מועמד במכלול).
+	function rowIdOf(row) {
+		var cfg = VIEWS[activeTab];
+		return String(cfg && cfg.rowId ? cfg.rowId(row) : row.id);
+	}
 	var VIEWS = {
 		deleted: { view: 'report_possibly_deleted_source', label: 'חשוד כמחיקה', columns: ['title', 'status', 'source_type', 'match_type'], filters: [] },
 		undoc: { view: 'report_undocumented_import', label: 'מיובא ללא תיעוד', columns: ['title', 'source_type', 'match_type', 'wikipedia_id'], filters: [] },
@@ -35,15 +44,43 @@
 		// title - יש תבנית מיון עם שם שלא נמצא בוויקיפדיה) ו"דף נעול"
 		// (template_check_access_denied_at - בדיקת התבנית נדחתה, לרוב
 		// כי הדף נעול-לקריאה). עמודת task_type מבחינה ביניהן.
+		// סוגי המשימות הופרדו ב-2026-09 (migration_review_fixes_2026_09.sql):
+		// "לבדוק מחיקה" פוצל לתבנית שמצביעה על שם שכבר לא קיים (בדרך כלל
+		// שינוי שם בוויקיפדיה) מול דף בלי שום מקביל, ו"סטטוס לא ברור" פוצל
+		// לחסרי תבנית מיון (לפי סימון המכלול עצמו) מול מקור לא ידוע.
 		tasks: {
 			view: 'report_tasks_to_handle', label: 'משימות לטיפול',
 			columns: ['title', 'task_type', 'status', 'source_type', 'match_type'],
 			filters: [{
 				key: 'task_type', label: 'סוג משימה',
-				options: ['לבדוק מחיקה/השוואה לוויקיפדיה', 'סטטוס לא ברור', 'שם בתבנית לא אומת מול ויקיפדיה', 'דף נעול - לא ניתן לאמת']
+				options: ['שם בתבנית המיון לא קיים בוויקיפדיה', 'לא נמצא מקביל בוויקיפדיה', 'חסרה תבנית מיון', 'מקור לא ידוע', 'דף נעול - לא ניתן לאמת']
 			}]
 		},
-		missing: { view: 'report_missing_from_mechalol', label: 'חסר במכלול', columns: ['title', 'created_at', 'mechalol_redirect_exists', 'checked_at', 'wikidata_desc'], filters: [] }
+		// "חסר במכלול" מופרד לשני טאבים: כותרות שבאמת אין להן כלום במכלול,
+		// מול כותרות שקיימות במכלול כהפניה (הערך כנראה קיים שם בשם אחר -
+		// פעולה שונה לגמרי: לבדוק את יעד ההפניה, לא לייבא).
+		missing: {
+			view: 'report_missing_from_mechalol', label: 'חסר במכלול',
+			columns: ['title', 'created_at', 'mechalol_redirect_exists', 'checked_at', 'wikidata_desc'], filters: [],
+			baseFilters: [['mechalol_redirect_exists', 'not.is.true']],
+			titleLink: 'edit', wikidata: true, easyImport: true, redirectFilter: true, lockable: true
+		},
+		missing_redirect: {
+			view: 'report_missing_from_mechalol', label: 'קיים במכלול כהפניה',
+			columns: ['title', 'created_at', 'checked_at', 'wikidata_desc'], filters: [],
+			baseFilters: [['mechalol_redirect_exists', 'is.true']],
+			titleLink: 'edit', wikidata: true, easyImport: true
+		},
+		// ערכי ויקיפדיה שהוצאו מ"חסר במכלול" רק בגלל כותרת זהה אחרי הסרת
+		// "הרב"/"רבי" - לא התאמה ודאית, דורש אישור אנושי. ה-view היה קיים
+		// אבל לא הוצג בגאדג'ט.
+		rav: {
+			view: 'report_rav_prefix_normalization', label: 'התאמות "הרב/רבי" לבדיקה',
+			columns: ['wikipedia_title', 'mechalol_title', 'mechalol_status', 'candidate_count'], filters: [],
+			rowId: function (r) { return r.wikipedia_id + '-' + r.mechalol_id; },
+			countColumn: 'wikipedia_id', searchColumn: 'wikipedia_title', titleColumn: 'wikipedia_title',
+			order: 'wikipedia_title.asc', exportIdColumns: ['wikipedia_id', 'mechalol_id']
+		}
 	};
 	// טאב "דפים לטיפול - תרבות" - לא מבוסס Supabase כמו VIEWS למעלה,
 	// אלא שליפה חיה מה-API של המכלול עצמו (רשימת חברי קטגוריה בלבד -
@@ -63,7 +100,7 @@
 		{ key: 'tasks', table: 'report_tasks_to_handle', statId: 'mchl-stat-tasks', spinId: 'mchl-spin-tasks', warnId: 'mchl-warn-tasks', warnMsg: 'לא ניתן לקרוא את report_tasks_to_handle.', tabCount: 'mchl-tab-count-tasks' },
 		{ key: 'deleted', table: 'report_possibly_deleted_source', statId: 'mchl-stat-deleted', spinId: 'mchl-spin-deleted', warnId: 'mchl-warn-deleted', warnMsg: 'לא ניתן לקרוא את report_possibly_deleted_source.', tabCount: 'mchl-tab-count-deleted' },
 		{ key: 'undoc', table: 'report_undocumented_import', statId: 'mchl-stat-undoc', spinId: 'mchl-spin-undoc', warnId: 'mchl-warn-undoc', warnMsg: 'לא ניתן לקרוא את report_undocumented_import.', tabCount: 'mchl-tab-count-undoc' },
-		{ key: 'missing', table: 'report_missing_from_mechalol', statId: 'mchl-stat-missing', spinId: 'mchl-spin-missing', warnId: 'mchl-warn-missing', warnMsg: 'לא ניתן לקרוא את report_missing_from_mechalol.', tabCount: 'mchl-tab-count-missing' }
+		{ key: 'missing', table: 'report_missing_from_mechalol', viewKey: 'missing', statId: 'mchl-stat-missing', spinId: 'mchl-spin-missing', warnId: 'mchl-warn-missing', warnMsg: 'לא ניתן לקרוא את report_missing_from_mechalol.', tabCount: 'mchl-tab-count-missing' }
 	];
 
 	// ===== מצב האפליקציה =====
@@ -93,7 +130,7 @@
 	function mechalolUrl(id) { return 'https://www.hamichlol.org.il/w/index.php?curid=' + id; }
 	function wikipediaUrl(id) { return 'https://he.wikipedia.org/w/index.php?curid=' + id; }
 	function mechalolEditUrl(title) { return 'https://www.hamichlol.org.il/w/index.php?title=' + encodeURIComponent(title.replace(/ /g, '_')) + '&action=edit'; }
-	function rowKey(row) { return activeTab + ':' + row.id; }
+	function rowKey(row) { return activeTab + ':' + rowIdOf(row); }
 	function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]; }); }
 	function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
@@ -190,10 +227,10 @@
 
 	// ספירה בלבד (ל-STAT_DEFS ולמונה ה"תואמים") - שולף שורה אחת בלבד
 	// ומסתמך על כותרת Content-Range לספירה, כדי לא למשוך נתונים מיותרים.
-	function pgCount(table, rawFilterParams) {
+	function pgCount(table, rawFilterParams, countColumn) {
 		return withRetry(function () {
 			var params = new URLSearchParams();
-			params.set('select', 'id');
+			params.set('select', countColumn || 'id');
 			if (rawFilterParams) rawFilterParams.forEach(function (pair) { params.append(pair[0], pair[1]); });
 			var url = SUPABASE_URL + '/rest/v1/' + table + '?' + params.toString();
 			return fetch(url, { headers: pgHeaders({ Range: '0-0', Prefer: 'count=exact' }) }).then(function (res) {
@@ -229,14 +266,18 @@
 	// buildQuery() בגרסת ה-HTML המקורית.
 	function buildFilterParams() {
 		var cfg = VIEWS[activeTab];
-		var out = [];
+		var out = (cfg.baseFilters || []).slice();
 		var search = ($id('mchl-search-input').value || '').trim();
 		if (search) {
-			var safe = search.replace(/,/g, '');
-			if (cfg.columns.indexOf('wikidata_desc') !== -1) {
-				out.push(['or', '(title.ilike.%' + safe + '%,wikidata_desc.ilike.%' + safe + '%)']);
+			var searchColumn = cfg.searchColumn || 'title';
+			if (cfg.wikidata) {
+				// בתוך or=(...) ערך עם סוגריים/פסיקים/מירכאות (נפוצים בכותרות:
+				// "X (סרט)", "ג'יטו, קיסרית יפן", זק"א) שובר את התחביר של PostgREST -
+				// חייבים לעטוף במירכאות כפולות ולבצע escape ל-" ול-\.
+				var quoted = '"%' + search.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '%"';
+				out.push(['or', '(' + searchColumn + '.ilike.' + quoted + ',wikidata_desc.ilike.' + quoted + ')']);
 			} else {
-				out.push(['title', 'ilike.%' + safe + '%']);
+				out.push([searchColumn, 'ilike.%' + search + '%']);
 			}
 		}
 		Object.keys(activeFilters).forEach(function (k) {
@@ -301,7 +342,7 @@
 	}
 
 	function loadWikidataDescriptionsForCurrentPage() {
-		if (activeTab !== 'missing') return;
+		if (!VIEWS[activeTab] || !VIEWS[activeTab].wikidata) return;
 		currentPageRows.forEach(function (r) {
 			if (r.wikidata_desc !== null && r.wikidata_desc !== undefined && !wikidataCache.has(r.title)) {
 				wikidataCache.set(r.title, r.wikidata_desc);
@@ -466,11 +507,11 @@
 			});
 			host.appendChild(sel);
 		});
-		if (activeTab === 'missing') buildEasyImportFilters(host);
+		if (cfg.easyImport) buildEasyImportFilters(host, cfg);
 		toggleClearFiltersBtn();
 	}
 
-	function buildEasyImportFilters(host) {
+	function buildEasyImportFilters(host, cfg) {
 		var lenInput = document.createElement('input');
 		lenInput.type = 'number'; lenInput.min = '0';
 		lenInput.className = 'mchl-filter-number'; lenInput.id = 'mchl-filter-easy-length';
@@ -517,16 +558,15 @@
 		});
 		host.appendChild(ageSel);
 
+		if (!cfg.redirectFilter) return;
 		var redirectSel = document.createElement('select');
 		redirectSel.className = 'mchl-filter-select'; redirectSel.id = 'mchl-filter-redirect-status';
-		redirectSel.innerHTML = '<option value="all">כל הסטטוסים (הפניה/לא קיים/טרם נבדק)</option>' +
-			'<option value="redirect">רק קיימות כהפניה במכלול</option>' +
+		redirectSel.innerHTML = '<option value="all">בדיקת הפניה במכלול - הכול</option>' +
 			'<option value="absent">רק נבדקו ואין בכלל</option>' +
 			'<option value="unchecked">רק טרם נבדקו</option>';
 		redirectSel.value = 'all';
 		redirectSel.addEventListener('change', function () {
-			if (redirectSel.value === 'redirect') activeFilters.mechalol_redirect_exists = { op: 'eq', value: true };
-			else if (redirectSel.value === 'absent') activeFilters.mechalol_redirect_exists = { op: 'eq', value: false };
+			if (redirectSel.value === 'absent') activeFilters.mechalol_redirect_exists = { op: 'eq', value: false };
 			else if (redirectSel.value === 'unchecked') activeFilters.mechalol_redirect_exists = { op: 'is', value: 'null' };
 			else delete activeFilters.mechalol_redirect_exists;
 			currentPage = 0; loadActiveView(); toggleClearFiltersBtn();
@@ -598,7 +638,8 @@
 		});
 		var statValues = {};
 		var jobs = STAT_DEFS.map(function (d) {
-			return pgCount(d.table).then(function (val) {
+			var viewCfg = d.viewKey ? VIEWS[d.viewKey] : null;
+			return pgCount(d.table, viewCfg ? viewCfg.baseFilters : null).then(function (val) {
 				statValues[d.key] = val;
 				$id(d.statId).textContent = val.toLocaleString('he-IL');
 				if (d.tabCount) $id(d.tabCount).textContent = val.toLocaleString('he-IL');
@@ -613,9 +654,25 @@
 				$id(d.spinId).style.display = 'none';
 			});
 		});
+		// מוני טאבים ל-views שאין להם כרטיס סטטיסטיקה משלהם.
+		var coveredTabs = {};
+		STAT_DEFS.forEach(function (d) { if (d.tabCount) coveredTabs[d.tabCount] = true; });
+		Object.keys(VIEWS).forEach(function (key) {
+			var tabCountId = 'mchl-tab-count-' + key;
+			if (coveredTabs[tabCountId]) return;
+			var cfg = VIEWS[key];
+			jobs.push(pgCount(cfg.view, cfg.baseFilters, cfg.countColumn).then(function (val) {
+				var el = $id(tabCountId);
+				if (el) el.textContent = val.toLocaleString('he-IL');
+			}).catch(function () { /* המונה נשאר "–" */ }));
+		});
+		// "תואמים" = דפי מכלול עם קישור לוויקיפדיה, *פחות* אלה שגם מופיעים
+		// במשימות לטיפול (למשל "חסרה תבנית מיון" - מקושרים אבל עדיין משימה),
+		// אחרת הם נספרים פעמיים בפס.
 		var matchedJob = pgCount('mechalol_pages', [['wikipedia_id', 'not.is.null']]).catch(function () { return null; });
-		return Promise.all([matchedJob].concat(jobs)).then(function (results) {
-			var matched = results[0];
+		var tasksLinkedJob = pgCount('report_tasks_to_handle', [['wikipedia_id', 'not.is.null']]).catch(function () { return null; });
+		return Promise.all([matchedJob, tasksLinkedJob].concat(jobs)).then(function (results) {
+			var matched = (results[0] != null && results[1] != null) ? results[0] - results[1] : null;
 			var tasks = statValues.tasks, missing = statValues.missing;
 			if (matched != null && tasks != null && missing != null) {
 				var total = matched + tasks + missing;
@@ -635,7 +692,7 @@
 		$id('mchl-pager').style.display = 'none';
 		var cfg = VIEWS[activeTab];
 		var from = currentPage * pageSize, to = from + pageSize - 1;
-		return pgSelect(cfg.view, { filterParams: buildFilterParams(), order: 'title.asc', from: from, to: to }).then(function (res) {
+		return pgSelect(cfg.view, { filterParams: buildFilterParams(), order: cfg.order || 'title.asc', from: from, to: to }).then(function (res) {
 			if (myRequestId !== loadRequestId) return;
 			currentPageRows = res.data || [];
 			totalRows = res.count || 0;
@@ -674,7 +731,7 @@
 			// להמשיך הלאה.
 			$id('mchl-table-target').innerHTML =
 				'<div class="mchl-state"><div class="mchl-big">המסד באמצע עדכון תקופתי</div>' +
-				'<div>זה קורה פעם בשבועיים ונמשך בדרך כלל שניות בודדות. הנתונים יחזרו להיות זמינים מיד עם סיום העדכון.</div>' +
+				'<div>זה קורה פעם בשבוע (מוצאי שבת) ונמשך בדרך כלל שניות בודדות. הנתונים יחזרו להיות זמינים מיד עם סיום העדכון.</div>' +
 				'<button type="button" class="mchl-refresh" data-action="retry" style="margin:16px auto 0;"><span class="mchl-dot"></span> ניסיון נוסף</button></div>';
 			return;
 		}
@@ -707,7 +764,7 @@
 		var tbody = currentPageRows.map(function (r) {
 			var selected = selectedRows.has(rowKey(r));
 			return '<tr class="' + (selected ? 'mchl-selected' : '') + '">' +
-				'<td class="mchl-chk-col" data-label=""><input type="checkbox" data-action="toggle-row-selection" data-row-id="' + r.id + '" ' + (selected ? 'checked' : '') + '></td>' +
+				'<td class="mchl-chk-col" data-label=""><input type="checkbox" data-action="toggle-row-selection" data-row-id="' + escapeHtml(rowIdOf(r)) + '" ' + (selected ? 'checked' : '') + '></td>' +
 				columns.map(function (c) { return '<td data-label="' + escapeHtml(COLUMN_LABELS[c] || c) + '">' + renderCell(c, r) + '</td>'; }).join('') + '</tr>';
 		}).join('');
 		$id('mchl-table-target').innerHTML = '<table><thead>' + thead + '</thead><tbody>' + tbody + '</tbody></table>';
@@ -716,9 +773,12 @@
 	function renderCell(col, row) {
 		var val = row[col];
 		if (col === 'title') {
-			var url = VIEWS[activeTab].view === 'report_missing_from_mechalol' ? mechalolEditUrl(val) : mechalolUrl(row.id);
+			var url = VIEWS[activeTab].titleLink === 'edit' ? mechalolEditUrl(val) : mechalolUrl(row.id);
 			return '<span class="mchl-title"><a href="' + url + '" target="_blank" rel="noopener">' + escapeHtml(val) + '</a></span>';
 		}
+		if (col === 'wikipedia_title') return '<span class="mchl-title"><a href="' + wikipediaUrl(row.wikipedia_id) + '" target="_blank" rel="noopener">' + escapeHtml(val) + '</a></span>';
+		if (col === 'mechalol_title') return '<a href="' + mechalolUrl(row.mechalol_id) + '" target="_blank" rel="noopener">' + escapeHtml(val) + '</a>';
+		if (col === 'mechalol_status') return '<span class="mchl-badge mchl-neutral">' + escapeHtml(val) + '</span>';
 		if (col === 'wikipedia_id') return val ? '<a href="' + wikipediaUrl(val) + '" target="_blank" rel="noopener" class="mchl-num-cell">' + val + '</a>' : '<span class="mchl-muted">—</span>';
 		if (col === 'source_type') return '<span class="mchl-badge mchl-neutral">' + escapeHtml(SOURCE_TYPE_LABELS[val] || val) + '</span>';
 		if (col === 'match_type') return '<span class="mchl-badge ' + (val === 'ללא התאמה' ? 'mchl-alert' : 'mchl-wiki') + '">' + escapeHtml(val) + '</span>';
@@ -769,7 +829,7 @@
 	}
 
 	function toggleRowSelection(id, checked) {
-		var row = currentPageRows.find(function (r) { return r.id === id; });
+		var row = currentPageRows.find(function (r) { return rowIdOf(r) === id; });
 		if (!row) return;
 		var key = rowKey(row);
 		if (checked) selectedRows.set(key, row); else selectedRows.delete(key);
@@ -802,7 +862,7 @@
 		// (ראו saveServiceKey - עדיין לא אימות אמיתי, רק שער נראות)
 		// - בלי מפתח שמור, הכפתור לא מוצג בכלל, גם אם יש שורות נבחרות.
 		var lockBtn = $id('mchl-lock-titles-btn');
-		lockBtn.style.display = (n > 0 && activeTab === 'missing' && serviceKeyConnected) ? 'inline' : 'none';
+		lockBtn.style.display = (n > 0 && VIEWS[activeTab] && VIEWS[activeTab].lockable && serviceKeyConnected) ? 'inline' : 'none';
 	}
 
 	function selectAllMatching() {
@@ -811,7 +871,7 @@
 		btn.disabled = true;
 		btn.textContent = 'טוען…';
 		var cfg = VIEWS[activeTab];
-		return pgSelect(cfg.view, { filterParams: buildFilterParams(), order: 'title.asc', from: 0, to: Math.min(totalRows, 20000) - 1 }).then(function (res) {
+		return pgSelect(cfg.view, { filterParams: buildFilterParams(), order: cfg.order || 'title.asc', from: 0, to: Math.min(totalRows, 20000) - 1 }).then(function (res) {
 			(res.data || []).forEach(function (r) { selectedRows.set(rowKey(r), r); });
 			updateSelectionBar();
 			renderTable();
@@ -836,7 +896,7 @@
 	function getExportRows() {
 		if (selectedRows.size > 0) return Promise.resolve(Array.from(selectedRows.values()));
 		var cfg = VIEWS[activeTab];
-		return pgSelect(cfg.view, { filterParams: buildFilterParams(), order: 'title.asc', from: 0, to: Math.min(totalRows, 20000) - 1 }).then(function (res) {
+		return pgSelect(cfg.view, { filterParams: buildFilterParams(), order: cfg.order || 'title.asc', from: 0, to: Math.min(totalRows, 20000) - 1 }).then(function (res) {
 			return res.data || [];
 		}).catch(function (e) {
 			alert(isTransientMaintenanceError(e)
@@ -854,22 +914,28 @@
 			if (rows === null) return;
 			if (rows.length === 0) { alert('אין שורות לייצוא.'); return; }
 			var cfg = VIEWS[activeTab];
-			if (cfg.columns.indexOf('wikidata_desc') !== -1) {
+			if (cfg.wikidata) {
+				// התיאור מהמסד הוא המקור; המטמון בדפדפן רק משלים שורות שאין
+				// להן תיאור שמור. (קודם המטמון דרס את ערך המסד - ולכל שורה
+				// שלא הוצגה על המסך הייצוא קיבל תיאור ריק.)
 				rows.forEach(function (r) {
+					if (r.wikidata_desc !== null && r.wikidata_desc !== undefined) return;
 					var v = wikidataCache.get(r.title);
-					r.wikidata_desc = (v === null || v === undefined) ? '' : v;
+					r.wikidata_desc = (typeof v === 'string') ? v : '';
 				});
 			}
+			var titleColumn = cfg.titleColumn || 'title';
+			var idColumns = cfg.exportIdColumns || ['id'];
 			var stamp = new Date().toISOString().slice(0, 10);
 			var base = cfg.label + '_' + stamp;
-			if (kind === 'txt') { download(base + '.txt', rows.map(function (r) { return r.title; }).join('\n'), 'text/plain'); return; }
+			if (kind === 'txt') { download(base + '.txt', rows.map(function (r) { return r[titleColumn]; }).join('\n'), 'text/plain'); return; }
 			if (kind === 'json') {
-				var clean = rows.map(function (r) { var o = {}; cfg.columns.forEach(function (c) { o[c] = r[c]; }); o.id = r.id; return o; });
+				var clean = rows.map(function (r) { var o = {}; idColumns.concat(cfg.columns).forEach(function (c) { o[c] = r[c]; }); return o; });
 				download(base + '.json', JSON.stringify(clean, null, 2), 'application/json');
 				return;
 			}
 			if (kind === 'csv') {
-				var headers = ['id'].concat(cfg.columns);
+				var headers = idColumns.concat(cfg.columns);
 				var escapeCsv = function (v) { return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; };
 				var lines = [headers.map(function (h) { return escapeCsv(COLUMN_LABELS[h] || h); }).join(',')];
 				rows.forEach(function (r) { lines.push(headers.map(function (h) { return escapeCsv(r[h]); }).join(',')); });
@@ -967,12 +1033,23 @@
 
 			// שלב 2: הכתיבה עצמה ל-manual_matches - כאן כן דורש את הטוקן
 			// של המשתמש המחובר (authHeaders), לא מפתח ה-anon.
-			return fetch(SUPABASE_URL + '/rest/v1/manual_matches', {
-				method: 'POST',
-				headers: authHeaders({ 'Content-Type': 'application/json', Prefer: 'return=minimal' }),
-				body: JSON.stringify({ mechalol_page_id: mechalolId, wikipedia_page_id: wikipediaId })
+			var postMatch = function () {
+				return fetch(SUPABASE_URL + '/rest/v1/manual_matches', {
+					method: 'POST',
+					headers: authHeaders({ 'Content-Type': 'application/json', Prefer: 'return=minimal' }),
+					body: JSON.stringify({ mechalol_page_id: mechalolId, wikipedia_page_id: wikipediaId })
+				});
+			};
+			// טוקן הגישה של Supabase Auth פג אחרי שעה - על 401 מחדשים פעם
+			// אחת עם ה-refresh_token השמור ומנסים שוב.
+			return postMatch().then(function (res) {
+				if (res.status !== 401) return res;
+				return refreshAuthSession().then(postMatch);
 			});
 		}).then(function (res) {
+			if (res.status === 403) {
+				throw new Error('החשבון המחובר אינו ברשימת המורשים לשיוך ידני (manual_match_admins).');
+			}
 			if (!res.ok) return res.text().then(function (t) { throw new Error('HTTP ' + res.status + ': ' + t); });
 			cell.innerHTML = '<span class="mchl-badge mchl-wiki">✓ שויך ל-"' + escapeHtml(wikiTitle) + '"</span>' +
 				'<span class="mchl-muted" style="font-size:11px;">(יתעדכן בדוח בריצה הבאה)</span>';
@@ -1048,10 +1125,38 @@
 		});
 	}
 
+	// מחדש את הסשן עם ה-refresh_token השמור. נכשל -> מנתק (הכפתורים
+	// נעלמים) וזורק שגיאה עם הסבר.
+	function refreshAuthSession() {
+		var stored = null;
+		try { stored = JSON.parse(sessionStorage.getItem(SESSION_STORAGE_KEY) || 'null'); } catch (e) { stored = null; }
+		if (!stored || !stored.refresh_token) {
+			return Promise.reject(new Error('פג תוקף ההתחברות - יש להתחבר מחדש בפאנל הניהול.'));
+		}
+		return fetch(SUPABASE_URL + '/auth/v1/token?grant_type=refresh_token', {
+			method: 'POST',
+			headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+			body: JSON.stringify({ refresh_token: stored.refresh_token })
+		}).then(function (res) {
+			return res.json().then(function (data) { return { ok: res.ok, data: data }; });
+		}).then(function (result) {
+			if (!result.ok || !result.data.access_token) {
+				try { sessionStorage.removeItem(SESSION_STORAGE_KEY); } catch (e) { /* מתעלמים */ }
+				serviceKeyConnected = false;
+				updateSelectionBar();
+				throw new Error('פג תוקף ההתחברות - יש להתחבר מחדש בפאנל הניהול.');
+			}
+			sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({
+				access_token: result.data.access_token,
+				refresh_token: result.data.refresh_token,
+				email: stored.email
+			}));
+		});
+	}
+
 	// בדיקה בטעינת הדף אם כבר יש סשן שמור מקודם באותו טאב (sessionStorage
-	// לא מאומת מחדש מול השרת כאן - רק "יש טוקן שמור, נניח שהוא תקף";
-	// אם הוא פג-תוקף, הקריאה הראשונה שתשתמש בו פשוט תיכשל, בלי מנגנון
-	// ריענון (refresh_token) בשלב הזה).
+	// לא מאומת מחדש מול השרת כאן - רק "יש טוקן שמור"; אם פג תוקפו, הקריאה
+	// הראשונה שתשתמש בו תחדש אותו דרך refreshAuthSession).
 	function restoreAuthSession() {
 		try {
 			var raw = sessionStorage.getItem(SESSION_STORAGE_KEY);
@@ -1093,7 +1198,7 @@
 		root.addEventListener('change', function (e) {
 			var el = e.target;
 			if (el.matches('[data-action="toggle-page-selection"]')) togglePageSelection(el.checked);
-			else if (el.matches('[data-action="toggle-row-selection"]')) toggleRowSelection(parseInt(el.getAttribute('data-row-id'), 10), el.checked);
+			else if (el.matches('[data-action="toggle-row-selection"]')) toggleRowSelection(el.getAttribute('data-row-id'), el.checked);
 		});
 	}
 	

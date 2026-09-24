@@ -398,6 +398,7 @@ def fetch_own_categories(titles):
 
 
 _CREATED_SOURCE_CATEGORIES = None  # מחושב פעם אחת ב-classify_page_from_own_categories
+MECHALOL_MAINTENANCE_CATEGORY_PREFIX = "קטגוריה:המכלול:"
 
 
 def classify_page_from_own_categories(title, own_categories):
@@ -416,7 +417,15 @@ def classify_page_from_own_categories(title, own_categories):
             CATEGORY_SPLIT_FROM_WIKIPEDIA,
         }
 
-    last_update_cat = next((c for c in own_categories if parse_month_from_category(c)), None)
+    # בסריקה המלאה נחשבות רק תתי-הקטגוריות של "המכלול: ערכים לפי תאריך
+    # עדכון" (get_last_update_map). כאן אין את הרשימה הזו, ולכן קודם
+    # נספרה כל קטגוריה שמכילה "ב<חודש> <שנה>" - גם קטגוריית תוכן רגילה.
+    # מגבילים לקטגוריות תחזוקה של המכלול בלבד ("קטגוריה:המכלול:"),
+    # שבהן נמצאות קטגוריות העדכון, כדי להתאים לסריקה המלאה.
+    last_update_cat = next(
+        (c for c in own_categories if c.startswith(MECHALOL_MAINTENANCE_CATEGORY_PREFIX) and parse_month_from_category(c)),
+        None,
+    )
 
     if CATEGORY_CREATED_IN_MECHALOL in own_categories:
         status, source_type = STATUS_CREATED_IN_MECHALOL, "created"

@@ -133,8 +133,14 @@ def fetch_redirect_status(titles):
     עצמה היא דף הפניה, ה-API מחזיר את דף ההפניה עצמו (עם redirect:true),
     ולא "עוקב" אליה אל היעד.
 
-    מחזיר {title: bool} רק עבור כותרות שאכן נמצאו במכלול (עם או בלי
-    redirect). כותרת שלא קיימת במכלול כלל (missing) - לא נכללת בתוצאה.
+    מחזיר {title: bool} לכל כותרת באצווה שקיבלה תשובה: true אם קיימת
+    במכלול כהפניה, false אם לא קיימת שם בכלל (missing) או קיימת כדף
+    רגיל. זו ההגדרה ב-migration_add_mechalol_redirect_flag.sql ("false
+    ... על כותרת שנבדקה בפועל ואין לה שם הפניה"). תיקון 2026-09: קודם
+    כותרת missing לא נשמרה בכלל, ונשארה NULL ("טרם נבדק") לנצח.
+
+    כשל של האצווה כולה (אחרי כל הניסיונות) מחזיר {} - אף כותרת לא
+    מסומנת, וכולן ייבדקו שוב בריצה הבאה.
     """
     params = {
         "action": "query",
@@ -163,11 +169,15 @@ def fetch_redirect_status(titles):
             log(f"WARNING | אצוות API | ניסיון {attempt}/{MAX_API_RETRIES}: {exc}")
             time.sleep(min(2 ** (attempt - 1), 30))
 
+    query = data.get("query", {})
+    # המכלול עשוי לנרמל כותרת (למשל קו תחתון לרווח) - מחזירים את התוצאה
+    # תחת הכותרת המקורית שנשלחה, כדי שתתאים לשורה ב-wikipedia_pages.
+    original_by_normalized = {n["to"]: n["from"] for n in query.get("normalized", [])}
+
     result = {}
-    for page in data.get("query", {}).get("pages", []):
-        if page.get("missing"):
-            continue
-        result[page["title"]] = bool(page.get("redirect"))
+    for page in query.get("pages", []):
+        title = original_by_normalized.get(page["title"], page["title"])
+        result[title] = bool(page.get("redirect")) and not page.get("missing")
 
     return result
 
@@ -195,8 +205,7 @@ def save_results(client, rows, computed):
     על ON CONFLICT DO UPDATE.
 
     רק כותרות שקיבלו תשובה בפועל מה-API (title in computed) מתעדכנות -
-    כותרת שלא נמצאה כלל במכלול (missing בתשובת ה-API) לא נוגעים בה,
-    ותיבדק שוב בריצה הבאה.
+    כותרת מאצווה שנכשלה כולה לא נוגעים בה, ותיבדק שוב בריצה הבאה.
     """
     to_update = [
         {

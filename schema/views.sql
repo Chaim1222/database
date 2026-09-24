@@ -10,21 +10,18 @@
 -- report_confirmed_deleted_from_wikipedia (deleted_from_wikipedia),
 -- report_title_changed_since_match (matched_title).
 --
--- ידוע, לא תוקן (2026-09): Supabase security advisor מסמן את כל
--- חמשת ה-views למטה כ-"Security Definer View" (ERROR) - הן רצות
--- בהרשאות היוצר (postgres) ולא בהרשאות השולח, כלומר לא כפופות ל-RLS
--- של הטבלאות שמתחתן. זה לא נגרם משום שינוי שלנו (זו התנהגות ברירת
--- המחדל ההיסטורית של views בפוסטגרס, לפני security_invoker ב-PG15+),
--- וזו הסיבה שהגבלת ה-GRANT למטה קריטית - RLS לא מגן על ה-views האלה
--- בכל מקרה. לתיקון: ALTER VIEW ... SET (security_invoker = true) על
--- כל אחד, לא בוצע כאן כי זה משנה התנהגות בפועל ודורש בדיקה נפרדת.
+-- כל ה-views רצים בהרשאות הקורא (security_invoker = true, תוקן 2026-09
+-- ב-migration_review_fixes_2026_09.sql) - כפופים ל-RLS של הטבלאות
+-- שמתחתן. דורש policy קריאה ל-anon על כל טבלה שהם קוראים, כולל
+-- blacklist_titles (ראו schema.sql). perform_atomic_swap משמרת את
+-- האפשרות הזו כשהיא בונה את ה-views מחדש בכל החלפה.
 
 -- 1. חשוד כמחיקה/בעיית התאמה: מקור ודאי-ויקיפדי או לא-ידוע, בלי
 --    התאמה לוויקיפדיה בריצה הנוכחית. עשוי לנבוע ממחיקה אמיתית, מכותרת
 --    שונה + דף נעול-לקריאה (מועמד ל-manual_matches), מטעות הקלדה
 --    בתבנית המיון, או מכותרת שדורשת כלל נרמול חדש. כולל גם ערכים
 --    מילוניים/דפים-לטיפול (מ-2026-09 - ראו הערה למעלה).
-create or replace view report_possibly_deleted_source as
+create or replace view report_possibly_deleted_source with (security_invoker = true) as
 select id, title, status, source_type, match_type
 from mechalol_pages
 where maybe_deleted_from_wikipedia = true
@@ -32,7 +29,7 @@ order by title;
 
 -- 2. מיובא ללא תיעוד: אין תבנית מיון תקינה (או שמעולם לא נבדק/לא
 --    שויך לקטגוריה - אין הבדלה בין השניים כרגע, ראו fetch_mechalol.py).
-create or replace view report_undocumented_import as
+create or replace view report_undocumented_import with (security_invoker = true) as
 select id, title, source_type, wikipedia_id, match_type
 from mechalol_pages
 where status = 'מיובא ללא תיעוד'
@@ -40,22 +37,20 @@ where status = 'מיובא ללא תיעוד'
   and is_dictionary_entry = false
 order by title;
 
--- 3. משימות לטיפול - שלושה סוגים יחד, עם עמודת task_type להבחנה:
---    א. חשוד כמחיקה/דורש השוואה לוויקיפדיה (maybe_deleted_from_wikipedia).
---    ב. סטטוס לא ברור - מיובא ללא תיעוד (גם ודאי-חסר-תבנית וגם לא-ידוע,
---       שניהם יחד, בלי הבחנה ביניהם - כפי שנתבקש במפורש).
---    ג. שם בתבנית לא אומת מול ויקיפדיה (template_referenced_title,
---       2026-09) - יש תבנית מיון עם שם מפורש, אבל השם הזה לא נמצא
---       ב-wikipedia_pages בפועל. דורש גם עדכון match.py, לא רק את
---       ה-view הזה - ראו migration_add_template_reference_problem.sql.
---    ד. דף נעול - לא ניתן לאמת (template_check_access_denied_at,
---       2026-09) - בדיקת התבנית נדחתה על ידי ה-API (לרוב דף נעול-
---       לקריאה) ולא בוצעה בכלל. קשור ישירות לנעילת כותרות
---       (aspaklaryalockdown) - דף שננעל עשוי להיכנס לקטגוריה הזו.
+-- 3. משימות לטיפול - עמודת task_type מבחינה בין סוגים שדורשים פעולה
+--    שונה (הופרדו 2026-09, קודם היו מעורבים):
+--    א. שם בתבנית המיון לא קיים בוויקיפדיה (template_referenced_title) -
+--       בדרך כלל הערך שונה שם בוויקיפדיה; מתקנים את התבנית. לא כולל
+--       "נשמר במכלול למרות מחיקה בוויקיפדיה" - שם זה המצב הצפוי.
+--    ב. לא נמצא מקביל בוויקיפדיה (maybe_deleted_from_wikipedia, בלי תבנית
+--       עם שם) - לבדוק אם נמחק או קיים בשם אחר.
+--    ג. דף נעול - לא ניתן לאמת (template_check_access_denied_at).
+--    ד. חסרה תבנית מיון - המכלול עצמו מסמן את הדף (source_type=missing_sort).
+--    ה. מקור לא ידוע - מיובא ללא תיעוד, בלי שום סימון.
 --    לא כולל דפי טיפול (needs_attention) ולא ערכים מילוניים
 --    (is_dictionary_entry) - כפי שנתבקש במפורש (בניגוד ל-report_
 --    possibly_deleted_source למעלה).
-create or replace view report_tasks_to_handle as
+create or replace view report_tasks_to_handle with (security_invoker = true) as
 select
     id,
     title,
@@ -64,10 +59,16 @@ select
     wikipedia_id,
     match_type,
     case
-        when maybe_deleted_from_wikipedia = true then 'לבדוק מחיקה/השוואה לוויקיפדיה'
-        when status = 'מיובא ללא תיעוד' then 'סטטוס לא ברור'
-        when template_referenced_title is not null then 'שם בתבנית לא אומת מול ויקיפדיה'
-        when template_check_access_denied_at is not null then 'דף נעול - לא ניתן לאמת'
+        when template_referenced_title is not null
+             and status <> 'נשמר במכלול למרות מחיקה בוויקיפדיה'
+            then 'שם בתבנית המיון לא קיים בוויקיפדיה'
+        when maybe_deleted_from_wikipedia = true
+            then 'לא נמצא מקביל בוויקיפדיה'
+        when template_check_access_denied_at is not null
+            then 'דף נעול - לא ניתן לאמת'
+        when source_type = 'missing_sort'
+            then 'חסרה תבנית מיון'
+        else 'מקור לא ידוע'
     end as task_type
 from mechalol_pages
 where needs_attention = false
@@ -75,15 +76,19 @@ where needs_attention = false
   and (
     maybe_deleted_from_wikipedia = true
     or status = 'מיובא ללא תיעוד'
-    or template_referenced_title is not null
+    or (template_referenced_title is not null and status <> 'נשמר במכלול למרות מחיקה בוויקיפדיה')
     or template_check_access_denied_at is not null
   )
 order by task_type, title;
 
 -- 4. קיים בוויקיפדיה, אין לו התאמה במכלול בכלל - מסונן מרשימה שחורה
 --    (blacklist_titles: ערכים שבכוונה לא יובאו, אין טעם להציג אותם
---    כ"חסרים"). התאמה לפי כותרת מדויקת בלבד - כותרת שנוספה לרשימה
---    השחורה בכתיב שונה מהכתיב המדויק בוויקיפדיה לא תסונן.
+--    כ"חסרים"). התאמה לפי כותרת מדויקת בלבד, בכוונה (נבדק 2026-09):
+--    כל השורות ב-blacklist_titles נוספו אוטומטית ע"י check_missing_
+--    locked.py כי *הכותרת* נעולה ליצירה במכלול. הנעילה היא על כותרת,
+--    לא על נושא - אם הערך בוויקיפדיה שונה שם, הכותרת החדשה לא בהכרח
+--    נעולה, ולכן נכון שיופיע שוב (הבדיקה השבועית תנעל אותו אם צריך).
+--    סינון לפי wikipedia_id היה מסתיר ערכים שאפשר ליצור בפועל.
 -- מקור האמת: is_missing (מתוחזק ב-recompute_missing_flag/_scoped,
 -- schema.sql) - לא JOIN חי כמו קודם. שינוי מדעת: join חי תמיד היה
 -- מדויק ברגע השאילתה בלי תלות בשום דבר, אבל is_missing כולל גם כותרת
@@ -91,7 +96,7 @@ order by task_type, title;
 -- לריצה הלילית הבאה (ראו תיעוד is_missing ב-schema.sql). סדר העמודות
 -- כאן חייב להישאר זהה אם מריצים על view קיים - Postgres לא מרשה
 -- לשנות שם/סדר עמודות ב-CREATE OR REPLACE VIEW.
-create or replace view report_missing_from_mechalol as
+create or replace view report_missing_from_mechalol with (security_invoker = true) as
 select w.id,
     w.title,
     w.checked_at,
@@ -115,7 +120,7 @@ order by w.title;
 --    מפני שנמצאה במכלול כותרת זהה אחרי הסרת הקידומת "הרב"/"רבי".
 --    אין כאן יצירת wikipedia_id ואין בחירת מועמד: אם כמה דפי מכלול
 --    מתנרמלים לאותו שם, כולם מוצגים ו-candidate_count מציין כמה נמצאו.
-create or replace view report_rav_prefix_normalization as
+create or replace view report_rav_prefix_normalization with (security_invoker = true) as
 with candidates as (
     select
         w.id as wikipedia_id,

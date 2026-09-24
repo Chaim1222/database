@@ -105,11 +105,10 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: python scripts/validate_before_swap.py
 
-      # רץ רק אם שער האימות אישר (should_swap=true) - ירידה קלה
-      # מדלגת על הצעד הזה בלי לשבש את שאר ה-job (הריצה עדיין "מצליחה"
-      # כי ההחלטה לדלג היא תקינה, לא כשל). ירידה חמורה כבר עצרה את
-      # ה-job קודם (validate_before_swap.py יוצא עם קוד 1), אז הצעד
-      # הזה כלל לא מגיע אליו.
+      # רץ רק אם שער האימות אישר (should_swap=true). ירידה קלה (מתחת
+      # לסף) לא חוסמת - רק מתועדת בלוג. ירידה חמורה כבר עצרה את ה-job
+      # קודם (validate_before_swap.py יוצא עם קוד 1 ונפתח Issue), אז
+      # הצעד הזה כלל לא מגיע אליו.
       - name: החלפה אטומית
         if: steps.validate.outputs.should_swap == 'true'
         env:

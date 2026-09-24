@@ -440,6 +440,9 @@ def fetch_move_log(api_url, since_ts):
                 "action": entry.get("action", "move"),
                 "suppressredirect": bool(move_params.get("suppressredirect", False)),
                 "old_title_pageid_valid": bool(entry.get("pageid", 0)),
+                # הדף שיושב כרגע בכותרת הישנה (הפניה שנשארה, או 0) - נשמר
+                # בנפרד כי page_id מוחלף למטה במזהה הדף שהועבר.
+                "old_title_pageid": entry.get("pageid", 0),
             })
 
         lecontinue = data.get("continue", {}).get("lecontinue")

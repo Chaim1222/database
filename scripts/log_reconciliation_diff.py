@@ -86,6 +86,39 @@ def _load_watermarks(client):
     return {row["source"]: _parse_ts(row["last_synced_ts"]) for row in (result.data or [])}
 
 
+def _mark_linked_pairs_as_timing(client, by_side, timing_by_row_id):
+    mechalol_rows = by_side.get("mechalol", [])
+    wikipedia_rows_by_page = {}
+    for row in by_side.get("wikipedia", []):
+        wikipedia_rows_by_page.setdefault(row["page_id"], []).append(row)
+    if not mechalol_rows or not wikipedia_rows_by_page:
+        return
+
+    page_ids = sorted({r["page_id"] for r in mechalol_rows})
+    wikipedia_id_by_mechalol_page = {}
+    for i in range(0, len(page_ids), 500):
+        chunk = page_ids[i:i + 500]
+        result = execute_with_retry(
+            lambda chunk=chunk: client.table("mechalol_pages").select("id, wikipedia_id").in_("id", chunk).execute(),
+            "טעינת קישורי מכלול לסיווג זוגות",
+            log_fn=log,
+        )
+        for r in result.data or []:
+            wikipedia_id_by_mechalol_page[r["id"]] = r["wikipedia_id"]
+
+    paired = 0
+    for m_row in mechalol_rows:
+        partners = wikipedia_rows_by_page.get(wikipedia_id_by_mechalol_page.get(m_row["page_id"]), [])
+        if not partners:
+            continue
+        group = [m_row] + partners
+        if any(timing_by_row_id[r["id"]] for r in group):
+            for r in group:
+                timing_by_row_id[r["id"]] = True
+        paired += 1
+    log(f"סיווג תזמון | {paired} זוגות מכלול-ויקיפדיה מקושרים סווגו יחד")
+
+
 def classify_timing(client, audit_id):
     """
     עבור כל שורה ב-reconciliation_audit_details של audit_id הנתון:
@@ -129,15 +162,31 @@ def classify_timing(client, audit_id):
         latest_by_side[side] = fetch_latest_revision_timestamps(API_BY_SIDE[side], pageids)
         log(f"סיווג תזמון | {side} | {len(pageids)} דפים נבדקו מול API חי")
 
-    genuine_count = 0
+    timing_by_row_id = {}
+    latest_by_row_id = {}
     for row in rows:
         side = row["side"]
         watermark = watermarks.get(side)
         latest_str = latest_by_side.get(side, {}).get(row["page_id"])
+        latest_by_row_id[row["id"]] = latest_str
+        timing_by_row_id[row["id"]] = bool(
+            latest_str and watermark is not None and _parse_ts(latest_str) >= watermark
+        )
 
-        is_timing_only = False
-        if latest_str and watermark is not None:
-            is_timing_only = _parse_ts(latest_str) >= watermark
+    # תיקון 2026-09: שינוי קישור בין דף מכלול לדף ויקיפדיה מופיע לרוב
+    # פעמיים בביקורת - שורה בצד המכלול (wikipedia_id/match_type) ושורה
+    # בצד ויקיפדיה (is_missing) - והסיבה שלו יכולה להיות בכל אחד מהצדדים
+    # (למשל שינוי שם בוויקיפדיה משנה את הקישור בצד המכלול בלי שדף המכלול
+    # נערך). בדיקה לפי הדף עצמו בלבד סימנה את אותו אירוע פעם כתזמון ופעם
+    # כפער אמיתי. כאן זוג שורות מקושר (לפי wikipedia_id הנוכחי של שורת
+    # המכלול) נחשב תזמון אם אחד מהצדדים שלו הוא תזמון.
+    _mark_linked_pairs_as_timing(client, by_side, timing_by_row_id)
+
+    genuine_count = 0
+    for row in rows:
+        side = row["side"]
+        latest_str = latest_by_row_id[row["id"]]
+        is_timing_only = timing_by_row_id[row["id"]]
 
         if not is_timing_only:
             genuine_count += 1

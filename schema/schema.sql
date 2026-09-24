@@ -200,7 +200,8 @@ create table if not exists blacklist_titles (
 );
 
 create index if not exists idx_mechalol_status on mechalol_pages(status);
-create index if not exists idx_mechalol_match_type on mechalol_pages(match_type);
+-- idx_mechalol_match_type הוסר (2026-09, migration_review_fixes_2026_09.sql):
+-- 3 ערכים בלבד, 99% מהשורות באחד מהם - המתכנן כמעט לא השתמש בו.
 create index if not exists idx_mechalol_wikipedia_id on mechalol_pages(wikipedia_id);
 create index if not exists idx_wikipedia_is_missing on wikipedia_pages(is_missing) where is_missing;
 
@@ -226,9 +227,9 @@ alter table wikipedia_pages enable row level security;
 alter table mechalol_pages enable row level security;
 
 create policy "קריאה ציבורית" on wikipedia_pages
-    for select to anon using (true);
+    for select to anon, authenticated using (true);
 create policy "קריאה ציבורית" on mechalol_pages
-    for select to anon using (true);
+    for select to anon, authenticated using (true);
 
 -- pg_default_acl בפרויקט הזה מעניק גישה מלאה (כולל כתיבה/מחיקה/ריקון)
 -- ל-anon/authenticated על כל טבלה חדשה של postgres כברירת מחדל - חובה
@@ -367,3 +368,80 @@ grant execute on function recompute_missing_flag() to service_role;
 revoke all on function recompute_missing_flag_scoped(bigint[]) from public, anon, authenticated;
 grant execute on function recompute_missing_flag_scoped(bigint[]) to service_role;
 
+-- --- 2026-09: תוספות מ-migration_review_fixes_2026_09.sql (ראו שם לנימוקים) ---
+
+-- ברירות מחדל של הרשאות: אובייקט חדש של postgres מקבל רק SELECT (RLS עדיין
+-- חל), בלי EXECUTE ובלי הרשאות כתיבה ל-anon/authenticated.
+alter default privileges for role postgres revoke execute on functions from public;
+alter default privileges for role postgres in schema public revoke execute on functions from anon, authenticated;
+alter default privileges for role postgres in schema public revoke all on tables from anon, authenticated;
+alter default privileges for role postgres in schema public grant select on tables to anon, authenticated;
+alter default privileges for role postgres in schema public revoke all on sequences from anon, authenticated;
+
+-- חישוב is_missing לפי כותרות מכלול שנוספו/התפנו (match.py --scoped).
+create or replace function recompute_missing_flag_by_titles(titles text[])
+returns void
+language sql
+set search_path = public
+as $$
+    update wikipedia_pages w
+    set is_missing = not exists (
+            select 1 from mechalol_pages m
+            where m.wikipedia_id = w.id
+               or m.title = w.title
+               or normalize_person_title(m.title) = normalize_person_title(w.title)
+        ),
+        missing_override_reason = case
+            when exists (select 1 from mechalol_pages m where m.wikipedia_id = w.id or m.title = w.title)
+                then null
+            when exists (select 1 from mechalol_pages m where normalize_person_title(m.title) = normalize_person_title(w.title))
+                then 'rav_prefix_normalization'
+            else null
+        end
+    where w.title = any(titles)
+       or normalize_person_title(w.title) = any(array(select normalize_person_title(t) from unnest(titles) as t));
+$$;
+revoke all on function recompute_missing_flag_by_titles(text[]) from public, anon, authenticated;
+grant execute on function recompute_missing_flag_by_titles(text[]) to service_role;
+
+alter function recompute_missing_flag() set search_path = public;
+alter function recompute_missing_flag_scoped(bigint[]) set search_path = public;
+alter function truncate_mechalol_pages() set search_path = public;
+alter function truncate_wikipedia_pages() set search_path = public;
+
+-- blacklist_titles: קריאה ציבורית - נדרשת כי ה-views רצים בהרשאות הקורא
+-- (security_invoker, ראו views.sql).
+alter table blacklist_titles enable row level security;
+create policy "קריאה ציבורית" on blacklist_titles
+    for select to anon, authenticated using (true);
+revoke all on blacklist_titles from anon, authenticated;
+grant select on blacklist_titles to anon, authenticated;
+
+-- manual_matches: כתיבה רק למנהלים שברשימה, בלי קשר להגדרת ההרשמה ב-Auth.
+create table if not exists manual_match_admins (
+    user_id uuid primary key references auth.users (id) on delete cascade,
+    added_at timestamptz not null default now()
+);
+alter table manual_match_admins enable row level security;
+revoke all on manual_match_admins from anon, authenticated;
+
+create or replace function is_manual_match_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+    select exists (select 1 from manual_match_admins where user_id = auth.uid());
+$$;
+revoke all on function is_manual_match_admin() from public, anon, authenticated;
+grant execute on function is_manual_match_admin() to authenticated;
+
+alter table manual_matches enable row level security;
+revoke all on manual_matches from anon, authenticated;
+grant select, insert, update, delete on manual_matches to authenticated;
+create policy "מנהלים מורשים מנהלים התאמות ידניות" on manual_matches
+    for all
+    to authenticated
+    using (is_manual_match_admin())
+    with check (is_manual_match_admin());
