@@ -8,6 +8,7 @@
 | `blacklist.json.gz` | 2,232 הערכים שב-`blacklist_titles`, כפי שהיו בוויקיפדיה ב-2026-09-24 |
 | `dev.json.gz` | 500 ערכים אקראיים מהמכלול (עליהם נבנתה רשימת המותרות) |
 | `holdout.json.gz` | 1,520 ערכים אקראיים נוספים מהמכלול (בדיקה עיוורת) |
+| `wiki-random.json.gz` | 2,036 ערכים אקראיים מוויקיפדיה, בלי ערכי blacklist - המדגם המייצג (2026-09-24) |
 
 מבנה: `{ "<page id>": { "title": "...", "text": "<ויקיטקסט>" } }`.
 
@@ -16,7 +17,7 @@
 ```
 mkdir -p .word-filter-corpus
 git fetch origin word-filter-corpus
-for n in blacklist dev holdout; do
+for n in blacklist dev holdout wiki-random; do
   git show origin/word-filter-corpus:$n.json.gz | gunzip > .word-filter-corpus/$n.json
 done
 ```
