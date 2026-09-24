@@ -1,22 +1,22 @@
 /*
  * בדיקת מילים חשודות בוויקיטקסט
  *
- * סורק את קוד הוויקיטקסט שבתיבת העריכה ומסווג את הדף, מבחינת צניעות, לאחת
- * משלוש רמות:
+ * סורק את קוד הוויקיטקסט שבתיבת העריכה ומסווג את הדף לאחת מארבע רמות:
  *   בעיה ודאית  - נמצאה מילה שהיא בעיה במובהק.
  *   לבדיקה      - נמצאה רק מילה דו-משמעית (למשל "מין", "רומן", "אונס" ההלכתי).
+ *   דורש ניסוח  - נמצאו רק הערות ניסוח (אמונה ונצרות, תיארוך, שאריות מוויקיפדיה).
  *   נקי         - לא נמצא דבר.
- * נושאים אחרים (אמונה ונצרות, תיארוך ומדע, שאריות מוויקיפדיה) דורשים ניסוח
- * ולא פסילה, ולכן מוצגים בנפרד כ"הערות ניסוח" ולא משפיעים על הרמה. במדגם של
- * 2,020 ערכי מכלול הם מופיעים ב-20% מהערכים - כחלק מהרמה, רוב המכלול היה "לבדיקה".
- * יוצא מן הכלל: גיל העולם והיווצרות היקום (נושא age) - חמור ודורש הסרה (הכרעת
- * חיים, 2026-09-24), ולכן נספר ברמה כמו צניעות.
+ * הנושאים שקובעים בעיה/לבדיקה: צניעות, וגיל העולם והיווצרות היקום (age) - חמור
+ * ודורש הסרה. שאר הנושאים דורשים ניסוח ולא פסילה (הכרעות חיים, 2026-09-24).
  *
  * רשימות המילים הן שני דפי JSON (ראו WORDS_PAGE, ALLOW_PAGE):
  *   words.json - לכל רשומה: תבנית, רמה (problem/review), נושא (צניעות,
  *                אמונה, תיארוך, שאריות ויקי), סטטוס (active/suggested) והסבר.
- *   allow.json - ביטויים מותרים ("המין האנושי", "בואנוס איירס"): התאמה
- *                שנופלת כולה בתוכם לא מוצגת.
+ *   allow.json - ביטויים מותרים. שני סוגים (שדה kind, הכרעת חיים 2026-09-24):
+ *                hide   - זו בכלל לא המילה ("בואנוס איירס", Assembly): התאמה
+ *                         שנופלת כולה בתוכם לא מוצגת.
+ *                demote - שימוש תמים במילה אמיתית ("המין האנושי", "רומן היסטורי"):
+ *                         ההתאמה מוצגת, אבל "בעיה" יורדת ל"לבדיקה".
  * רשומות בסטטוס "suggested" הן הצעות שעדיין לא אושרו, ולא נבדקות אלא אם
  * מגדירים ב-common.js:  window.wikitextWordCheckSuggested = true;
  *
@@ -38,8 +38,8 @@
 	var ALLOW_PAGE = 'מדיה ויקי:Gadget-wikitextWordCheck-allow.json';
 
 	var LEVELS = { problem: 2, review: 1 };
-	var LEVEL_LABELS = { problem: 'בעיה ודאית', review: 'לבדיקה', clean: 'נקי' };
-	var LEVEL_COLORS = { problem: '#ff5555', review: '#ffd966', clean: '#b6e3b6' };
+	var LEVEL_LABELS = { problem: 'בעיה ודאית', review: 'לבדיקה', wording: 'דורש ניסוח', clean: 'נקי' };
+	var LEVEL_COLORS = { problem: '#ff5555', review: '#ffd966', wording: '#c9d3e8', clean: '#b6e3b6' };
 	var TOPIC_LABELS = { modesty: 'צניעות', faith: 'אמונה ונצרות', dating: 'תיארוך ומדע', wiki: 'שאריות מוויקיפדיה', age: 'גיל העולם' };
 
 	// ===== טעינת הרשימות =====
@@ -66,7 +66,7 @@
 		});
 		((allow && allow.entries) || []).filter(usable).forEach(function (entry) {
 			var regex = compile(entry, 'gi');
-			if (regex) allowed.push({ entry: entry, regex: regex });
+			if (regex) allowed.push({ entry: entry, regex: regex, kind: entry.kind === 'demote' ? 'demote' : 'hide' });
 		});
 		return { patterns: patterns, allow: allowed, problems: problems };
 	}
@@ -255,11 +255,11 @@
 		// ביטויים מותרים נבדקים גם על הגולמי (קישור שלם לפי היעד שלו) וגם על
 		// הממוסך (ביטוי מוצג שמפוצל בסימון).
 		var allowed = [];
-		var allowRegexes = lists.allow.map(function (a) { return a.regex; })
-			.concat((options.allow || []).map(function (p) { return new RegExp(p, 'gi'); }));
-		allowRegexes.forEach(function (re) {
+		var allowRules = lists.allow
+			.concat((options.allow || []).map(function (p) { return { regex: new RegExp(p, 'gi'), kind: 'hide', entry: null }; }));
+		allowRules.forEach(function (rule) {
 			(masked === wikitext ? [wikitext] : [wikitext, masked]).forEach(function (text) {
-				allMatches(re, text, function (m) { allowed.push([m.index, m.index + m[0].length]); });
+				allMatches(rule.regex, text, function (m) { allowed.push([m.index, m.index + m[0].length, rule]); });
 			});
 		});
 
@@ -286,17 +286,21 @@
 				while (end > start && /\s/.test(hay[end - 1])) end--;
 				if (start === end) return;
 				if (options.wordStart !== false && !containsWordStart(hay, m.index, end, entry.pattern)) return;
-				if (allowed.some(function (a) { return a[0] <= start && end <= a[1]; })) return;
+				var covering = allowed.filter(function (a) { return a[0] <= start && end <= a[1]; });
+				if (covering.some(function (a) { return a[2].kind === 'hide'; })) return;
+				var level = entry.level;
+				if (covering.length && level === 'problem') level = 'review';
 				var key = start + ':' + end;
 				var match = bySpan[key];
 				if (!match) {
 					match = bySpan[key] = { start: start, end: end, text: wikitext.slice(start, end), line: lineOf(start),
-						level: entry.level, topic: entry.topic, entries: [] };
+						level: level, topic: entry.topic, entries: [], demotedBy: [] };
 					result.push(match);
 				}
 				if (match.entries.indexOf(entry) < 0) match.entries.push(entry);
-				if (LEVELS[entry.level] > LEVELS[match.level]) {
-					match.level = entry.level;
+				covering.forEach(function (a) { if (a[2].entry && match.demotedBy.indexOf(a[2].entry) < 0) match.demotedBy.push(a[2].entry); });
+				if (LEVELS[level] > LEVELS[match.level]) {
+					match.level = level;
 					match.topic = entry.topic;
 				}
 			});
@@ -309,6 +313,7 @@
 			var outer = merged[merged.length - 1];
 			if (!outer || m.start >= outer.end || m.end > outer.end) { merged.push(m); return; }
 			m.entries.forEach(function (e) { if (outer.entries.indexOf(e) < 0) outer.entries.push(e); });
+			m.demotedBy.forEach(function (e) { if (outer.demotedBy.indexOf(e) < 0) outer.demotedBy.push(e); });
 			var counts = function (x) { return VERDICT_TOPICS.indexOf(x.topic) >= 0; };
 			if (LEVELS[m.level] > LEVELS[outer.level] || (m.level === outer.level && counts(m) && !counts(outer))) {
 				outer.level = m.level;
@@ -321,13 +326,17 @@
 	// נושאים שקובעים את רמת הדף. השאר - הערות ניסוח (ראו בראש הקובץ).
 	var VERDICT_TOPICS = ['modesty', 'age'];
 
-	// הרמה של הדף כולו: problem / review / clean. topics - אילו נושאים נספרים.
+	// הרמה של הדף כולו: problem / review / wording / clean. topics - אילו נושאים נספרים;
+	// התאמה בנושא אחר הופכת דף נקי ל"דורש ניסוח".
 	function verdict(matches, topics) {
 		topics = topics || VERDICT_TOPICS;
 		var level = 'clean';
 		matches.forEach(function (m) {
-			if (topics.indexOf(m.topic) < 0) return;
-			if (level === 'clean' || LEVELS[m.level] > LEVELS[level]) level = m.level;
+			if (topics.indexOf(m.topic) < 0) {
+				if (level === 'clean') level = 'wording';
+				return;
+			}
+			if (!LEVELS[level] || LEVELS[m.level] > LEVELS[level]) level = m.level;
 		});
 		return level;
 	}
@@ -433,7 +442,9 @@
 				var ctx = contextOf(text, m, 80);
 				var tip = m.entries.map(function (e) {
 					return e.pattern + (e.note ? ' - ' + e.note : '') + (e.status === 'suggested' ? ' (הצעה)' : '');
-				}).join('\n');
+				}).concat(m.demotedBy.map(function (e) {
+					return 'ירד לבדיקה - שימוש תמים אפשרי: ' + (e.note || e.pattern);
+				})).join('\n');
 				var $link = el('a', 'שורה ' + m.line, { cursor: 'pointer' }).attr('title', tip);
 				$link.on('click', function (e) {
 					e.preventDefault();

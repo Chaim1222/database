@@ -7,7 +7,7 @@
  *   node word-filter/tools/check.js --file page.wikitext [--json]
  *   node word-filter/tools/check.js --title "..." --suggested      # כולל הצעות שלא אושרו
  *
- * קוד יציאה: 2 = בעיה ודאית, 1 = לבדיקה, 0 = נקי.
+ * קוד יציאה: 3 = בעיה ודאית, 2 = לבדיקה, 1 = דורש ניסוח, 0 = נקי, 9 = שגיאה.
  */
 'use strict';
 const fs = require('fs');
@@ -38,7 +38,7 @@ async function main() {
 	if (args.json) {
 		console.log(JSON.stringify({ verdict: level, matches: matches.map((m) => ({
 			start: m.start, end: m.end, text: m.text, line: m.line, level: m.level, topic: m.topic,
-			entries: m.entries.map((e) => e.id), context: engine.contextOf(text, m),
+			entries: m.entries.map((e) => e.id), demotedBy: m.demotedBy.map((e) => e.id), context: engine.contextOf(text, m),
 		})) }, null, 2));
 	} else {
 		console.log(`== ${args.title || args.file}: ${engine.LEVEL_LABELS[level]} (${matches.length} התאמות) ==`);
@@ -54,14 +54,15 @@ async function main() {
 			for (const m of items) {
 				const c = engine.contextOf(text, m);
 				const ctx = c.before + '【' + c.text + '】' + c.after;
-				console.log(`  שורה ${m.line} [${engine.TOPIC_LABELS[m.topic]}] ${m.entries.map((e) => e.id).join(',')}: ${ctx}`);
+				const demoted = m.demotedBy.length ? ` (ירד לבדיקה: ${m.demotedBy.map((e) => e.id).join(',')})` : '';
+				console.log(`  שורה ${m.line} [${engine.TOPIC_LABELS[m.topic]}] ${m.entries.map((e) => e.id).join(',')}${demoted}: ${ctx}`);
 			}
 		}
 	}
-	process.exitCode = { problem: 2, review: 1, clean: 0 }[level];
+	process.exitCode = { problem: 3, review: 2, wording: 1, clean: 0 }[level];
 }
 
 main().catch((e) => {
 	console.error('שגיאה: ' + e.message);
-	process.exitCode = 3;
+	process.exitCode = 9;
 });

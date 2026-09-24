@@ -117,7 +117,7 @@ function report(showLost) {
 		['+מילים (הצעה)', loadLists({ words, allow, suggested: true }), {}],
 	];
 	const verdicts = {};
-	console.log('בעיה ודאית / לבדיקה / נקי, לכל מאגר:');
+	console.log('בעיה ודאית / לבדיקה / דורש ניסוח / נקי, לכל מאגר:');
 	for (const [name, lists, options] of configs) {
 		const cells = [];
 		for (const [corpus, pages] of Object.entries(corpora)) {
@@ -126,15 +126,16 @@ function report(showLost) {
 			verdicts[name + '|' + corpus] = v;
 			const n = Object.values(v), total = n.length;
 			const count = (l) => n.filter((x) => x === l).length;
-			cells.push(`${corpus} (${total}): ${pct(count('problem'), total)} ${pct(count('review'), total)} ${pct(count('clean'), total)}`);
+			cells.push(`${corpus} (${total}): ${pct(count('problem'), total)} ${pct(count('review'), total)} ${pct(count('wording'), total)} ${pct(count('clean'), total)}`);
 		}
 		console.log(name.padEnd(16) + cells.join('   |   '));
 	}
 	if (!showLost) return;
 	for (let i = 1; i < configs.length; i++) {
 		const before = verdicts[configs[i - 1][0] + '|blacklist'], after = verdicts[configs[i][0] + '|blacklist'];
-		const lost = Object.keys(before).filter((id) => before[id] !== 'clean' && after[id] === 'clean');
-		console.log(`\nחסומים שהפכו ל"נקי" במעבר ${configs[i - 1][0]} -> ${configs[i][0]}: ${lost.length}`);
+		const flagged = (l) => l === 'problem' || l === 'review';
+		const lost = Object.keys(before).filter((id) => flagged(before[id]) && !flagged(after[id]));
+		console.log(`\nחסומים שיצאו מבעיה/לבדיקה במעבר ${configs[i - 1][0]} -> ${configs[i][0]}: ${lost.length}`);
 		lost.forEach((id) => console.log('  - ' + corpora.blacklist[id].title));
 	}
 }
@@ -244,7 +245,7 @@ function candidates(file) {
 	for (const [corpus, pages] of Object.entries(corpora)) {
 		for (const [id, page] of Object.entries(pages)) {
 			masked[corpus + ':' + id] = { corpus, text: engine.maskWikitext(page.text) };
-			if (sideOf(corpus) === 'blacklist' && engine.verdict(engine.scan(page.text, lists)) === 'clean') missed.add(corpus + ':' + id);
+			if (sideOf(corpus) === 'blacklist' && !['problem', 'review'].includes(engine.verdict(engine.scan(page.text, lists)))) missed.add(corpus + ':' + id);
 		}
 	}
 	for (const line of fs.readFileSync(file, 'utf8').split('\n')) {

@@ -54,7 +54,7 @@ const hash = (s) => {
 	return h.toString(36);
 };
 const pick = (e, x) => ({
-	id: e.id, pattern: e.pattern, level: e.level, topic: e.topic, status: e.status, sources: e.sources,
+	id: e.id, pattern: e.pattern, level: e.level, topic: e.topic, status: e.status, sources: e.sources, kind: e.kind,
 	note: e.note || '', original: e.original || '',
 	ev: x ? { b: x.blacklist, m: x.mechalol, xb: x.examples.blacklist, xm: x.examples.mechalol } : null,
 	wr: wr[e.id] || null,

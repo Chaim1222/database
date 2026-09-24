@@ -69,7 +69,7 @@ test('three-level verdict', () => {
 	assert.strictEqual(verdict('תעשיית הפורנו'), 'problem');
 	assert.strictEqual(verdict('סיפור אהבה'), 'review');
 	// נושאים שאינם צניעות הם הערות ניסוח: נמצאים, אבל לא משנים את רמת הדף.
-	assert.strictEqual(verdict('נפטר בשנת 419 לפנה"ס'), 'clean');
+	assert.strictEqual(verdict('נפטר בשנת 419 לפנה"ס'), 'wording'); // הערת ניסוח בלבד
 	assert.strictEqual(engine.scan('נפטר בשנת 419 לפנה"ס', FULL)[0].topic, 'dating');
 	assert.strictEqual(engine.verdict(engine.scan('נפטר בשנת 419 לפנה"ס', FULL), ['dating']), 'review');
 	assert.strictEqual(verdict('שלום עולם'), 'clean');
@@ -78,13 +78,20 @@ test('three-level verdict', () => {
 	assert.strictEqual(m.level, 'problem');
 });
 
-test('allow list (suggested) clears ambiguous uses but not the real word', () => {
-	for (const t of ['המין האנושי', 'מינים בסכנת הכחדה', 'אתר מורשת של אונסק"ו', 'בואנוס איירס', 'הקיסר אדריאנוס',
-		'הממצאים חשפו', 'דוכס סקסוניה', 'טרנסילבניה', 'כל מיני כלים', 'בשוגג או באונס', '[[מין (טקסונומיה)|מין]] של ציפור']) {
+test('allow list: hide = not the word at all; demote = innocent use, shown as review', () => {
+	for (const t of ['אתר מורשת של אונסק"ו', 'בואנוס איירס', 'הקיסר אדריאנוס', 'דוכס סקסוניה', 'טרנסילבניה',
+		'כל מיני כלים', 'כנסייה רומנסקית']) {
 		assert.strictEqual(verdict(t), 'clean', t);
 	}
+	// הכרעת חיים: שימוש תמים במילה אמיתית לא נעלם - יורד ל"לבדיקה".
+	for (const t of ['המין האנושי', 'הממצאים חשפו', 'בשוגג או באונס', '[[מין (טקסונומיה)|מין]] של ציפור',
+		'רבייה מינית אפשרית מהשנה השנייה', 'הפרחים דו-מיניים', 'מתבגרים מינית לאט']) {
+		assert.strictEqual(verdict(t), 'review', t);
+	}
+	assert.strictEqual(engine.verdict(engine.scan('רבייה מינית', ACTIVE)), 'problem'); // בלי ההיתר
+	assert.strictEqual(engine.verdict(engine.scan('רבייה מינית', engine.compileLists(words, allow))), 'review'); // a028 פעיל
 	for (const t of ['היא הייתה אנוסה', 'הוא אנס אותה', 'זוג מאותו המין', 'תעשיית הפורנו', 'אלבום Fuck You']) {
-		assert.notStrictEqual(verdict(t), 'clean', t);
+		assert.strictEqual(verdict(t), 'problem', t);
 	}
 });
 
@@ -109,7 +116,7 @@ test('age of the world counts in the verdict; recent dates do not', () => {
 	// רשומות התיארוך הישנות שחיים העביר לגיל העולם - פעילות.
 	assert.strictEqual(engine.verdict(engine.scan('לפני מיליון שנה', ACTIVE)), 'problem');
 	assert.strictEqual(engine.verdict(engine.scan('נסע לטריאסטה', ACTIVE)), 'review');
-	assert.strictEqual(engine.verdict(engine.scan('חיו לפני 30,000 שנה', ACTIVE)), 'clean'); // w0429 - עדיין הצעה
+	assert.strictEqual(engine.verdict(engine.scan('חיו לפני 30,000 שנה', ACTIVE)), 'wording'); // w0429 - עדיין הצעה; נתפס רק כתיארוך
 });
 
 test('contained matches merge; sentence context is readable text', () => {

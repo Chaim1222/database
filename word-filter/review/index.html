@@ -381,6 +381,9 @@ button:disabled, textarea:disabled { opacity: 0.55; cursor: not-allowed; }
 				head.appendChild(el('span', 'pill ' + level, LEVEL_LABELS[level] + (d.level && d.level !== item.level ? ' (שונה)' : '')));
 				head.appendChild(el('span', 'pill topic', data.topics[item.topic] || item.topic));
 			}
+			if (kind === 'allow' && item.kind) {
+				head.appendChild(el('span', 'pill topic', item.kind === 'demote' ? 'שימוש תמים - יורד לבדיקה' : 'לא המילה - מוסתר'));
+			}
 		}
 		if (d.decision) head.appendChild(el('span', 'pill decided-' + d.decision, DECIDED_LABELS[d.decision]));
 		r.main.appendChild(head);
