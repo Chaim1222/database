@@ -64,7 +64,9 @@ python scripts/suspicious_words.py --file page.wikitext --json
 python scripts/suspicious_words.py --check-lists
 python -m unittest discover -s tests                                  # בדיקות
 ```
-קוד יציאה 1 אם נמצאה התאמה חוסמת, 0 אם לא. `problematic_words.py` (עמודת `problematic_words_clean`) עדיין לא עבר למנוע הזה.
+קוד יציאה 1 אם נמצאה התאמה חוסמת, 0 אם לא.
+
+**גרסת גאדג'ט לאתר**: `gadget/Gadget-wikitextWordCheck.js` - אותו מנוע ב-JS (תוצאות זהות לגרסת הפייתון, נבדק על אותו קורפוס), עצמאי מהריפו. מוסיף בדף עריכה קישור "בדיקת מילים חשודות בקוד" שסורק את תיבת העריכה ומציג כל התאמה עם שורה והקשר; לחיצה מסמנת אותה בתיבה. הרשימות נקראות חי משני הדפים. בדיקות: `node --test tests/wikitext_word_check.test.js`. `problematic_words.py` (עמודת `problematic_words_clean`) עדיין לא עבר למנוע הזה.
 
 ## הרצה
 - הרצה ראשונית: `workflow_dispatch` על `initial_run.yml`. אם נעצר באמצע (מגבלת זמן), פשוט להריץ שוב - ההתקדמות נשמרת (ובמצב הזה, הריקון **לא** חוזר על עצמו, כדי לא לאבד את מה שכבר נטען). תומך גם ב-`mode=mechalol_only` למילוי חוזר של טבלה אחת בלבד, בלי לגעת בשנייה.
