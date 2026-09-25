@@ -19,7 +19,7 @@ const fs = require('fs');
 const path = require('path');
 const { engine, loadLists, loadCorpora } = require('../tools/lib');
 
-const anchors = new Set(JSON.parse(fs.readFileSync(path.join(__dirname, 'anchors.json'), 'utf8')).entries.map((a) => a.id));
+const anchors = new Set(JSON.parse(fs.readFileSync(process.env.ANCHORS || path.join(__dirname, 'anchors.json'), 'utf8')).entries.map((a) => a.id));
 const labeled = JSON.parse(fs.readFileSync(path.join(__dirname, 'wiki-random-occurrences.json'), 'utf8')).occurrences;
 
 // רמת החשד של כל התאמת צניעות בדף.
