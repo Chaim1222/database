@@ -8,7 +8,8 @@
 		"modesty": "צניעות",
 		"faith": "אמונה ונצרות",
 		"dating": "תיארוך ומדע",
-		"wiki": "שאריות מוויקיפדיה"
+		"wiki": "שאריות מוויקיפדיה",
+		"age": "גיל העולם"
 	},
 	"statuses": {
 		"active": "פעיל",
@@ -1777,26 +1778,28 @@
 		{
 			"id": "w0147",
 			"pattern": "מ[י]*ליו[ןני]* שנ[יםה]",
-			"level": "review",
-			"topic": "dating",
+			"level": "problem",
+			"topic": "age",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום בהיר"
-			]
+			],
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
 		},
 		{
 			"id": "w0148",
 			"pattern": "מ[י]ליארד[י]* שנ[הים]",
-			"level": "review",
-			"topic": "dating",
+			"level": "problem",
+			"topic": "age",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום בהיר"
-			]
+			],
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
 		},
 		{
 			"id": "w0149",
@@ -1850,25 +1853,27 @@
 			"id": "w0153",
 			"pattern": "לפני זמנ[י]*נו",
 			"level": "review",
-			"topic": "dating",
+			"topic": "age",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"sources": [
 				"במח/אדום בהיר",
 				"בומח/כללי"
-			]
+			],
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. נשאר לבדיקה: \"לפני זמננו\" מופיע בדרך כלל עם מספר גדול, אבל לא תמיד."
 		},
 		{
 			"id": "w0154",
 			"pattern": "גיל היקום",
-			"level": "review",
-			"topic": "dating",
+			"level": "problem",
+			"topic": "age",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"sources": [
 				"במח/אדום בהיר",
 				"בומח/כללי"
-			]
+			],
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
 		},
 		{
 			"id": "w0155",
@@ -1909,26 +1914,28 @@
 		{
 			"id": "w0158",
 			"pattern": "ה[יו]*צרות כדור הארץ",
-			"level": "review",
-			"topic": "dating",
+			"level": "problem",
+			"topic": "age",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"sources": [
 				"במח/אדום בהיר",
 				"בומח/כללי"
-			]
+			],
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
 		},
 		{
 			"id": "w0159",
 			"pattern": "ה[יו]*וצרות היקום",
-			"level": "review",
-			"topic": "dating",
+			"level": "problem",
+			"topic": "age",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"sources": [
 				"במח/אדום בהיר",
 				"בומח/כללי"
-			]
+			],
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
 		},
 		{
 			"id": "w0160",
@@ -2017,278 +2024,301 @@
 		{
 			"id": "w0167",
 			"pattern": "מיוקן",
-			"level": "review",
-			"topic": "dating",
+			"level": "problem",
+			"topic": "age",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"sources": [
 				"במח/אדום בהיר",
 				"בומח/כללי"
-			]
+			],
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
 		},
 		{
 			"id": "w0168",
 			"pattern": "פליוקן",
-			"level": "review",
-			"topic": "dating",
+			"level": "problem",
+			"topic": "age",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"sources": [
 				"במח/אדום בהיר",
 				"בומח/כללי"
-			]
+			],
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
 		},
 		{
 			"id": "w0169",
 			"pattern": "רביעון",
-			"level": "review",
-			"topic": "dating",
+			"level": "problem",
+			"topic": "age",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"sources": [
 				"במח/אדום בהיר",
 				"בומח/כללי"
-			]
+			],
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
 		},
 		{
 			"id": "w0170",
 			"pattern": "שלישון",
-			"level": "review",
-			"topic": "dating",
+			"level": "problem",
+			"topic": "age",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום בהיר"
-			]
+			],
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
 		},
 		{
 			"id": "w0171",
 			"pattern": "פלאוקן",
-			"level": "review",
-			"topic": "dating",
+			"level": "problem",
+			"topic": "age",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"sources": [
 				"במח/אדום בהיר",
 				"בומח/כללי"
-			]
+			],
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
 		},
 		{
 			"id": "w0172",
 			"pattern": "פלאוגן",
-			"level": "review",
-			"topic": "dating",
+			"level": "problem",
+			"topic": "age",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום בהיר"
-			]
+			],
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
 		},
 		{
 			"id": "w0173",
 			"pattern": "אאוקן",
-			"level": "review",
-			"topic": "dating",
+			"level": "problem",
+			"topic": "age",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום בהיר"
-			]
+			],
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
 		},
 		{
 			"id": "w0174",
 			"pattern": "אוליגוקן",
-			"level": "review",
-			"topic": "dating",
+			"level": "problem",
+			"topic": "age",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום בהיר"
-			]
+			],
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
 		},
 		{
 			"id": "w0175",
 			"pattern": "פליסטוקן",
-			"level": "review",
-			"topic": "dating",
+			"level": "problem",
+			"topic": "age",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"sources": [
 				"במח/אדום בהיר",
 				"בומח/כללי"
-			]
+			],
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
 		},
 		{
 			"id": "w0176",
 			"pattern": "קרטיקון",
-			"level": "review",
-			"topic": "dating",
+			"level": "problem",
+			"topic": "age",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום בהיר"
-			]
+			],
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
 		},
 		{
 			"id": "w0177",
 			"pattern": "הולוקן",
-			"level": "review",
-			"topic": "dating",
+			"level": "problem",
+			"topic": "age",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"sources": [
 				"במח/אדום בהיר",
 				"בומח/כללי"
-			]
+			],
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
 		},
 		{
 			"id": "w0178",
 			"pattern": "קמבריון",
-			"level": "review",
-			"topic": "dating",
+			"level": "problem",
+			"topic": "age",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"sources": [
 				"במח/אדום בהיר",
 				"בומח/כללי"
-			]
+			],
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
 		},
 		{
 			"id": "w0179",
 			"pattern": "אורדוביק",
 			"level": "review",
-			"topic": "dating",
+			"topic": "age",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"sources": [
 				"במח/אדום בהיר",
 				"בומח/כללי"
-			]
+			],
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. נשאר לבדיקה: תופס גם את שבט האורדוביקים."
 		},
 		{
 			"id": "w0180",
 			"pattern": "קרבון",
 			"level": "review",
-			"topic": "dating",
+			"topic": "age",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"sources": [
 				"במח/אדום בהיר",
 				"בומח/כללי"
-			]
+			],
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. נשאר לבדיקה: תופס גם קרבון (חומר)."
 		},
 		{
 			"id": "w0181",
 			"pattern": "פלאוזואיקון",
-			"level": "review",
-			"topic": "dating",
+			"level": "problem",
+			"topic": "age",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"sources": [
 				"במח/אדום בהיר",
 				"בומח/כללי"
-			]
+			],
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
 		},
 		{
 			"id": "w0182",
 			"pattern": "מזוזואיקון",
-			"level": "review",
-			"topic": "dating",
+			"level": "problem",
+			"topic": "age",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"sources": [
 				"במח/אדום בהיר",
 				"בומח/כללי"
-			]
+			],
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
 		},
 		{
 			"id": "w0183",
 			"pattern": "קנוזואיקון",
-			"level": "review",
-			"topic": "dating",
+			"level": "problem",
+			"topic": "age",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"sources": [
 				"במח/אדום בהיר",
 				"בומח/כללי"
-			]
+			],
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
 		},
 		{
 			"id": "w0184",
 			"pattern": "נאוגן",
-			"level": "review",
-			"topic": "dating",
+			"level": "problem",
+			"topic": "age",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום בהיר"
-			]
+			],
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
 		},
 		{
 			"id": "w0185",
 			"pattern": "פנרוזואיקון",
-			"level": "review",
-			"topic": "dating",
+			"level": "problem",
+			"topic": "age",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום בהיר"
-			]
+			],
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
 		},
 		{
 			"id": "w0186",
 			"pattern": "ארכאיקון",
-			"level": "review",
-			"topic": "dating",
+			"level": "problem",
+			"topic": "age",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום בהיר"
-			]
+			],
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
 		},
 		{
 			"id": "w0187",
 			"pattern": "האדן",
 			"level": "review",
-			"topic": "dating",
+			"topic": "age",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום בהיר"
-			]
+			],
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. נשאר לבדיקה: תופס גם את שם המשפחה האדן."
 		},
 		{
 			"id": "w0188",
 			"pattern": "טריאס",
 			"level": "review",
-			"topic": "dating",
+			"topic": "age",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום בהיר"
-			]
+			],
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. נשאר לבדיקה: תופס גם טריאסטה."
 		},
 		{
 			"id": "w0189",
 			"pattern": "פרוטרוזואיקון",
-			"level": "review",
-			"topic": "dating",
+			"level": "problem",
+			"topic": "age",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום בהיר"
-			]
+			],
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
 		},
 		{
 			"id": "w0190",
@@ -2342,13 +2372,14 @@
 			"id": "w0194",
 			"pattern": "אלף (השמיני|השביעי|התשיעי)",
 			"level": "review",
-			"topic": "dating",
+			"topic": "age",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום בהיר"
-			]
+			],
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. נשאר לבדיקה: בלי לפנה\"ס - \"האלף השביעי\" יכול להיות גם לפי מניין השנים העברי."
 		},
 		{
 			"id": "w0195",
@@ -2377,74 +2408,80 @@
 		{
 			"id": "w0197",
 			"pattern": "4000 לפנה\"ס",
-			"level": "review",
-			"topic": "dating",
+			"level": "problem",
+			"topic": "age",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום בהיר"
-			]
+			],
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
 		},
 		{
 			"id": "w0198",
 			"pattern": "5000 לפנה\"ס",
-			"level": "review",
-			"topic": "dating",
+			"level": "problem",
+			"topic": "age",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום בהיר"
-			]
+			],
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
 		},
 		{
 			"id": "w0199",
 			"pattern": "6000 לפנה\"ס",
-			"level": "review",
-			"topic": "dating",
+			"level": "problem",
+			"topic": "age",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום בהיר"
-			]
+			],
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
 		},
 		{
 			"id": "w0200",
 			"pattern": "7000 לפנה\"ס",
-			"level": "review",
-			"topic": "dating",
+			"level": "problem",
+			"topic": "age",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום בהיר"
-			]
+			],
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
 		},
 		{
 			"id": "w0201",
 			"pattern": "8000 לפנה\"ס",
-			"level": "review",
-			"topic": "dating",
+			"level": "problem",
+			"topic": "age",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום בהיר"
-			]
+			],
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
 		},
 		{
 			"id": "w0202",
 			"pattern": "9000 לפנה\"ס",
-			"level": "review",
-			"topic": "dating",
+			"level": "problem",
+			"topic": "age",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום בהיר"
-			]
+			],
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
 		},
 		{
 			"id": "w0203",
@@ -4009,13 +4046,14 @@
 		{
 			"id": "w0336",
 			"pattern": "(מיליו[ןנ]י?|מיליארדי?) שנ[הי]ם?",
-			"level": "review",
-			"topic": "dating",
+			"level": "problem",
+			"topic": "age",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"sources": [
 				"בומח/כללי"
-			]
+			],
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
 		},
 		{
 			"id": "w0337",
@@ -4865,7 +4903,7 @@
 		},
 		{
 			"id": "w0409",
-			"pattern": "(?<![א-ת])[וה]?זקפה(?![א-ת])",
+			"pattern": "(?<![א-ת])[וה]?זי?קפה(?![א-ת])",
 			"level": "review",
 			"topic": "modesty",
 			"status": "suggested",
@@ -4873,7 +4911,7 @@
 			"sources": [
 				"הצעת Claude (מילה חדשה)"
 			],
-			"note": "זקפה - אבל גם זקיפה (חשבונאות)."
+			"note": "זקפה / זיקפה (שני הכתיבים - לבקשת חיים בסקירה). לא \"זקיפה\" (חשבונאות)."
 		},
 		{
 			"id": "w0410",
@@ -5102,6 +5140,90 @@
 				"הצעת Claude (מילה חדשה)"
 			],
 			"note": "תוכן למבוגרים - אבל גם הספרה הרומית 30 (Super Bowl XXX)."
+		},
+		{
+			"id": "w0429",
+			"pattern": "(?<![\\d,.])(?:[6-9],?\\d{3}|[1-9]\\d{1,2},\\d{3}|[1-9]\\d{4,}|[1-9]\\d{0,2}(?:,\\d{3}){2,})\\s*שנ(?:ה|ים)(?![א-ת])",
+			"level": "problem",
+			"topic": "age",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (לפי הכרעת חיים 2026-09-24: גיל העולם והיווצרות היקום - חמור, דורש הסרה)"
+			],
+			"note": "מספר שנים של 6,000 ומעלה (\"לפני 30,000 שנה\", \"בן 10000 שנים\"). בודק את המספר עצמו, בלי תלות במילה שלפניו. לא תופס 1,000-5,999 שנה."
+		},
+		{
+			"id": "w0430",
+			"pattern": "(?<![\\d.])(?:[6-9]|[1-9]\\d{1,2})(?:\\.\\d+)?\\s*אלף שנ(?:ה|ים)(?![א-ת])|(?:עשרות|מאות) אלפי שנים",
+			"level": "problem",
+			"topic": "age",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (לפי הכרעת חיים 2026-09-24: גיל העולם והיווצרות היקום - חמור, דורש הסרה)"
+			],
+			"note": "\"14 אלף שנה\", \"עשרות אלפי שנים\". פחות מ-6 אלף לא נתפס."
+		},
+		{
+			"id": "w0431",
+			"pattern": "(?:מיליו[ןנ]י?|מליו[ןנ]י?|מיליארדי?|מליארדי?)\\s+שנ(?:ה|ים)(?![א-ת])|למ\"ש",
+			"level": "problem",
+			"topic": "age",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (לפי הכרעת חיים 2026-09-24: גיל העולם והיווצרות היקום - חמור, דורש הסרה)"
+			],
+			"note": "מיליוני ומיליארדי שנים, וגם הקיצור למ\"ש (לפני מיליון שנה). מקביל ל-w0147/w0148/w0336, שנשארו הערת ניסוח."
+		},
+		{
+			"id": "w0432",
+			"pattern": "(?<![\\d,.])(?:3[89]\\d{2}|37[6-9]\\d|[4-9],?\\d{3}|[1-9]\\d{1,2},?\\d{3})\\s*(?:לפנה\"ס|לפני הספירה)",
+			"level": "problem",
+			"topic": "age",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (לפי הכרעת חיים 2026-09-24: גיל העולם והיווצרות היקום - חמור, דורש הסרה)"
+			],
+			"note": "שנה לפני הספירה שקודמת לבריאה (3761 לפנה\"ס ומעלה). \"419 לפנה\"ס\" ו-\"2250 לפנה\"ס\" לא נתפסים."
+		},
+		{
+			"id": "w0433",
+			"pattern": "[הבלמ]אלף ה-?(?:[4-9]|1\\d)\\s*(?:לפנה\"ס|לפני הספירה)|[הבלמ]אלף (?:הרביעי|החמישי|השישי|השביעי|השמיני|התשיעי|העשירי)\\s*(?:לפנה\"ס|לפני הספירה)",
+			"level": "problem",
+			"topic": "age",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (לפי הכרעת חיים 2026-09-24: גיל העולם והיווצרות היקום - חמור, דורש הסרה)"
+			],
+			"note": "האלף הרביעי לפני הספירה ואילך. בשונה מ-w0160, לא כולל את האלף השלישי (שהוא אחרי הבריאה)."
+		},
+		{
+			"id": "w0434",
+			"pattern": "(?:גיל|היווצרות|הווצרות|התהוות)\\s+(?:ה)?(?:יקום|כדור הארץ|מערכת השמש)(?![א-ת])|המפץ הגדול",
+			"level": "problem",
+			"topic": "age",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (לפי הכרעת חיים 2026-09-24: גיל העולם והיווצרות היקום - חמור, דורש הסרה)"
+			],
+			"note": "היווצרות היקום, כדור הארץ ומערכת השמש, והמפץ הגדול. \"יצירת היקום\" לא נכלל, כי הוא מופיע גם בהקשר אמוני וגם ב\"יצירת היקום הקולנועי\". הסדרה \"המפץ הגדול\" מוחרגת (a026)."
+		},
+		{
+			"id": "w0435",
+			"pattern": "(?<![א-ת])[ובלהמ]{0,2}(?:מיוקן|פליוקן|פלייסטוקן|פליסטוקן|הולוקן|אאוקן|אוליגוקן|פלאוקן|פלאוגן|נאוגן|רביעון|שלישון|קרטיקון|קמבריון|אורדוביק|סילור|טריאס|פלאוזואיקון|מזוזואיקון|קנוזואיקון|פנרוזואיקון|ארכאיקון|פרוטרוזואיקון|האדאיקון|פרקמבריון)(?![א-ת])",
+			"level": "problem",
+			"topic": "age",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (לפי הכרעת חיים 2026-09-24: גיל העולם והיווצרות היקום - חמור, דורש הסרה)"
+			],
+			"note": "שמות תקופות גאולוגיות. השמות שיש להם משמעות נוספת לא נכללו: יורה, דבון, פרם, קרבון. גם טריאסטה לא נתפס."
 		}
 	]
 }

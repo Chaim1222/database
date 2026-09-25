@@ -91,6 +91,21 @@ code.pat {
 .evidence { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 0.9rem; margin-top: 6px; font-variant-numeric: tabular-nums; }
 .evidence b { font-weight: 700; }
 .evidence .hot { color: var(--problem); }
+.wr { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 6px; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+.wr-label { font-weight: 700; }
+.bar { display: inline-flex; width: 140px; height: 10px; border-radius: 3px; overflow: hidden; background: var(--line); }
+.bar span { display: block; height: 100%; }
+.bar .p { background: var(--problem); }
+.bar .i { background: var(--ok); }
+.bar .u { background: var(--muted); opacity: 0.55; }
+.wr .k-p { color: var(--problem); }
+.wr .k-i { color: var(--ok); }
+.wr .k-u { color: var(--muted); }
+.mismatch { font-size: 0.8rem; font-weight: 700; color: var(--review); background: var(--review-soft); padding: 1px 8px; border-radius: 999px; }
+.chip { font-size: 0.72rem; font-weight: 700; padding: 0 6px; border-radius: 999px; margin-inline-end: 4px; white-space: nowrap; }
+.chip.problem { background: var(--problem-soft); color: var(--problem); }
+.chip.innocent { background: var(--ok-soft); color: var(--ok); }
+.chip.unclear { background: var(--no-soft); color: var(--no); }
 details.ex { margin-top: 4px; font-size: 0.9rem; }
 details.ex summary { cursor: pointer; color: var(--accent); font-weight: 600; }
 .ex h4 { font: 600 0.85rem var(--body); color: var(--muted); margin: 8px 0 2px; }
@@ -157,11 +172,11 @@ button:disabled, textarea:disabled { opacity: 0.55; cursor: not-allowed; }
 	'use strict';
 	var TABS = [
 		{ id: 'suggested', label: 'מילים שהצעתי', kind: 'word',
-			intro: 'מילים ותבניות שהוספתי על דעתי - לא פעילות עד שתאשר. ליד כל אחת: בכמה ערכים חסומים היא מופיעה ובכמה ערכי מכלול (שם היא כנראה התראת שווא, או תוכן שכדאי לנקות). אפשר לשנות רמה ולכתוב הערה.' },
+			intro: 'מילים ותבניות שהוספתי על דעתי - לא פעילות עד שתאשר. הנתון החשוב: "בוויקיפדיה רגילה" - במדגם אקראי של 2,036 ערכים, כמה מהמופעים בעייתיים לפי ההקשר וכמה תמימים (הסיווג שלי, לאישורך - ב"דוגמאות"). בנוסף: בכמה ערכים חסומים ובכמה ערכי מכלול היא מופיעה.' },
 		{ id: 'allow', label: 'ביטויים מותרים', kind: 'allow',
 			intro: 'ביטויים שבתוכם מילה חשודה אינה בעיה ("המין האנושי", "בואנוס איירס"). ליד כל אחד: כמה התאמות הוא מבטל בערכים החסומים (כדאי שיהיה נמוך) וכמה במכלול.' },
 		{ id: 'existing', label: 'רשימות קיימות', kind: 'word',
-			intro: 'התבניות מהדפים "בדיקת מילים חשודות" ו"בודק מילים חשודות". הרמה נקבעה לפי הרשימה שממנה הגיעו (אדום כהה ובומח-צניעות = בעיה ודאית). ממוינות לפי מספר ערכי המכלול שהן תופסות - החשודות ברמה שגויה בראש.' },
+			intro: 'התבניות מהדפים "בדיקת מילים חשודות" ו"בודק מילים חשודות". הרמה נקבעה לפי הרשימה שממנה הגיעו (אדום כהה ובומח-צניעות = בעיה ודאית). "בוויקיפדיה רגילה" מראה איך המילה מתנהגת בערכים רגילים: אם רוב המופעים תמימים, כנראה מתאים "לבדיקה" (או ביטוי מותר). בראש - הרשומות שהרמה שלהן הכי לא מתאימה לנתונים.' },
 		{ id: 'findings', label: 'ממצאים במכלול', kind: 'finding',
 			intro: 'ערכים מהמדגם האקראי של המכלול (2,020 ערכים) עם התאמה ברמת "בעיה ודאית" בצניעות. חלקם תוכן שכדאי לנקות, וחלקם התראות שווא שיעזרו לשפר את הרשימות. בראש: ערכים שנתפסו במילה נדירה במכלול - שם הסיכוי לבעיה אמיתית גבוה יותר. ליד כל התאמה - מזהה הרשומה שתפסה אותה.' }
 	];
@@ -172,6 +187,17 @@ button:disabled, textarea:disabled { opacity: 0.55; cursor: not-allowed; }
 	};
 	var DECIDED_LABELS = { approve: 'אושר', reject: 'נדחה', real: 'בעיה אמיתית', false: 'התראת שווא' };
 	var LEVEL_LABELS = { problem: 'בעיה ודאית', review: 'לבדיקה' };
+	var WR_LABELS = { problem: 'בעייתי', innocent: 'תמים', unclear: 'לא ברור' };
+
+	// אי-התאמה בין הרמה לבין ההתנהגות בוויקיפדיה רגילה (מ-5 מופעים ומעלה).
+	function mismatchHint(item) {
+		var wr = item.wr;
+		if (!wr || wr.n < 5) return '';
+		var share = wr.problem / wr.n;
+		if (item.level === 'problem' && share < 0.5) return 'רוב המופעים תמימים - אולי "לבדיקה"';
+		if (item.level === 'review' && share >= 0.8) return 'כמעט תמיד בעייתי - אולי "בעיה ודאית"';
+		return '';
+	}
 
 	var data = null, db = null, decisions = {}, active = 'suggested', rows = {};
 	var $ = function (id) { return document.getElementById(id); };
@@ -242,6 +268,31 @@ button:disabled, textarea:disabled { opacity: 0.55; cursor: not-allowed; }
 			box.appendChild(ul);
 			return box;
 		}
+		// ויקיפדיה אקראית: המדד המייצג - איך המילה מתנהגת בערכים רגילים.
+		var wr = item.wr;
+		if (kind === 'word') {
+			var row = el('div', 'wr');
+			row.appendChild(el('span', 'wr-label', 'בוויקיפדיה רגילה:'));
+			if (!wr) {
+				row.appendChild(el('span', 'k-u', 'לא הופיעה במדגם של ' + data.totals.wikiRandom + ' ערכים'));
+			} else {
+				var bar = el('span', 'bar');
+				[['p', wr.problem], ['i', wr.innocent], ['u', wr.unclear]].forEach(function (pair) {
+					var seg = el('span', pair[0]);
+					seg.style.width = (100 * pair[1] / wr.n) + '%';
+					bar.appendChild(seg);
+				});
+				bar.title = wr.problem + ' בעייתיים, ' + wr.innocent + ' תמימים, ' + wr.unclear + ' לא ברורים';
+				row.appendChild(bar);
+				row.appendChild(el('span', null, wr.n + ' ערכים:'));
+				row.appendChild(el('span', 'k-p', wr.problem + ' בעייתיים'));
+				row.appendChild(el('span', 'k-i', wr.innocent + ' תמימים'));
+				if (wr.unclear) row.appendChild(el('span', 'k-u', wr.unclear + ' לא ברורים'));
+				var hint = mismatchHint(item);
+				if (hint) row.appendChild(el('span', 'mismatch', hint));
+			}
+			box.appendChild(row);
+		}
 		if (!ev) return box;
 		var line = el('div', 'evidence');
 		var totals = data.totals;
@@ -254,12 +305,24 @@ button:disabled, textarea:disabled { opacity: 0.55; cursor: not-allowed; }
 		line.appendChild(b);
 		line.appendChild(m);
 		box.appendChild(line);
-		if (ev.xb.length || ev.xm.length) {
+		if (ev.xb.length || ev.xm.length || (wr && wr.x.length)) {
 			var det = el('details', 'ex');
 			det.appendChild(el('summary', null, 'דוגמאות'));
 			det.addEventListener('toggle', function once() {
 				if (!det.open || det.dataset.filled) return;
 				det.dataset.filled = '1';
+				if (wr && wr.x.length) {
+					det.appendChild(el('h4', null, 'מוויקיפדיה רגילה, עם הסיווג שלי (הצעה)'));
+					var wul = el('ul');
+					wr.x.forEach(function (x) {
+						var li = el('li');
+						li.appendChild(el('span', 'chip ' + x.label, WR_LABELS[x.label]));
+						li.appendChild(el('span', 't', x.title + ': '));
+						li.appendChild(contextNode(x.context));
+						wul.appendChild(li);
+					});
+					det.appendChild(wul);
+				}
 				[['xm', 'מהמכלול'], ['xb', 'מהערכים החסומים (ויקיפדיה)']].forEach(function (pair) {
 					if (!ev[pair[0]].length) return;
 					det.appendChild(el('h4', null, pair[1]));
@@ -317,6 +380,9 @@ button:disabled, textarea:disabled { opacity: 0.55; cursor: not-allowed; }
 				var level = d.level || item.level;
 				head.appendChild(el('span', 'pill ' + level, LEVEL_LABELS[level] + (d.level && d.level !== item.level ? ' (שונה)' : '')));
 				head.appendChild(el('span', 'pill topic', data.topics[item.topic] || item.topic));
+			}
+			if (kind === 'allow' && item.kind) {
+				head.appendChild(el('span', 'pill topic', item.kind === 'demote' ? 'שימוש תמים - יורד לבדיקה' : 'לא המילה - מוסתר'));
 			}
 		}
 		if (d.decision) head.appendChild(el('span', 'pill decided-' + d.decision, DECIDED_LABELS[d.decision]));
@@ -387,7 +453,13 @@ button:disabled, textarea:disabled { opacity: 0.55; cursor: not-allowed; }
 				i.matches.forEach(function (m) { m.entries.forEach(function (id) { rarest = Math.min(rarest, hitsById[id]); }); });
 				return [rarest, 0];
 			}
-			return [-(i.ev ? i.ev.m : 0), -(i.ev ? i.ev.b : 0)];
+			// קודם רשומות שהרמה שלהן לא מתאימה להתנהגות בוויקיפדיה רגילה, אחר כך לפי ערכי מכלול.
+			var suspicion = 0;
+			if (i.wr && i.wr.n >= 5) {
+				var share = i.wr.problem / i.wr.n;
+				suspicion = i.level === 'problem' ? 1 - share : share;
+			}
+			return [-Math.round(suspicion * 100), -(i.ev ? i.ev.m : 0)];
 		};
 		return items.slice().sort(function (a, b) {
 			var ka = key(a), kb = key(b);

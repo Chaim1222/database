@@ -69,22 +69,29 @@ test('three-level verdict', () => {
 	assert.strictEqual(verdict('תעשיית הפורנו'), 'problem');
 	assert.strictEqual(verdict('סיפור אהבה'), 'review');
 	// נושאים שאינם צניעות הם הערות ניסוח: נמצאים, אבל לא משנים את רמת הדף.
-	assert.strictEqual(verdict('לפני מיליון שנה'), 'clean');
-	assert.strictEqual(engine.scan('לפני מיליון שנה', FULL)[0].topic, 'dating');
-	assert.strictEqual(engine.verdict(engine.scan('לפני מיליון שנה', FULL), ['dating']), 'review');
+	assert.strictEqual(verdict('נפטר בשנת 419 לפנה"ס'), 'wording'); // הערת ניסוח בלבד
+	assert.strictEqual(engine.scan('נפטר בשנת 419 לפנה"ס', FULL)[0].topic, 'dating');
+	assert.strictEqual(engine.verdict(engine.scan('נפטר בשנת 419 לפנה"ס', FULL), ['dating']), 'review');
 	assert.strictEqual(verdict('שלום עולם'), 'clean');
 	const [m] = engine.scan('שורה\nמשהו פורנו כאן', FULL);
 	assert.strictEqual(m.line, 2);
 	assert.strictEqual(m.level, 'problem');
 });
 
-test('allow list (suggested) clears ambiguous uses but not the real word', () => {
-	for (const t of ['המין האנושי', 'מינים בסכנת הכחדה', 'אתר מורשת של אונסק"ו', 'בואנוס איירס', 'הקיסר אדריאנוס',
-		'הממצאים חשפו', 'דוכס סקסוניה', 'טרנסילבניה', 'כל מיני כלים', 'בשוגג או באונס', '[[מין (טקסונומיה)|מין]] של ציפור']) {
+test('allow list: hide = not the word at all; demote = innocent use, shown as review', () => {
+	for (const t of ['אתר מורשת של אונסק"ו', 'בואנוס איירס', 'הקיסר אדריאנוס', 'דוכס סקסוניה', 'טרנסילבניה',
+		'כל מיני כלים', 'כנסייה רומנסקית']) {
 		assert.strictEqual(verdict(t), 'clean', t);
 	}
+	// הכרעת חיים: שימוש תמים במילה אמיתית לא נעלם - יורד ל"לבדיקה".
+	for (const t of ['המין האנושי', 'הממצאים חשפו', 'בשוגג או באונס', '[[מין (טקסונומיה)|מין]] של ציפור',
+		'רבייה מינית אפשרית מהשנה השנייה', 'הפרחים דו-מיניים', 'מתבגרים מינית לאט']) {
+		assert.strictEqual(verdict(t), 'review', t);
+	}
+	assert.strictEqual(engine.verdict(engine.scan('רבייה מינית', ACTIVE)), 'problem'); // בלי ההיתר
+	assert.strictEqual(engine.verdict(engine.scan('רבייה מינית', engine.compileLists(words, allow))), 'review'); // a028 פעיל
 	for (const t of ['היא הייתה אנוסה', 'הוא אנס אותה', 'זוג מאותו המין', 'תעשיית הפורנו', 'אלבום Fuck You']) {
-		assert.notStrictEqual(verdict(t), 'clean', t);
+		assert.strictEqual(verdict(t), 'problem', t);
 	}
 });
 
@@ -96,4 +103,38 @@ test('case sensitivity follows the source list', () => {
 test('wiki leftovers are checked on visible text only', () => {
 	assert.deepStrictEqual(texts('{{ויקיפדיה}} [[ויקיפדיה:מדיניות|מדיניות]] <!-- ויקיפדיה -->'), []);
 	assert.ok(texts('הערך הועתק מוויקיפדיה').length);
+});
+
+// גיל העולם (הכרעת חיים 2026-09-24): חמור, נספר ברמה. הרשומות עדיין בגדר הצעה.
+test('age of the world counts in the verdict; recent dates do not', () => {
+	for (const t of ['לפני כ-30 מיליון שנה', 'חיו כאן לפני 30,000 שנה', 'כמעט 14 אלף שנה', 'מסביבות 4000 לפנה"ס',
+		'באלף הרביעי לפני הספירה', 'היווצרות כדור הארץ', 'המפץ הגדול', 'חיו בקרטיקון', 'בתקופת הפלייסטוקן'])
+		assert.strictEqual(verdict(t), 'problem', t);
+	for (const t of ['לפני 5,000 שנה', 'בן 4000 שנים', 'אלף שנים', 'המתוארכות ל-2250 לפנה"ס', 'באלף השלישי לפנה"ס',
+		'נסע לטריאסטה', 'לפני 1,000 שנה'])
+		assert.notStrictEqual(verdict(t), 'problem', t);
+	// רשומות התיארוך הישנות שחיים העביר לגיל העולם - פעילות.
+	assert.strictEqual(engine.verdict(engine.scan('לפני מיליון שנה', ACTIVE)), 'problem');
+	assert.strictEqual(engine.verdict(engine.scan('נסע לטריאסטה', ACTIVE)), 'review');
+	assert.strictEqual(engine.verdict(engine.scan('חיו לפני 30,000 שנה', ACTIVE)), 'wording'); // w0429 - עדיין הצעה; נתפס רק כתיארוך
+});
+
+test('contained matches merge; sentence context is readable text', () => {
+	const t = 'משפט קודם. [[קטגוריה:שירים על מיניות]]';
+	const ms = engine.scan(t, FULL).filter((m) => m.topic === 'modesty');
+	assert.strictEqual(ms.length, 1);
+	assert.strictEqual(ms[0].text, 'מיניות');
+	const src = 'פתיחה. היא דיברה על [[אלימות מינית בטבח|האלימות המינית]] שבוצעה<ref>{{צ-מאמר|שם=x}}</ref> בטבח. סוף.';
+	const [m] = engine.scan(src, FULL).filter((x) => x.topic === 'modesty');
+	const c = engine.contextOf(src, m);
+	assert.deepStrictEqual([c.before, c.text, c.after], ['היא דיברה על האלימות ', 'המינית', ' שבוצעה בטבח.']);
+});
+
+test('context inside a template shows only the parameter text', () => {
+	const src = 'בפסטיבל {{קישור שפה|אנגלית|Annecy Festival|פסטיבל האנימציה של אנסי}} הוכרז השם.';
+	const lists = engine.compileLists(words, { entries: [] });
+	const m = engine.scan(src, lists).find((x) => x.text === 'אנסי');
+	assert.ok(m);
+	const c = engine.contextOf(src, m);
+	assert.strictEqual(c.before + '[' + c.text + ']' + c.after, 'בפסטיבל פסטיבל האנימציה של [אנסי] הוכרז השם.');
 });

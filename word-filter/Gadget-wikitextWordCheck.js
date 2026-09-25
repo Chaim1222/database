@@ -1,20 +1,22 @@
 /*
  * בדיקת מילים חשודות בוויקיטקסט
  *
- * סורק את קוד הוויקיטקסט שבתיבת העריכה ומסווג את הדף, מבחינת צניעות, לאחת
- * משלוש רמות:
+ * סורק את קוד הוויקיטקסט שבתיבת העריכה ומסווג את הדף לאחת מארבע רמות:
  *   בעיה ודאית  - נמצאה מילה שהיא בעיה במובהק.
  *   לבדיקה      - נמצאה רק מילה דו-משמעית (למשל "מין", "רומן", "אונס" ההלכתי).
+ *   דורש ניסוח  - נמצאו רק הערות ניסוח (אמונה ונצרות, תיארוך, שאריות מוויקיפדיה).
  *   נקי         - לא נמצא דבר.
- * נושאים אחרים (אמונה ונצרות, תיארוך ומדע, שאריות מוויקיפדיה) דורשים ניסוח
- * ולא פסילה, ולכן מוצגים בנפרד כ"הערות ניסוח" ולא משפיעים על הרמה. במדגם של
- * 2,020 ערכי מכלול הם מופיעים ב-20% מהערכים - כחלק מהרמה, רוב המכלול היה "לבדיקה".
+ * הנושאים שקובעים בעיה/לבדיקה: צניעות, וגיל העולם והיווצרות היקום (age) - חמור
+ * ודורש הסרה. שאר הנושאים דורשים ניסוח ולא פסילה (הכרעות חיים, 2026-09-24).
  *
  * רשימות המילים הן שני דפי JSON (ראו WORDS_PAGE, ALLOW_PAGE):
  *   words.json - לכל רשומה: תבנית, רמה (problem/review), נושא (צניעות,
  *                אמונה, תיארוך, שאריות ויקי), סטטוס (active/suggested) והסבר.
- *   allow.json - ביטויים מותרים ("המין האנושי", "בואנוס איירס"): התאמה
- *                שנופלת כולה בתוכם לא מוצגת.
+ *   allow.json - ביטויים מותרים. שני סוגים (שדה kind, הכרעת חיים 2026-09-24):
+ *                hide   - זו בכלל לא המילה ("בואנוס איירס", Assembly): התאמה
+ *                         שנופלת כולה בתוכם לא מוצגת.
+ *                demote - שימוש תמים במילה אמיתית ("המין האנושי", "רומן היסטורי"):
+ *                         ההתאמה מוצגת, אבל "בעיה" יורדת ל"לבדיקה".
  * רשומות בסטטוס "suggested" הן הצעות שעדיין לא אושרו, ולא נבדקות אלא אם
  * מגדירים ב-common.js:  window.wikitextWordCheckSuggested = true;
  *
@@ -36,9 +38,9 @@
 	var ALLOW_PAGE = 'מדיה ויקי:Gadget-wikitextWordCheck-allow.json';
 
 	var LEVELS = { problem: 2, review: 1 };
-	var LEVEL_LABELS = { problem: 'בעיה ודאית', review: 'לבדיקה', clean: 'נקי' };
-	var LEVEL_COLORS = { problem: '#ff5555', review: '#ffd966', clean: '#b6e3b6' };
-	var TOPIC_LABELS = { modesty: 'צניעות', faith: 'אמונה ונצרות', dating: 'תיארוך ומדע', wiki: 'שאריות מוויקיפדיה' };
+	var LEVEL_LABELS = { problem: 'בעיה ודאית', review: 'לבדיקה', wording: 'דורש ניסוח', clean: 'נקי' };
+	var LEVEL_COLORS = { problem: '#ff5555', review: '#ffd966', wording: '#c9d3e8', clean: '#b6e3b6' };
+	var TOPIC_LABELS = { modesty: 'צניעות', faith: 'אמונה ונצרות', dating: 'תיארוך ומדע', wiki: 'שאריות מוויקיפדיה', age: 'גיל העולם' };
 
 	// ===== טעינת הרשימות =====
 
@@ -64,7 +66,7 @@
 		});
 		((allow && allow.entries) || []).filter(usable).forEach(function (entry) {
 			var regex = compile(entry, 'gi');
-			if (regex) allowed.push({ entry: entry, regex: regex });
+			if (regex) allowed.push({ entry: entry, regex: regex, kind: entry.kind === 'demote' ? 'demote' : 'hide' });
 		});
 		return { patterns: patterns, allow: allowed, problems: problems };
 	}
@@ -253,11 +255,11 @@
 		// ביטויים מותרים נבדקים גם על הגולמי (קישור שלם לפי היעד שלו) וגם על
 		// הממוסך (ביטוי מוצג שמפוצל בסימון).
 		var allowed = [];
-		var allowRegexes = lists.allow.map(function (a) { return a.regex; })
-			.concat((options.allow || []).map(function (p) { return new RegExp(p, 'gi'); }));
-		allowRegexes.forEach(function (re) {
+		var allowRules = lists.allow
+			.concat((options.allow || []).map(function (p) { return { regex: new RegExp(p, 'gi'), kind: 'hide', entry: null }; }));
+		allowRules.forEach(function (rule) {
 			(masked === wikitext ? [wikitext] : [wikitext, masked]).forEach(function (text) {
-				allMatches(re, text, function (m) { allowed.push([m.index, m.index + m[0].length]); });
+				allMatches(rule.regex, text, function (m) { allowed.push([m.index, m.index + m[0].length, rule]); });
 			});
 		});
 
@@ -284,40 +286,109 @@
 				while (end > start && /\s/.test(hay[end - 1])) end--;
 				if (start === end) return;
 				if (options.wordStart !== false && !containsWordStart(hay, m.index, end, entry.pattern)) return;
-				if (allowed.some(function (a) { return a[0] <= start && end <= a[1]; })) return;
+				var covering = allowed.filter(function (a) { return a[0] <= start && end <= a[1]; });
+				if (covering.some(function (a) { return a[2].kind === 'hide'; })) return;
+				var level = entry.level;
+				if (covering.length && level === 'problem') level = 'review';
 				var key = start + ':' + end;
 				var match = bySpan[key];
 				if (!match) {
 					match = bySpan[key] = { start: start, end: end, text: wikitext.slice(start, end), line: lineOf(start),
-						level: entry.level, topic: entry.topic, entries: [] };
+						level: level, topic: entry.topic, entries: [], demotedBy: [] };
 					result.push(match);
 				}
 				if (match.entries.indexOf(entry) < 0) match.entries.push(entry);
-				if (LEVELS[entry.level] > LEVELS[match.level]) {
-					match.level = entry.level;
+				covering.forEach(function (a) { if (a[2].entry && match.demotedBy.indexOf(a[2].entry) < 0) match.demotedBy.push(a[2].entry); });
+				if (LEVELS[level] > LEVELS[match.level]) {
+					match.level = level;
 					match.topic = entry.topic;
 				}
 			});
 		});
-		return result.sort(function (a, b) { return a.start - b.start || a.end - b.end; });
+		// התאמה שכלולה בהתאמה אחרת ("מיני" בתוך "מיניות", "לפנה"ס" בתוך "4000 לפנה"ס") מתמזגת
+		// בה, כדי שכל מילה תופיע פעם אחת. הרמה - הגבוהה; הנושא - של הרמה הגבוהה, ועדיפות לנושא שנספר.
+		result.sort(function (a, b) { return a.start - b.start || b.end - a.end; });
+		var merged = [];
+		result.forEach(function (m) {
+			var outer = merged[merged.length - 1];
+			if (!outer || m.start >= outer.end || m.end > outer.end) { merged.push(m); return; }
+			m.entries.forEach(function (e) { if (outer.entries.indexOf(e) < 0) outer.entries.push(e); });
+			m.demotedBy.forEach(function (e) { if (outer.demotedBy.indexOf(e) < 0) outer.demotedBy.push(e); });
+			var counts = function (x) { return VERDICT_TOPICS.indexOf(x.topic) >= 0; };
+			if (LEVELS[m.level] > LEVELS[outer.level] || (m.level === outer.level && counts(m) && !counts(outer))) {
+				outer.level = m.level;
+				outer.topic = m.topic;
+			}
+		});
+		return merged;
 	}
 
 	// נושאים שקובעים את רמת הדף. השאר - הערות ניסוח (ראו בראש הקובץ).
-	var VERDICT_TOPICS = ['modesty'];
+	var VERDICT_TOPICS = ['modesty', 'age'];
 
-	// הרמה של הדף כולו: problem / review / clean. topics - אילו נושאים נספרים.
+	// הרמה של הדף כולו: problem / review / wording / clean. topics - אילו נושאים נספרים;
+	// התאמה בנושא אחר הופכת דף נקי ל"דורש ניסוח".
 	function verdict(matches, topics) {
 		topics = topics || VERDICT_TOPICS;
 		var level = 'clean';
 		matches.forEach(function (m) {
-			if (topics.indexOf(m.topic) < 0) return;
-			if (level === 'clean' || LEVELS[m.level] > LEVELS[level]) level = m.level;
+			if (topics.indexOf(m.topic) < 0) {
+				if (level === 'clean') level = 'wording';
+				return;
+			}
+			if (!LEVELS[level] || LEVELS[m.level] > LEVELS[level]) level = m.level;
 		});
 		return level;
 	}
 
+	// המשפט שבו נמצאה ההתאמה, כטקסט קריא (בלי קישורים, תבניות והערות שוליים), לתצוגה
+	// מחוץ לעורך - למשל בדשבורד, שבו הטקסט המלא לא מול העיניים. מחזיר {before, text, after}.
+	var MARK_OPEN = '\u0001', MARK_CLOSE = '\u0002';
+	function contextOf(wikitext, match, maxSide) {
+		maxSide = maxSide || 160;
+		var start = match.start, end = match.end;
+		var from = start, to = end;
+		while (from > 0 && start - from < maxSide && wikitext[from - 1] !== '\n' &&
+			!(/[.!?]/.test(wikitext[from - 1]) && /\s/.test(wikitext[from] || ''))) from--;
+		while (to < wikitext.length && to - end < maxSide && wikitext[to] !== '\n' &&
+			!(/[.!?]/.test(wikitext[to]) && /\s|$/.test(wikitext[to + 1] || ''))) to++;
+		if (to < wikitext.length && /[.!?]/.test(wikitext[to])) to++;
+		var raw = wikitext.slice(from, start) + MARK_OPEN + wikitext.slice(start, end) + MARK_CLOSE + wikitext.slice(end, to);
+		var marked = function (t) { return t.indexOf(MARK_OPEN) >= 0 || t.indexOf(MARK_CLOSE) >= 0; };
+		var links = function (t) {
+			return t.replace(/\[\[([^\[\]|]*)\|([^\[\]]*)\]\]/g, function (m, target, label) { return marked(target) ? target : label; })
+				.replace(/\[\[([^\[\]]*)\]\]/g, '$1');
+		};
+		// התאמה בתוך תבנית: רק הפרמטר שבו היא נמצאת, בלי שם התבנית ושם הפרמטר
+		// ("{{קישור שפה|אנגלית|X|פסטיבל ... אנסי}}" -> "פסטיבל ... אנסי").
+		var segment = function (t) {
+			var parts = links(t).replace(/^\{\{/, '').replace(/\}\}$/, '').split('|');
+			var part = parts.filter(marked)[0] || '';
+			var eq = part.indexOf('=');
+			return eq >= 0 && eq < part.indexOf(MARK_OPEN) ? part.slice(eq + 1) : part;
+		};
+		var clean = raw
+			// תבנית או הערת שוליים שנחתכו בגבול החלון
+			.replace(/^\{?[^{}]*\}\}/, function (t) { return marked(t) ? segment(t.replace(/^\{/, '')) : ''; })
+			.replace(/<ref[^>\/]*>(?![\s\S]*<\/ref>)[\s\S]*$/, function (t) { return marked(t) ? t : ''; })
+			.replace(/\{\{[^{}]*$/, function (t) { return marked(t) ? segment(t) : ''; })
+			.replace(/<ref[^>]*\/>|<ref[^>]*>[\s\S]*?<\/ref>|<!--[\s\S]*?-->/g, function (t) { return marked(t) ? t : ''; })
+			.replace(/\{\{[^{}]*\}\}/g, function (t) { return marked(t) ? segment(t) : ''; });
+		clean = links(clean)
+			.replace(/\[https?:[^\s\]]+ ?([^\]]*)\]/g, '$1')
+			.replace(/<[^>]+>|'{2,}/g, '')
+			.replace(/\s+/g, ' ');
+		var a = clean.indexOf(MARK_OPEN), b = clean.indexOf(MARK_CLOSE);
+		if (a < 0 || b < a) { clean = raw.replace(/\s+/g, ' '); a = clean.indexOf(MARK_OPEN); b = clean.indexOf(MARK_CLOSE); }
+		return {
+			before: (from > 0 && start - from >= maxSide ? '…' : '') + clean.slice(0, a).replace(/^\s+/, ''),
+			text: clean.slice(a + 1, b),
+			after: clean.slice(b + 1).replace(/\s+$/, '') + (to < wikitext.length && to - end >= maxSide ? '…' : '')
+		};
+	}
+
 	var core = {
-		compileLists: compileLists, maskWikitext: maskWikitext, scan: scan, verdict: verdict,
+		compileLists: compileLists, maskWikitext: maskWikitext, scan: scan, verdict: verdict, contextOf: contextOf,
 		VERDICT_TOPICS: VERDICT_TOPICS, LEVEL_LABELS: LEVEL_LABELS, TOPIC_LABELS: TOPIC_LABELS
 	};
 
@@ -380,11 +451,12 @@
 				.prepend(swatch(g.color)));
 			var $ul = el('ul');
 			items.forEach(function (m) {
-				var before = text.slice(Math.max(m.start - 35, 0), m.start).replace(/\n/g, ' ');
-				var after = text.slice(m.end, m.end + 35).replace(/\n/g, ' ');
+				var ctx = contextOf(text, m, 80);
 				var tip = m.entries.map(function (e) {
 					return e.pattern + (e.note ? ' - ' + e.note : '') + (e.status === 'suggested' ? ' (הצעה)' : '');
-				}).join('\n');
+				}).concat(m.demotedBy.map(function (e) {
+					return 'ירד לבדיקה - שימוש תמים אפשרי: ' + (e.note || e.pattern);
+				})).join('\n');
 				var $link = el('a', 'שורה ' + m.line, { cursor: 'pointer' }).attr('title', tip);
 				$link.on('click', function (e) {
 					e.preventDefault();
@@ -392,9 +464,9 @@
 						.textSelection('setSelection', { start: m.start, end: m.end })
 						.textSelection('scrollToCaretPosition');
 				});
-				$ul.append(el('li').append($link, ' [' + (TOPIC_LABELS[m.topic] || m.topic) + ']: …',
-					document.createTextNode(before), el('mark', m.text, { background: counted(m) ? LEVEL_COLORS[m.level] : g.color }),
-					document.createTextNode(after), '…'));
+				$ul.append(el('li').append($link, ' [' + (TOPIC_LABELS[m.topic] || m.topic) + ']: ',
+					document.createTextNode(ctx.before), el('mark', ctx.text, { background: counted(m) ? LEVEL_COLORS[m.level] : g.color }),
+					document.createTextNode(ctx.after)));
 			});
 			$panel.append($ul);
 		});
