@@ -52,7 +52,7 @@ node word-filter/review/build-data.js /tmp/evidence.json
 ## 3א. תוכנית העבודה (מעודכן 2026-09-25)
 
 **שלב 1 - להפעיל את מה שנבנה (חיים):**
-1. למזג את https://github.com/Chaim1222/database/pull/24. לפני המיזוג, Claude מסיר את ההפעלה הזמנית מהענף ב-`word_filter_scan.yml` (שורת `branches` - רק `main`). אחרי המיזוג ה-workflow רץ אחרי כל עדכון לילי ושבועי, ואחרי כל שינוי ברשימות, במנוע או ב-`usage.json`.
+1. למזג את https://github.com/Chaim1222/database/pull/24 (ההפעלה הזמנית מהענף כבר הוסרה). אחרי המיזוג ה-workflow רץ אחרי כל עדכון לילי ושבועי, ואחרי כל שינוי ברשימות, במנוע או ב-`usage.json`.
 2. להעתיק את `gadget/gadget-searchHelperDashboard.js` לדף הגאדג'ט באתר. ברירות המחדל: שיטה "לפי הקשר", רשימות מאושרות, ורמה "נקי".
 
 **שלב 2 - לעבוד על המילים (חיים + Claude, "בהמשך נעבוד על המילים"):**
