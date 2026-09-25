@@ -341,18 +341,28 @@
 		return level;
 	}
 
-	// המשפט שבו נמצאה ההתאמה, כטקסט קריא (בלי קישורים, תבניות והערות שוליים), לתצוגה
-	// מחוץ לעורך - למשל בדשבורד, שבו הטקסט המלא לא מול העיניים. מחזיר {before, text, after}.
-	var MARK_OPEN = '\u0001', MARK_CLOSE = '\u0002';
-	function contextOf(wikitext, match, maxSide) {
-		maxSide = maxSide || 160;
-		var start = match.start, end = match.end;
+	// גבולות המשפט סביב [start, end): עד סוף שורה, או נקודה/סימן שאלה/קריאה ואחריהם
+	// רווח, ולכל היותר maxSide תווים לכל צד. משמש את contextOf, ולשאלה "האם שתי
+	// התאמות באותו משפט" (רמות החשד).
+	function sentenceSpan(wikitext, start, end, maxSide) {
+		maxSide = maxSide || Infinity;
 		var from = start, to = end;
 		while (from > 0 && start - from < maxSide && wikitext[from - 1] !== '\n' &&
 			!(/[.!?]/.test(wikitext[from - 1]) && /\s/.test(wikitext[from] || ''))) from--;
 		while (to < wikitext.length && to - end < maxSide && wikitext[to] !== '\n' &&
 			!(/[.!?]/.test(wikitext[to]) && /\s|$/.test(wikitext[to + 1] || ''))) to++;
 		if (to < wikitext.length && /[.!?]/.test(wikitext[to])) to++;
+		return [from, to];
+	}
+
+	// המשפט שבו נמצאה ההתאמה, כטקסט קריא (בלי קישורים, תבניות והערות שוליים), לתצוגה
+	// מחוץ לעורך - למשל בדשבורד, שבו הטקסט המלא לא מול העיניים. מחזיר {before, text, after}.
+	var MARK_OPEN = '\u0001', MARK_CLOSE = '\u0002';
+	function contextOf(wikitext, match, maxSide) {
+		maxSide = maxSide || 160;
+		var start = match.start, end = match.end;
+		var span = sentenceSpan(wikitext, start, end, maxSide);
+		var from = span[0], to = span[1];
 		var raw = wikitext.slice(from, start) + MARK_OPEN + wikitext.slice(start, end) + MARK_CLOSE + wikitext.slice(end, to);
 		var marked = function (t) { return t.indexOf(MARK_OPEN) >= 0 || t.indexOf(MARK_CLOSE) >= 0; };
 		var links = function (t) {
@@ -388,7 +398,7 @@
 	}
 
 	var core = {
-		compileLists: compileLists, maskWikitext: maskWikitext, scan: scan, verdict: verdict, contextOf: contextOf,
+		compileLists: compileLists, maskWikitext: maskWikitext, scan: scan, verdict: verdict, contextOf: contextOf, sentenceSpan: sentenceSpan,
 		VERDICT_TOPICS: VERDICT_TOPICS, LEVEL_LABELS: LEVEL_LABELS, TOPIC_LABELS: TOPIC_LABELS
 	};
 
