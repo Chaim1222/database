@@ -46,9 +46,29 @@
 	};
 	var WF_TOPICS = { modesty: 'צניעות', age: 'גיל העולם', faith: 'אמונה ונצרות', dating: 'תיארוך ומדע', wiki: 'שאריות מוויקיפדיה' };
 	var wfMode = 'a'; // a = רשימות מאושרות, s = כולל הצעות
+	// שיטה: ctx = לפי הקשר (רמות חשד בתוך "לבדיקה" - המילה והמשפט שלה, ראו
+	// word-filter/analysis/word-rates.md); list = לפי הרמה שברשימה בלבד.
+	var wfMethod = 'ctx';
 	var wfLevelChoice = 'clean';
 	var wfDetailsCache = new Map();
-	function wfColumn() { return wfMode === 's' ? 'verdict_suggested' : 'verdict'; }
+	var wfSummary = null; // שורות report_missing_word_filter_summary (למחוון)
+	var WF_SUSPICION = {
+		high: { label: 'לבדיקה – חשד גבוה', cls: 'mchl-review-high' },
+		medium: { label: 'לבדיקה – חשד בינוני', cls: 'mchl-review' },
+		low: { label: 'לבדיקה – חשד נמוך', cls: 'mchl-review-low' }
+	};
+	function wfColumn() {
+		var base = wfMethod === 'ctx' ? 'ctx_verdict' : 'verdict';
+		return wfMode === 's' ? base + '_suggested' : base;
+	}
+	function wfSuspicionColumn() { return wfMode === 's' ? 'ctx_suspicion_suggested' : 'ctx_suspicion'; }
+	// הרמה של שורה (בעמודות ה-view) לפי השיטה והרשימות שנבחרו:
+	// problem / high / medium / low / review (בשיטת הרשימה) / wording / clean / null.
+	function wfRowLevel(row) {
+		var level = row[wfColumn()];
+		if (level === 'review' && wfMethod === 'ctx') return row[wfSuspicionColumn()] || 'review';
+		return level || null;
+	}
 	// מפתח ייחודי לשורה. ברוב ה-views זה id; ב-report_rav_prefix_normalization
 	// אין id - כל שורה היא זוג (ערך ויקיפדיה, מועמד במכלול).
 	function rowIdOf(row) {
@@ -719,6 +739,7 @@
 			host.appendChild(sel);
 		});
 		if (cfg.easyImport) buildEasyImportFilters(host, cfg);
+		else $id('mchl-wf-meter').style.display = 'none';
 		toggleClearFiltersBtn();
 	}
 
@@ -746,6 +767,7 @@
 			else if (imgSel.value === 'with_images') activeFilters.has_images = { op: 'eq', value: true };
 			else delete activeFilters.has_images;
 			currentPage = 0; loadActiveView(); toggleClearFiltersBtn();
+			renderWfMeter();
 		});
 		host.appendChild(imgSel);
 
@@ -756,16 +778,29 @@
 			'<option value="clean">נקי (בלי שום התאמה)</option>' +
 			'<option value="clean_wording">נקי או דורש ניסוח בלבד</option>' +
 			'<option value="wording">דורש ניסוח</option>' +
-			'<option value="review">לבדיקה</option>' +
+			'<option value="review_low">לבדיקה – חשד נמוך</option>' +
+			'<option value="review_medium">לבדיקה – חשד בינוני</option>' +
+			'<option value="review_high">לבדיקה – חשד גבוה</option>' +
+			'<option value="review_medium_up">לבדיקה – בינוני וגבוה</option>' +
+			'<option value="review">לבדיקה – הכול</option>' +
 			'<option value="problem">בעיה ודאית</option>' +
 			'<option value="unscanned">טרם נסרק</option>';
 		levelSel.value = wfLevelChoice;
-		levelSel.addEventListener('change', function () {
-			wfLevelChoice = levelSel.value;
+		levelSel.addEventListener('change', function () { setWfLevel(levelSel.value); });
+		host.appendChild(levelSel);
+
+		var methodSel = document.createElement('select');
+		methodSel.className = 'mchl-filter-select'; methodSel.id = 'mchl-filter-content-method';
+		methodSel.title = 'לפי הקשר: המילה עצמה (כמה היא בעייתית בדרך כלל) והמשפט שלה קובעים בעיה ודאית או חשד גבוה/בינוני/נמוך. לפי רמת הרשימה: רק הרמה שכתובה ברשימת המילים.';
+		methodSel.innerHTML = '<option value="ctx">שיטה: לפי הקשר (רמות חשד)</option><option value="list">שיטה: לפי רמת הרשימה</option>';
+		methodSel.value = wfMethod;
+		methodSel.addEventListener('change', function () {
+			wfMethod = methodSel.value;
 			applyContentLevelFilter();
 			currentPage = 0; loadActiveView(); toggleClearFiltersBtn();
+			renderWfMeter();
 		});
-		host.appendChild(levelSel);
+		host.appendChild(methodSel);
 
 		var modeSel = document.createElement('select');
 		modeSel.className = 'mchl-filter-select'; modeSel.id = 'mchl-filter-content-mode';
@@ -776,9 +811,11 @@
 			wfMode = modeSel.value;
 			applyContentLevelFilter();
 			currentPage = 0; loadActiveView(); toggleClearFiltersBtn();
+			renderWfMeter();
 		});
 		host.appendChild(modeSel);
 		applyContentLevelFilter();
+		renderWfMeter();
 
 		var ageSel = document.createElement('select');
 		ageSel.className = 'mchl-filter-select'; ageSel.id = 'mchl-filter-age';
@@ -809,13 +846,91 @@
 	}
 
 	function applyContentLevelFilter() {
-		delete activeFilters.verdict;
-		delete activeFilters.verdict_suggested;
+		['verdict', 'verdict_suggested', 'ctx_verdict', 'ctx_verdict_suggested', 'ctx_suspicion', 'ctx_suspicion_suggested']
+			.forEach(function (c) { delete activeFilters[c]; });
 		var col = wfColumn(), v = wfLevelChoice;
 		if (!v) return;
+		var sub = /^review_(high|medium|low|medium_up)$/.exec(v);
 		if (v === 'unscanned') activeFilters[col] = { op: 'is', value: 'null' };
 		else if (v === 'clean_wording') activeFilters[col] = { op: 'in', value: '(clean,wording)' };
-		else activeFilters[col] = { op: 'eq', value: v };
+		else if (sub) {
+			activeFilters[col] = { op: 'eq', value: 'review' };
+			// בשיטת הרשימה אין רמות חשד - "לבדיקה" כולו.
+			if (wfMethod === 'ctx') {
+				activeFilters[wfSuspicionColumn()] = sub[1] === 'medium_up' ? { op: 'in', value: '(high,medium)' } : { op: 'eq', value: sub[1] };
+			}
+		} else activeFilters[col] = { op: 'eq', value: v };
+	}
+
+	// ===== מחוון הפילוח - כמה ערכים בכל רמה (לפי הטאב, הרשימות, השיטה והתמונות) =====
+	var WF_METER_SEGMENTS = [
+		{ key: 'problem', label: 'בעיה ודאית', color: '#C1634A', filter: 'problem' },
+		{ key: 'high', label: 'חשד גבוה', color: '#D98B3A', filter: 'review_high' },
+		{ key: 'medium', label: 'חשד בינוני', color: '#D9B44A', filter: 'review_medium' },
+		{ key: 'low', label: 'חשד נמוך', color: '#A8A860', filter: 'review_low' },
+		{ key: 'review', label: 'לבדיקה', color: '#D9B44A', filter: 'review' },
+		{ key: 'wording', label: 'דורש ניסוח', color: '#7C8C99', filter: 'wording' },
+		{ key: 'clean', label: 'נקי', color: '#5C9686', filter: 'clean' },
+		{ key: null, label: 'טרם נסרק', color: '#3A4A52', filter: 'unscanned' }
+	];
+
+	function loadWfSummary(force) {
+		if (wfSummary && !force) return Promise.resolve(wfSummary);
+		return pgSelect('report_missing_word_filter_summary', { filterParams: [], order: 'n.desc', from: 0, to: 4999 })
+			.then(function (res) { wfSummary = res.data || []; return wfSummary; });
+	}
+
+	function renderWfMeter() {
+		var host = $id('mchl-wf-meter');
+		var cfg = VIEWS[activeTab];
+		if (!cfg || !cfg.easyImport) { host.style.display = 'none'; return; }
+		host.style.display = 'block';
+		loadWfSummary().then(function (rows) {
+			if (!VIEWS[activeTab] || !VIEWS[activeTab].easyImport) return;
+			var redirect = activeTab === 'missing_redirect';
+			var images = activeFilters.has_images ? activeFilters.has_images.value : null;
+			var counts = {}, total = 0;
+			rows.forEach(function (r) {
+				if (r.redirect !== redirect) return;
+				if (images !== null && r.has_images !== images) return;
+				var level = wfRowLevel(r);
+				counts[level] = (counts[level] || 0) + r.n;
+				total += r.n;
+			});
+			var segs = WF_METER_SEGMENTS.filter(function (g) {
+				if (wfMethod === 'ctx' && g.key === 'review') return (counts.review || 0) > 0;
+				if (wfMethod === 'list' && (g.key === 'high' || g.key === 'medium' || g.key === 'low')) return false;
+				return true;
+			});
+			var bar = '', legend = '';
+			segs.forEach(function (g) {
+				var n = counts[g.key] || 0;
+				if (!n && g.key === null) return;
+				var pct = total ? (100 * n / total) : 0;
+				var active = wfLevelChoice === g.filter ? ' mchl-wf-active' : '';
+				bar += '<div class="mchl-wf-seg" data-action="wf-meter-filter" data-filter="' + g.filter + '" style="width:' + pct.toFixed(2) +
+					'%;background:' + g.color + ';" title="' + escapeHtml(g.label) + ': ' + n.toLocaleString('he-IL') + '"></div>';
+				legend += '<button type="button" class="mchl-wf-legend' + active + '" data-action="wf-meter-filter" data-filter="' + g.filter + '">' +
+					'<span class="mchl-wf-dot" style="background:' + g.color + ';"></span>' + escapeHtml(g.label) + ' <b>' +
+					n.toLocaleString('he-IL') + '</b> <span class="mchl-muted">' + pct.toFixed(1) + '%</span></button>';
+			});
+			host.innerHTML = '<div class="mchl-wf-meter-head">פילוח תוכן · ' +
+				escapeHtml(wfMethod === 'ctx' ? 'לפי הקשר' : 'לפי רמת הרשימה') + ' · ' +
+				escapeHtml(wfMode === 's' ? 'כולל הצעות' : 'רשימות מאושרות') + (images === null ? '' : images ? ' · עם תמונות' : ' · בלי תמונות') +
+				' · ' + total.toLocaleString('he-IL') + ' ערכים <span class="mchl-muted">(לחיצה מסננת)</span></div>' +
+				'<div class="mchl-wf-bar">' + bar + '</div><div class="mchl-wf-legends">' + legend + '</div>';
+		}).catch(function () {
+			host.innerHTML = '<div class="mchl-muted">לא ניתן לטעון את פילוח התוכן (report_missing_word_filter_summary).</div>';
+		});
+	}
+
+	function setWfLevel(value) {
+		wfLevelChoice = value;
+		var sel = $id('mchl-filter-content-level');
+		if (sel) sel.value = value;
+		applyContentLevelFilter();
+		currentPage = 0; loadActiveView(); toggleClearFiltersBtn();
+		renderWfMeter();
 	}
 
 	function toggleClearFiltersBtn() {
@@ -849,6 +964,8 @@
 	function refreshAll() {
 		var btn = $id('mchl-refresh-btn');
 		btn.classList.add('mchl-spinning');
+		wfSummary = null;
+		if (VIEWS[activeTab] && VIEWS[activeTab].easyImport) renderWfMeter();
 		return Promise.all([loadStats(), loadCurrentTab(), fetchLastSyncTime().catch(function () { return undefined; })]).then(function (results) {
 			btn.classList.remove('mchl-spinning');
 			var lastSync = results[2];
@@ -1108,14 +1225,18 @@
 	}
 
 	function renderContentLevel(row) {
-		var level = row[wfColumn()];
+		var level = wfRowLevel(row);
 		if (!level) return '<span class="mchl-muted">טרם נסרק</span>';
-		var info = WF_LEVELS[level];
-		var counts = row.counts && row.counts[wfMode];
+		var info = WF_SUSPICION[level] || WF_LEVELS[level];
+		var counts = row.counts && row.counts[(wfMethod === 'ctx' ? 'c' : '') + wfMode];
 		var parts = [];
 		if (counts) {
 			if (counts.problem) parts.push(counts.problem + ' בעיה');
-			if (counts.review) parts.push(counts.review + ' לבדיקה');
+			if (wfMethod === 'ctx') {
+				if (counts.high) parts.push(counts.high + ' גבוה');
+				if (counts.medium) parts.push(counts.medium + ' בינוני');
+				if (counts.low) parts.push(counts.low + ' נמוך');
+			} else if (counts.review) parts.push(counts.review + ' לבדיקה');
 			if (counts.wording) parts.push(counts.wording + ' ניסוח');
 		}
 		var html = '<span class="mchl-badge ' + info.cls + '">' + escapeHtml(info.label) + '</span>';
@@ -1170,19 +1291,28 @@
 
 	function renderContentDetails(d, row) {
 		var mode = wfMode;
+		// בשיטת ההקשר - הרמה של כל התאמה לפי המילה והמשפט (ca/cs); סריקה ישנה בלי
+		// השדות האלה נופלת חזרה לרמת הרשימה (a/s).
+		var levelOf = function (m) {
+			if (wfMethod === 'ctx' && m['c' + mode] != null) return m['c' + mode];
+			return m[mode];
+		};
 		var matches = (d.matches || []).filter(function (m) { return m[mode] != null; });
 		var html = '';
-		['problem', 'review', 'wording'].forEach(function (level) {
-			var items = matches.filter(function (m) { return m[mode] === level; });
+		['problem', 'high', 'medium', 'low', 'review', 'wording'].forEach(function (level) {
+			var items = matches.filter(function (m) { return levelOf(m) === level; });
 			if (!items.length) return;
-			html += '<div class="mchl-wf-group"><span class="mchl-badge ' + WF_LEVELS[level].cls + '">' +
-				escapeHtml(WF_LEVELS[level].label) + ' (' + items.length + ')</span><ul>';
+			var info = WF_SUSPICION[level] || WF_LEVELS[level];
+			var markLevel = level === 'high' || level === 'medium' || level === 'low' ? 'review' : level;
+			html += '<div class="mchl-wf-group"><span class="mchl-badge ' + info.cls + '">' +
+				escapeHtml(info.label) + ' (' + items.length + ')</span><ul>';
 			items.forEach(function (m) {
 				var notes = [];
 				if (mode === 's' && m.a == null) notes.push('רק לפי ההצעות');
-				if (m.d && m.d.length && level === 'review') notes.push('ירד לבדיקה - שימוש תמים אפשרי');
+				if (m.d && m.d.length && markLevel === 'review') notes.push('ירד לבדיקה - שימוש תמים אפשרי');
+				if (wfMethod === 'ctx' && m.g) notes.push({ anchor: 'עוגן', A: 'מילה בעייתית ברוב המקרים', B: 'מילה דו-משמעית', C: 'מילה תמימה ברוב המקרים', X: 'בעיה לפי הרשימה' }[m.g] || m.g);
 				html += '<li><span class="mchl-num-cell">שורה ' + m.line + ' · ' + escapeHtml(WF_TOPICS[m.t] || m.t) + '</span> ' +
-					escapeHtml(m.b) + '<mark class="mchl-wf-' + level + '">' + escapeHtml(m.x) + '</mark>' + escapeHtml(m.f) +
+					escapeHtml(m.b) + '<mark class="mchl-wf-' + markLevel + '">' + escapeHtml(m.x) + '</mark>' + escapeHtml(m.f) +
 					(notes.length ? ' <span class="mchl-muted">(' + escapeHtml(notes.join('; ')) + ')</span>' : '') +
 					' <span class="mchl-muted mchl-wf-ids" title="רשומות ברשימת המילים">' + escapeHtml((m.e || []).join(',')) + '</span></li>';
 			});
@@ -1282,8 +1412,8 @@
 	// ייצוא: "סינון תוכן" לפי הרשימות שנבחרו בסרגל, כתווית בעברית.
 	function exportValue(col, row) {
 		if (col === 'verdict') {
-			var level = row[wfColumn()];
-			return level ? WF_LEVELS[level].label : 'טרם נסרק';
+			var level = wfRowLevel(row);
+			return level ? (WF_SUSPICION[level] || WF_LEVELS[level]).label : 'טרם נסרק';
 		}
 		return row[col];
 	}
@@ -1661,6 +1791,7 @@
 			else if (action === 'toggle-admin-panel') toggleAdminPanel();
 			else if (action === 'auth-login') authLogin();
 			else if (action === 'wf-details') toggleContentDetails(el);
+			else if (action === 'wf-meter-filter') setWfLevel(wfLevelChoice === el.getAttribute('data-filter') ? '' : el.getAttribute('data-filter'));
 			else if (action === 'goto') {
 				var target = el.getAttribute('data-target');
 				if (target === 'first') goPage(0);
@@ -1794,6 +1925,17 @@
 		'#mchl-dash .mchl-badge.mchl-alert{background:var(--mchl-alert-dim);color:var(--mchl-alert);}' +
 		'#mchl-dash .mchl-badge.mchl-neutral{background:var(--mchl-ink-700);color:var(--mchl-text-2);}' +
 		'#mchl-dash .mchl-badge.mchl-review{background:#D9B44A26;color:#E3C15E;}' +
+		'#mchl-dash .mchl-badge.mchl-review-high{background:#D98B3A2E;color:#EBA25A;}' +
+		'#mchl-dash .mchl-badge.mchl-review-low{background:#A8A86026;color:#C2C27A;}' +
+		'#mchl-dash .mchl-wf-meter{background:var(--mchl-ink-800);border:1px solid var(--mchl-line);border-radius:12px;padding:12px 16px;margin-bottom:12px;}' +
+		'#mchl-dash .mchl-wf-meter-head{font-size:13px;color:var(--mchl-text-2);margin-bottom:8px;}' +
+		'#mchl-dash .mchl-wf-bar{display:flex;height:14px;border-radius:7px;overflow:hidden;background:var(--mchl-ink-700);gap:2px;}' +
+		'#mchl-dash .mchl-wf-seg{height:100%;cursor:pointer;min-width:0;}' +
+		'#mchl-dash .mchl-wf-seg:hover{filter:brightness(1.2);}' +
+		'#mchl-dash .mchl-wf-legends{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px;}' +
+		'#mchl-dash .mchl-wf-legend{background:none;border:1px solid transparent;border-radius:14px;color:var(--mchl-text-1);font-size:12.5px;padding:3px 8px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}' +
+		'#mchl-dash .mchl-wf-legend:hover,#mchl-dash .mchl-wf-legend.mchl-wf-active{border-color:var(--mchl-mechalol);}' +
+		'#mchl-dash .mchl-wf-dot{width:9px;height:9px;border-radius:50%;display:inline-block;}' +
 		'#mchl-dash .mchl-wf-toggle{background:none;border:1px solid var(--mchl-line);color:var(--mchl-text-2);border-radius:6px;font-size:12px;padding:2px 8px;cursor:pointer;}' +
 		'#mchl-dash tr.mchl-wf-details-row td{background:var(--mchl-ink-900);}' +
 		'#mchl-dash .mchl-wf-box{font-size:13.5px;line-height:1.8;}' +
@@ -1881,6 +2023,7 @@
 		'<button type="button" class="mchl-export-btn" data-action="export" data-kind="txt">ייצוא כותרות (טקסט)</button>' +
 		'<button type="button" data-action="clear-selection">נקה בחירה</button>' +
 		'</div>' +
+		'<div class="mchl-wf-meter" id="mchl-wf-meter" style="display:none;"></div>' +
 		'<div class="mchl-table-wrap"><div id="mchl-table-target"></div>' +
 		'<div class="mchl-pager" id="mchl-pager" style="display:none;">' +
 		'<span id="mchl-pager-summary"></span>' +

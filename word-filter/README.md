@@ -18,6 +18,10 @@
 | `lists/allow.json` | ביטויים מותרים ("המין האנושי", "בואנוס איירס") - התאמה שנופלת כולה בתוכם לא מוצגת. |
 | `Gadget-wikitextWordCheck.js` | המנוע והגאדג'ט לאתר (JS). אותו קובץ משמש גם את הכלים שבריפו. |
 | `tools/check.js` | בדיקת דף אחד משורת הפקודה. |
+| `lists/usage.json` | קבוצת השימוש של כל מילה (A: בעייתית ב-75% ומעלה מהמופעים, B: 40%-75%, C: פחות מ-40%) ועוגנים מוחלטים - לרמות החשד. נבנה ב-`tools/build-usage.js` מהסיווג הידני. השדה `override` במשפחה גובר על החישוב. |
+| `tools/build-usage.js` | בונה את `lists/usage.json` מ-`analysis/missing-labels.json` ומ-`analysis/wiki-random-occurrences.json`. |
+| `analysis/word-rates.md`, `missing-labels.json` | 1,800 מופעים מסווגים מ"חסר במכלול", ושיעור הבעייתיות לכל מילה. |
+| `analysis/suspicion.md`, `suspicion.js`, `anchors.json` | רמות החשד: ההגדרה והבדיקה מול הסיווג הידני. |
 | `tools/scan-missing.js` | סינון כל רשימת "חסר במכלול" ושמירה בסופבייס (`word_filter_results`) - לדשבורד. רץ ב-GitHub Actions (`word_filter_scan.yml`). |
 | `tools/evaluate.js` | מדידה מול ערכים אמיתיים (ראו למטה). |
 | `tools/apply-decisions.js` | מחיל את ההחלטות מדף הסקירה על קובצי ה-JSON. |
@@ -95,3 +99,19 @@ node word-filter/tools/scan-missing.js --ids-file ids.txt --dry-run --out result
 ```
 
 הגאדג'ט `gadget/gadget-searchHelperDashboard.js` מסנן את טאבי "חסר במכלול" לפי ה-view `report_missing_word_filter`: רמת תוכן, בורר רשימות (מאושרות / כולל הצעות), ותמונות (עם / בלי). כפתור "הקשר" בכל שורה פותח את המילים במשפטים שלהן, ואת שמות התמונות כקישורים בלבד, בלי להציג את התמונות עצמן.
+
+### רמות חשד (לפי הקשר)
+
+`engine.contextLevels(wikitext, matches, usage)` נותן לכל התאמת צניעות `match.context = {group, level, suspicion}`, ו-`engine.contextVerdict(matches)` נותן את רמת הדף. הרמה נקבעת משני ממדים:
+
+| קבוצת המילה | לבד במשפט | הקשר חלש (מילה חשודה במשפט, או עוגן בערך) | הקשר חזק (עוגן במשפט, או מילה חשודה + עוגן בערך) |
+|---|---|---|---|
+| עוגן מוחלט, או רשומת "בעיה" בלי נתונים | בעיה ודאית | בעיה ודאית | בעיה ודאית |
+| A (75% ומעלה) | חשד גבוה | בעיה ודאית | בעיה ודאית |
+| B (40%-75%) | חשד בינוני | חשד גבוה | בעיה ודאית |
+| C (פחות מ-40%) | חשד נמוך | חשד בינוני | חשד גבוה |
+
+- "עוגן" = מילה מקבוצה A, עוגן מוחלט, או רשומת "בעיה" בלי נתונים.
+- התאמה שירדה לבדיקה בגלל היתר מסוג demote לא תהיה "בעיה ודאית", אלא לכל היותר חשד גבוה.
+- הנתונים שמאחורי הטבלה: `analysis/word-rates.md`.
+

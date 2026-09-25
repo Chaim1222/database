@@ -452,3 +452,50 @@ create index if not exists mechalol_pages_tasks_idx on mechalol_pages (title) wh
 create index if not exists mechalol_pages_maybe_deleted_idx on mechalol_pages (title) where maybe_deleted_from_wikipedia = true;
 create index if not exists mechalol_pages_undocumented_idx on mechalol_pages (title) where status = 'מיובא ללא תיעוד' and needs_attention = false and is_dictionary_entry = false;
 create index if not exists wikipedia_pages_rav_override_idx on wikipedia_pages (title) where missing_override_reason = 'rav_prefix_normalization';
+
+-- ===== סינון תוכן של "חסר במכלול" (word-filter/, 2026-09) =====
+-- המקור: migration_add_word_filter_results.sql, migration_add_word_filter_suspicion.sql,
+-- migration_add_word_filter_occurrences.sql. ה-views ב-views.sql. תיעוד מלא:
+-- word-filter/README.md (סעיף "סינון רשימת חסר במכלול") ו-word-filter/NOTES.md.
+--
+-- word_filter_results - שורה לכל ערך ויקיפדיה שנסרק (page_id). טבלה נפרדת מ-
+-- wikipedia_pages בכוונה: לא מתרוקנת בהחלפה השבועית, ולא צריכה forward-fill.
+-- נכתבת רק ע"י word-filter/tools/scan-missing.js (GitHub Actions: word_filter_scan.yml).
+create table if not exists word_filter_results (
+    wikipedia_id bigint primary key,           -- page_id בוויקיפדיה (= wikipedia_pages.id)
+    title text not null,
+    rev_id bigint,                             -- הגרסה שנסרקה (דילוג על מה שלא השתנה)
+    length integer,
+    -- רמת הדף לפי רמת הרשימה בלבד: מאושרות / כולל הצעות.
+    verdict text check (verdict in ('problem', 'review', 'wording', 'clean')),
+    verdict_suggested text check (verdict_suggested in ('problem', 'review', 'wording', 'clean')),
+    counts jsonb,                              -- {a, s: {problem, review, wording}; ca, cs: {problem, high, medium, low, wording}}
+    matches jsonb,                             -- עד 300: {w, line, t, a, s, ca, cs, g, e, d, b, x, f} - ראו scan-missing.js
+    matches_total integer,
+    image_count integer,                       -- כל הקבצים בדף (כולל אייקונים מתבניות)
+    own_image_count integer,                   -- של הערך עצמו (בקוד, או התמונה הראשית)
+    photo_count integer,                       -- מתוכם לא SVG
+    has_images boolean,                        -- photo_count > 0
+    images jsonb,                              -- עד 12 שמות קבצים
+    lists_version text,                        -- גיבוב הרשימות + usage.json + המנוע
+    scanned_at timestamptz not null default now(),
+    -- רמת הדף לפי הקשר (רמות חשד, usage.json + contextLevels במנוע):
+    ctx_verdict text check (ctx_verdict in ('problem', 'review', 'wording', 'clean')),
+    ctx_suspicion text check (ctx_suspicion in ('high', 'medium', 'low')),
+    ctx_verdict_suggested text check (ctx_verdict_suggested in ('problem', 'review', 'wording', 'clean')),
+    ctx_suspicion_suggested text check (ctx_suspicion_suggested in ('high', 'medium', 'low'))
+);
+create index if not exists word_filter_results_verdict_idx on word_filter_results (verdict);
+create index if not exists word_filter_results_verdict_suggested_idx on word_filter_results (verdict_suggested);
+alter table word_filter_results enable row level security;
+create policy "קריאה ציבורית" on word_filter_results for select to anon, authenticated using (true);
+revoke all on word_filter_results from anon, authenticated;
+grant select on word_filter_results to anon, authenticated;
+
+-- מסד ניתוח (לא נדרש לדשבורד): שורה לכל מופע מילת צניעות, עם השכנים שלו במשפט.
+-- נבנה מחדש ב-refresh_word_filter_occurrences() (service_role). ההגדרה המלאה:
+-- migration_add_word_filter_occurrences.sql.
+--   word_filter_anchors        - מילות העוגן (הצעה, status).
+--   word_filter_occurrences    - המופעים: is_anchor, with_anchor, with_other, page_anchor, suspicion.
+--   word_filter_label_sample   - מדגם של 1,800 מופעים (60 מילים × 30) לסיווג ידני.
+--   word_filter_labels         - הסיווג (p/i/u) לפי (frank, rn). עותק: word-filter/analysis/missing-labels.json.

@@ -56,6 +56,8 @@
 כל ערך ב-`report_missing_from_mechalol` נסרק במנוע של `word-filter/` (`word-filter/tools/scan-missing.js`, workflow `word_filter_scan.yml`), והתוצאה נשמרת ב-`word_filter_results`. יש לו רמה אחת מתוך ארבע (בעיה ודאית / לבדיקה / דורש ניסוח / נקי), פעמיים: לפי הרשימות המאושרות, ולפי הרשימות כולל ההצעות. נשמרים גם התמונות של הערך עצמו, וכל התאמה עם המשפט שלה. ה-view `report_missing_word_filter` מצרף את התוצאות לדוח, והגאדג'ט מסנן לפיו: רמת תוכן, רשימות, ועם תמונות או בלי. לכל שורה יש כפתור "הקשר" שמציג את המילים במשפטים שלהן.
 - הקמה: `migrations/migration_add_word_filter_results.sql` (הטבלה נפרדת מ-`wikipedia_pages` ושורדת את ההחלפה השבועית, ולכן אין צורך ב-forward-fill).
 - מתי רץ: אחרי העדכון הלילי והסנכרון השבועי, ואחרי push ל-main שמשנה את הרשימות או את המנוע. ערך שלא השתנה (אותה גרסה, אותן רשימות) לא נסרק שוב. סריקה מלאה של כ-25 אלף ערכים לוקחת כרבע שעה.
+- **רמות חשד (2026-09-25):** לכל ערך גם רמה לפי הקשר (`ctx_verdict` + `ctx_suspicion`). המילה עצמה (קבוצת השימוש שלה, `word-filter/lists/usage.json`) והמשפט שלה קובעים אם זו בעיה ודאית, או "לבדיקה" עם חשד גבוה, בינוני או נמוך. בדשבורד יש בורר שיטה (לפי הקשר / לפי רמת הרשימה), סינון לפי כל רמת חשד, ומחוון פילוח שנשען על `report_missing_word_filter_summary`. לחיצה על קטע במחוון מסננת.
+- סדר ההקמה בסביבה חדשה: `migration_add_word_filter_results.sql` ← `migration_add_word_filter_suspicion.sql` ← (לניתוח בלבד) `migration_add_word_filter_occurrences.sql`. ההגדרות מתועדות גם ב-`schema.sql`/`views.sql`.
 - **מחליף את `easy_import_has_images` ואת `problematic_words_clean` בדשבורד.** בעמודת התמונות הישנה נמצאו רק 1,046 ערכים "עם תמונות" מתוך 25 אלף, כי כל בקשה ל-API החזירה עד 10 תמונות לכל 50 דפים, בלי המשך. העמודות הישנות עדיין מתמלאות ב-`fetch_easy_import_candidates.py`, אבל כבר לא מוצגות.
 
 ## הרצה
