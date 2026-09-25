@@ -129,3 +129,12 @@ test('contained matches merge; sentence context is readable text', () => {
 	const c = engine.contextOf(src, m);
 	assert.deepStrictEqual([c.before, c.text, c.after], ['היא דיברה על האלימות ', 'המינית', ' שבוצעה בטבח.']);
 });
+
+test('context inside a template shows only the parameter text', () => {
+	const src = 'בפסטיבל {{קישור שפה|אנגלית|Annecy Festival|פסטיבל האנימציה של אנסי}} הוכרז השם.';
+	const lists = engine.compileLists(words, { entries: [] });
+	const m = engine.scan(src, lists).find((x) => x.text === 'אנסי');
+	assert.ok(m);
+	const c = engine.contextOf(src, m);
+	assert.strictEqual(c.before + '[' + c.text + ']' + c.after, 'בפסטיבל פסטיבל האנימציה של [אנסי] הוכרז השם.');
+});

@@ -18,6 +18,7 @@
 | `lists/allow.json` | ביטויים מותרים ("המין האנושי", "בואנוס איירס") - התאמה שנופלת כולה בתוכם לא מוצגת. |
 | `Gadget-wikitextWordCheck.js` | המנוע והגאדג'ט לאתר (JS). אותו קובץ משמש גם את הכלים שבריפו. |
 | `tools/check.js` | בדיקת דף אחד משורת הפקודה. |
+| `tools/scan-missing.js` | סינון כל רשימת "חסר במכלול" ושמירה בסופבייס (`word_filter_results`) - לדשבורד. רץ ב-GitHub Actions (`word_filter_scan.yml`). |
 | `tools/evaluate.js` | מדידה מול ערכים אמיתיים (ראו למטה). |
 | `tools/apply-decisions.js` | מחיל את ההחלטות מדף הסקירה על קובצי ה-JSON. |
 | `tools/build-lists.js` | ההסבה החד-פעמית מהדפים הקיימים ל-JSON - לתיעוד. |
@@ -75,3 +76,22 @@ node word-filter/tools/evaluate.js candidates cands.txt # תבנית מועמד�
 ב-`--json`, לכל התאמה יש שדה `context` ובו `{before, text, after}`: המשפט שבו נמצאה ההתאמה, כטקסט קריא בלי קישורים, תבניות והערות שוליים. זה השדה שדשבורד צריך להציג, כי העורך לא רואה שם את הטקסט המלא (הפונקציה `contextOf` במנוע).
 
 `check.js` מחזיר קוד יציאה 3 לבעיה ודאית, 2 ללבדיקה, 1 ל"דורש ניסוח" (רק הערות ניסוח), 0 לנקי, 9 לשגיאה. המאגרים נשמרים ב-`.word-filter-corpus/` (מחוץ ל-git); עותק דחוס בענף `word-filter-corpus`. **המדד המייצג הוא `wiki-random`**: ב-blacklist המילים כמעט תמיד בהקשר בעייתי ובמכלול כמעט תמיד תמים, כך ששניהם לא מלמדים איך מילה מתנהגת בערכים רגילים.
+
+## סינון רשימת "חסר במכלול" (הדשבורד)
+
+`tools/scan-missing.js` עובר על כל ערך ב-`report_missing_from_mechalol`, סורק אותו במנוע, ושומר ב-`word_filter_results`:
+
+| שדה | מה |
+|---|---|
+| `verdict` / `verdict_suggested` | רמת הדף לפי הרשימות המאושרות / כולל ההצעות: `problem`, `review`, `wording`, `clean` |
+| `counts` | מספר ההתאמות בכל רמה, לכל מצב (`a`, `s`) |
+| `matches` | עד 300 התאמות: המילה, מספר השורה, הנושא, הרמה בכל מצב (`a`/`s`, או null), הרשומות, והמשפט (`b` + `x` + `f`) |
+| `has_images`, `photo_count`, `images` | תמונות **של הערך**: קובץ שמופיע בקוד הערך, או התמונה הראשית (PageImages, כולל תמונה מוויקינתונים). SVG ואייקונים מתבניות (Allmusic, כוכבים, "קצרמר") לא נספרים. |
+| `rev_id`, `lists_version` | כדי לדלג על ערך שלא השתנה. שינוי ברשימות או במנוע = סריקה מחדש. |
+
+```
+SUPABASE_URL=... SUPABASE_SERVICE_KEY=... node word-filter/tools/scan-missing.js [--force] [--prune]
+node word-filter/tools/scan-missing.js --ids-file ids.txt --dry-run --out results.jsonl   # בלי סופבייס
+```
+
+הגאדג'ט `gadget/gadget-searchHelperDashboard.js` מסנן את טאבי "חסר במכלול" לפי ה-view `report_missing_word_filter`: רמת תוכן, בורר רשימות (מאושרות / כולל הצעות), ותמונות (עם / בלי). כפתור "הקשר" בכל שורה פותח את המילים במשפטים שלהן, ואת שמות התמונות כקישורים בלבד, בלי להציג את התמונות עצמן.

@@ -28,8 +28,27 @@
 		manual_match_action: 'שיוך ידני', deletion_hint: 'רמז',
 		wikipedia_title: 'ערך בוויקיפדיה', mechalol_title: 'דף מקביל במכלול',
 		mechalol_status: 'סטטוס במכלול', candidate_count: 'מספר מועמדים',
-		mechalol_id: 'מזהה מכלול'
+		mechalol_id: 'מזהה מכלול',
+		verdict: 'סינון תוכן', has_images: 'תמונות'
 	};
+
+	// ===== סינון תוכן (word-filter) - טאבי "חסר במכלול" =====
+	// התוצאות מחושבות מראש ב-word-filter/tools/scan-missing.js (GitHub Actions)
+	// ונשמרות ב-word_filter_results; ה-view report_missing_word_filter מצרף אותן
+	// לדוח. לכל ערך שתי פסיקות: לפי הרשימות המאושרות (verdict) ולפי הרשימות
+	// כולל ההצעות שעוד לא אושרו (verdict_suggested) - בורר "רשימות" בסרגל.
+	// פרטי ההתאמות (המילה והמשפט שלה) נשלפים רק כשפותחים שורה.
+	var WF_LEVELS = {
+		problem: { label: 'בעיה ודאית', cls: 'mchl-alert' },
+		review: { label: 'לבדיקה', cls: 'mchl-review' },
+		wording: { label: 'דורש ניסוח', cls: 'mchl-neutral' },
+		clean: { label: 'נקי', cls: 'mchl-wiki' }
+	};
+	var WF_TOPICS = { modesty: 'צניעות', age: 'גיל העולם', faith: 'אמונה ונצרות', dating: 'תיארוך ומדע', wiki: 'שאריות מוויקיפדיה' };
+	var wfMode = 'a'; // a = רשימות מאושרות, s = כולל הצעות
+	var wfLevelChoice = 'clean';
+	var wfDetailsCache = new Map();
+	function wfColumn() { return wfMode === 's' ? 'verdict_suggested' : 'verdict'; }
 	// מפתח ייחודי לשורה. ברוב ה-views זה id; ב-report_rav_prefix_normalization
 	// אין id - כל שורה היא זוג (ערך ויקיפדיה, מועמד במכלול).
 	function rowIdOf(row) {
@@ -60,14 +79,14 @@
 		// מול כותרות שקיימות במכלול כהפניה (הערך כנראה קיים שם בשם אחר -
 		// פעולה שונה לגמרי: לבדוק את יעד ההפניה, לא לייבא).
 		missing: {
-			view: 'report_missing_from_mechalol', label: 'חסר במכלול',
-			columns: ['title', 'created_at', 'mechalol_redirect_exists', 'checked_at', 'wikidata_desc'], filters: [],
+			view: 'report_missing_word_filter', label: 'חסר במכלול',
+			columns: ['title', 'verdict', 'has_images', 'created_at', 'mechalol_redirect_exists', 'checked_at', 'wikidata_desc'], filters: [],
 			baseFilters: [['mechalol_redirect_exists', 'not.is.true']],
 			titleLink: 'edit', wikidata: true, easyImport: true, redirectFilter: true, lockable: true, manualMatch: true
 		},
 		missing_redirect: {
-			view: 'report_missing_from_mechalol', label: 'קיים במכלול כהפניה',
-			columns: ['title', 'created_at', 'checked_at', 'wikidata_desc'], filters: [],
+			view: 'report_missing_word_filter', label: 'קיים במכלול כהפניה',
+			columns: ['title', 'verdict', 'has_images', 'created_at', 'checked_at', 'wikidata_desc'], filters: [],
 			baseFilters: [['mechalol_redirect_exists', 'is.true']],
 			titleLink: 'edit', wikidata: true, easyImport: true, manualMatch: true
 		},
@@ -716,27 +735,50 @@
 		});
 		host.appendChild(lenInput);
 
+		// תמונות: רק תמונות של הערך עצמו (לא אייקונים מתבניות) - ראו
+		// imagesOf ב-scan-missing.js. (easy_import_has_images הישן ספר רק
+		// חלק מהתמונות - 10 לכל אצוות של 50 דפים - ולכן הוחלף.)
 		var imgSel = document.createElement('select');
 		imgSel.className = 'mchl-filter-select'; imgSel.id = 'mchl-filter-easy-images';
-		imgSel.innerHTML = '<option value="">תמונות — הכול</option><option value="no_images">בלי תמונות</option>';
+		imgSel.innerHTML = '<option value="">תמונות — הכול</option><option value="no_images">בלי תמונות</option><option value="with_images">עם תמונות</option>';
 		imgSel.addEventListener('change', function () {
-			if (imgSel.value === 'no_images') activeFilters.easy_import_has_images = { op: 'eq', value: false };
-			else delete activeFilters.easy_import_has_images;
+			if (imgSel.value === 'no_images') activeFilters.has_images = { op: 'eq', value: false };
+			else if (imgSel.value === 'with_images') activeFilters.has_images = { op: 'eq', value: true };
+			else delete activeFilters.has_images;
 			currentPage = 0; loadActiveView(); toggleClearFiltersBtn();
 		});
 		host.appendChild(imgSel);
 
-		var cleanSel = document.createElement('select');
-		cleanSel.className = 'mchl-filter-select'; cleanSel.id = 'mchl-filter-clean';
-		cleanSel.innerHTML = '<option value="yes">ללא בעיות צניעות</option><option value="no">כולל בעיות צניעות אפשריות</option>';
-		cleanSel.value = 'yes';
-		activeFilters.problematic_words_clean = { op: 'eq', value: true };
-		cleanSel.addEventListener('change', function () {
-			if (cleanSel.value === 'yes') activeFilters.problematic_words_clean = { op: 'eq', value: true };
-			else delete activeFilters.problematic_words_clean;
+		// רמת התוכן (ארבע הרמות) + בורר הרשימות.
+		var levelSel = document.createElement('select');
+		levelSel.className = 'mchl-filter-select'; levelSel.id = 'mchl-filter-content-level';
+		levelSel.innerHTML = '<option value="">סינון תוכן — הכול</option>' +
+			'<option value="clean">נקי (בלי שום התאמה)</option>' +
+			'<option value="clean_wording">נקי או דורש ניסוח בלבד</option>' +
+			'<option value="wording">דורש ניסוח</option>' +
+			'<option value="review">לבדיקה</option>' +
+			'<option value="problem">בעיה ודאית</option>' +
+			'<option value="unscanned">טרם נסרק</option>';
+		levelSel.value = wfLevelChoice;
+		levelSel.addEventListener('change', function () {
+			wfLevelChoice = levelSel.value;
+			applyContentLevelFilter();
 			currentPage = 0; loadActiveView(); toggleClearFiltersBtn();
 		});
-		host.appendChild(cleanSel);
+		host.appendChild(levelSel);
+
+		var modeSel = document.createElement('select');
+		modeSel.className = 'mchl-filter-select'; modeSel.id = 'mchl-filter-content-mode';
+		modeSel.title = 'לפי אילו רשימות מילים לסנן: רק מה שאושר, או כולל ההצעות שעוד ממתינות לאישור';
+		modeSel.innerHTML = '<option value="a">רשימות מאושרות</option><option value="s">כולל הצעות שטרם אושרו</option>';
+		modeSel.value = wfMode;
+		modeSel.addEventListener('change', function () {
+			wfMode = modeSel.value;
+			applyContentLevelFilter();
+			currentPage = 0; loadActiveView(); toggleClearFiltersBtn();
+		});
+		host.appendChild(modeSel);
+		applyContentLevelFilter();
 
 		var ageSel = document.createElement('select');
 		ageSel.className = 'mchl-filter-select'; ageSel.id = 'mchl-filter-age';
@@ -766,6 +808,16 @@
 		host.appendChild(redirectSel);
 	}
 
+	function applyContentLevelFilter() {
+		delete activeFilters.verdict;
+		delete activeFilters.verdict_suggested;
+		var col = wfColumn(), v = wfLevelChoice;
+		if (!v) return;
+		if (v === 'unscanned') activeFilters[col] = { op: 'is', value: 'null' };
+		else if (v === 'clean_wording') activeFilters[col] = { op: 'in', value: '(clean,wording)' };
+		else activeFilters[col] = { op: 'eq', value: v };
+	}
+
 	function toggleClearFiltersBtn() {
 		var hasFilters = Object.keys(activeFilters).length > 0 || $id('mchl-search-input').value.trim().length > 0;
 		$id('mchl-clear-filters-btn').style.display = hasFilters ? 'inline' : 'none';
@@ -773,6 +825,7 @@
 
 	function clearFilters() {
 		activeFilters = {};
+		wfLevelChoice = '';
 		$id('mchl-search-input').value = '';
 		currentPage = 0;
 		buildDynamicFilters();
@@ -1016,6 +1069,12 @@
 				'<button type="button" class="mchl-export-btn" data-action="assign-manual-match" data-wikipedia-id="' + row.id + '"' + (prefillId ? '' : ' disabled') + '>שייך</button>' +
 				'</span>';
 		}
+		if (col === 'verdict') return renderContentLevel(row);
+		if (col === 'has_images') {
+			if (row.has_images === true) return '<span class="mchl-badge mchl-neutral">יש (' + row.photo_count + ')</span>';
+			if (row.has_images === false) return '<span class="mchl-muted">אין</span>';
+			return '<span class="mchl-muted">—</span>';
+		}
 		if (col === 'checked_at' || col === 'created_at') return val ? '<span class="mchl-num-cell">' + new Date(val).toLocaleDateString('he-IL') + '</span>' : '<span class="mchl-muted">—</span>';
 		if (col === 'mechalol_redirect_exists') {
 			if (val === true) return '<span class="mchl-badge mchl-neutral">קיים כהפניה</span>';
@@ -1046,6 +1105,103 @@
 			return '<span class="mchl-skeleton" data-hint-title="' + escapeHtml(hintTitle) + '" style="display:inline-block;height:12px;width:70%;">&nbsp;</span>';
 		}
 		return escapeHtml(val == null ? '—' : val);
+	}
+
+	function renderContentLevel(row) {
+		var level = row[wfColumn()];
+		if (!level) return '<span class="mchl-muted">טרם נסרק</span>';
+		var info = WF_LEVELS[level];
+		var counts = row.counts && row.counts[wfMode];
+		var parts = [];
+		if (counts) {
+			if (counts.problem) parts.push(counts.problem + ' בעיה');
+			if (counts.review) parts.push(counts.review + ' לבדיקה');
+			if (counts.wording) parts.push(counts.wording + ' ניסוח');
+		}
+		var html = '<span class="mchl-badge ' + info.cls + '">' + escapeHtml(info.label) + '</span>';
+		if (parts.length) html += ' <span class="mchl-num-cell">' + escapeHtml(parts.join(' · ')) + '</span>';
+		if (row.matches_total || row.has_images) {
+			html += ' <button type="button" class="mchl-wf-toggle" data-action="wf-details" data-id="' + row.id + '">הקשר ▾</button>';
+		}
+		return html;
+	}
+
+	// פרטי הסינון לערך אחד - שורה נפתחת מתחת לשורה בטבלה: כל מילה עם המשפט
+	// שלה (העורך לא רואה כאן את הטקסט המלא), לפי הרשימות שנבחרו, ושמות
+	// התמונות של הערך (קישורים בלבד - בלי להציג את התמונות עצמן).
+	function toggleContentDetails(btn) {
+		var id = btn.getAttribute('data-id');
+		var tr = btn.closest('tr');
+		var next = tr.nextElementSibling;
+		if (next && next.classList.contains('mchl-wf-details-row')) { next.remove(); btn.textContent = 'הקשר ▾'; return; }
+		btn.textContent = 'הקשר ▴';
+		var detailsTr = document.createElement('tr');
+		detailsTr.className = 'mchl-wf-details-row';
+		detailsTr.innerHTML = '<td colspan="' + tr.children.length + '"><div class="mchl-wf-box mchl-muted">טוען…</div></td>';
+		tr.parentNode.insertBefore(detailsTr, tr.nextSibling);
+		var box = detailsTr.querySelector('.mchl-wf-box');
+		var row = currentPageRows.find(function (r) { return String(r.id) === id; });
+		loadContentDetails(id).then(function (d) {
+			box.classList.remove('mchl-muted');
+			box.innerHTML = renderContentDetails(d, row);
+		}).catch(function (e) {
+			box.innerHTML = '<span class="mchl-alert">שגיאה בשליפת הפרטים: ' + escapeHtml(e.message || e) + '</span>';
+		});
+	}
+
+	function loadContentDetails(id) {
+		if (wfDetailsCache.has(id)) return Promise.resolve(wfDetailsCache.get(id));
+		return withRetry(function () {
+			var params = new URLSearchParams();
+			params.set('select', 'matches,matches_total,images,photo_count,scanned_at,rev_id');
+			params.set('wikipedia_id', 'eq.' + id);
+			return fetch(SUPABASE_URL + '/rest/v1/word_filter_results?' + params.toString(), { headers: pgHeaders() })
+				.then(function (res) {
+					if (!res.ok) return res.text().then(function (t) { throw makePgError(res.status, t); });
+					return res.json();
+				});
+		}).then(function (rows) {
+			var d = rows && rows[0];
+			if (!d) throw new Error('אין תוצאות סריקה לערך הזה');
+			wfDetailsCache.set(id, d);
+			return d;
+		});
+	}
+
+	function renderContentDetails(d, row) {
+		var mode = wfMode;
+		var matches = (d.matches || []).filter(function (m) { return m[mode] != null; });
+		var html = '';
+		['problem', 'review', 'wording'].forEach(function (level) {
+			var items = matches.filter(function (m) { return m[mode] === level; });
+			if (!items.length) return;
+			html += '<div class="mchl-wf-group"><span class="mchl-badge ' + WF_LEVELS[level].cls + '">' +
+				escapeHtml(WF_LEVELS[level].label) + ' (' + items.length + ')</span><ul>';
+			items.forEach(function (m) {
+				var notes = [];
+				if (mode === 's' && m.a == null) notes.push('רק לפי ההצעות');
+				if (m.d && m.d.length && level === 'review') notes.push('ירד לבדיקה - שימוש תמים אפשרי');
+				html += '<li><span class="mchl-num-cell">שורה ' + m.line + ' · ' + escapeHtml(WF_TOPICS[m.t] || m.t) + '</span> ' +
+					escapeHtml(m.b) + '<mark class="mchl-wf-' + level + '">' + escapeHtml(m.x) + '</mark>' + escapeHtml(m.f) +
+					(notes.length ? ' <span class="mchl-muted">(' + escapeHtml(notes.join('; ')) + ')</span>' : '') +
+					' <span class="mchl-muted mchl-wf-ids" title="רשומות ברשימת המילים">' + escapeHtml((m.e || []).join(',')) + '</span></li>';
+			});
+			html += '</ul></div>';
+		});
+		if (!html) html = '<div class="mchl-muted">אין התאמות לפי הרשימות שנבחרו.</div>';
+		if (d.matches_total > (d.matches || []).length) {
+			html += '<div class="mchl-muted">מוצגות ' + (d.matches || []).length + ' התאמות מתוך ' + d.matches_total + '.</div>';
+		}
+		if (d.images && d.images.length) {
+			html += '<div class="mchl-wf-group"><span class="mchl-badge mchl-neutral">תמונות הערך (' + d.photo_count + ')</span> ' +
+				d.images.map(function (name) {
+					return '<a href="https://he.wikipedia.org/wiki/' + encodeURIComponent('קובץ:' + name) + '" target="_blank" rel="noopener">' + escapeHtml(name) + '</a>';
+				}).join(' · ') + '</div>';
+		}
+		var when = d.scanned_at ? new Date(d.scanned_at).toLocaleDateString('he-IL') : '';
+		html += '<div class="mchl-muted mchl-wf-foot">נסרק ' + escapeHtml(when) + ' · <a href="' + wikipediaUrl(row ? row.id : '') +
+			'" target="_blank" rel="noopener">הערך בוויקיפדיה</a></div>';
+		return html;
 	}
 
 	function renderPager() {
@@ -1123,6 +1279,15 @@
 		});
 	}
 
+	// ייצוא: "סינון תוכן" לפי הרשימות שנבחרו בסרגל, כתווית בעברית.
+	function exportValue(col, row) {
+		if (col === 'verdict') {
+			var level = row[wfColumn()];
+			return level ? WF_LEVELS[level].label : 'טרם נסרק';
+		}
+		return row[col];
+	}
+
 	function download(filename, content, mime) {
 		var blob = new Blob([content], { type: mime + ';charset=utf-8' });
 		var url = URL.createObjectURL(blob);
@@ -1169,7 +1334,7 @@
 			var base = cfg.label + '_' + stamp;
 			if (kind === 'txt') { download(base + '.txt', rows.map(function (r) { return r[titleColumn]; }).join('\n'), 'text/plain'); return; }
 			if (kind === 'json') {
-				var clean = rows.map(function (r) { var o = {}; idColumns.concat(cfg.columns).forEach(function (c) { o[c] = r[c]; }); return o; });
+				var clean = rows.map(function (r) { var o = {}; idColumns.concat(cfg.columns).forEach(function (c) { o[c] = exportValue(c, r); }); return o; });
 				download(base + '.json', JSON.stringify(clean, null, 2), 'application/json');
 				return;
 			}
@@ -1177,7 +1342,7 @@
 				var headers = idColumns.concat(cfg.columns);
 				var escapeCsv = function (v) { return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; };
 				var lines = [headers.map(function (h) { return escapeCsv(COLUMN_LABELS[h] || h); }).join(',')];
-				rows.forEach(function (r) { lines.push(headers.map(function (h) { return escapeCsv(r[h]); }).join(',')); });
+				rows.forEach(function (r) { lines.push(headers.map(function (h) { return escapeCsv(exportValue(h, r)); }).join(',')); });
 				download(base + '.csv', '\ufeff' + lines.join('\r\n'), 'text/csv');
 			}
 		});
@@ -1495,6 +1660,7 @@
 			else if (action === 'pick-manual-match-suggestion') pickManualMatchSuggestion(el);
 			else if (action === 'toggle-admin-panel') toggleAdminPanel();
 			else if (action === 'auth-login') authLogin();
+			else if (action === 'wf-details') toggleContentDetails(el);
 			else if (action === 'goto') {
 				var target = el.getAttribute('data-target');
 				if (target === 'first') goPage(0);
@@ -1627,6 +1793,19 @@
 		'#mchl-dash .mchl-badge.mchl-mechalol{background:var(--mchl-mechalol-dim);color:var(--mchl-mechalol);}' +
 		'#mchl-dash .mchl-badge.mchl-alert{background:var(--mchl-alert-dim);color:var(--mchl-alert);}' +
 		'#mchl-dash .mchl-badge.mchl-neutral{background:var(--mchl-ink-700);color:var(--mchl-text-2);}' +
+		'#mchl-dash .mchl-badge.mchl-review{background:#D9B44A26;color:#E3C15E;}' +
+		'#mchl-dash .mchl-wf-toggle{background:none;border:1px solid var(--mchl-line);color:var(--mchl-text-2);border-radius:6px;font-size:12px;padding:2px 8px;cursor:pointer;}' +
+		'#mchl-dash tr.mchl-wf-details-row td{background:var(--mchl-ink-900);}' +
+		'#mchl-dash .mchl-wf-box{font-size:13.5px;line-height:1.8;}' +
+		'#mchl-dash .mchl-wf-group{margin:6px 0 10px;}' +
+		'#mchl-dash .mchl-wf-group ul{margin:6px 18px 0 0;padding:0;}' +
+		'#mchl-dash .mchl-wf-group li{margin-bottom:4px;}' +
+		'#mchl-dash .mchl-wf-box mark{padding:0 3px;border-radius:3px;color:var(--mchl-ink-900);}' +
+		'#mchl-dash .mchl-wf-box mark.mchl-wf-problem{background:#E07A62;}' +
+		'#mchl-dash .mchl-wf-box mark.mchl-wf-review{background:#E3C15E;}' +
+		'#mchl-dash .mchl-wf-box mark.mchl-wf-wording{background:#9FADAF;}' +
+		'#mchl-dash .mchl-wf-ids{font-size:11px;}' +
+		'#mchl-dash .mchl-wf-box a{color:var(--mchl-mechalol);}' +
 		'#mchl-dash .mchl-muted{color:var(--mchl-text-3);}' +
 		'#mchl-dash .mchl-num-cell{font-variant-numeric:tabular-nums;color:var(--mchl-text-2);font-size:13px;}' +
 		'#mchl-dash .mchl-pager{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;font-size:13px;color:var(--mchl-text-2);flex-wrap:wrap;gap:10px;}' +

@@ -355,14 +355,26 @@
 		if (to < wikitext.length && /[.!?]/.test(wikitext[to])) to++;
 		var raw = wikitext.slice(from, start) + MARK_OPEN + wikitext.slice(start, end) + MARK_CLOSE + wikitext.slice(end, to);
 		var marked = function (t) { return t.indexOf(MARK_OPEN) >= 0 || t.indexOf(MARK_CLOSE) >= 0; };
+		var links = function (t) {
+			return t.replace(/\[\[([^\[\]|]*)\|([^\[\]]*)\]\]/g, function (m, target, label) { return marked(target) ? target : label; })
+				.replace(/\[\[([^\[\]]*)\]\]/g, '$1');
+		};
+		// התאמה בתוך תבנית: רק הפרמטר שבו היא נמצאת, בלי שם התבנית ושם הפרמטר
+		// ("{{קישור שפה|אנגלית|X|פסטיבל ... אנסי}}" -> "פסטיבל ... אנסי").
+		var segment = function (t) {
+			var parts = links(t).replace(/^\{\{/, '').replace(/\}\}$/, '').split('|');
+			var part = parts.filter(marked)[0] || '';
+			var eq = part.indexOf('=');
+			return eq >= 0 && eq < part.indexOf(MARK_OPEN) ? part.slice(eq + 1) : part;
+		};
 		var clean = raw
 			// תבנית או הערת שוליים שנחתכו בגבול החלון
-			.replace(/^[^{}]*\}\}/, function (t) { return marked(t) ? t : ''; })
-			.replace(/<ref[^>\/]*>(?![\s\S]*<\/ref>)[\s\S]*$|\{\{[^{}]*$/, function (t) { return marked(t) ? t : ''; })
+			.replace(/^\{?[^{}]*\}\}/, function (t) { return marked(t) ? segment(t.replace(/^\{/, '')) : ''; })
+			.replace(/<ref[^>\/]*>(?![\s\S]*<\/ref>)[\s\S]*$/, function (t) { return marked(t) ? t : ''; })
+			.replace(/\{\{[^{}]*$/, function (t) { return marked(t) ? segment(t) : ''; })
 			.replace(/<ref[^>]*\/>|<ref[^>]*>[\s\S]*?<\/ref>|<!--[\s\S]*?-->/g, function (t) { return marked(t) ? t : ''; })
-			.replace(/\{\{[^{}]*\}\}/g, function (t) { return marked(t) ? t.slice(2, -2) : ''; })
-			.replace(/\[\[([^\[\]|]*)\|([^\[\]]*)\]\]/g, function (t, target, label) { return marked(target) ? target : label; })
-			.replace(/\[\[([^\[\]]*)\]\]/g, '$1')
+			.replace(/\{\{[^{}]*\}\}/g, function (t) { return marked(t) ? segment(t) : ''; });
+		clean = links(clean)
 			.replace(/\[https?:[^\s\]]+ ?([^\]]*)\]/g, '$1')
 			.replace(/<[^>]+>|'{2,}/g, '')
 			.replace(/\s+/g, ' ');
