@@ -102,3 +102,20 @@ grant select on word_filter_anchors, word_filter_occurrences to anon, authentica
 grant select, insert, update, delete, truncate, references, trigger on word_filter_anchors, word_filter_occurrences to service_role;
 revoke all on function refresh_word_filter_occurrences() from public, anon, authenticated;
 grant execute on function refresh_word_filter_occurrences() to service_role;
+
+-- --- מדגם לסיווג ידני (2026-09-25) - ראו word-filter/analysis/word-rates.md ---
+-- 30 מופעים (מופע אחד לכל ערך, בחירה אקראית קבועה לפי md5) לכל אחת מ-60 המילים
+-- הנפוצות שאינן עוגן, והסיווג שלהם (p/i/u). הסיווג עצמו נשמר גם בריפו:
+-- word-filter/analysis/missing-labels.json.
+create table if not exists word_filter_label_sample as
+with o as (select *, array_to_string(array(select unnest(entries) order by 1), ',') fam from word_filter_occurrences where not is_anchor),
+top as (select fam, count(*) n, row_number() over (order by count(*) desc) frank from o group by fam order by n desc limit 60),
+one_per_page as (select o.*, top.frank, row_number() over (partition by o.fam, o.wikipedia_id order by o.idx) rp from o join top using (fam)),
+ranked as (select *, row_number() over (partition by fam order by md5(wikipedia_id::text || ':' || idx)) rn from one_per_page where rp = 1)
+select frank, fam, rn, wikipedia_id, idx, title, word, suspicion, before, after from ranked where rn <= 30;
+
+create table if not exists word_filter_labels (
+    frank int, rn int, label text check (label in ('p', 'i', 'u')), primary key (frank, rn)
+);
+alter table word_filter_label_sample enable row level security;
+alter table word_filter_labels enable row level security;
