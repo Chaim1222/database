@@ -5,10 +5,12 @@
  * והתוצאה נשמרת בטבלה word_filter_results בסופבייס. הדשבורד (הגאדג'ט
  * gadget/gadget-searchHelperDashboard.js) מסנן לפיה.
  *
- * לכל ערך נשמרות שתי פסיקות, כי רוב השיפורים ברשימות עדיין בגדר הצעה:
- *   verdict            - לפי הרשימות המאושרות בלבד (status: active).
- *   verdict_suggested  - כולל ההצעות (status: suggested).
- * רמות: problem / review / wording / clean (ראו המנוע).
+ * לכל ערך נשמרות פסיקות בשני צירים:
+ *   רשימות: מאושרות בלבד (status: active) / כולל ההצעות (status: suggested).
+ *   שיטה:   לפי רמת הרשימה (verdict, verdict_suggested) /
+ *           לפי הקשר (ctx_verdict + ctx_suspicion, וה-_suggested שלהם) - רמות חשד
+ *           בתוך "לבדיקה" לפי המילה והמשפט שלה (lists/usage.json, contextLevels במנוע).
+ * רמות: problem / review / wording / clean; חשד: high / medium / low.
  * בנוסף: תמונות (ראו imagesOf), וכל התאמה עם המשפט שבו נמצאה (contextOf) -
  * כדי שהעורך יראה את ההקשר בדשבורד, בלי הטקסט המלא מול העיניים.
  *
@@ -63,7 +65,7 @@ const log = (msg) => console.log(new Date().toISOString().slice(0, 19).replace('
 // גרסת הרשימות והמנוע: שינוי באחד מהם מחייב סריקה מחדש של הכל.
 function listsVersion() {
 	const hash = crypto.createHash('sha1');
-	for (const file of [path.join(LISTS_DIR, 'words.json'), path.join(LISTS_DIR, 'allow.json'),
+	for (const file of [path.join(LISTS_DIR, 'words.json'), path.join(LISTS_DIR, 'allow.json'), path.join(LISTS_DIR, 'usage.json'),
 		path.join(__dirname, '..', 'Gadget-wikitextWordCheck.js')]) hash.update(fs.readFileSync(file));
 	return hash.digest('hex').slice(0, 12);
 }
@@ -73,6 +75,7 @@ function compileBoth() {
 	return {
 		approved: engine.compileLists(words, allow),
 		suggested: engine.compileLists(words, allow, { suggested: true }),
+		usage: readJson('usage.json'),
 	};
 }
 
@@ -164,13 +167,15 @@ function imagesOf(page, text) {
 
 function scanPage(text, lists) {
 	const both = {};
+	const counted = (m) => engine.VERDICT_TOPICS.includes(m.topic);
 	for (const mode of ['approved', 'suggested']) {
-		const matches = engine.scan(text, lists[mode]);
-		both[mode] = { matches, verdict: engine.verdict(matches) };
+		const matches = engine.contextLevels(text, engine.scan(text, lists[mode]), lists.usage);
+		both[mode] = { matches, verdict: engine.verdict(matches), ctx: engine.contextVerdict(matches) };
 	}
+	// הרמה לפי ההקשר: problem / high / medium / low (חשד בתוך "לבדיקה") / wording.
+	const ctxOf = (m) => (!counted(m) ? 'wording' : m.context ? m.context.suspicion || m.context.level : m.level);
 	// איחוד ההתאמות של שני המצבים לפי מיקום: a = הרמה לפי המאושרות,
 	// s = לפי ההצעות (null = לא נמצא במצב הזה). הדשבורד מציג לכל מצב את שלו.
-	const counted = (m) => engine.VERDICT_TOPICS.includes(m.topic);
 	const levelOf = (m) => (counted(m) ? m.level : 'wording');
 	const bySpan = new Map();
 	for (const mode of ['approved', 'suggested']) {
@@ -179,26 +184,35 @@ function scanPage(text, lists) {
 			let row = bySpan.get(key);
 			if (!row) {
 				const c = engine.contextOf(text, m, CONTEXT_SIDE);
-				row = { pos: m.start, w: m.text, line: m.line, t: m.topic, a: null, s: null, e: [], d: [],
+				row = { pos: m.start, w: m.text, line: m.line, t: m.topic, a: null, s: null, ca: null, cs: null, e: [], d: [],
 					b: c.before, x: c.text, f: c.after };
 				bySpan.set(key, row);
 			}
 			row[mode === 'approved' ? 'a' : 's'] = levelOf(m);
+			row[mode === 'approved' ? 'ca' : 'cs'] = ctxOf(m);
+			if (m.context && m.context.group) row.g = m.context.group;
 			for (const e of m.entries) if (!row.e.includes(e.id)) row.e.push(e.id);
 			for (const e of m.demotedBy || []) if (!row.d.includes(e.id)) row.d.push(e.id);
 		}
 	}
-	const rank = { problem: 0, review: 1, wording: 2 };
-	const all = [...bySpan.values()].sort((x, y) => (rank[x.s || x.a] - rank[y.s || y.a]) || x.pos - y.pos);
+	const rank = { problem: 0, high: 1, medium: 2, low: 3, review: 3, wording: 4 };
+	const all = [...bySpan.values()].sort((x, y) => (rank[x.cs || x.ca] - rank[y.cs || y.ca]) || x.pos - y.pos);
 	const counts = {};
 	for (const mode of ['approved', 'suggested']) {
 		const c = { problem: 0, review: 0, wording: 0 };
 		for (const m of both[mode].matches) c[levelOf(m)]++;
 		counts[mode === 'approved' ? 'a' : 's'] = c;
+		const cc = { problem: 0, high: 0, medium: 0, low: 0, wording: 0 };
+		for (const m of both[mode].matches) cc[ctxOf(m)]++;
+		counts[mode === 'approved' ? 'ca' : 'cs'] = cc;
 	}
 	return {
 		verdict: both.approved.verdict,
 		verdict_suggested: both.suggested.verdict,
+		ctx_verdict: both.approved.ctx.level,
+		ctx_suspicion: both.approved.ctx.suspicion,
+		ctx_verdict_suggested: both.suggested.ctx.level,
+		ctx_suspicion_suggested: both.suggested.ctx.suspicion,
 		counts,
 		matches: all.slice(0, MAX_MATCHES).map(({ pos, ...rest }) => rest),
 		matches_total: all.length,
@@ -288,6 +302,8 @@ async function main() {
 			const row = resultRow(page, lists, version);
 			stats.scanned++;
 			stats[row.verdict_suggested]++;
+			const ck = 'ctx:' + row.ctx_verdict_suggested + (row.ctx_suspicion_suggested ? ':' + row.ctx_suspicion_suggested : '');
+			stats[ck] = (stats[ck] || 0) + 1;
 			if (row.has_images) stats.images++;
 			if (out) out.write(JSON.stringify(row) + '\n');
 			pending.push(row);

@@ -152,6 +152,25 @@ select
 from candidates
 order by wikipedia_title, mechalol_title;
 
+-- 6. "חסר במכלול" + סינון התוכן (word-filter/, 2026-09): report_missing_from_mechalol
+--    עם תוצאות word_filter_results. left join - ערך שעוד לא נסרק מופיע עם רמות ריקות.
+--    נשען על ה-view (לא ישירות על wikipedia_pages), ולכן perform_atomic_swap לא
+--    צריכה לבנות אותו מחדש. עמודות חדשות רק בסוף.
+create or replace view report_missing_word_filter with (security_invoker = true) as
+select m.id, m.title, m.checked_at, m.wikidata_desc, m.easy_import_length, m.created_at, m.mechalol_redirect_exists,
+    r.verdict, r.verdict_suggested, r.has_images, r.photo_count, r.counts, r.matches_total, r.images, r.scanned_at,
+    r.ctx_verdict, r.ctx_suspicion, r.ctx_verdict_suggested, r.ctx_suspicion_suggested
+from report_missing_from_mechalol m
+left join word_filter_results r on r.wikipedia_id = m.id;
+
+-- 7. ספירה מקובצת למחוון הפילוח בדשבורד (מאות שורות במקום 25 אלף).
+create or replace view report_missing_word_filter_summary with (security_invoker = true) as
+select coalesce(mechalol_redirect_exists, false) as redirect, has_images,
+    verdict, verdict_suggested, ctx_verdict, ctx_suspicion, ctx_verdict_suggested, ctx_suspicion_suggested,
+    count(*)::int as n
+from report_missing_word_filter
+group by 1, 2, 3, 4, 5, 6, 7, 8;
+
 -- --- הרשאות: קיימות בייצור, מעולם לא תועדו כאן עד 2026-09 ---
 -- מלכוד שהתגלה בפועל: view חדש שנוצר עם create or replace view רגיל
 -- (כמו שלושת הראשונים למעלה, כשהם נוצרו לראשונה) יורש את אותה ברירת
@@ -165,9 +184,11 @@ revoke all on report_tasks_to_handle from anon, authenticated;
 revoke all on report_undocumented_import from anon, authenticated;
 revoke all on report_missing_from_mechalol from anon, authenticated;
 revoke all on report_rav_prefix_normalization from anon, authenticated;
+revoke all on report_missing_word_filter, report_missing_word_filter_summary from anon, authenticated;
 
 grant select on report_possibly_deleted_source to anon, authenticated;
 grant select on report_tasks_to_handle to anon, authenticated;
 grant select on report_undocumented_import to anon, authenticated;
 grant select on report_missing_from_mechalol to anon, authenticated;
 grant select on report_rav_prefix_normalization to anon, authenticated;
+grant select on report_missing_word_filter, report_missing_word_filter_summary to anon, authenticated;

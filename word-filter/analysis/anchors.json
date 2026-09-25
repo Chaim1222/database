@@ -1,0 +1,168 @@
+{
+	"description": "מילות עוגן לרמות החשד: רשומות צניעות שהיו בעייתיות ב-85% ומעלה מהמופעים המסווגים במדגם האקראי מוויקיפדיה (לפחות 4 בעייתיים). הצעה - ממתין לאישור חיים. עותק בסופבייס: word_filter_anchors.",
+	"status": "suggested",
+	"entries": [
+		{
+			"id": "w0004",
+			"pattern": "(?<!ארי|ת|מ)זונ(?:ה|ות)",
+			"problematic": 10,
+			"labeled": 10
+		},
+		{
+			"id": "w0005",
+			"pattern": "(?<!ארי|ת)זונה",
+			"problematic": 7,
+			"labeled": 7
+		},
+		{
+			"id": "w0006",
+			"pattern": "(\\s|^)זונ(ה|ות)",
+			"problematic": 7,
+			"labeled": 7
+		},
+		{
+			"id": "w0013",
+			"pattern": "יחסי מין",
+			"problematic": 8,
+			"labeled": 8
+		},
+		{
+			"id": "w0017",
+			"pattern": ".?.?.?.?.?.?סקסואל.?.?",
+			"problematic": 21,
+			"labeled": 21
+		},
+		{
+			"id": "w0018",
+			"pattern": "לסבי[ות]",
+			"problematic": 14,
+			"labeled": 14
+		},
+		{
+			"id": "w0019",
+			"pattern": "[^שז]מינ(י|יו)ת(\\W)",
+			"problematic": 35,
+			"labeled": 37
+		},
+		{
+			"id": "w0021",
+			"pattern": "(ניצול|אופי|אופן|אקט|תוכן|העדפה|חד|חינוך) ה?מיני",
+			"problematic": 7,
+			"labeled": 8
+		},
+		{
+			"id": "w0023",
+			"pattern": "פורנו",
+			"problematic": 7,
+			"labeled": 7
+		},
+		{
+			"id": "w0026",
+			"pattern": "אי?ברי? ה?מין",
+			"problematic": 4,
+			"labeled": 4
+		},
+		{
+			"id": "w0033",
+			"pattern": "עי?רו[מהם]",
+			"problematic": 12,
+			"labeled": 14
+		},
+		{
+			"id": "w0038",
+			"pattern": "פי?לגש",
+			"problematic": 4,
+			"labeled": 4
+		},
+		{
+			"id": "w0043",
+			"pattern": "מאהב[ת]",
+			"problematic": 6,
+			"labeled": 7
+		},
+		{
+			"id": "w0044",
+			"pattern": "[מלה]*תאהב",
+			"problematic": 35,
+			"labeled": 39
+		},
+		{
+			"id": "w0051",
+			"pattern": "א[י]*רוטי",
+			"problematic": 10,
+			"labeled": 10
+		},
+		{
+			"id": "w0052",
+			"pattern": "להט\"ב",
+			"problematic": 25,
+			"labeled": 25
+		},
+		{
+			"id": "w0064",
+			"pattern": "[ה]גאה",
+			"problematic": 7,
+			"labeled": 8
+		},
+		{
+			"id": "w0071",
+			"pattern": "אהובתו",
+			"problematic": 9,
+			"labeled": 9
+		},
+		{
+			"id": "w0073",
+			"pattern": "להט\"בים",
+			"problematic": 11,
+			"labeled": 11
+		},
+		{
+			"id": "w0095",
+			"pattern": "מיניות",
+			"problematic": 17,
+			"labeled": 18
+		},
+		{
+			"id": "w0128",
+			"pattern": " מינית",
+			"problematic": 21,
+			"labeled": 22
+		},
+		{
+			"id": "w0223",
+			"pattern": "מאוהב",
+			"problematic": 19,
+			"labeled": 19
+		},
+		{
+			"id": "w0304",
+			"pattern": "לסבי(?:ם|ות|ית)",
+			"problematic": 5,
+			"labeled": 5
+		},
+		{
+			"id": "w0315",
+			"pattern": "ע[י]*רו(?!י)[מים]+",
+			"problematic": 12,
+			"labeled": 14
+		},
+		{
+			"id": "w0316",
+			"pattern": "פ[י]*לגש",
+			"problematic": 4,
+			"labeled": 4
+		},
+		{
+			"id": "w0326",
+			"pattern": "[^ש]מיני(ו)?ת(?!ימליים|ימום)",
+			"problematic": 35,
+			"labeled": 37
+		},
+		{
+			"id": "w0386",
+			"pattern": "שוכב(?:ת|ים|ות)? עם|שכב(?:ה|ו)? עם",
+			"problematic": 4,
+			"labeled": 4
+		}
+	]
+}
