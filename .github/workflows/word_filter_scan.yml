@@ -19,8 +19,11 @@ on:
     workflows: ["עדכון מצטבר לילי", "סנכרון שבועי מלא"]
     types: [completed]
   push:
-    branches: [main]
+    # זמני - סריקה עם רמות החשד מהענף, לפני המיזוג. להסיר לפני המיזוג.
+    branches: [main, claude/relaxed-clarke-nent4s]
     paths:
+      - ".github/workflows/word_filter_scan.yml"
+      - "word-filter/lists/usage.json"
       - "word-filter/lists/**"
       - "word-filter/Gadget-wikitextWordCheck.js"
       - "word-filter/tools/scan-missing.js"

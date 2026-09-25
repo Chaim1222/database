@@ -1,0 +1,855 @@
+{
+	"version": 1,
+	"description": "קבוצת השימוש של כל מילה (משפחת רשומות), לרמות החשד במנוע. נבנה ב-tools/build-usage.js מהסיווג הידני - אל תערכו ידנית, מלבד השדה override.",
+	"thresholds": {
+		"A": 0.75,
+		"B": 0.4,
+		"minLabeled": 10
+	},
+	"status": "suggested",
+	"anchors": [
+		"w0004",
+		"w0005",
+		"w0006",
+		"w0013",
+		"w0017",
+		"w0018",
+		"w0019",
+		"w0021",
+		"w0023",
+		"w0026",
+		"w0033",
+		"w0038",
+		"w0043",
+		"w0044",
+		"w0051",
+		"w0052",
+		"w0064",
+		"w0071",
+		"w0073",
+		"w0095",
+		"w0128",
+		"w0223",
+		"w0304",
+		"w0315",
+		"w0316",
+		"w0326",
+		"w0386"
+	],
+	"families": {
+		"w0001": {
+			"word": "סקס (סקסוניה)",
+			"group": "C",
+			"rate": 0,
+			"problematic": 0,
+			"innocent": 30,
+			"unclear": 0,
+			"sources": {
+				"missing": 30
+			}
+		},
+		"w0001,w0292": {
+			"word": "סקס",
+			"group": "C",
+			"rate": 0.35,
+			"problematic": 17,
+			"innocent": 32,
+			"unclear": 5,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 24
+			}
+		},
+		"w0002": {
+			"word": "",
+			"group": "C",
+			"rate": 0.14,
+			"problematic": 2,
+			"innocent": 12,
+			"unclear": 0,
+			"sources": {
+				"wiki-random": 14
+			}
+		},
+		"w0002,w0296": {
+			"word": "מין",
+			"group": "C",
+			"rate": 0.33,
+			"problematic": 18,
+			"innocent": 37,
+			"unclear": 1,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 26
+			}
+		},
+		"w0003": {
+			"word": "זנו (לזנוח, מזנון)",
+			"group": "C",
+			"rate": 0.03,
+			"problematic": 1,
+			"innocent": 39,
+			"unclear": 2,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 12
+			}
+		},
+		"w0003,w0007,w0297": {
+			"word": "זנות",
+			"group": "A",
+			"rate": 1,
+			"problematic": 32,
+			"innocent": 0,
+			"unclear": 1,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 3
+			}
+		},
+		"w0008": {
+			"word": "תשוקה",
+			"group": "B",
+			"rate": 0.42,
+			"problematic": 14,
+			"innocent": 19,
+			"unclear": 16,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 19
+			}
+		},
+		"w0009": {
+			"word": "סרסור",
+			"group": "A",
+			"rate": 0.97,
+			"problematic": 30,
+			"innocent": 1,
+			"unclear": 1,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 2
+			}
+		},
+		"w0014,w0295": {
+			"word": "הומו",
+			"group": "B",
+			"rate": 0.56,
+			"problematic": 27,
+			"innocent": 21,
+			"unclear": 1,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 19
+			}
+		},
+		"w0014,w0295,w0323": {
+			"word": "הומופוב",
+			"group": "A",
+			"rate": 1,
+			"problematic": 32,
+			"innocent": 0,
+			"unclear": 0,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 2
+			}
+		},
+		"w0015,w0121": {
+			"word": "טרנסג'נדר",
+			"group": "A",
+			"rate": 1,
+			"problematic": 31,
+			"innocent": 0,
+			"unclear": 0,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 1
+			}
+		},
+		"w0017": {
+			"word": "",
+			"group": "A",
+			"rate": 1,
+			"problematic": 12,
+			"innocent": 0,
+			"unclear": 1,
+			"sources": {
+				"wiki-random": 13
+			}
+		},
+		"w0018": {
+			"word": "",
+			"group": "A",
+			"rate": 1,
+			"problematic": 12,
+			"innocent": 0,
+			"unclear": 0,
+			"sources": {
+				"wiki-random": 12
+			}
+		},
+		"w0019,w0128,w0326": {
+			"word": "",
+			"group": "A",
+			"rate": 1,
+			"problematic": 10,
+			"innocent": 0,
+			"unclear": 0,
+			"sources": {
+				"wiki-random": 10
+			}
+		},
+		"w0019,w0326": {
+			"word": "",
+			"group": "A",
+			"rate": 0.91,
+			"problematic": 10,
+			"innocent": 1,
+			"unclear": 0,
+			"sources": {
+				"wiki-random": 11
+			}
+		},
+		"w0020": {
+			"word": "מיני",
+			"group": "C",
+			"rate": 0.11,
+			"problematic": 6,
+			"innocent": 48,
+			"unclear": 0,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 24
+			}
+		},
+		"w0020,w0022": {
+			"word": "מיניים (מיני+)",
+			"group": "A",
+			"rate": 1,
+			"problematic": 34,
+			"innocent": 0,
+			"unclear": 0,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 4
+			}
+		},
+		"w0022": {
+			"word": "מיניים",
+			"group": "A",
+			"rate": 0.85,
+			"problematic": 29,
+			"innocent": 5,
+			"unclear": 9,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 13
+			}
+		},
+		"w0024": {
+			"word": "חשפה",
+			"group": "C",
+			"rate": 0.27,
+			"problematic": 10,
+			"innocent": 27,
+			"unclear": 1,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 8
+			}
+		},
+		"w0024,w0310": {
+			"word": "חשופה",
+			"group": "C",
+			"rate": 0.06,
+			"problematic": 3,
+			"innocent": 48,
+			"unclear": 1,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 22
+			}
+		},
+		"w0027,w0122,w0290,w0313": {
+			"word": "אונס",
+			"group": "B",
+			"rate": 0.73,
+			"problematic": 27,
+			"innocent": 10,
+			"unclear": 1,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 8
+			}
+		},
+		"w0027,w0122,w0291,w0313": {
+			"word": "אנסו",
+			"group": "C",
+			"rate": 0.15,
+			"problematic": 5,
+			"innocent": 29,
+			"unclear": 0,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 4
+			}
+		},
+		"w0027,w0122,w0313": {
+			"word": "אנס (אנסמבל, שמות)",
+			"group": "C",
+			"rate": 0.1,
+			"problematic": 5,
+			"innocent": 46,
+			"unclear": 0,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 21
+			}
+		},
+		"w0027,w0313": {
+			"word": "אוונס / בואנוס",
+			"group": "C",
+			"rate": 0.06,
+			"problematic": 2,
+			"innocent": 32,
+			"unclear": 0,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 4
+			}
+		},
+		"w0032": {
+			"word": "",
+			"group": "C",
+			"rate": 0.18,
+			"problematic": 2,
+			"innocent": 9,
+			"unclear": 0,
+			"sources": {
+				"wiki-random": 11
+			}
+		},
+		"w0032,w0314": {
+			"word": "רומן",
+			"group": "C",
+			"rate": 0.36,
+			"problematic": 20,
+			"innocent": 35,
+			"unclear": 4,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 29
+			}
+		},
+		"w0033,w0315": {
+			"word": "",
+			"group": "A",
+			"rate": 0.86,
+			"problematic": 12,
+			"innocent": 2,
+			"unclear": 2,
+			"sources": {
+				"wiki-random": 16
+			}
+		},
+		"w0034": {
+			"word": "אינטימי",
+			"group": "B",
+			"rate": 0.46,
+			"problematic": 19,
+			"innocent": 22,
+			"unclear": 9,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 20
+			}
+		},
+		"w0036": {
+			"word": "פדופיל",
+			"group": "A",
+			"rate": 1,
+			"problematic": 31,
+			"innocent": 0,
+			"unclear": 0,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 1
+			}
+		},
+		"w0044": {
+			"word": "",
+			"group": "A",
+			"rate": 0.89,
+			"problematic": 33,
+			"innocent": 4,
+			"unclear": 0,
+			"sources": {
+				"wiki-random": 37
+			}
+		},
+		"w0046": {
+			"word": "אמצעי מניעה",
+			"group": "A",
+			"rate": 0.96,
+			"problematic": 26,
+			"innocent": 1,
+			"unclear": 4,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 1
+			}
+		},
+		"w0052": {
+			"word": "",
+			"group": "A",
+			"rate": 1,
+			"problematic": 18,
+			"innocent": 0,
+			"unclear": 0,
+			"sources": {
+				"wiki-random": 18
+			}
+		},
+		"w0053": {
+			"word": "חד-מיני",
+			"group": "A",
+			"rate": 1,
+			"problematic": 27,
+			"innocent": 0,
+			"unclear": 7,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 4
+			}
+		},
+		"w0055": {
+			"word": "בתולים/בתולות",
+			"group": "B",
+			"rate": 0.41,
+			"problematic": 11,
+			"innocent": 16,
+			"unclear": 10,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 7
+			}
+		},
+		"w0055,w0324": {
+			"word": "בתולה",
+			"group": "C",
+			"rate": 0.05,
+			"problematic": 2,
+			"innocent": 37,
+			"unclear": 4,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 13
+			}
+		},
+		"w0058": {
+			"word": "ניאוף",
+			"group": "A",
+			"rate": 0.9,
+			"problematic": 26,
+			"innocent": 3,
+			"unclear": 3,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 2
+			}
+		},
+		"w0076": {
+			"word": "sex",
+			"group": "A",
+			"rate": 0.81,
+			"problematic": 29,
+			"innocent": 7,
+			"unclear": 4,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 10
+			}
+		},
+		"w0076,w0112": {
+			"word": "Sex",
+			"group": "B",
+			"rate": 0.69,
+			"problematic": 25,
+			"innocent": 11,
+			"unclear": 2,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 8
+			}
+		},
+		"w0077": {
+			"word": "ass",
+			"group": "C",
+			"rate": 0.1,
+			"problematic": 3,
+			"innocent": 27,
+			"unclear": 1,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 1
+			}
+		},
+		"w0080": {
+			"word": "מיס",
+			"group": "C",
+			"rate": 0.21,
+			"problematic": 8,
+			"innocent": 31,
+			"unclear": 1,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 10
+			}
+		},
+		"w0097": {
+			"word": "gay",
+			"group": "A",
+			"rate": 1,
+			"problematic": 33,
+			"innocent": 0,
+			"unclear": 0,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 3
+			}
+		},
+		"w0107": {
+			"word": "מערכת יחסים",
+			"group": "A",
+			"rate": 0.82,
+			"problematic": 51,
+			"innocent": 11,
+			"unclear": 3,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 35
+			}
+		},
+		"w0111": {
+			"word": "קוויר",
+			"group": "A",
+			"rate": 0.81,
+			"problematic": 25,
+			"innocent": 6,
+			"unclear": 0,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 1
+			}
+		},
+		"w0120": {
+			"word": "גייז (שוגייז, גייזר)",
+			"group": "C",
+			"rate": 0.21,
+			"problematic": 7,
+			"innocent": 26,
+			"unclear": 0,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 3
+			}
+		},
+		"w0121": {
+			"word": "טרנס",
+			"group": "C",
+			"rate": 0.18,
+			"problematic": 6,
+			"innocent": 28,
+			"unclear": 0,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 4
+			}
+		},
+		"w0122": {
+			"word": "אונס (אונסק\"ו, נאנסי)",
+			"group": "C",
+			"rate": 0.2,
+			"problematic": 7,
+			"innocent": 28,
+			"unclear": 0,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 5
+			}
+		},
+		"w0210": {
+			"word": "אהבה",
+			"group": "B",
+			"rate": 0.46,
+			"problematic": 23,
+			"innocent": 27,
+			"unclear": 20,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 40
+			}
+		},
+		"w0212": {
+			"word": "אקרנים",
+			"group": "C",
+			"rate": 0,
+			"problematic": 0,
+			"innocent": 70,
+			"unclear": 0,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 40
+			}
+		},
+		"w0214": {
+			"word": "יפהפייה",
+			"group": "C",
+			"rate": 0.03,
+			"problematic": 1,
+			"innocent": 32,
+			"unclear": 3,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 6
+			}
+		},
+		"w0217": {
+			"word": "נרתיק",
+			"group": "B",
+			"rate": 0.68,
+			"problematic": 21,
+			"innocent": 10,
+			"unclear": 0,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 1
+			}
+		},
+		"w0218": {
+			"word": "אשכים",
+			"group": "A",
+			"rate": 1,
+			"problematic": 17,
+			"innocent": 0,
+			"unclear": 15,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 2
+			}
+		},
+		"w0219,w0288": {
+			"word": "פין",
+			"group": "C",
+			"rate": 0.17,
+			"problematic": 7,
+			"innocent": 35,
+			"unclear": 0,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 12
+			}
+		},
+		"w0222,w0228": {
+			"word": "הזדווגות",
+			"group": "B",
+			"rate": 0.42,
+			"problematic": 5,
+			"innocent": 7,
+			"unclear": 27,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 9
+			}
+		},
+		"w0223": {
+			"word": "",
+			"group": "A",
+			"rate": 1,
+			"problematic": 19,
+			"innocent": 0,
+			"unclear": 2,
+			"sources": {
+				"wiki-random": 21
+			}
+		},
+		"w0230": {
+			"word": "חיזור",
+			"group": "B",
+			"rate": 0.65,
+			"problematic": 20,
+			"innocent": 11,
+			"unclear": 5,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 6
+			}
+		},
+		"w0231": {
+			"word": "לחזר",
+			"group": "C",
+			"rate": 0.33,
+			"problematic": 14,
+			"innocent": 29,
+			"unclear": 0,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 13
+			}
+		},
+		"w0232": {
+			"word": "מחזר",
+			"group": "B",
+			"rate": 0.46,
+			"problematic": 18,
+			"innocent": 21,
+			"unclear": 3,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 12
+			}
+		},
+		"w0290": {
+			"word": "",
+			"group": "B",
+			"rate": 0.67,
+			"problematic": 12,
+			"innocent": 6,
+			"unclear": 0,
+			"sources": {
+				"wiki-random": 18
+			}
+		},
+		"w0296": {
+			"word": "המין",
+			"group": "C",
+			"rate": 0.26,
+			"problematic": 10,
+			"innocent": 29,
+			"unclear": 5,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 14
+			}
+		},
+		"w0298,w0299": {
+			"word": "",
+			"group": "C",
+			"rate": 0,
+			"problematic": 0,
+			"innocent": 10,
+			"unclear": 0,
+			"sources": {
+				"wiki-random": 10
+			}
+		},
+		"w0300": {
+			"word": "דראג",
+			"group": "B",
+			"rate": 0.56,
+			"problematic": 20,
+			"innocent": 16,
+			"unclear": 0,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 6
+			}
+		},
+		"w0302": {
+			"word": "זימה (מזימה)",
+			"group": "C",
+			"rate": 0.03,
+			"problematic": 1,
+			"innocent": 39,
+			"unclear": 0,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 10
+			}
+		},
+		"w0314": {
+			"word": "",
+			"group": "C",
+			"rate": 0.18,
+			"problematic": 2,
+			"innocent": 9,
+			"unclear": 0,
+			"sources": {
+				"wiki-random": 11
+			}
+		},
+		"w0377": {
+			"word": "נשיקה",
+			"group": "B",
+			"rate": 0.71,
+			"problematic": 20,
+			"innocent": 8,
+			"unclear": 17,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 15
+			}
+		},
+		"w0405": {
+			"word": "גילוי עריות",
+			"group": "B",
+			"rate": 0.61,
+			"problematic": 11,
+			"innocent": 7,
+			"unclear": 16,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 4
+			}
+		},
+		"w0410": {
+			"word": "LGBTQ",
+			"group": "A",
+			"rate": 1,
+			"problematic": 31,
+			"innocent": 0,
+			"unclear": 0,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 1
+			}
+		},
+		"w0411": {
+			"word": "Lesbian/Transgender",
+			"group": "A",
+			"rate": 1,
+			"problematic": 33,
+			"innocent": 0,
+			"unclear": 0,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 3
+			}
+		},
+		"w0412": {
+			"word": "Queer",
+			"group": "A",
+			"rate": 1,
+			"problematic": 33,
+			"innocent": 0,
+			"unclear": 0,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 3
+			}
+		},
+		"w0427": {
+			"word": "Rape",
+			"group": "A",
+			"rate": 0.93,
+			"problematic": 27,
+			"innocent": 2,
+			"unclear": 2,
+			"sources": {
+				"missing": 30,
+				"wiki-random": 1
+			}
+		}
+	}
+}

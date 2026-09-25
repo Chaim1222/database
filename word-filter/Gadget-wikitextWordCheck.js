@@ -355,6 +355,82 @@
 		return [from, to];
 	}
 
+	// ===== רמות חשד לפי הקשר (usage.json) =====
+	// שני ממדים (analysis/word-rates.md): המילה עצמה - קבוצת השימוש שלה (A: בעייתית
+	// ב-75% ומעלה מהמופעים, B: 40%-75%, C: פחות מ-40%) - וההקשר: עוגן (מילה מקבוצה A
+	// או בעיה ודאית) באותו משפט, מילה חשודה אחרת באותו משפט, עוגן במקום אחר בערך.
+	//   עוגן מוחלט, או רשומת "בעיה" בלי נתונים  -> בעיה ודאית
+	//   A: לבד -> לבדיקה, חשד גבוה;   עם הקשר כלשהו -> בעיה ודאית
+	//   B: לבד -> חשד בינוני;   הקשר חלש -> חשד גבוה;   הקשר חזק -> בעיה ודאית
+	//   C: לבד -> חשד נמוך;    הקשר חלש -> חשד בינוני;  הקשר חזק -> חשד גבוה
+	// הקשר חזק = עוגן באותו משפט, או מילה חשודה במשפט + עוגן בערך. חלש = אחד מהשניים.
+	// ההתאמה מקבלת match.context = {group, level, suspicion}. ההתאמה עצמה (match.level) לא משתנה.
+	var SUSPICION_RANK = { low: 1, medium: 2, high: 3 };
+	var SUSPICION_LABELS = { high: 'חשד גבוה', medium: 'חשד בינוני', low: 'חשד נמוך' };
+	var GROUP_RANK = { C: 1, B: 2, A: 3 };
+
+	function groupOf(match, usage) {
+		var anchors = (usage && usage.anchors) || [];
+		if (match.entries.some(function (e) { return anchors.indexOf(e.id) >= 0; })) return 'anchor';
+		var families = (usage && usage.families) || {};
+		var key = match.entries.map(function (e) { return e.id; }).sort().join(',');
+		if (families[key]) return families[key].group;
+		var best = null;
+		match.entries.forEach(function (e) {
+			var f = families[e.id];
+			if (f && (!best || GROUP_RANK[f.group] > GROUP_RANK[best])) best = f.group;
+		});
+		if (best) return best;
+		return match.level === 'problem' ? 'X' : 'B'; // אין נתונים - לפי הרשימה
+	}
+
+	function contextLevels(wikitext, matches, usage) {
+		var flagged = matches.filter(function (m) { return m.topic === 'modesty' && LEVELS[m.level]; });
+		flagged.forEach(function (m) { m._group = groupOf(m, usage); });
+		var isAnchor = function (m) { return m._group === 'anchor' || m._group === 'A' || m._group === 'X'; };
+		flagged.forEach(function (m) {
+			var span = sentenceSpan(wikitext, m.start, m.end);
+			var mates = flagged.filter(function (o) {
+				return o !== m && o.text !== m.text && o.start >= span[0] && o.end <= span[1];
+			});
+			var anchorInSentence = mates.some(isAnchor);
+			var pageAnchor = flagged.some(function (o) { return o !== m && o.text !== m.text && isAnchor(o); });
+			var strong = anchorInSentence || (mates.length > 0 && pageAnchor);
+			var weak = mates.length > 0 || pageAnchor;
+			var g = m._group, eff;
+			if (g === 'anchor' || g === 'X') eff = 'problem';
+			else if (g === 'A') eff = strong || weak ? 'problem' : 'high';
+			else if (g === 'B') eff = strong ? 'problem' : weak ? 'high' : 'medium';
+			else eff = strong ? 'high' : weak ? 'medium' : 'low';
+			if (eff === 'problem' && m.demotedBy && m.demotedBy.length) eff = 'high'; // שימוש תמים אפשרי - לא "ודאי"
+			m.context = { group: g, level: eff === 'problem' ? 'problem' : 'review', suspicion: eff === 'problem' ? null : eff,
+				anchorInSentence: anchorInSentence, neighbors: mates.length, pageAnchor: pageAnchor };
+			delete m._group;
+		});
+		// נושאים אחרים שנספרים (גיל העולם): בלי נתוני שימוש - "לבדיקה" = חשד בינוני.
+		matches.forEach(function (m) {
+			if (m.context || !LEVELS[m.level]) return;
+			m.context = { group: null, level: m.level, suspicion: m.level === 'review' ? 'medium' : null };
+		});
+		return matches;
+	}
+
+	// רמת הדף לפי ההקשר: {level: problem/review/wording/clean, suspicion: high/medium/low/null}.
+	function contextVerdict(matches, topics) {
+		topics = topics || VERDICT_TOPICS;
+		var level = verdict(matches, topics) === 'clean' ? 'clean' : 'wording', suspicion = null;
+		matches.forEach(function (m) {
+			if (topics.indexOf(m.topic) < 0 || !m.context) return;
+			if (m.context.level === 'problem') level = 'problem';
+			else if (level !== 'problem') {
+				level = 'review';
+				if (!suspicion || SUSPICION_RANK[m.context.suspicion] > SUSPICION_RANK[suspicion]) suspicion = m.context.suspicion;
+			}
+		});
+		if (level === 'wording' && !matches.some(function (m) { return topics.indexOf(m.topic) < 0; })) level = 'clean';
+		return { level: level, suspicion: level === 'review' ? suspicion : null };
+	}
+
 	// המשפט שבו נמצאה ההתאמה, כטקסט קריא (בלי קישורים, תבניות והערות שוליים), לתצוגה
 	// מחוץ לעורך - למשל בדשבורד, שבו הטקסט המלא לא מול העיניים. מחזיר {before, text, after}.
 	var MARK_OPEN = '\u0001', MARK_CLOSE = '\u0002';
@@ -399,6 +475,7 @@
 
 	var core = {
 		compileLists: compileLists, maskWikitext: maskWikitext, scan: scan, verdict: verdict, contextOf: contextOf, sentenceSpan: sentenceSpan,
+		contextLevels: contextLevels, contextVerdict: contextVerdict, SUSPICION_LABELS: SUSPICION_LABELS,
 		VERDICT_TOPICS: VERDICT_TOPICS, LEVEL_LABELS: LEVEL_LABELS, TOPIC_LABELS: TOPIC_LABELS
 	};
 

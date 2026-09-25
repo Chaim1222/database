@@ -138,3 +138,18 @@ test('context inside a template shows only the parameter text', () => {
 	const c = engine.contextOf(src, m);
 	assert.strictEqual(c.before + '[' + c.text + ']' + c.after, 'בפסטיבל פסטיבל האנימציה של [אנסי] הוכרז השם.');
 });
+
+// רמות חשד לפי הקשר (usage.json, analysis/word-rates.md).
+test('context levels: the word and its sentence decide the suspicion', () => {
+	const usage = require('../lists/usage.json');
+	const ctx = (t) => engine.contextVerdict(engine.contextLevels(t, engine.scan(t, FULL), usage));
+	assert.deepStrictEqual(ctx('הרומן "נפשות מתות" מאת גוגול.'), { level: 'review', suspicion: 'low' });      // C לבד
+	assert.deepStrictEqual(ctx('הוא הורשע באונס.'), { level: 'review', suspicion: 'medium' });                // B לבד
+	assert.deepStrictEqual(ctx('הסרט עוסק במערכת יחסים.'), { level: 'review', suspicion: 'high' });         // A לבד
+	assert.deepStrictEqual(ctx('תעשיית הפורנו.'), { level: 'problem', suspicion: null });                     // עוגן
+	const t = 'הוא ניהל רומן עם אשתו של חברו, והזונה צחקה.';
+	const ms = engine.contextLevels(t, engine.scan(t, FULL), usage);
+	assert.strictEqual(ms.find((m) => m.text === 'רומן').context.suspicion, 'high');                        // C + עוגן במשפט
+	assert.deepStrictEqual(ctx('ירושלים עיר עתיקה.'), { level: 'clean', suspicion: null });
+	assert.deepStrictEqual(ctx('נפטר בשנת 419 לפנה"ס.'), { level: 'wording', suspicion: null });
+});

@@ -54,3 +54,12 @@ test('resultRow: shape of the row saved to Supabase', () => {
 	assert.strictEqual(row.verdict, 'clean');
 	assert.strictEqual(row.lists_version, 'v1');
 });
+
+test('scanPage: context verdict and per-match suspicion', () => {
+	const r = scanPage('הרומן "נפשות מתות" מאת גוגול. הוא הורשע באונס.', lists);
+	assert.strictEqual(r.ctx_verdict_suggested, 'review');
+	assert.strictEqual(r.ctx_suspicion_suggested, 'medium');
+	assert.strictEqual(r.matches.find((m) => m.x === 'הרומן').cs, 'low');
+	assert.strictEqual(r.counts.cs.medium, 1);
+});
+
