@@ -1270,8 +1270,8 @@
 	}
 
 	// פרטי הסינון לערך אחד - שורה נפתחת מתחת לשורה בטבלה: כל מילה עם המשפט
-	// שלה (העורך לא רואה כאן את הטקסט המלא), לפי הרשימות שנבחרו, ושמות
-	// התמונות של הערך (קישורים בלבד - בלי להציג את התמונות עצמן).
+	// שלה (העורך לא רואה כאן את הטקסט המלא), לפי הרשימות שנבחרו, ותמונות
+	// הערך כתמונות ממוזערות - לחיצה פותחת מציג במסך מלא (openWfViewer).
 	function toggleContentDetails(btn) {
 		var id = btn.getAttribute('data-id');
 		var tr = btn.closest('tr');
@@ -1360,15 +1360,95 @@
 			html += '</ul></div>';
 		}
 		if (d.images && d.images.length) {
-			html += '<div class="mchl-wf-group"><span class="mchl-badge mchl-neutral">תמונות הערך (' + d.photo_count + ')</span> ' +
-				d.images.map(function (name) {
-					return '<a href="https://he.wikipedia.org/wiki/' + encodeURIComponent('קובץ:' + name) + '" target="_blank" rel="noopener">' + escapeHtml(name) + '</a>';
-				}).join(' · ') + '</div>';
+			html += '<div class="mchl-wf-group"><span class="mchl-badge mchl-neutral">תמונות הערך (' + d.photo_count + ')</span>' +
+				(d.photo_count > d.images.length ? ' <span class="mchl-muted">מוצגות ' + d.images.length + '</span>' : '') +
+				'<div class="mchl-wf-thumbs">' +
+				d.images.map(function (name, i) {
+					return '<button type="button" class="mchl-wf-thumb" data-action="wf-image" data-index="' + i + '" title="' + escapeHtml(name) + '">' +
+						'<img loading="lazy" alt="' + escapeHtml(name) + '" src="' + escapeHtml(wfImageUrl(name, 240)) + '"></button>';
+				}).join('') + '</div></div>';
 		}
 		var when = d.scanned_at ? new Date(d.scanned_at).toLocaleDateString('he-IL') : '';
 		html += '<div class="mchl-muted mchl-wf-foot">נסרק ' + escapeHtml(when) + ' · <a href="' + wikipediaUrl(row ? row.id : '') +
 			'" target="_blank" rel="noopener">הערך בוויקיפדיה</a></div>';
 		return html;
+	}
+
+	// ===== תמונות הערך: ממוזערות, ומציג במסך מלא =====
+	// Special:FilePath בוויקיפדיה מחזיר את הקובץ בגודל המבוקש - גם קובץ מקומי וגם
+	// מוויקישיתוף - בלי שאילתת API. width בפיקסלים (המגבלה של ויקיפדיה - עד גודל המקור).
+	function wfImageUrl(name, width) {
+		return 'https://he.wikipedia.org/wiki/Special:FilePath/' + encodeURIComponent(name) + (width ? '?width=' + width : '');
+	}
+	function wfFilePageUrl(name) {
+		return 'https://he.wikipedia.org/wiki/' + encodeURIComponent('קובץ:' + name);
+	}
+
+	var wfViewer = { images: [], index: 0, el: null };
+	function openWfViewer(images, index) {
+		wfViewer.images = images;
+		if (!wfViewer.el) {
+			var el = document.createElement('div');
+			el.className = 'mchl-viewer';
+			el.setAttribute('role', 'dialog');
+			el.setAttribute('aria-modal', 'true');
+			el.innerHTML = '<button type="button" class="mchl-viewer-btn mchl-viewer-close" data-viewer="close" title="סגירה (Esc)">✕</button>' +
+				'<button type="button" class="mchl-viewer-btn mchl-viewer-prev" data-viewer="prev" title="הקודמת">›</button>' +
+				'<button type="button" class="mchl-viewer-btn mchl-viewer-next" data-viewer="next" title="הבאה">‹</button>' +
+				'<div class="mchl-viewer-stage" data-viewer="close"><img class="mchl-viewer-img" alt=""><div class="mchl-viewer-loading">טוען…</div></div>' +
+				'<div class="mchl-viewer-caption"></div>';
+			el.addEventListener('click', function (e) {
+				var t = e.target.closest('[data-viewer]');
+				if (!t || e.target.classList.contains('mchl-viewer-img')) return;
+				var what = t.getAttribute('data-viewer');
+				if (what === 'close') closeWfViewer();
+				else stepWfViewer(what === 'next' ? 1 : -1);
+			});
+			var img = el.querySelector('.mchl-viewer-img');
+			img.addEventListener('load', function () { el.classList.remove('mchl-viewer-busy'); });
+			img.addEventListener('error', function () {
+				el.classList.remove('mchl-viewer-busy');
+				el.querySelector('.mchl-viewer-caption').insertAdjacentHTML('beforeend', ' <span class="mchl-alert">לא ניתן לטעון את התמונה.</span>');
+			});
+			document.body.appendChild(el);
+			wfViewer.el = el;
+		}
+		wfViewer.el.style.display = 'flex';
+		document.addEventListener('keydown', onWfViewerKey);
+		showWfViewerImage(index);
+	}
+	function showWfViewerImage(index) {
+		var n = wfViewer.images.length;
+		wfViewer.index = (index + n) % n;
+		var name = wfViewer.images[wfViewer.index];
+		var el = wfViewer.el;
+		// ברזולוציה של המסך (כולל צפיפות פיקסלים), מעוגל למדרגות כדי שהמטמון של ויקיפדיה יעבוד.
+		var want = Math.ceil(Math.min(window.innerWidth * (window.devicePixelRatio || 1), 2560) / 320) * 320;
+		el.classList.add('mchl-viewer-busy');
+		el.querySelector('.mchl-viewer-img').src = wfImageUrl(name, want);
+		el.querySelector('.mchl-viewer-img').alt = name;
+		el.querySelector('.mchl-viewer-caption').innerHTML = (n > 1 ? '<b>' + (wfViewer.index + 1) + ' / ' + n + '</b> · ' : '') +
+			escapeHtml(name) + ' · <a href="' + wfFilePageUrl(name) + '" target="_blank" rel="noopener">דף הקובץ</a>' +
+			' · <a href="' + wfImageUrl(name) + '" target="_blank" rel="noopener">גודל מקורי</a>';
+		el.querySelector('.mchl-viewer-prev').style.visibility = n > 1 ? 'visible' : 'hidden';
+		el.querySelector('.mchl-viewer-next').style.visibility = n > 1 ? 'visible' : 'hidden';
+		// טעינה מוקדמת של השכנות, כדי שהמעבר יהיה מיידי.
+		[1, -1].forEach(function (d) { if (n > 1) new Image().src = wfImageUrl(wfViewer.images[(wfViewer.index + d + n) % n], want); });
+	}
+	function stepWfViewer(delta) { if (wfViewer.images.length > 1) showWfViewerImage(wfViewer.index + delta); }
+	function closeWfViewer() {
+		if (!wfViewer.el) return;
+		wfViewer.el.style.display = 'none';
+		wfViewer.el.querySelector('.mchl-viewer-img').removeAttribute('src');
+		document.removeEventListener('keydown', onWfViewerKey);
+	}
+	// מקשים: Esc סוגר; החיצים לפי כיוון הקריאה מימין לשמאל - שמאלה = הבאה.
+	function onWfViewerKey(e) {
+		if (e.key === 'Escape') closeWfViewer();
+		else if (e.key === 'ArrowLeft') stepWfViewer(1);
+		else if (e.key === 'ArrowRight') stepWfViewer(-1);
+		else return;
+		e.preventDefault();
 	}
 
 	function renderPager() {
@@ -1828,6 +1908,11 @@
 			else if (action === 'toggle-admin-panel') toggleAdminPanel();
 			else if (action === 'auth-login') authLogin();
 			else if (action === 'wf-details') toggleContentDetails(el);
+			else if (action === 'wf-image') {
+				var detailsRow = el.closest('tr.mchl-wf-details-row');
+				var cached = detailsRow && wfDetailsCache.get(detailsRow.previousElementSibling.querySelector('[data-action="wf-details"]').getAttribute('data-id'));
+				if (cached && cached.images) openWfViewer(cached.images, parseInt(el.getAttribute('data-index'), 10));
+			}
 			else if (action === 'wf-meter-filter') setWfLevel(wfLevelChoice === el.getAttribute('data-filter') ? '' : el.getAttribute('data-filter'));
 			else if (action === 'goto') {
 				var target = el.getAttribute('data-target');
@@ -1987,6 +2072,24 @@
 		'#mchl-dash .mchl-wf-box mark.mchl-wf-hidden{background:none;color:inherit;outline:1px dashed #E3C15E;}' +
 		'#mchl-dash .mchl-wf-code{font-size:12.5px;direction:rtl;unicode-bidi:plaintext;white-space:pre-wrap;}' +
 		'#mchl-dash .mchl-wf-box a{color:var(--mchl-mechalol);}' +
+		'#mchl-dash .mchl-wf-thumbs{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;}' +
+		'#mchl-dash .mchl-wf-thumb{padding:0;border:1px solid var(--mchl-line);border-radius:6px;background:var(--mchl-ink-800);cursor:zoom-in;width:120px;height:90px;overflow:hidden;}' +
+		'#mchl-dash .mchl-wf-thumb:hover{border-color:var(--mchl-mechalol);}' +
+		'#mchl-dash .mchl-wf-thumb img{width:100%;height:100%;object-fit:cover;display:block;}' +
+		// המציג יושב ב-body (מחוץ ל-#mchl-dash), כדי ש-position:fixed יכסה את כל המסך.
+		'.mchl-viewer{position:fixed;inset:0;z-index:10000;background:rgba(10,14,16,.94);display:none;align-items:center;justify-content:center;direction:rtl;font-family:inherit;}' +
+		'.mchl-viewer-stage{position:absolute;inset:48px 64px 56px;display:flex;align-items:center;justify-content:center;}' +
+		'.mchl-viewer-img{max-width:100%;max-height:100%;object-fit:contain;box-shadow:0 4px 30px rgba(0,0,0,.5);background:#fff;}' +
+		'.mchl-viewer-loading{position:absolute;color:#ccc;font-size:14px;display:none;}' +
+		'.mchl-viewer.mchl-viewer-busy .mchl-viewer-loading{display:block;}' +
+		'.mchl-viewer.mchl-viewer-busy .mchl-viewer-img{opacity:.35;}' +
+		'.mchl-viewer-btn{position:absolute;z-index:1;background:rgba(255,255,255,.12);color:#fff;border:0;border-radius:50%;width:44px;height:44px;font-size:26px;line-height:44px;cursor:pointer;padding:0;}' +
+		'.mchl-viewer-btn:hover{background:rgba(255,255,255,.25);}' +
+		'.mchl-viewer-close{top:10px;left:12px;font-size:20px;}' +
+		'.mchl-viewer-prev{right:12px;top:50%;margin-top:-22px;}' +
+		'.mchl-viewer-next{left:12px;top:50%;margin-top:-22px;}' +
+		'.mchl-viewer-caption{position:absolute;bottom:14px;left:60px;right:60px;text-align:center;color:#ddd;font-size:13.5px;}' +
+		'.mchl-viewer-caption a{color:#9fd3c7;}' +
 		'#mchl-dash .mchl-muted{color:var(--mchl-text-3);}' +
 		'#mchl-dash .mchl-num-cell{font-variant-numeric:tabular-nums;color:var(--mchl-text-2);font-size:13px;}' +
 		'#mchl-dash .mchl-pager{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;font-size:13px;color:var(--mchl-text-2);flex-wrap:wrap;gap:10px;}' +
