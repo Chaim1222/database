@@ -255,11 +255,29 @@ function scanPage(text, lists) {
 	};
 }
 
+// חצי של זוג surrogate (למשל אות פיניקית 𐤌 שנחתכה באמצע בגבול חלון ההקשר) הופך
+// את ה-JSON ללא תקין בעיני PostgREST ("PGRST102 Empty or invalid json") והאצווה
+// כולה נכשלת. מסירים כל חצי כזה מכל מחרוזת בשורה. הביטוי נבנה מקודי התווים,
+// כי כלי הכתיבה ממיר רצפי \u לתווים עצמם (NOTES, מלכודות).
+const HI = String.fromCharCode(0xD800) + '-' + String.fromCharCode(0xDBFF);
+const LO = String.fromCharCode(0xDC00) + '-' + String.fromCharCode(0xDFFF);
+const LONE_SURROGATE = new RegExp('[' + HI + '](?![' + LO + '])|(?<![' + HI + '])[' + LO + ']', 'g');
+function wellFormed(value) {
+	if (typeof value === 'string') return value.replace(LONE_SURROGATE, '');
+	if (Array.isArray(value)) return value.map(wellFormed);
+	if (value && typeof value === 'object') {
+		const out = {};
+		for (const [k, v] of Object.entries(value)) out[k] = wellFormed(v);
+		return out;
+	}
+	return value;
+}
+
 function resultRow(page, lists, version) {
 	const rev = page.revisions && page.revisions[0];
 	const text = rev ? rev.slots.main.content : '';
 	const images = imagesOf(page, text);
-	return {
+	return wellFormed({
 		wikipedia_id: page.pageid,
 		title: page.title,
 		rev_id: page.lastrevid || (rev && rev.revid) || null,
@@ -272,7 +290,7 @@ function resultRow(page, lists, version) {
 		images: images.photos.slice(0, MAX_IMAGES),
 		lists_version: version,
 		scanned_at: new Date().toISOString(),
-	};
+	});
 }
 
 // ===== ריצה =====
@@ -311,8 +329,28 @@ async function main() {
 	const out = args.out ? fs.createWriteStream(args.out) : null;
 	const stats = { scanned: 0, skipped: 0, gone: 0, problem: 0, review: 0, wording: 0, clean: 0, images: 0 };
 	let pending = [];
+	// אצווה שנדחתה (שגיאת 4xx - שורה פגומה) לא עוצרת את כל הסריקה: שולחים את
+	// השורות אחת-אחת, מדלגים על הפגומה ורושמים אותה. בסוף הריצה - קוד יציאה 1,
+	// כדי שייפתח Issue, אבל כל השאר כבר נשמר.
+	const failed = [];
 	const flush = async () => {
-		if (db && pending.length) await db.upsert(pending);
+		if (db && pending.length) {
+			try {
+				await db.upsert(pending);
+			} catch (e) {
+				if (!e.fatal) throw e;
+				log(`אצווה נדחתה (${e.message.slice(0, 200)}) - שולח שורה-שורה`);
+				for (const row of pending) {
+					try {
+						await db.upsert([row]);
+					} catch (e2) {
+						if (!e2.fatal) throw e2;
+						failed.push(row.wikipedia_id);
+						log(`שורה נדחתה: ${row.wikipedia_id} ${row.title} - ${e2.message.slice(0, 200)}`);
+					}
+				}
+			}
+		}
 		pending = [];
 	};
 
@@ -352,6 +390,10 @@ async function main() {
 	await flush();
 	if (out) out.end();
 	log('סיום: ' + JSON.stringify(stats));
+	if (failed.length) {
+		log(`${failed.length} ערכים לא נשמרו: ${failed.join(', ')}`);
+		process.exitCode = 1;
+	}
 	log('(הספירה לפי רמות - לפי הרשימות כולל ההצעות, על הערכים שנסרקו בריצה הזו בלבד)');
 }
 
@@ -362,4 +404,4 @@ if (require.main === module) {
 	});
 }
 
-module.exports = { scanPage, imagesOf, listsVersion, compileBoth, resultRow };
+module.exports = { scanPage, imagesOf, listsVersion, compileBoth, resultRow, wellFormed };
