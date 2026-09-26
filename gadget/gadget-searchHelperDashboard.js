@@ -52,6 +52,11 @@
 	var wfLevelChoice = 'clean';
 	var wfDetailsCache = new Map();
 	var wfSummary = null; // שורות report_missing_word_filter_summary (למחוון)
+	// רשת ביטחון: התאמות בקוד שהקורא לא רואה (יעד קישור, הערה מוסתרת, קובץ...).
+	// לא נספרות ברמה; מסנן נפרד (hidden_count) ורשימה נפרדת בשורת ההקשר.
+	var wfHiddenChoice = ''; // '' / 'with' / 'without'
+	var WF_HIDDEN_KINDS = { l: 'יעד קישור', c: 'הערה מוסתרת', f: 'קובץ', m: 'תבנית', p: 'שם פרמטר', k: 'קטגוריה / מיון', u: 'כתובת', h: 'תגית', x: 'קוד' };
+	function wfHiddenColumn() { return wfMode === 's' ? 'hidden_count_suggested' : 'hidden_count'; }
 	var WF_SUSPICION = {
 		high: { label: 'לבדיקה – חשד גבוה', cls: 'mchl-review-high' },
 		medium: { label: 'לבדיקה – חשד בינוני', cls: 'mchl-review' },
@@ -814,6 +819,18 @@
 			renderWfMeter();
 		});
 		host.appendChild(modeSel);
+
+		var hiddenSel = document.createElement('select');
+		hiddenSel.className = 'mchl-filter-select'; hiddenSel.id = 'mchl-filter-content-hidden';
+		hiddenSel.title = 'מילים שנמצאו רק בקוד שהקורא לא רואה - יעד של קישור, הערה מוסתרת, שם קובץ, תבנית, כתובת. הקוד כולו עובר למכלול, אבל הרבה מהן רעש, ולכן הן לא נספרות ברמה.';
+		hiddenSel.innerHTML = '<option value="">קוד מוסתר — הכול</option><option value="with">יש מילים בקוד המוסתר</option><option value="without">אין מילים בקוד המוסתר</option>';
+		hiddenSel.value = wfHiddenChoice;
+		hiddenSel.addEventListener('change', function () {
+			wfHiddenChoice = hiddenSel.value;
+			applyContentLevelFilter();
+			currentPage = 0; loadActiveView(); toggleClearFiltersBtn();
+		});
+		host.appendChild(hiddenSel);
 		applyContentLevelFilter();
 		renderWfMeter();
 
@@ -846,8 +863,10 @@
 	}
 
 	function applyContentLevelFilter() {
-		['verdict', 'verdict_suggested', 'ctx_verdict', 'ctx_verdict_suggested', 'ctx_suspicion', 'ctx_suspicion_suggested']
+		['verdict', 'verdict_suggested', 'ctx_verdict', 'ctx_verdict_suggested', 'ctx_suspicion', 'ctx_suspicion_suggested',
+			'hidden_count', 'hidden_count_suggested']
 			.forEach(function (c) { delete activeFilters[c]; });
+		if (wfHiddenChoice) activeFilters[wfHiddenColumn()] = wfHiddenChoice === 'with' ? { op: 'gt', value: 0 } : { op: 'eq', value: 0 };
 		var col = wfColumn(), v = wfLevelChoice;
 		if (!v) return;
 		var sub = /^review_(high|medium|low|medium_up)$/.exec(v);
@@ -941,6 +960,7 @@
 	function clearFilters() {
 		activeFilters = {};
 		wfLevelChoice = '';
+		wfHiddenChoice = '';
 		$id('mchl-search-input').value = '';
 		currentPage = 0;
 		buildDynamicFilters();
@@ -1241,7 +1261,9 @@
 		}
 		var html = '<span class="mchl-badge ' + info.cls + '">' + escapeHtml(info.label) + '</span>';
 		if (parts.length) html += ' <span class="mchl-num-cell">' + escapeHtml(parts.join(' · ')) + '</span>';
-		if (row.matches_total || row.has_images) {
+		var hidden = row[wfHiddenColumn()];
+		if (hidden) html += ' <span class="mchl-muted mchl-num-cell" title="מילים בקוד שהקורא לא רואה - לא נספרות ברמה">+' + hidden + ' בקוד</span>';
+		if (row.matches_total || row.has_images || hidden) {
 			html += ' <button type="button" class="mchl-wf-toggle" data-action="wf-details" data-id="' + row.id + '">הקשר ▾</button>';
 		}
 		return html;
@@ -1297,7 +1319,9 @@
 			if (wfMethod === 'ctx' && m['c' + mode] != null) return m['c' + mode];
 			return m[mode];
 		};
-		var matches = (d.matches || []).filter(function (m) { return m[mode] != null; });
+		var all = (d.matches || []).filter(function (m) { return m[mode] != null; });
+		var matches = all.filter(function (m) { return !m.h; });
+		var hiddenMatches = all.filter(function (m) { return m.h; });
 		var html = '';
 		['problem', 'high', 'medium', 'low', 'review', 'wording'].forEach(function (level) {
 			var items = matches.filter(function (m) { return levelOf(m) === level; });
@@ -1319,8 +1343,21 @@
 			html += '</ul></div>';
 		});
 		if (!html) html = '<div class="mchl-muted">אין התאמות לפי הרשימות שנבחרו.</div>';
-		if (d.matches_total > (d.matches || []).length) {
-			html += '<div class="mchl-muted">מוצגות ' + (d.matches || []).length + ' התאמות מתוך ' + d.matches_total + '.</div>';
+		var shown = (d.matches || []).filter(function (m) { return !m.h; }).length;
+		if (d.matches_total > shown) {
+			html += '<div class="mchl-muted">מוצגות ' + shown + ' התאמות מתוך ' + d.matches_total + '.</div>';
+		}
+		if (hiddenMatches.length) {
+			html += '<div class="mchl-wf-group"><span class="mchl-badge mchl-neutral" title="הקוד כולו עובר למכלול, אבל הקורא לא רואה את החלקים האלה. לא נספר ברמת הערך - להחלטת העורך.">בקוד המוסתר בלבד (' +
+				hiddenMatches.length + ')</span><ul>';
+			hiddenMatches.forEach(function (m) {
+				var level = m[mode];
+				html += '<li><span class="mchl-num-cell">שורה ' + m.line + ' · ' + escapeHtml(WF_HIDDEN_KINDS[m.h] || m.h) + ' · ' +
+					escapeHtml((WF_LEVELS[level] || {}).label || level) + '</span> <code class="mchl-wf-code">' +
+					escapeHtml(m.b) + '<mark class="mchl-wf-hidden">' + escapeHtml(m.x) + '</mark>' + escapeHtml(m.f) + '</code>' +
+					' <span class="mchl-muted mchl-wf-ids" title="רשומות ברשימת המילים">' + escapeHtml((m.e || []).join(',')) + '</span></li>';
+			});
+			html += '</ul></div>';
 		}
 		if (d.images && d.images.length) {
 			html += '<div class="mchl-wf-group"><span class="mchl-badge mchl-neutral">תמונות הערך (' + d.photo_count + ')</span> ' +
@@ -1947,6 +1984,8 @@
 		'#mchl-dash .mchl-wf-box mark.mchl-wf-review{background:#E3C15E;}' +
 		'#mchl-dash .mchl-wf-box mark.mchl-wf-wording{background:#9FADAF;}' +
 		'#mchl-dash .mchl-wf-ids{font-size:11px;}' +
+		'#mchl-dash .mchl-wf-box mark.mchl-wf-hidden{background:none;color:inherit;outline:1px dashed #E3C15E;}' +
+		'#mchl-dash .mchl-wf-code{font-size:12.5px;direction:rtl;unicode-bidi:plaintext;white-space:pre-wrap;}' +
 		'#mchl-dash .mchl-wf-box a{color:var(--mchl-mechalol);}' +
 		'#mchl-dash .mchl-muted{color:var(--mchl-text-3);}' +
 		'#mchl-dash .mchl-num-cell{font-variant-numeric:tabular-nums;color:var(--mchl-text-2);font-size:13px;}' +
