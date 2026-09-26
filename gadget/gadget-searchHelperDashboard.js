@@ -52,6 +52,11 @@
 	var wfLevelChoice = 'clean';
 	var wfDetailsCache = new Map();
 	var wfSummary = null; // שורות report_missing_word_filter_summary (למחוון)
+	// רשת ביטחון: התאמות בקוד שהקורא לא רואה (יעד קישור, הערה מוסתרת, קובץ...).
+	// לא נספרות ברמה; מסנן נפרד (hidden_count) ורשימה נפרדת בשורת ההקשר.
+	var wfHiddenChoice = ''; // '' / 'with' / 'without'
+	var WF_HIDDEN_KINDS = { l: 'יעד קישור', c: 'הערה מוסתרת', f: 'קובץ', m: 'תבנית', p: 'שם פרמטר', k: 'קטגוריה / מיון', u: 'כתובת', h: 'תגית', x: 'קוד' };
+	function wfHiddenColumn() { return wfMode === 's' ? 'hidden_count_suggested' : 'hidden_count'; }
 	var WF_SUSPICION = {
 		high: { label: 'לבדיקה – חשד גבוה', cls: 'mchl-review-high' },
 		medium: { label: 'לבדיקה – חשד בינוני', cls: 'mchl-review' },
@@ -814,6 +819,18 @@
 			renderWfMeter();
 		});
 		host.appendChild(modeSel);
+
+		var hiddenSel = document.createElement('select');
+		hiddenSel.className = 'mchl-filter-select'; hiddenSel.id = 'mchl-filter-content-hidden';
+		hiddenSel.title = 'מילים שנמצאו רק בקוד שהקורא לא רואה - יעד של קישור, הערה מוסתרת, שם קובץ, תבנית, כתובת. הקוד כולו עובר למכלול, אבל הרבה מהן רעש, ולכן הן לא נספרות ברמה.';
+		hiddenSel.innerHTML = '<option value="">קוד מוסתר — הכול</option><option value="with">יש מילים בקוד המוסתר</option><option value="without">אין מילים בקוד המוסתר</option>';
+		hiddenSel.value = wfHiddenChoice;
+		hiddenSel.addEventListener('change', function () {
+			wfHiddenChoice = hiddenSel.value;
+			applyContentLevelFilter();
+			currentPage = 0; loadActiveView(); toggleClearFiltersBtn();
+		});
+		host.appendChild(hiddenSel);
 		applyContentLevelFilter();
 		renderWfMeter();
 
@@ -846,8 +863,10 @@
 	}
 
 	function applyContentLevelFilter() {
-		['verdict', 'verdict_suggested', 'ctx_verdict', 'ctx_verdict_suggested', 'ctx_suspicion', 'ctx_suspicion_suggested']
+		['verdict', 'verdict_suggested', 'ctx_verdict', 'ctx_verdict_suggested', 'ctx_suspicion', 'ctx_suspicion_suggested',
+			'hidden_count', 'hidden_count_suggested']
 			.forEach(function (c) { delete activeFilters[c]; });
+		if (wfHiddenChoice) activeFilters[wfHiddenColumn()] = wfHiddenChoice === 'with' ? { op: 'gt', value: 0 } : { op: 'eq', value: 0 };
 		var col = wfColumn(), v = wfLevelChoice;
 		if (!v) return;
 		var sub = /^review_(high|medium|low|medium_up)$/.exec(v);
@@ -941,6 +960,7 @@
 	function clearFilters() {
 		activeFilters = {};
 		wfLevelChoice = '';
+		wfHiddenChoice = '';
 		$id('mchl-search-input').value = '';
 		currentPage = 0;
 		buildDynamicFilters();
@@ -1241,15 +1261,17 @@
 		}
 		var html = '<span class="mchl-badge ' + info.cls + '">' + escapeHtml(info.label) + '</span>';
 		if (parts.length) html += ' <span class="mchl-num-cell">' + escapeHtml(parts.join(' · ')) + '</span>';
-		if (row.matches_total || row.has_images) {
+		var hidden = row[wfHiddenColumn()];
+		if (hidden) html += ' <span class="mchl-muted mchl-num-cell" title="מילים בקוד שהקורא לא רואה - לא נספרות ברמה">+' + hidden + ' בקוד</span>';
+		if (row.matches_total || row.has_images || hidden) {
 			html += ' <button type="button" class="mchl-wf-toggle" data-action="wf-details" data-id="' + row.id + '">הקשר ▾</button>';
 		}
 		return html;
 	}
 
 	// פרטי הסינון לערך אחד - שורה נפתחת מתחת לשורה בטבלה: כל מילה עם המשפט
-	// שלה (העורך לא רואה כאן את הטקסט המלא), לפי הרשימות שנבחרו, ושמות
-	// התמונות של הערך (קישורים בלבד - בלי להציג את התמונות עצמן).
+	// שלה (העורך לא רואה כאן את הטקסט המלא), לפי הרשימות שנבחרו, ותמונות
+	// הערך כתמונות ממוזערות - לחיצה פותחת מציג במסך מלא (openWfViewer).
 	function toggleContentDetails(btn) {
 		var id = btn.getAttribute('data-id');
 		var tr = btn.closest('tr');
@@ -1297,7 +1319,9 @@
 			if (wfMethod === 'ctx' && m['c' + mode] != null) return m['c' + mode];
 			return m[mode];
 		};
-		var matches = (d.matches || []).filter(function (m) { return m[mode] != null; });
+		var all = (d.matches || []).filter(function (m) { return m[mode] != null; });
+		var matches = all.filter(function (m) { return !m.h; });
+		var hiddenMatches = all.filter(function (m) { return m.h; });
 		var html = '';
 		['problem', 'high', 'medium', 'low', 'review', 'wording'].forEach(function (level) {
 			var items = matches.filter(function (m) { return levelOf(m) === level; });
@@ -1319,19 +1343,117 @@
 			html += '</ul></div>';
 		});
 		if (!html) html = '<div class="mchl-muted">אין התאמות לפי הרשימות שנבחרו.</div>';
-		if (d.matches_total > (d.matches || []).length) {
-			html += '<div class="mchl-muted">מוצגות ' + (d.matches || []).length + ' התאמות מתוך ' + d.matches_total + '.</div>';
+		var shown = (d.matches || []).filter(function (m) { return !m.h; }).length;
+		if (d.matches_total > shown) {
+			html += '<div class="mchl-muted">מוצגות ' + shown + ' התאמות מתוך ' + d.matches_total + '.</div>';
+		}
+		if (hiddenMatches.length) {
+			html += '<div class="mchl-wf-group"><span class="mchl-badge mchl-neutral" title="הקוד כולו עובר למכלול, אבל הקורא לא רואה את החלקים האלה. לא נספר ברמת הערך - להחלטת העורך.">בקוד המוסתר בלבד (' +
+				hiddenMatches.length + ')</span><ul>';
+			hiddenMatches.forEach(function (m) {
+				var level = m[mode];
+				html += '<li><span class="mchl-num-cell">שורה ' + m.line + ' · ' + escapeHtml(WF_HIDDEN_KINDS[m.h] || m.h) + ' · ' +
+					escapeHtml((WF_LEVELS[level] || {}).label || level) + '</span> <code class="mchl-wf-code">' +
+					escapeHtml(m.b) + '<mark class="mchl-wf-hidden">' + escapeHtml(m.x) + '</mark>' + escapeHtml(m.f) + '</code>' +
+					' <span class="mchl-muted mchl-wf-ids" title="רשומות ברשימת המילים">' + escapeHtml((m.e || []).join(',')) + '</span></li>';
+			});
+			html += '</ul></div>';
 		}
 		if (d.images && d.images.length) {
-			html += '<div class="mchl-wf-group"><span class="mchl-badge mchl-neutral">תמונות הערך (' + d.photo_count + ')</span> ' +
-				d.images.map(function (name) {
-					return '<a href="https://he.wikipedia.org/wiki/' + encodeURIComponent('קובץ:' + name) + '" target="_blank" rel="noopener">' + escapeHtml(name) + '</a>';
-				}).join(' · ') + '</div>';
+			html += '<div class="mchl-wf-group"><span class="mchl-badge mchl-neutral">תמונות הערך (' + d.photo_count + ')</span>' +
+				(d.photo_count > d.images.length ? ' <span class="mchl-muted">מוצגות ' + d.images.length + '</span>' : '') +
+				'<div class="mchl-wf-thumbs">' +
+				d.images.map(function (name, i) {
+					return '<button type="button" class="mchl-wf-thumb" data-action="wf-image" data-index="' + i + '" title="' + escapeHtml(name) + '">' +
+						'<img loading="lazy" alt="' + escapeHtml(name) + '" src="' + escapeHtml(wfImageUrl(name, 240)) + '"></button>';
+				}).join('') + '</div></div>';
 		}
 		var when = d.scanned_at ? new Date(d.scanned_at).toLocaleDateString('he-IL') : '';
 		html += '<div class="mchl-muted mchl-wf-foot">נסרק ' + escapeHtml(when) + ' · <a href="' + wikipediaUrl(row ? row.id : '') +
 			'" target="_blank" rel="noopener">הערך בוויקיפדיה</a></div>';
 		return html;
+	}
+
+	// ===== תמונות הערך: ממוזערות, ומציג במסך מלא =====
+	// מציג משלנו ולא MultimediaViewer (מותקן במכלול): הוא נפתח רק מתמונות בתוך
+	// תוכן הדף, ואין לו ממשק ציבורי יציב לפתיחת רשימת קבצים שרירותית.
+	// דרך Special:FilePath של המכלול עצמו, כדי לראות בדיוק מה שיוצג בערך אחרי
+	// הייבוא: המכלול מחפש קובץ בשם הזה קודם אצלו, אחר כך בוויקיפדיה, ואחר כך
+	// בוויקישיתוף (דרך ויקיפדיה) - meta=filerepoinfo: local, hewiki. כך קובץ
+	// שהוחלף במכלול בגרסה מתוקנת מוצג בגרסה של המכלול. width בפיקסלים.
+	var MICHLOL_BASE = 'https://www.hamichlol.org.il';
+	function wfImageUrl(name, width) {
+		return MICHLOL_BASE + '/Special:FilePath/' + encodeURIComponent(name) + (width ? '?width=' + width : '');
+	}
+	function wfFilePageUrl(name) {
+		return MICHLOL_BASE + '/' + encodeURIComponent('קובץ:' + name);
+	}
+
+	var wfViewer = { images: [], index: 0, el: null };
+	function openWfViewer(images, index) {
+		wfViewer.images = images;
+		if (!wfViewer.el) {
+			var el = document.createElement('div');
+			el.className = 'mchl-viewer';
+			el.setAttribute('role', 'dialog');
+			el.setAttribute('aria-modal', 'true');
+			el.innerHTML = '<button type="button" class="mchl-viewer-btn mchl-viewer-close" data-viewer="close" title="סגירה (Esc)">✕</button>' +
+				'<button type="button" class="mchl-viewer-btn mchl-viewer-prev" data-viewer="prev" title="הקודמת">›</button>' +
+				'<button type="button" class="mchl-viewer-btn mchl-viewer-next" data-viewer="next" title="הבאה">‹</button>' +
+				'<div class="mchl-viewer-stage" data-viewer="close"><img class="mchl-viewer-img" alt=""><div class="mchl-viewer-loading">טוען…</div></div>' +
+				'<div class="mchl-viewer-caption"></div>';
+			el.addEventListener('click', function (e) {
+				var t = e.target.closest('[data-viewer]');
+				if (!t || e.target.classList.contains('mchl-viewer-img')) return;
+				var what = t.getAttribute('data-viewer');
+				if (what === 'close') closeWfViewer();
+				else stepWfViewer(what === 'next' ? 1 : -1);
+			});
+			var img = el.querySelector('.mchl-viewer-img');
+			img.addEventListener('load', function () { el.classList.remove('mchl-viewer-busy'); });
+			img.addEventListener('error', function () {
+				el.classList.remove('mchl-viewer-busy');
+				el.querySelector('.mchl-viewer-caption').insertAdjacentHTML('beforeend', ' <span class="mchl-alert">לא ניתן לטעון את התמונה.</span>');
+			});
+			document.body.appendChild(el);
+			wfViewer.el = el;
+		}
+		wfViewer.el.style.display = 'flex';
+		document.addEventListener('keydown', onWfViewerKey);
+		showWfViewerImage(index);
+	}
+	function showWfViewerImage(index) {
+		var n = wfViewer.images.length;
+		wfViewer.index = (index + n) % n;
+		var name = wfViewer.images[wfViewer.index];
+		var el = wfViewer.el;
+		// ברזולוציה של המסך (כולל צפיפות פיקסלים), מעוגל למדרגות כדי שהמטמון של ויקיפדיה יעבוד.
+		var want = Math.ceil(Math.min(window.innerWidth * (window.devicePixelRatio || 1), 2560) / 320) * 320;
+		el.classList.add('mchl-viewer-busy');
+		el.querySelector('.mchl-viewer-img').src = wfImageUrl(name, want);
+		el.querySelector('.mchl-viewer-img').alt = name;
+		el.querySelector('.mchl-viewer-caption').innerHTML = (n > 1 ? '<b>' + (wfViewer.index + 1) + ' / ' + n + '</b> · ' : '') +
+			escapeHtml(name) + ' · <a href="' + wfFilePageUrl(name) + '" target="_blank" rel="noopener">דף הקובץ</a>' +
+			' · <a href="' + wfImageUrl(name) + '" target="_blank" rel="noopener">גודל מקורי</a>';
+		el.querySelector('.mchl-viewer-prev').style.visibility = n > 1 ? 'visible' : 'hidden';
+		el.querySelector('.mchl-viewer-next').style.visibility = n > 1 ? 'visible' : 'hidden';
+		// טעינה מוקדמת של השכנות, כדי שהמעבר יהיה מיידי.
+		[1, -1].forEach(function (d) { if (n > 1) new Image().src = wfImageUrl(wfViewer.images[(wfViewer.index + d + n) % n], want); });
+	}
+	function stepWfViewer(delta) { if (wfViewer.images.length > 1) showWfViewerImage(wfViewer.index + delta); }
+	function closeWfViewer() {
+		if (!wfViewer.el) return;
+		wfViewer.el.style.display = 'none';
+		wfViewer.el.querySelector('.mchl-viewer-img').removeAttribute('src');
+		document.removeEventListener('keydown', onWfViewerKey);
+	}
+	// מקשים: Esc סוגר; החיצים לפי כיוון הקריאה מימין לשמאל - שמאלה = הבאה.
+	function onWfViewerKey(e) {
+		if (e.key === 'Escape') closeWfViewer();
+		else if (e.key === 'ArrowLeft') stepWfViewer(1);
+		else if (e.key === 'ArrowRight') stepWfViewer(-1);
+		else return;
+		e.preventDefault();
 	}
 
 	function renderPager() {
@@ -1791,6 +1913,11 @@
 			else if (action === 'toggle-admin-panel') toggleAdminPanel();
 			else if (action === 'auth-login') authLogin();
 			else if (action === 'wf-details') toggleContentDetails(el);
+			else if (action === 'wf-image') {
+				var detailsRow = el.closest('tr.mchl-wf-details-row');
+				var cached = detailsRow && wfDetailsCache.get(detailsRow.previousElementSibling.querySelector('[data-action="wf-details"]').getAttribute('data-id'));
+				if (cached && cached.images) openWfViewer(cached.images, parseInt(el.getAttribute('data-index'), 10));
+			}
 			else if (action === 'wf-meter-filter') setWfLevel(wfLevelChoice === el.getAttribute('data-filter') ? '' : el.getAttribute('data-filter'));
 			else if (action === 'goto') {
 				var target = el.getAttribute('data-target');
@@ -1947,7 +2074,27 @@
 		'#mchl-dash .mchl-wf-box mark.mchl-wf-review{background:#E3C15E;}' +
 		'#mchl-dash .mchl-wf-box mark.mchl-wf-wording{background:#9FADAF;}' +
 		'#mchl-dash .mchl-wf-ids{font-size:11px;}' +
+		'#mchl-dash .mchl-wf-box mark.mchl-wf-hidden{background:none;color:inherit;outline:1px dashed #E3C15E;}' +
+		'#mchl-dash .mchl-wf-code{font-size:12.5px;direction:rtl;unicode-bidi:plaintext;white-space:pre-wrap;}' +
 		'#mchl-dash .mchl-wf-box a{color:var(--mchl-mechalol);}' +
+		'#mchl-dash .mchl-wf-thumbs{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;}' +
+		'#mchl-dash .mchl-wf-thumb{padding:0;border:1px solid var(--mchl-line);border-radius:6px;background:var(--mchl-ink-800);cursor:zoom-in;width:120px;height:90px;overflow:hidden;}' +
+		'#mchl-dash .mchl-wf-thumb:hover{border-color:var(--mchl-mechalol);}' +
+		'#mchl-dash .mchl-wf-thumb img{width:100%;height:100%;object-fit:cover;display:block;}' +
+		// המציג יושב ב-body (מחוץ ל-#mchl-dash), כדי ש-position:fixed יכסה את כל המסך.
+		'.mchl-viewer{position:fixed;inset:0;z-index:10000;background:rgba(10,14,16,.94);display:none;align-items:center;justify-content:center;direction:rtl;font-family:inherit;}' +
+		'.mchl-viewer-stage{position:absolute;inset:48px 64px 56px;display:flex;align-items:center;justify-content:center;}' +
+		'.mchl-viewer-img{max-width:100%;max-height:100%;object-fit:contain;box-shadow:0 4px 30px rgba(0,0,0,.5);background:#fff;}' +
+		'.mchl-viewer-loading{position:absolute;color:#ccc;font-size:14px;display:none;}' +
+		'.mchl-viewer.mchl-viewer-busy .mchl-viewer-loading{display:block;}' +
+		'.mchl-viewer.mchl-viewer-busy .mchl-viewer-img{opacity:.35;}' +
+		'.mchl-viewer-btn{position:absolute;z-index:1;background:rgba(255,255,255,.12);color:#fff;border:0;border-radius:50%;width:44px;height:44px;font-size:26px;line-height:44px;cursor:pointer;padding:0;}' +
+		'.mchl-viewer-btn:hover{background:rgba(255,255,255,.25);}' +
+		'.mchl-viewer-close{top:10px;left:12px;font-size:20px;}' +
+		'.mchl-viewer-prev{right:12px;top:50%;margin-top:-22px;}' +
+		'.mchl-viewer-next{left:12px;top:50%;margin-top:-22px;}' +
+		'.mchl-viewer-caption{position:absolute;bottom:14px;left:60px;right:60px;text-align:center;color:#ddd;font-size:13.5px;}' +
+		'.mchl-viewer-caption a{color:#9fd3c7;}' +
 		'#mchl-dash .mchl-muted{color:var(--mchl-text-3);}' +
 		'#mchl-dash .mchl-num-cell{font-variant-numeric:tabular-nums;color:var(--mchl-text-2);font-size:13px;}' +
 		'#mchl-dash .mchl-pager{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;font-size:13px;color:var(--mchl-text-2);flex-wrap:wrap;gap:10px;}' +

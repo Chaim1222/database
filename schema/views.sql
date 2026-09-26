@@ -159,7 +159,8 @@ order by wikipedia_title, mechalol_title;
 create or replace view report_missing_word_filter with (security_invoker = true) as
 select m.id, m.title, m.checked_at, m.wikidata_desc, m.easy_import_length, m.created_at, m.mechalol_redirect_exists,
     r.verdict, r.verdict_suggested, r.has_images, r.photo_count, r.counts, r.matches_total, r.images, r.scanned_at,
-    r.ctx_verdict, r.ctx_suspicion, r.ctx_verdict_suggested, r.ctx_suspicion_suggested
+    r.ctx_verdict, r.ctx_suspicion, r.ctx_verdict_suggested, r.ctx_suspicion_suggested,
+    r.hidden_count, r.hidden_count_suggested
 from report_missing_from_mechalol m
 left join word_filter_results r on r.wikipedia_id = m.id;
 

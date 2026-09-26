@@ -153,3 +153,36 @@ test('context levels: the word and its sentence decide the suspicion', () => {
 	assert.deepStrictEqual(ctx('ירושלים עיר עתיקה.'), { level: 'clean', suspicion: null });
 	assert.deepStrictEqual(ctx('נפטר בשנת 419 לפנה"ס.'), { level: 'wording', suspicion: null });
 });
+
+test('links: a letter right after ]] joins the word, as the reader sees it', () => {
+	// "[[מין (טקסונומיה)|מין]]ים" = "מינים" (species) - לא "מין" לבד.
+	assert.deepStrictEqual(texts('[[לסבי]]ת', FULL), ['לסבית']);
+	assert.ok(!texts('בסביבה חיים [[דולפין|דולפינ]]ים', ACTIVE).includes('פין'));
+	// לפני קישור נשאר רווח: אותיות שימוש מחוץ לקישור לא מסתירות את המילה.
+	assert.ok(texts('הוא נאשם ב[[אונס]].').includes('אונס'));
+	assert.ok(texts('בעקבות ה[[מין]] הזה').length);
+	// הטקסט של ההתאמה הוא מה שהקורא רואה, והמיקום - במקור (לסימון בעורך).
+	const t = 'שחקן [[רומן היסטורי|ברומן]] ידוע';
+	const m = engine.scan(t, ACTIVE).find((x) => /רומן/.test(x.text));
+	assert.ok(m && t.slice(m.start, m.end).includes(m.text));
+});
+
+test('match text is trimmed to the word itself', () => {
+	// .?.?.?.?.?.?סקסואל.?.? תופסת גם את סוף המילה הקודמת ותחילת הבאה.
+	assert.deepStrictEqual(texts('עם גברים הומוסקסואלים בעיקר'), ['הומוסקסואלים']);
+	assert.deepStrictEqual(texts('גבר [[הומוסקסואל]] בגרמניה'), ['הומוסקסואל']);
+	assert.ok(texts('לבשה בגד ים', FULL).includes('בגד ים'));
+});
+
+test('scanHidden: words only in hidden code, with where they were found', () => {
+	const hidden = (t) => engine.scanHidden(t, FULL).map((m) => m.text + ':' + m.hidden);
+	assert.deepStrictEqual(hidden('התורה מתארת את [[אונס נערה (הלכה)|עינוי]] הנערה'), ['אונס:l']);
+	assert.deepStrictEqual(hidden('טקסט <!-- סקס --> נוסף'), ['סקס:c']);
+	assert.deepStrictEqual(hidden('[[קובץ:Sex.jpg|ממוזער|כיתוב]]'), ['Sex:f']);
+	assert.deepStrictEqual(hidden('{{מיון רגיל:הרצוג, רומן}}'), ['רומן:k']);
+	// מה שמוצג לקורא - לא כאן (נספר בסריקה הרגילה), וגם לא יעד של קישור שהכינוי שלו כבר נתפס.
+	assert.deepStrictEqual(hidden('תעשיית הפורנו'), []);
+	assert.deepStrictEqual(hidden('[[פורנוגרפיה|פורנו]]'), []);
+	// לא משפיע על הרמה.
+	assert.strictEqual(verdict('טקסט <!-- סקס --> נוסף'), 'clean');
+});

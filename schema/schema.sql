@@ -455,7 +455,7 @@ create index if not exists wikipedia_pages_rav_override_idx on wikipedia_pages (
 
 -- ===== סינון תוכן של "חסר במכלול" (word-filter/, 2026-09) =====
 -- המקור: migration_add_word_filter_results.sql, migration_add_word_filter_suspicion.sql,
--- migration_add_word_filter_occurrences.sql. ה-views ב-views.sql. תיעוד מלא:
+-- migration_add_word_filter_occurrences.sql, migration_add_word_filter_hidden.sql. ה-views ב-views.sql. תיעוד מלא:
 -- word-filter/README.md (סעיף "סינון רשימת חסר במכלול") ו-word-filter/NOTES.md.
 --
 -- word_filter_results - שורה לכל ערך ויקיפדיה שנסרק (page_id). טבלה נפרדת מ-
@@ -469,8 +469,9 @@ create table if not exists word_filter_results (
     -- רמת הדף לפי רמת הרשימה בלבד: מאושרות / כולל הצעות.
     verdict text check (verdict in ('problem', 'review', 'wording', 'clean')),
     verdict_suggested text check (verdict_suggested in ('problem', 'review', 'wording', 'clean')),
-    counts jsonb,                              -- {a, s: {problem, review, wording}; ca, cs: {problem, high, medium, low, wording}}
-    matches jsonb,                             -- עד 300: {w, line, t, a, s, ca, cs, g, e, d, b, x, f} - ראו scan-missing.js
+    counts jsonb,                              -- {a, s, ha, hs: {problem, review, wording}; ca, cs: {problem, high, medium, low, wording}}
+    matches jsonb,                             -- עד 300: {w, line, t, a, s, ca, cs, g, e, d, b, x, f}, ואחריהן עד 50
+                                               -- בקוד המוסתר בלבד, עם h (סוג הקוד) - ראו scan-missing.js
     matches_total integer,
     image_count integer,                       -- כל הקבצים בדף (כולל אייקונים מתבניות)
     own_image_count integer,                   -- של הערך עצמו (בקוד, או התמונה הראשית)
@@ -483,7 +484,11 @@ create table if not exists word_filter_results (
     ctx_verdict text check (ctx_verdict in ('problem', 'review', 'wording', 'clean')),
     ctx_suspicion text check (ctx_suspicion in ('high', 'medium', 'low')),
     ctx_verdict_suggested text check (ctx_verdict_suggested in ('problem', 'review', 'wording', 'clean')),
-    ctx_suspicion_suggested text check (ctx_suspicion_suggested in ('high', 'medium', 'low'))
+    ctx_suspicion_suggested text check (ctx_suspicion_suggested in ('high', 'medium', 'low')),
+    -- רשת ביטחון: מילים בקוד שהקורא לא רואה (יעד קישור, הערה, קובץ, תבנית, כתובת).
+    -- לא נספרות ברמה. בלי שמות פרמטרים ומפתחות מיון. מאושרות / כולל הצעות.
+    hidden_count integer,
+    hidden_count_suggested integer
 );
 create index if not exists word_filter_results_verdict_idx on word_filter_results (verdict);
 create index if not exists word_filter_results_verdict_suggested_idx on word_filter_results (verdict_suggested);

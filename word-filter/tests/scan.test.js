@@ -63,3 +63,12 @@ test('scanPage: context verdict and per-match suspicion', () => {
 	assert.strictEqual(r.counts.cs.medium, 1);
 });
 
+
+test('scanPage: hidden-code matches are stored apart and not counted in the level', () => {
+	const r = scanPage('התורה מתארת את [[אונס נערה (הלכה)|עינוי]] הנערה. {{מיון רגיל:הרצוג, רומן}}', lists);
+	assert.strictEqual(r.verdict_suggested, 'clean');
+	assert.strictEqual(r.hidden_count_suggested, 1); // מפתח המיון נשמר, אבל לא נספר
+	const h = r.matches.filter((m) => m.h);
+	assert.deepStrictEqual(h.map((m) => m.x + ':' + m.h), ['אונס:l', 'רומן:k']);
+	assert.strictEqual(h[0].cs, null);
+});

@@ -21,9 +21,12 @@
  * מגדירים ב-common.js:  window.wikitextWordCheckSuggested = true;
  *
  * איך הבדיקה עובדת:
- *   - רק מה שהקורא רואה: הערות, שמות תבניות ופרמטרים, יעדי קישורים עם
- *     כינוי, שמות קבצים, כתובות ותגיות לא נבדקים. רשומה עם scope: "raw"
- *     (שאריות ויקי) נבדקת על כל הקוד.
+ *   - הרמה נקבעת רק לפי מה שהקורא רואה: הערות, שמות תבניות ופרמטרים, יעדי
+ *     קישורים עם כינוי, שמות קבצים, כתובות ותגיות לא נספרים. רשומה עם
+ *     scope: "raw" (שאריות ויקי) נבדקת על כל הקוד. אות שצמודה לקישור מבחוץ
+ *     ("[[רומן]]ים") מתחברת למילה, כמו בתצוגה (displayOf).
+ *   - רשת ביטחון (scanHidden): מילים שנמצאו רק בקוד המוסתר - הקוד כולו עובר
+ *     למכלול - מוצגות ברשימה נפרדת, בלי להשפיע על הרמה.
  *   - "תחילת מילה": התאמה נספרת רק אם יש בה תחילת מילה (אולי אחרי אותיות
  *     שימוש) - "דול|פין", "ח|זונות", "אשדוד|אנס" לא נתפסים.
  *   - הדוח נבנה מצמתי טקסט בלבד - תוכן הדף לא מוזרק כ-HTML.
@@ -86,10 +89,25 @@
 	// מחזיר מחרוזת באורך זהה שבה כל מה שלא מוצג לקורא הוחלף ברווח
 	// (ירידות שורה נשמרות) - כך כל מיקום בה הוא אותו מיקום במקור.
 	function maskWikitext(text) {
+		return maskInfo(text).masked;
+	}
+
+	// סוגי הקוד המוסתר, לכל תו: '' = מוצג לקורא. HIDDEN_KINDS - השמות לתצוגה.
+	//   j - סוגריים של קישור רגיל ([[, ]]), l - יעד של קישור עם כינוי (עד ה-|),
+	//   c - הערה מוסתרת, f - קובץ (שם ואפשרויות), m - תבנית (שם, סוגריים, |),
+	//   k - קטגוריה (קידומת ומפתח מיון, גם {{מיון רגיל:...}}), u - כתובת אינטרנט, h - תגית HTML או
+	//   תוכן לא טקסטואלי (math וכו'), x - אחר (ישויות, מילות קסם, מאפיינים).
+	//   p - שם של פרמטר בתבנית ("| מין = זכר") - שדה קבוע של התבנית, לא תוכן.
+	var HIDDEN_KINDS = { l: 'יעד קישור', c: 'הערה מוסתרת', f: 'קובץ', m: 'תבנית', p: 'שם פרמטר', k: 'קטגוריה / מיון', u: 'כתובת', h: 'תגית', x: 'קוד', j: 'קישור' };
+	var SORT_KEY_RE = /^\s*(?:מיון רגיל|DEFAULTSORT|DEFAULTSORTKEY|DEFAULTCATEGORYSORT)\s*:/i;
+
+	function maskInfo(text) {
 		var buf = text.split('');
-		function blank(start, end) {
+		var kinds = new Array(buf.length);
+		function blank(start, end, kind) {
 			for (var i = Math.max(start, 0); i < Math.min(end, buf.length); i++) {
 				if (buf[i] !== '\n') buf[i] = ' ';
+				if (!kinds[i]) kinds[i] = kind || 'x';
 			}
 		}
 		function each(re, s, fn) {
@@ -100,32 +118,60 @@
 				if (m[0].length === 0) re.lastIndex++;
 			}
 		}
-		function blankAll(re, s) {
-			each(re, s, function (m) { blank(m.index, m.index + m[0].length); });
+		function blankAll(re, s, kind) {
+			each(re, s, function (m) { blank(m.index, m.index + m[0].length, kind); });
 		}
 
-		blankAll(/<!--[\s\S]*?(?:-->|$(?![\s\S]))/g, text);
+		blankAll(/<!--[\s\S]*?(?:-->|$(?![\s\S]))/g, text, 'c');
 		var s = buf.join('');
 		NON_TEXT_TAGS.forEach(function (tag) {
-			blankAll(new RegExp('<' + tag + '\\b[^>]*?(?:/>|>[\\s\\S]*?(?:</' + tag + '\\s*>|$(?![\\s\\S])))', 'gi'), s);
+			blankAll(new RegExp('<' + tag + '\\b[^>]*?(?:/>|>[\\s\\S]*?(?:</' + tag + '\\s*>|$(?![\\s\\S])))', 'gi'), s, 'h');
 		});
 		s = buf.join('');
 		each(/(<gallery\b[^>]*>)([\s\S]*?)(?:<\/gallery\s*>|$(?![\s\S]))/gi, s, function (m) {
 			var pos = m.index + m[1].length;
 			m[2].split('\n').forEach(function (line) {
 				var bar = line.indexOf('|');
-				blank(pos, pos + (bar >= 0 ? bar + 1 : line.length));
+				blank(pos, pos + (bar >= 0 ? bar + 1 : line.length), 'f');
 				pos += line.length + 1;
 			});
 		});
 		s = buf.join('');
-		blankAll(/<\/?[A-Za-z][^<>\n]*>/g, s);
-		blankAll(/\[(?:https?:|ftp:)?\/\/[^\s\]]+|\bhttps?:\/\/[^\s\]|}<>]+/g, s);
+		blankAll(/<\/?[A-Za-z][^<>\n]*>/g, s, 'h');
+		blankAll(/\[(?:https?:|ftp:)?\/\/[^\s\]]+|\bhttps?:\/\/[^\s\]|}<>]+/g, s, 'u');
 		blankAll(/__[A-Zא-ת_]+__|&[A-Za-z]+;|&#x?[0-9A-Fa-f]+;/g, s);
 		blankAll(/\b[A-Za-z-]+\s*=\s*("[^"\n]*"|'[^'\n]*')/g, s);
 
 		maskLinksAndTemplates(buf.join(''), blank);
-		return buf.join('');
+		return { masked: buf.join(''), kinds: kinds, source: text };
+	}
+
+	// הטקסט שהקורא רואה, לחיפוש. הסימון של קישור רגיל ([[, ]], והיעד של קישור עם
+	// כינוי) הופך לרווח אחד, חוץ מ-"]]" שאחריו אות - שם הוא מושמט, כמו בתצוגה:
+	// "[[רומן]]ים" -> "רומנים", "[[מין (טקסונומיה)|מין]]ים" -> "מינים", "[[אינטרסקס]]ואלים".
+	// לפני קישור נשאר רווח גם אחרי אות ("ה[[מין]]" -> "ה מין"): התבניות ברשימות
+	// (\sמין, " מיני") לא מכירות אותיות שימוש, וההפרדה שומרת עליהן; וגם "מילה[[קישור]]"
+	// בלי רווח (טעות הקלדה נפוצה) לא מסתיר את הקישור. שאר הקוד המוסתר - רווח.
+	// בהתחלה - ירידת שורה (ממופה למיקום 0), כדי שתבנית כמו \sמין תתפוס גם מילה
+	// בתחילת הטקסט, כמו בתחילת כל שורה אחרת. map[i] = המיקום במקור של התו ה-i.
+	function displayOf(info) {
+		var out = ['\n'], map = [0], masked = info.masked, kinds = info.kinds;
+		var isLink = function (k) { return k === 'j' || k === 'l'; };
+		for (var i = 0; i < masked.length; i++) {
+			if (!isLink(kinds[i])) {
+				out.push(masked[i]);
+				map.push(i);
+				continue;
+			}
+			var runStart = i;
+			while (i + 1 < masked.length && isLink(kinds[i + 1])) i++;
+			var closesOnly = info.source.slice(runStart, i + 1).indexOf('[[') < 0;
+			if (!(closesOnly && LETTER_RE.test(masked[i + 1] || ''))) {
+				out.push(' ');
+				map.push(runStart);
+			}
+		}
+		return { text: out.join(''), map: map };
 	}
 
 	// מעבר יחיד עם מחסנית, כדי ש-| בתוך קישור שבתוך תבנית ישויך לקישור.
@@ -135,7 +181,7 @@
 		function fileOption(at) {
 			var end = at;
 			while (end < n && '|[]{\n'.indexOf(s[end]) < 0) end++;
-			if (FILE_OPTION_RE.test(s.slice(at, end))) blank(at, end);
+			if (FILE_OPTION_RE.test(s.slice(at, end))) blank(at, end, 'f');
 			return at;
 		}
 		while (i < n) {
@@ -145,17 +191,17 @@
 				stack.push({ kind: 'param', start: i });
 				i += 3;
 			} else if (top === 'param' && starts('}}}', i)) {
-				blank(stack.pop().start, i + 3);
+				blank(stack.pop().start, i + 3, 'm');
 				i += 3;
 			} else if (starts('{{', i)) {
 				stack.push({ kind: 'tpl', start: i });
 				end = i + 2;
 				while (end < n && '|{}[\n'.indexOf(s[end]) < 0 && !starts('}}', end)) end++;
-				blank(i, end);
+				blank(i, end, SORT_KEY_RE.test(s.slice(i + 2, end)) ? 'k' : 'm');
 				i = end;
 			} else if (top === 'tpl' && starts('}}', i)) {
 				stack.pop();
-				blank(i, i + 2);
+				blank(i, i + 2, 'm');
 				i += 2;
 			} else if (starts('[[', i)) {
 				end = i + 2;
@@ -166,36 +212,38 @@
 				var hasPipe = s[end] === '|';
 				if (CATEGORY_NS.indexOf(ns) >= 0 && target[0] !== ':') {
 					// שם הקטגוריה מוצג לקורא - רק הקידומת ומפתח המיון מוסתרים.
-					blank(i, i + 2 + colon + 1);
+					blank(i, i + 2 + colon + 1, 'k');
 					var close = s.indexOf(']]', end);
 					close = close < 0 ? n : close;
-					blank(end, close + 2);
+					blank(end, close + 2, 'k');
 					i = close + 2;
 					continue;
 				}
 				var kind = FILE_NS.indexOf(ns) >= 0 && target[0] !== ':' ? 'file' : 'link';
-				if (kind === 'file' || hasPipe || (ns && INTERWIKI_RE.test(ns))) {
-					blank(i, end + (hasPipe ? 1 : 0));
+				if (kind === 'file') {
+					blank(i, end + (hasPipe ? 1 : 0), 'f');
+				} else if (hasPipe || (ns && INTERWIKI_RE.test(ns))) {
+					blank(i, i + 2, 'j');
+					blank(i + 2, end + (hasPipe ? 1 : 0), 'l');
 				} else {
-					blank(i, i + 2); // [[ערך]] - שם הערך הוא הטקסט המוצג
+					blank(i, i + 2, 'j'); // [[ערך]] - שם הערך הוא הטקסט המוצג
 				}
 				stack.push({ kind: kind, start: i });
 				i = end + (hasPipe ? 1 : 0);
 				if (kind === 'file') fileOption(i);
 			} else if ((top === 'link' || top === 'file') && starts(']]', i)) {
-				stack.pop();
-				blank(i, i + 2);
+				blank(i, i + 2, stack.pop().kind === 'file' ? 'f' : 'j');
 				i += 2;
 			} else if (s[i] === '|' && top === 'tpl') {
-				blank(i, i + 1);
+				blank(i, i + 1, 'm');
 				var m = /^[^=|{}\[\]\n]*=/.exec(s.slice(i + 1, i + 200));
 				if (m) {
-					blank(i + 1, i + 1 + m[0].length);
+					blank(i + 1, i + 1 + m[0].length, 'p');
 					i += m[0].length;
 				}
 				i++;
 			} else if (s[i] === '|' && top === 'file') {
-				blank(i, i + 1);
+				blank(i, i + 1, 'f');
 				fileOption(i + 1);
 				i++;
 			} else {
@@ -233,6 +281,32 @@
 		return false;
 	}
 
+	// תבניות שתופסות תווים מסביב למילה (".?.?.?סקסואל.?.?", "[^ט]רומ", "ס[^קח]") -
+	// ההתאמה מקוצרת למילה עצמה, בשביל הטקסט שמוצג ומיקום הסימון:
+	//   בהתחלה - אחרי רווח בשבעת התווים הראשונים ("ת הומוסקסואלית"), רק בתבנית
+	//            שמתחילה בתו כלשהו (., [^, (?:^|[^);
+	//   בסוף   - לפני רווח בשלושת התווים האחרונים ("הומוסקסואל ב"), רק אם התבנית
+	//            תופסת גם בלעדיהם ("בגד ים" נשאר שלם);
+	//   סימני פיסוק בקצוות ("אונס.", "(אנס").
+	var LETTER_OR_DIGIT = /[A-Za-z0-9א-ת]/;
+	function trimMatch(regex, pattern, hay, from, start, end) {
+		if (/^(?:\.|\[\^|\(\?:\^\|\[\^)/.test(pattern)) {
+			var lead = hay.slice(start, Math.min(start + 7, end)).search(/\s[^\s]*$/);
+			if (lead >= 0 && start + lead + 1 < end) start += lead + 1;
+		}
+		var tail = hay.slice(Math.max(start, end - 3), end).search(/\s/);
+		if (tail >= 0) {
+			var cut = Math.max(start, end - 3) + tail;
+			var sticky = new RegExp(regex.source, regex.flags.replace('g', '') + 'y');
+			sticky.lastIndex = from;
+			if (cut > start && sticky.test(hay.slice(0, cut))) end = cut;
+		}
+		while (end > start + 1 && !LETTER_OR_DIGIT.test(hay[end - 1]) && !/["'״׳]/.test(hay[end - 1])) end--;
+		while (start < end - 1 && !LETTER_OR_DIGIT.test(hay[start])) start++;
+		while (end > start + 1 && /\s/.test(hay[end - 1])) end--;
+		return [start, end];
+	}
+
 	function allMatches(re, text, fn) {
 		var m;
 		re.lastIndex = 0;
@@ -250,16 +324,25 @@
 	 */
 	function scan(wikitext, lists, options) {
 		options = options || {};
-		var masked = options.raw ? wikitext : maskWikitext(wikitext);
+		// החיפוש רץ על הטקסט המוצג (displayOf), והמיקומים מתורגמים חזרה למקור.
+		var shown = options.raw ? { text: wikitext, map: null } : displayOf(maskInfo(wikitext));
+		var texts = [{ text: wikitext, map: null }];
+		if (!options.raw) texts.push(shown);
+		var toSource = function (t, start, end) {
+			return t.map ? [t.map[start], t.map[end - 1] + 1] : [start, end];
+		};
 
 		// ביטויים מותרים נבדקים גם על הגולמי (קישור שלם לפי היעד שלו) וגם על
-		// הממוסך (ביטוי מוצג שמפוצל בסימון).
+		// המוצג (ביטוי מוצג שמפוצל בסימון).
 		var allowed = [];
 		var allowRules = lists.allow
 			.concat((options.allow || []).map(function (p) { return { regex: new RegExp(p, 'gi'), kind: 'hide', entry: null }; }));
 		allowRules.forEach(function (rule) {
-			(masked === wikitext ? [wikitext] : [wikitext, masked]).forEach(function (text) {
-				allMatches(rule.regex, text, function (m) { allowed.push([m.index, m.index + m[0].length, rule]); });
+			texts.forEach(function (t) {
+				allMatches(rule.regex, t.text, function (m) {
+					var span = toSource(t, m.index, m.index + m[0].length);
+					allowed.push([span[0], span[1], rule]);
+				});
 			});
 		});
 
@@ -278,7 +361,8 @@
 		var bySpan = {}, result = [];
 		lists.patterns.forEach(function (p) {
 			var entry = p.entry;
-			var hay = entry.scope === 'raw' ? wikitext : masked;
+			var t = entry.scope === 'raw' ? texts[0] : shown;
+			var hay = t.text;
 			allMatches(p.regex, hay, function (m) {
 				var start = m.index, end = m.index + m[0].length;
 				// תבניות כמו (\s|^)זונה כוללות את הרווח שלפני - הוא לא חלק מהמילה.
@@ -286,6 +370,13 @@
 				while (end > start && /\s/.test(hay[end - 1])) end--;
 				if (start === end) return;
 				if (options.wordStart !== false && !containsWordStart(hay, m.index, end, entry.pattern)) return;
+				var trimmed = trimMatch(p.regex, entry.pattern, hay, m.index, start, end);
+				start = trimmed[0];
+				end = trimmed[1];
+				var shownText = hay.slice(start, end);
+				var span = toSource(t, start, end);
+				start = span[0];
+				end = span[1];
 				var covering = allowed.filter(function (a) { return a[0] <= start && end <= a[1]; });
 				if (covering.some(function (a) { return a[2].kind === 'hide'; })) return;
 				var level = entry.level;
@@ -293,7 +384,7 @@
 				var key = start + ':' + end;
 				var match = bySpan[key];
 				if (!match) {
-					match = bySpan[key] = { start: start, end: end, text: wikitext.slice(start, end), line: lineOf(start),
+					match = bySpan[key] = { start: start, end: end, text: shownText, line: lineOf(start),
 						level: level, topic: entry.topic, entries: [], demotedBy: [] };
 					result.push(match);
 				}
@@ -321,6 +412,38 @@
 			}
 		});
 		return merged;
+	}
+
+	// ===== רשת ביטחון: התאמות בקוד שהקורא לא רואה =====
+	// הקוד כולו עובר למכלול, כולל מה שמוסתר מהקורא: יעד של קישור
+	// ("[[אונס נערה (הלכה)|עינוי]]" יוצר קישור לערך הזה), הערה מוסתרת, שם קובץ,
+	// שם תבנית או פרמטר, כתובת. scanHidden מחפש בקוד הגולמי ומחזיר רק התאמות
+	// שכל האותיות שלהן מוסתרות, עם match.hidden = סוג הקוד (HIDDEN_KINDS).
+	// הן לא נספרות ברמת הדף (verdict) - הרבה מהן רעש ("[[ממלכת וסקס|וסקס]]",
+	// "{{הערה|שם=רומנו}}") - אלא מוצגות בנפרד, להחלטת העורך.
+	// יעד קישור שהטקסט המוצג של אותו קישור כבר נתפס - לא מוצג שוב.
+	function scanHidden(wikitext, lists, visible) {
+		var info = maskInfo(wikitext);
+		visible = visible || scan(wikitext, lists);
+		var rawLists = { patterns: lists.patterns.filter(function (p) { return p.entry.scope !== 'raw'; }),
+			allow: lists.allow, problems: lists.problems };
+		var LETTER = /[A-Za-zא-ת]/;
+		return scan(wikitext, rawLists, { raw: true }).filter(function (m) {
+			var kind = null;
+			for (var i = m.start; i < m.end; i++) {
+				if (!LETTER.test(wikitext[i])) continue;
+				if (!info.kinds[i]) return false; // אות מוצגת - זו התאמה רגילה
+				kind = kind || info.kinds[i];
+			}
+			if (!kind) return false;
+			if (kind === 'l') {
+				var open = wikitext.lastIndexOf('[[', m.start), close = wikitext.indexOf(']]', m.end);
+				if (close < 0) close = wikitext.length;
+				if (visible.some(function (v) { return v.start >= open && v.end <= close + 2; })) return false;
+			}
+			m.hidden = kind;
+			return true;
+		});
 	}
 
 	// נושאים שקובעים את רמת הדף. השאר - הערות ניסוח (ראו בראש הקובץ).
@@ -474,7 +597,7 @@
 	}
 
 	var core = {
-		compileLists: compileLists, maskWikitext: maskWikitext, scan: scan, verdict: verdict, contextOf: contextOf, sentenceSpan: sentenceSpan,
+		compileLists: compileLists, maskWikitext: maskWikitext, scan: scan, scanHidden: scanHidden, HIDDEN_KINDS: HIDDEN_KINDS, verdict: verdict, contextOf: contextOf, sentenceSpan: sentenceSpan,
 		contextLevels: contextLevels, contextVerdict: contextVerdict, SUSPICION_LABELS: SUSPICION_LABELS,
 		VERDICT_TOPICS: VERDICT_TOPICS, LEVEL_LABELS: LEVEL_LABELS, TOPIC_LABELS: TOPIC_LABELS
 	};
@@ -518,7 +641,7 @@
 			marginLeft: '0.4em', verticalAlign: 'middle', border: '1px solid #a2a9b1' });
 	}
 
-	function render($box, $panel, matches, lists) {
+	function render($box, $panel, matches, lists, hidden) {
 		var text = $box.textSelection('getContents');
 		var level = verdict(matches);
 		var $head = el('div', null, { fontWeight: 'bold', marginBottom: '0.5em' })
@@ -529,7 +652,9 @@
 		var groups = [
 			{ label: LEVEL_LABELS.problem, color: LEVEL_COLORS.problem, items: matches.filter(function (m) { return counted(m) && m.level === 'problem'; }) },
 			{ label: LEVEL_LABELS.review, color: LEVEL_COLORS.review, items: matches.filter(function (m) { return counted(m) && m.level === 'review'; }) },
-			{ label: 'הערות ניסוח (אמונה, תיארוך, ויקיפדיה)', color: '#c9d3e8', items: matches.filter(function (m) { return !counted(m); }) }
+			{ label: 'הערות ניסוח (אמונה, תיארוך, ויקיפדיה)', color: '#c9d3e8', items: matches.filter(function (m) { return !counted(m); }) },
+			{ label: 'בקוד שהקורא לא רואה - לא נספר ברמה (יעד קישור, הערה, קובץ, תבנית, כתובת)', color: '#ffffff',
+				items: (hidden || []).filter(counted), hidden: true }
 		];
 		groups.forEach(function (g) {
 			var items = g.items;
@@ -538,7 +663,8 @@
 				.prepend(swatch(g.color)));
 			var $ul = el('ul');
 			items.forEach(function (m) {
-				var ctx = contextOf(text, m, 80);
+				var ctx = g.hidden ? { before: text.slice(Math.max(0, m.start - 40), m.start), text: m.text, after: text.slice(m.end, m.end + 40) }
+					: contextOf(text, m, 80);
 				var tip = m.entries.map(function (e) {
 					return e.pattern + (e.note ? ' - ' + e.note : '') + (e.status === 'suggested' ? ' (הצעה)' : '');
 				}).concat(m.demotedBy.map(function (e) {
@@ -551,7 +677,7 @@
 						.textSelection('setSelection', { start: m.start, end: m.end })
 						.textSelection('scrollToCaretPosition');
 				});
-				$ul.append(el('li').append($link, ' [' + (TOPIC_LABELS[m.topic] || m.topic) + ']: ',
+				$ul.append(el('li').append($link, ' [' + (g.hidden ? HIDDEN_KINDS[m.hidden] + ', ' : '') + (TOPIC_LABELS[m.topic] || m.topic) + ']: ',
 					document.createTextNode(ctx.before), el('mark', ctx.text, { background: counted(m) ? LEVEL_COLORS[m.level] : g.color }),
 					document.createTextNode(ctx.after)));
 			});
@@ -579,8 +705,13 @@
 		}
 		$panel.text('טוען את רשימות המילים…');
 		loadLists().then(function (lists) {
-			var matches = scan($box.textSelection('getContents'), lists, { allow: window.wikitextWordCheckAllow || [] });
-			render($box, $panel, matches, lists);
+			var text = $box.textSelection('getContents');
+			var options = { allow: window.wikitextWordCheckAllow || [] };
+			var matches = scan(text, lists, options);
+			var withAllow = { patterns: lists.patterns, allow: lists.allow.concat(options.allow.map(function (p) {
+				return { regex: new RegExp(p, 'gi'), kind: 'hide', entry: null };
+			})), problems: lists.problems };
+			render($box, $panel, matches, lists, scanHidden(text, withAllow, matches));
 		}, function (err) {
 			$panel.text('שגיאה בטעינת רשימות המילים' + (err && err.message ? ': ' + err.message : '.'));
 		});

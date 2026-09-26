@@ -41,6 +41,8 @@ const DB_BATCH = 200;          // שורות ל-upsert אחד
 const MAX_MATCHES = 300;       // התאמות שנשמרות לערך (הספירות - על כולן)
 const MAX_IMAGES = 12;         // שמות תמונות שנשמרים לערך
 const CONTEXT_SIDE = 90;       // תווים לכל צד במשפט ההקשר
+const MAX_HIDDEN = 50;         // התאמות בקוד בלבד שנשמרות לערך
+const HIDDEN_SIDE = 60;        // תווים לכל צד בהקשר של התאמה בקוד (הקוד עצמו, בלי ניקוי)
 
 // ===== ארגומנטים =====
 
@@ -170,7 +172,10 @@ function scanPage(text, lists) {
 	const counted = (m) => engine.VERDICT_TOPICS.includes(m.topic);
 	for (const mode of ['approved', 'suggested']) {
 		const matches = engine.contextLevels(text, engine.scan(text, lists[mode]), lists.usage);
-		both[mode] = { matches, verdict: engine.verdict(matches), ctx: engine.contextVerdict(matches) };
+		// רשת ביטחון: התאמות בקוד המוסתר (יעד קישור, הערה, קובץ...) - נשמרות עם h,
+		// ולא נספרות ברמות.
+		const hidden = engine.scanHidden(text, lists[mode], matches);
+		both[mode] = { matches, hidden, verdict: engine.verdict(matches), ctx: engine.contextVerdict(matches) };
 	}
 	// הרמה לפי ההקשר: problem / high / medium / low (חשד בתוך "לבדיקה") / wording.
 	const ctxOf = (m) => (!counted(m) ? 'wording' : m.context ? m.context.suspicion || m.context.level : m.level);
@@ -195,8 +200,32 @@ function scanPage(text, lists) {
 			for (const e of m.demotedBy || []) if (!row.d.includes(e.id)) row.d.push(e.id);
 		}
 	}
+	// התאמות בקוד בלבד: h = סוג הקוד (l יעד קישור, c הערה, f קובץ, m תבנית,
+	// p שם פרמטר, k קטגוריה/מיון, u כתובת, h תגית, x אחר - engine.HIDDEN_KINDS). a/s - הרמה ברשימה; ca/cs נשארים null.
+	const hiddenBySpan = new Map();
+	for (const mode of ['approved', 'suggested']) {
+		for (const m of both[mode].hidden) {
+			const key = m.start + ':' + m.end;
+			let row = hiddenBySpan.get(key);
+			if (!row) {
+				const [from, to] = [Math.max(0, m.start - HIDDEN_SIDE), Math.min(text.length, m.end + HIDDEN_SIDE)];
+				const flat = (t) => t.replace(/\s+/g, ' ');
+				row = { pos: m.start, w: m.text, line: m.line, t: m.topic, h: m.hidden, a: null, s: null, ca: null, cs: null, e: [], d: [],
+					b: (from > 0 ? '…' : '') + flat(text.slice(from, m.start)), x: m.text, f: flat(text.slice(m.end, to)) + (to < text.length ? '…' : '') };
+				hiddenBySpan.set(key, row);
+			}
+			row[mode === 'approved' ? 'a' : 's'] = levelOf(m);
+			for (const e of m.entries) if (!row.e.includes(e.id)) row.e.push(e.id);
+		}
+	}
 	const rank = { problem: 0, high: 1, medium: 2, low: 3, review: 3, wording: 4 };
 	const all = [...bySpan.values()].sort((x, y) => (rank[x.cs || x.ca] - rank[y.cs || y.ca]) || x.pos - y.pos);
+	const hiddenRows = [...hiddenBySpan.values()].sort((x, y) => (rank[x.s || x.a] - rank[y.s || y.a]) || x.pos - y.pos);
+	// הספירה (למסנן בדשבורד): בלי הערות ניסוח, בלי שמות פרמטרים ("| מין = זכר" - שדה
+	// קבוע של התבנית) ובלי מפתחות מיון ("{{מיון רגיל:הרצוג, רומן}}" - שם הערך עצמו).
+	// הם נשמרים ומוצגים בשורת ההקשר, אבל לא נספרים.
+	const UNCOUNTED_HIDDEN = ['p', 'k'];
+	const hiddenCount = (mode) => both[mode].hidden.filter((m) => levelOf(m) !== 'wording' && !UNCOUNTED_HIDDEN.includes(m.hidden)).length;
 	const counts = {};
 	for (const mode of ['approved', 'suggested']) {
 		const c = { problem: 0, review: 0, wording: 0 };
@@ -205,6 +234,9 @@ function scanPage(text, lists) {
 		const cc = { problem: 0, high: 0, medium: 0, low: 0, wording: 0 };
 		for (const m of both[mode].matches) cc[ctxOf(m)]++;
 		counts[mode === 'approved' ? 'ca' : 'cs'] = cc;
+		const hc = { problem: 0, review: 0, wording: 0 };
+		for (const m of both[mode].hidden) hc[levelOf(m)]++;
+		counts[mode === 'approved' ? 'ha' : 'hs'] = hc;
 	}
 	return {
 		verdict: both.approved.verdict,
@@ -214,8 +246,12 @@ function scanPage(text, lists) {
 		ctx_verdict_suggested: both.suggested.ctx.level,
 		ctx_suspicion_suggested: both.suggested.ctx.suspicion,
 		counts,
-		matches: all.slice(0, MAX_MATCHES).map(({ pos, ...rest }) => rest),
+		// קודם ההתאמות הרגילות, ואחריהן (עד MAX_HIDDEN) אלה שבקוד בלבד.
+		matches: all.slice(0, MAX_MATCHES).concat(hiddenRows.slice(0, MAX_HIDDEN)).map(({ pos, ...rest }) => rest),
 		matches_total: all.length,
+		// התאמות בקוד בלבד שנספרות (צניעות / גיל העולם, בלי הערות ניסוח).
+		hidden_count: hiddenCount('approved'),
+		hidden_count_suggested: hiddenCount('suggested'),
 	};
 }
 
