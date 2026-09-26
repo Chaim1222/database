@@ -1375,13 +1375,18 @@
 	}
 
 	// ===== תמונות הערך: ממוזערות, ומציג במסך מלא =====
-	// Special:FilePath בוויקיפדיה מחזיר את הקובץ בגודל המבוקש - גם קובץ מקומי וגם
-	// מוויקישיתוף - בלי שאילתת API. width בפיקסלים (המגבלה של ויקיפדיה - עד גודל המקור).
+	// מציג משלנו ולא MultimediaViewer (מותקן במכלול): הוא נפתח רק מתמונות בתוך
+	// תוכן הדף, ואין לו ממשק ציבורי יציב לפתיחת רשימת קבצים שרירותית.
+	// דרך Special:FilePath של המכלול עצמו, כדי לראות בדיוק מה שיוצג בערך אחרי
+	// הייבוא: המכלול מחפש קובץ בשם הזה קודם אצלו, אחר כך בוויקיפדיה, ואחר כך
+	// בוויקישיתוף (דרך ויקיפדיה) - meta=filerepoinfo: local, hewiki. כך קובץ
+	// שהוחלף במכלול בגרסה מתוקנת מוצג בגרסה של המכלול. width בפיקסלים.
+	var MICHLOL_BASE = 'https://www.hamichlol.org.il';
 	function wfImageUrl(name, width) {
-		return 'https://he.wikipedia.org/wiki/Special:FilePath/' + encodeURIComponent(name) + (width ? '?width=' + width : '');
+		return MICHLOL_BASE + '/Special:FilePath/' + encodeURIComponent(name) + (width ? '?width=' + width : '');
 	}
 	function wfFilePageUrl(name) {
-		return 'https://he.wikipedia.org/wiki/' + encodeURIComponent('קובץ:' + name);
+		return MICHLOL_BASE + '/' + encodeURIComponent('קובץ:' + name);
 	}
 
 	var wfViewer = { images: [], index: 0, el: null };
