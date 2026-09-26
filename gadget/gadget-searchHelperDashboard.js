@@ -57,6 +57,9 @@
 	var wfHiddenChoice = ''; // '' / 'with' / 'without'
 	var WF_HIDDEN_KINDS = { l: 'יעד קישור', c: 'הערה מוסתרת', f: 'קובץ', m: 'תבנית', p: 'שם פרמטר', k: 'קטגוריה / מיון', u: 'כתובת', h: 'תגית', x: 'קוד' };
 	function wfHiddenColumn() { return wfMode === 's' ? 'hidden_count_suggested' : 'hidden_count'; }
+	// מועמד לייבוא מילוני (עמודת dictionary - word-filter/dictionary.js): ערכי ספורט,
+	// מוזיקה, סרטים, שחקנים, טלוויזיה וספרות, לפי תבנית המידע והקטגוריות. לא משפיע על הרמה.
+	var wfDictChoice = ''; // '' / 'without' / 'only'
 	var WF_SUSPICION = {
 		high: { label: 'לבדיקה – חשד גבוה', cls: 'mchl-review-high' },
 		medium: { label: 'לבדיקה – חשד בינוני', cls: 'mchl-review' },
@@ -831,6 +834,19 @@
 			currentPage = 0; loadActiveView(); toggleClearFiltersBtn();
 		});
 		host.appendChild(hiddenSel);
+
+		var dictSel = document.createElement('select');
+		dictSel.className = 'mchl-filter-select'; dictSel.id = 'mchl-filter-content-dictionary';
+		dictSel.title = 'ערכים שמיובאים כערך מילוני (ספורט, מוזיקה, סרטים, שחקנים, טלוויזיה, ספרות) - לפי תבנית המידע והקטגוריות. במדגם ממערכי המכלול: 93.5% מהמסומנים מילוניים באמת, ו-87% מהמילוניים מסומנים.';
+		dictSel.innerHTML = '<option value="">ייבוא מילוני — כל הערכים</option><option value="without">ללא מועמדים לייבוא מילוני</option><option value="only">מילוני בלבד</option>';
+		dictSel.value = wfDictChoice;
+		dictSel.addEventListener('change', function () {
+			wfDictChoice = dictSel.value;
+			applyContentLevelFilter();
+			currentPage = 0; loadActiveView(); toggleClearFiltersBtn();
+			renderWfMeter();
+		});
+		host.appendChild(dictSel);
 		applyContentLevelFilter();
 		renderWfMeter();
 
@@ -864,8 +880,9 @@
 
 	function applyContentLevelFilter() {
 		['verdict', 'verdict_suggested', 'ctx_verdict', 'ctx_verdict_suggested', 'ctx_suspicion', 'ctx_suspicion_suggested',
-			'hidden_count', 'hidden_count_suggested']
+			'hidden_count', 'hidden_count_suggested', 'dictionary']
 			.forEach(function (c) { delete activeFilters[c]; });
+		if (wfDictChoice) activeFilters.dictionary = { op: wfDictChoice === 'only' ? 'not.is' : 'is', value: 'null' };
 		if (wfHiddenChoice) activeFilters[wfHiddenColumn()] = wfHiddenChoice === 'with' ? { op: 'gt', value: 0 } : { op: 'eq', value: 0 };
 		var col = wfColumn(), v = wfLevelChoice;
 		if (!v) return;
@@ -912,6 +929,7 @@
 			rows.forEach(function (r) {
 				if (r.redirect !== redirect) return;
 				if (images !== null && r.has_images !== images) return;
+				if (wfDictChoice && r.dictionary !== (wfDictChoice === 'only')) return;
 				var level = wfRowLevel(r);
 				counts[level] = (counts[level] || 0) + r.n;
 				total += r.n;
@@ -936,6 +954,7 @@
 			host.innerHTML = '<div class="mchl-wf-meter-head">פילוח תוכן · ' +
 				escapeHtml(wfMethod === 'ctx' ? 'לפי הקשר' : 'לפי רמת הרשימה') + ' · ' +
 				escapeHtml(wfMode === 's' ? 'כולל הצעות' : 'רשימות מאושרות') + (images === null ? '' : images ? ' · עם תמונות' : ' · בלי תמונות') +
+				(wfDictChoice === 'only' ? ' · מילוני בלבד' : wfDictChoice === 'without' ? ' · ללא מילוני' : '') +
 				' · ' + total.toLocaleString('he-IL') + ' ערכים <span class="mchl-muted">(לחיצה מסננת)</span></div>' +
 				'<div class="mchl-wf-bar">' + bar + '</div><div class="mchl-wf-legends">' + legend + '</div>';
 		}).catch(function () {
@@ -961,6 +980,7 @@
 		activeFilters = {};
 		wfLevelChoice = '';
 		wfHiddenChoice = '';
+		wfDictChoice = '';
 		$id('mchl-search-input').value = '';
 		currentPage = 0;
 		buildDynamicFilters();
@@ -1263,6 +1283,7 @@
 		if (parts.length) html += ' <span class="mchl-num-cell">' + escapeHtml(parts.join(' · ')) + '</span>';
 		var hidden = row[wfHiddenColumn()];
 		if (hidden) html += ' <span class="mchl-muted mchl-num-cell" title="מילים בקוד שהקורא לא רואה - לא נספרות ברמה">+' + hidden + ' בקוד</span>';
+		if (row.dictionary) html += ' <span class="mchl-badge mchl-neutral" title="' + escapeHtml('מועמד לייבוא מילוני: ' + (row.dictionary_why || '')) + '">מילוני: ' + escapeHtml(row.dictionary) + '</span>';
 		if (row.matches_total || row.has_images || hidden) {
 			html += ' <button type="button" class="mchl-wf-toggle" data-action="wf-details" data-id="' + row.id + '">הקשר ▾</button>';
 		}

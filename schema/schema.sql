@@ -478,7 +478,7 @@ create table if not exists word_filter_results (
     photo_count integer,                       -- מתוכם לא SVG
     has_images boolean,                        -- photo_count > 0
     images jsonb,                              -- עד 12 שמות קבצים
-    lists_version text,                        -- גיבוב הרשימות + usage.json + המנוע
+    lists_version text,                        -- גיבוב הרשימות + usage.json + המנוע + dictionary.js
     scanned_at timestamptz not null default now(),
     -- רמת הדף לפי הקשר (רמות חשד, usage.json + contextLevels במנוע):
     ctx_verdict text check (ctx_verdict in ('problem', 'review', 'wording', 'clean')),
@@ -488,7 +488,11 @@ create table if not exists word_filter_results (
     -- רשת ביטחון: מילים בקוד שהקורא לא רואה (יעד קישור, הערה, קובץ, תבנית, כתובת).
     -- לא נספרות ברמה. בלי שמות פרמטרים ומפתחות מיון. מאושרות / כולל הצעות.
     hidden_count integer,
-    hidden_count_suggested integer
+    hidden_count_suggested integer,
+    -- מועמד לייבוא מילוני (word-filter/dictionary.js): הסוג ('ספורט', 'מוזיקה'...) או null,
+    -- והסיבה ("תבנית סינגל"). סימון נפרד, לא משפיע על הרמה.
+    dictionary text,
+    dictionary_why text
 );
 create index if not exists word_filter_results_verdict_idx on word_filter_results (verdict);
 create index if not exists word_filter_results_verdict_suggested_idx on word_filter_results (verdict_suggested);

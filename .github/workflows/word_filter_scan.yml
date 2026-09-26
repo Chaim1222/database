@@ -11,7 +11,7 @@ name: סינון תוכן - חסר במכלול
 #
 # מתי רץ:
 #   - אחרי העדכון הלילי ואחרי הסנכרון השבועי (רשימת החסרים התעדכנה).
-#   - כשהרשימות או המנוע משתנים ב-main.
+#   - כשהרשימות, המנוע או כללי הערך המילוני משתנים ב-main.
 #   - ידנית (workflow_dispatch), עם אפשרות לסרוק הכל מחדש.
 
 on:
@@ -23,6 +23,7 @@ on:
     paths:
       - "word-filter/lists/**"
       - "word-filter/Gadget-wikitextWordCheck.js"
+      - "word-filter/dictionary.js"
       - "word-filter/tools/scan-missing.js"
   workflow_dispatch:
     inputs:

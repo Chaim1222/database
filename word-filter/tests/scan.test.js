@@ -53,6 +53,20 @@ test('resultRow: shape of the row saved to Supabase', () => {
 	assert.strictEqual(row.has_images, false);
 	assert.strictEqual(row.verdict, 'clean');
 	assert.strictEqual(row.lists_version, 'v1');
+	assert.strictEqual(row.dictionary, null);
+	assert.strictEqual(row.dictionary_why, null);
+});
+
+test('resultRow: dictionary-import candidate from the infobox or the categories', () => {
+	const row = (content) => resultRow({ pageid: 1, title: 'דף', lastrevid: 1, images: [],
+		revisions: [{ revid: 1, slots: { main: { content } } }] }, lists, 'v1');
+	const single = row('{{סינגל\n|שם=Falling Down\n}}\n\'\'\'Falling Down\'\'\' הוא סינגל.');
+	assert.strictEqual(single.dictionary, 'מוזיקה');
+	assert.strictEqual(single.dictionary_why, 'תבנית סינגל');
+	assert.strictEqual(row('{{מידע}}\nכדורגלן.\n[[קטגוריה:כדורגלנים ישראלים]]').dictionary, 'ספורט');
+	// תבנית מידע שאינה בידור גוברת על קטגוריה; תרבות חרדית מוחרגת.
+	assert.strictEqual(row('{{מדען\n|שם=א}}\n[[קטגוריה:פסנתרנים ישראלים]]').dictionary, null);
+	assert.strictEqual(row('{{מוזיקאי\n|שם=א}}\n[[קטגוריה:זמרי מוזיקה חסידית]]').dictionary, null);
 });
 
 test('scanPage: context verdict and per-match suspicion', () => {
