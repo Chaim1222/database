@@ -186,3 +186,9 @@ test('scanHidden: words only in hidden code, with where they were found', () => 
 	// לא משפיע על הרמה.
 	assert.strictEqual(verdict('טקסט <!-- סקס --> נוסף'), 'clean');
 });
+
+test('scanHidden: a word glued to letters or digits inside a URL is not a word', () => {
+	const hidden = (t) => engine.scanHidden(t, FULL).map((m) => m.text + ':' + m.hidden);
+	assert.deepStrictEqual(hidden('<ref>https://example.com/brightline-2021-niq6ezxik5hiplowbz2e7sexz4-story.html</ref>'), []);
+	assert.deepStrictEqual(hidden('<ref>https://example.com/anthony-weiner-sex-scandal</ref>'), ['sex:u']);
+});

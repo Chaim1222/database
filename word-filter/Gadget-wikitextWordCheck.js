@@ -436,6 +436,9 @@
 				kind = kind || info.kinds[i];
 			}
 			if (!kind) return false;
+			// בכתובת, בשם קובץ ובקוד: מילה שצמודה לאות לטינית או לספרה לפניה היא חלק
+			// ממחרוזת אחרת ("…niq6ezxik5hiplowbz2e7sexz4-story.html") - לא מילה.
+			if ('ufhx'.indexOf(kind) >= 0 && /[A-Za-z0-9]/.test(wikitext[m.start - 1] || '')) return false;
 			if (kind === 'l') {
 				var open = wikitext.lastIndexOf('[[', m.start), close = wikitext.indexOf(']]', m.end);
 				if (close < 0) close = wikitext.length;
