@@ -115,7 +115,9 @@ test('age of the world counts in the verdict; recent dates do not', () => {
 		assert.notStrictEqual(verdict(t), 'problem', t);
 	// רשומות התיארוך הישנות שחיים העביר לגיל העולם - פעילות.
 	assert.strictEqual(engine.verdict(engine.scan('לפני מיליון שנה', ACTIVE)), 'problem');
-	assert.strictEqual(engine.verdict(engine.scan('נסע לטריאסטה', ACTIVE)), 'review');
+	// w0188 אחרי תיקון הדיוק (2026-09-26): טריאסטה (העיר) לא נתפסת, התקופה הטריאסית כן.
+	assert.strictEqual(engine.verdict(engine.scan('נסע לטריאסטה', ACTIVE)), 'clean');
+	assert.strictEqual(engine.verdict(engine.scan('בתקופה הטריאסית', ACTIVE)), 'review');
 	assert.strictEqual(engine.verdict(engine.scan('חיו לפני 30,000 שנה', ACTIVE)), 'wording'); // w0429 - עדיין הצעה; נתפס רק כתיארוך
 });
 
@@ -191,4 +193,19 @@ test('scanHidden: a word glued to letters or digits inside a URL is not a word',
 	const hidden = (t) => engine.scanHidden(t, FULL).map((m) => m.text + ':' + m.hidden);
 	assert.deepStrictEqual(hidden('<ref>https://example.com/brightline-2021-niq6ezxik5hiplowbz2e7sexz4-story.html</ref>'), []);
 	assert.deepStrictEqual(hidden('<ref>https://example.com/anthony-weiner-sex-scandal</ref>'), ['sex:u']);
+});
+
+test('precision fixes approved 2026-09-26 (analysis/pattern-precision.md)', () => {
+	const FULL_ACTIVE = engine.compileLists(words, allow); // רשימות מאושרות, כולל ההיתרים הפעילים
+	const v = (t) => engine.verdict(engine.scan(t, FULL_ACTIVE));
+	// לא נתפסים עוד
+	for (const t of ['האלבום השני של הלהקה', 'המועדון האלפיני', 'בית ספר שמוקם בעיר', 'מזימה נגד המלך', 'החליט לחזרה',
+		'כתב העת החל לצאת לאור', 'הגייזר המפורסם', 'להקת שוגייז', 'המתאבק סמי זיין', 'מיני-אלבום ראשון', 'אנסמבל כלי נשיפה',
+		'הומו ארקטוס', 'נגן סקסטון'])
+		assert.ok(['clean', 'wording'].includes(v(t)) && !engine.scan(t, FULL_ACTIVE).some((m) => m.topic === 'modesty' && m.level === 'problem'), t);
+	// עדיין נתפסים
+	assert.strictEqual(v('הוא שמוק'), 'problem');
+	assert.strictEqual(v('החל לצאת עם שחקנית'), 'problem');
+	for (const t of ['ברוך האל', 'והאל אמר', 'בעזרת האל.']) assert.ok(engine.scan(t, FULL_ACTIVE).some((m) => /האל/.test(m.text)), t);
+	assert.strictEqual(v('שוד מזוין'), 'review'); // w0119 הורד ל"לבדיקה"
 });
