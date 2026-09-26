@@ -72,3 +72,12 @@ test('scanPage: hidden-code matches are stored apart and not counted in the leve
 	assert.deepStrictEqual(h.map((m) => m.x + ':' + m.h), ['אונס:l', 'רומן:k']);
 	assert.strictEqual(h[0].cs, null);
 });
+
+test('resultRow: a surrogate pair cut at the context edge does not break the JSON', () => {
+	// אשמונעזר הראשון: אות פיניקית (זוג surrogate) נחתכה בגבול חלון ההקשר של התאמה בקוד.
+	const { wellFormed } = require('../tools/scan-missing.js');
+	const phoenician = String.fromCodePoint(0x1090C);
+	const cut = phoenician.slice(1) + 'טקסט' + phoenician.slice(0, 1);
+	assert.strictEqual(wellFormed({ b: cut, x: [phoenician] }).b, 'טקסט');
+	assert.strictEqual(wellFormed({ x: [phoenician] }).x[0], phoenician);
+});

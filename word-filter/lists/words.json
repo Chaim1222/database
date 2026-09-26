@@ -42,15 +42,18 @@
 		},
 		{
 			"id": "w0003",
-			"pattern": "זנות?",
+			"pattern": "זנות?(?![חבן])",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום כהה"
-			]
+				"במח/אדום כהה",
+				"הכרעת חיים 2026-09-26 (analysis/pattern-precision.md)"
+			],
+			"original": "זנות?",
+			"note": "תיקון דיוק, אושר ע\"י חיים 2026-09-26: לא לזנוח, זנוביה, זנון, מזנון."
 		},
 		{
 			"id": "w0004",
@@ -94,15 +97,18 @@
 		},
 		{
 			"id": "w0007",
-			"pattern": "([^ז]ב|[^מר]ו|[^ה]ה|[יכלמש]|\\s)זנות",
+			"pattern": "(?!אוזנות)(?:[^ז]ב|[^מר]ו|[^ה]ה|[יכלמש]|\\s)זנות",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום כהה"
-			]
+				"במח/אדום כהה",
+				"הכרעת חיים 2026-09-26 (analysis/pattern-precision.md)"
+			],
+			"original": "([^ז]ב|[^מר]ו|[^ה]ה|[יכלמש]|\\s)זנות",
+			"note": "תיקון דיוק, אושר ע\"י חיים 2026-09-26: לא מאוזנות."
 		},
 		{
 			"id": "w0008",
@@ -1162,15 +1168,18 @@
 		},
 		{
 			"id": "w0096",
-			"pattern": "שמוק",
+			"pattern": "שמוק(?![א-ת])",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום כהה"
-			]
+				"במח/אדום כהה",
+				"הכרעת חיים 2026-09-26 (analysis/pattern-precision.md)"
+			],
+			"original": "שמוק",
+			"note": "תיקון דיוק, אושר ע\"י חיים 2026-09-26: לא שמוקדש, שמוקם, שמוקמה (66% מההתאמות)."
 		},
 		{
 			"id": "w0097",
@@ -1331,15 +1340,18 @@
 		},
 		{
 			"id": "w0110",
-			"pattern": "החל לצאת",
+			"pattern": "החל(?:ה|ו)? לצאת עם",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום כהה"
-			]
+				"במח/אדום כהה",
+				"הכרעת חיים 2026-09-26 (analysis/pattern-precision.md)"
+			],
+			"original": "החל לצאת",
+			"note": "תיקון דיוק, אושר ע\"י חיים 2026-09-26: רק \"לצאת עם\" (דייטים). לא \"החל לצאת לאור\", \"לצאת לטיולי הרים\" (19 מ-28 מופעים)."
 		},
 		{
 			"id": "w0111",
@@ -1442,26 +1454,31 @@
 		{
 			"id": "w0119",
 			"pattern": "מזוין",
-			"level": "problem",
+			"level": "review",
 			"topic": "modesty",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום כהה"
-			]
+				"במח/אדום כהה",
+				"הכרעת חיים 2026-09-26 (analysis/pattern-precision.md)"
+			],
+			"note": "הורד ל\"לבדיקה\" (חיים, 2026-09-26): ב\"חסר במכלול\" לפחות 107 מ-148 המופעים הם \"חמוש/מחוזק\" - שוד, מאבק, סכסוך, כוח, בטון מזוין. השימוש הגס נדיר."
 		},
 		{
 			"id": "w0120",
-			"pattern": "גייז",
+			"pattern": "(?<!שו)גייז(?![א-ת])",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"sources": [
 				"במח/אדום כהה",
-				"בומח/צניעות"
-			]
+				"בומח/צניעות",
+				"הכרעת חיים 2026-09-26 (analysis/pattern-precision.md)"
+			],
+			"original": "גייז",
+			"note": "תיקון דיוק, אושר ע\"י חיים 2026-09-26: לא גייזר, גייזל, גייזלר, שוגייז (88% מההתאמות)."
 		},
 		{
 			"id": "w0121",
@@ -2296,16 +2313,19 @@
 		},
 		{
 			"id": "w0188",
-			"pattern": "טריאס",
+			"pattern": "טריאס(?!טה)",
 			"level": "review",
 			"topic": "age",
 			"status": "active",
 			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום בהיר"
+				"במח/אדום בהיר",
+				"הכרעת חיים 2026-09-26 (analysis/pattern-precision.md)"
 			],
-			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. נשאר לבדיקה: תופס גם טריאסטה."
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. נשאר לבדיקה: תופס גם טריאסטה.",
+			"original": "טריאס",
+			"note": "תיקון דיוק, אושר ע\"י חיים 2026-09-26: לא טריאסטה (העיר). \"טריאסית\" (התקופה) עדיין נתפסת."
 		},
 		{
 			"id": "w0189",
@@ -2823,15 +2843,18 @@
 		},
 		{
 			"id": "w0231",
-			"pattern": "לחזר",
+			"pattern": "לחזר(?![א-ת])",
 			"level": "review",
 			"topic": "modesty",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
-				"במח/ירוק"
-			]
+				"במח/ירוק",
+				"הכרעת חיים 2026-09-26 (analysis/pattern-precision.md)"
+			],
+			"original": "לחזר",
+			"note": "תיקון דיוק, אושר ע\"י חיים 2026-09-26: לא לחזרה, לחזרתו (67% מההתאמות)."
 		},
 		{
 			"id": "w0232",
@@ -3185,17 +3208,18 @@
 		},
 		{
 			"id": "w0261",
-			"pattern": "האל(?![ימות]|קט)",
+			"pattern": "(?<![א-ת])[ובלכמש]?האל(?![א-ת])",
 			"level": "review",
 			"topic": "faith",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
-				"במח/צהוב"
+				"במח/צהוב",
+				"הכרעת חיים 2026-09-26 (analysis/pattern-precision.md)"
 			],
 			"original": "האל[^ימות(קט)]",
-			"note": "במקור (קט) בתוך [] - חוסם ק או ט בודדים, לא את הרצף \"קט\"."
+			"note": "במקור (קט) בתוך [] - חוסם ק או ט בודדים, לא את הרצף \"קט\". תיקון דיוק, אושר ע\"י חיים 2026-09-26: הקודמת תפסה כל מילה שמתחילה ב\"האל\" - האלבום, האלה, האלפים, האלכוהול, האלפיני (88% מההתאמות ב\"חסר במכלול\"). עכשיו רק המילה השלמה."
 		},
 		{
 			"id": "w0262",
@@ -3665,14 +3689,17 @@
 		},
 		{
 			"id": "w0302",
-			"pattern": "זימה(?!ה)",
+			"pattern": "(?<!מ)זימה(?!ה)",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"sources": [
-				"בומח/צניעות"
-			]
+				"בומח/צניעות",
+				"הכרעת חיים 2026-09-26 (analysis/pattern-precision.md)"
+			],
+			"original": "זימה(?!ה)",
+			"note": "תיקון דיוק, אושר ע\"י חיים 2026-09-26: לא מזימה (77% מההתאמות)."
 		},
 		{
 			"id": "w0303",
