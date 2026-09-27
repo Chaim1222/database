@@ -27,8 +27,10 @@ test('lists: every entry compiles and has the required fields', () => {
 });
 
 test('suggested entries are off unless asked for', () => {
-	assert.deepStrictEqual(texts('אלוף בפיתוח גוף'), []);
-	assert.ok(texts('אלוף בפיתוח גוף', FULL).length);
+	const age = 'בני אדם חיו כאן לפני 30,000 שנה.'; // w0429 - עדיין הצעה
+	assert.ok(!engine.scan(age, ACTIVE).some((m) => m.topic === 'age'));
+	assert.ok(engine.scan(age, FULL).some((m) => m.topic === 'age'));
+	assert.deepStrictEqual(texts('she wore panties', FULL), []); // w0424 נדחה - לא נבדק גם עם ההצעות
 });
 
 test('fixed patterns from the source pages now match', () => {
@@ -84,10 +86,11 @@ test('allow list: hide = not the word at all; demote = innocent use, shown as re
 		assert.strictEqual(verdict(t), 'clean', t);
 	}
 	// הכרעת חיים: שימוש תמים במילה אמיתית לא נעלם - יורד ל"לבדיקה".
-	for (const t of ['המין האנושי', 'הממצאים חשפו', 'בשוגג או באונס', '[[מין (טקסונומיה)|מין]] של ציפור',
+	for (const t of ['המין האנושי', 'הממצאים חשפו', '[[מין (טקסונומיה)|מין]] של ציפור',
 		'רבייה מינית אפשרית מהשנה השנייה', 'הפרחים דו-מיניים', 'מתבגרים מינית לאט']) {
 		assert.strictEqual(verdict(t), 'review', t);
 	}
+	assert.strictEqual(verdict('בשוגג או באונס'), 'problem'); // a015 נדחה (חיים, 2026-09-27)
 	assert.strictEqual(engine.verdict(engine.scan('רבייה מינית', ACTIVE)), 'problem'); // בלי ההיתר
 	assert.strictEqual(engine.verdict(engine.scan('רבייה מינית', engine.compileLists(words, allow))), 'review'); // a028 פעיל
 	for (const t of ['היא הייתה אנוסה', 'הוא אנס אותה', 'זוג מאותו המין', 'תעשיית הפורנו', 'אלבום Fuck You']) {
@@ -252,7 +255,7 @@ test('precision fixes approved 2026-09-26 (analysis/pattern-precision.md)', () =
 		'הומו ארקטוס', 'נגן סקסטון'])
 		assert.ok(['clean', 'wording'].includes(v(t)) && !engine.scan(t, FULL_ACTIVE).some((m) => m.topic === 'modesty' && m.level === 'problem'), t);
 	// עדיין נתפסים
-	assert.strictEqual(v('הוא שמוק'), 'problem');
+	assert.strictEqual(v('הוא שמוק'), 'review'); // w0096 -> לבדיקה (חיים, 2026-09-27)
 	assert.strictEqual(v('החל לצאת עם שחקנית'), 'problem');
 	for (const t of ['ברוך האל', 'והאל אמר', 'בעזרת האל.']) assert.ok(engine.scan(t, FULL_ACTIVE).some((m) => /האל/.test(m.text)), t);
 	assert.strictEqual(v('שוד מזוין'), 'review'); // w0119 הורד ל"לבדיקה"
@@ -266,4 +269,20 @@ test('names of God (topic names) count in the level as review; whole words only'
 	assert.strictEqual(verdict('האלבום החדש'), 'clean');
 	assert.strictEqual(verdict('שדי אברהם הוא יישוב. כך שדי ב-2 מיקרוגרם.'), 'clean');
 	assert.strictEqual(verdict('אבן אלהיתי כתב פירוש'), 'clean');
+});
+
+test('review decisions 2026-09-27: pattern fixes from Chaim\'s notes', () => {
+	const L = engine.compileLists(words, allow);
+	const hit = (t, id) => engine.scan(t, L).some((m) => m.entries.some((e) => e.id === id));
+	// w0298/w0299: רק זונה/זונות - לא מזונות (המקור [מ]זונ תפס רק אותן)
+	assert.ok(!hit('חייב במזונותיה', 'w0298') && !hit('מזונות הילדים', 'w0299'));
+	assert.ok(hit('היא הייתה זונה', 'w0298') && hit('בית של זונות', 'w0299'));
+	// w0047: וסת כמילה בודדת - לא וסתם, וסתיו
+	assert.ok(hit('בזמן הווסת', 'w0047') && hit('מחזור וסת', 'w0047'));
+	assert.ok(!hit('וסתם כך הלך', 'w0047') && !hit('בקיץ וסתיו', 'w0047'));
+	// a003: תת-מין בלבד - לא "שביתת מין", "לתת מין"
+	const FULLL = engine.compileLists(words, allow, { suggested: true });
+	const demoted = (t) => engine.scan(t, FULLL).some((m) => (m.demotedBy || []).some((e) => e.id === 'a003'));
+	assert.ok(demoted('תת-המין הצפוני'));
+	assert.ok(!demoted('שביתת מין') && !demoted('סירבה לתת מין'));
 });

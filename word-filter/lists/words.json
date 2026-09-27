@@ -318,10 +318,10 @@
 		{
 			"id": "w0025",
 			"pattern": "איידס",
-			"level": "problem",
+			"level": "review",
 			"topic": "modesty",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"sources": [
 				"במח/אדום כהה",
 				"בומח/צניעות"
@@ -581,15 +581,19 @@
 		},
 		{
 			"id": "w0047",
-			"pattern": "(\\s|^)[ו]*וסת",
+			"pattern": "(?<![א-ת])[ובלכמשה]{0,3}ו?וסת(?:ות|ה|ו)?(?![א-ת])",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום כהה"
-			]
+				"במח/אדום כהה",
+				"הערת חיים 2026-09-27"
+			],
+			"reviewNote": "צריך להגביל למילה בודדת, בתוספת אותיות תחיליות",
+			"original": "(\\s|^)[ו]*וסת",
+			"note": "הערת חיים 2026-09-27: \"צריך להגביל למילה בודדת, בתוספת אותיות תחיליות\" - לא וסתם, וסתיו, וסתר."
 		},
 		{
 			"id": "w0048",
@@ -1170,7 +1174,7 @@
 		{
 			"id": "w0096",
 			"pattern": "שמוק(?![א-ת])",
-			"level": "problem",
+			"level": "review",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": true,
@@ -1180,7 +1184,8 @@
 				"הכרעת חיים 2026-09-26 (analysis/pattern-precision.md)"
 			],
 			"original": "שמוק",
-			"note": "תיקון דיוק, אושר ע\"י חיים 2026-09-26: לא שמוקדש, שמוקם, שמוקמה (66% מההתאמות)."
+			"note": "תיקון דיוק, אושר ע\"י חיים 2026-09-26: לא שמוקדש, שמוקם, שמוקמה (66% מההתאמות).",
+			"reviewNote": "רק בערכים החסומים כביטוי שלילי"
 		},
 		{
 			"id": "w0097",
@@ -3610,7 +3615,8 @@
 			"reviewed": false,
 			"sources": [
 				"בומח/צניעות"
-			]
+			],
+			"reviewNote": "רק בערכים החסומים שלילי, ואחד מתוך כמה, בוויקיפדיה הכללית"
 		},
 		{
 			"id": "w0289",
@@ -3713,25 +3719,33 @@
 		},
 		{
 			"id": "w0298",
-			"pattern": "(?<!ארי)[מ]זונ[הות]",
+			"pattern": "(?<![א-ת])[ובלכשה]{0,3}זונ(?:ה|ות)(?![א-ת])",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"sources": [
-				"בומח/צניעות"
-			]
+				"בומח/צניעות",
+				"הערת חיים 2026-09-27"
+			],
+			"reviewNote": "נתפס בעיקר מזונות, שזה בכלל לא בעיה, אפילו לא בדיקה צריך לתפוס רק זונות, זונה, זנות",
+			"original": "(?<!ארי)[מ]זונ[הות]",
+			"note": "הערת חיים 2026-09-27: \"צריך לתפוס רק זונות, זונה, זנות\" - המקור `[מ]זונ` תפס רק מזונה/מזונות (מחלקת תווים במקום [^מ]). מילה שלמה, בלי מ' תחילית (מזונות). זנות - w0003/w0007."
 		},
 		{
 			"id": "w0299",
-			"pattern": "[מ]זונות",
+			"pattern": "(?<![א-ת])[ובלכשה]{0,3}זונות(?![א-ת])",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"sources": [
-				"בומח/צניעות"
-			]
+				"בומח/צניעות",
+				"הערת חיים 2026-09-27"
+			],
+			"reviewNote": "נתפס בעיקר מזונות, אפילו לא לבדיקה. צריך לתפוס רק זונות, זונה, זנות",
+			"original": "[מ]זונות",
+			"note": "הערת חיים 2026-09-27: המקור `[מ]זונות` תפס רק \"מזונות\" (מחלקת תווים במקום [^מ]). מילה שלמה, בלי מ' תחילית."
 		},
 		{
 			"id": "w0300",
@@ -3857,7 +3871,8 @@
 			"reviewed": false,
 			"sources": [
 				"בומח/צניעות"
-			]
+			],
+			"reviewNote": "תלוי בהקשר"
 		},
 		{
 			"id": "w0311",
@@ -4388,8 +4403,8 @@
 			"pattern": "\\bfuck\\w*",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude"
 			],
@@ -4412,8 +4427,8 @@
 			"pattern": "\\bbitch\\w*",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude"
 			],
@@ -4460,8 +4475,8 @@
 			"pattern": "\\bporn\\w*",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude"
 			],
@@ -4472,8 +4487,8 @@
 			"pattern": "\\bnude\\w*",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude"
 			],
@@ -4484,8 +4499,8 @@
 			"pattern": "\\bsexy\\b",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude"
 			],
@@ -4494,10 +4509,10 @@
 		{
 			"id": "w0366",
 			"pattern": "\\bhorny\\b",
-			"level": "problem",
+			"level": "review",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude"
 			],
@@ -4566,10 +4581,10 @@
 		{
 			"id": "w0372",
 			"pattern": "פיתוח גוף",
-			"level": "problem",
+			"level": "review",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude"
 			],
@@ -4628,8 +4643,8 @@
 			"pattern": "נשיק(?:ה|ות|ת)(?![א-ת])",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude"
 			],
@@ -4640,8 +4655,8 @@
 			"pattern": "מתנשק[א-ת]*",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude"
 			],
@@ -4664,8 +4679,8 @@
 			"pattern": "בגד(?:י)? (?:ים|רחצה)",
 			"level": "review",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude"
 			],
@@ -4712,8 +4727,8 @@
 			"pattern": "רקדני(?:ת|יות)(?![א-ת])",
 			"level": "review",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude"
 			],
@@ -4724,8 +4739,8 @@
 			"pattern": "מועדוני? לילה",
 			"level": "review",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude"
 			],
@@ -4736,8 +4751,8 @@
 			"pattern": "שוכב(?:ת|ים|ות)? עם|שכב(?:ה|ו)? עם",
 			"level": "review",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude"
 			],
@@ -4760,8 +4775,8 @@
 			"pattern": "אוננות",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude (מילה חדשה)"
 			],
@@ -4820,8 +4835,8 @@
 			"pattern": "ויברטור|דילדו",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude (מילה חדשה)"
 			],
@@ -4832,8 +4847,8 @@
 			"pattern": "פוליאמורי",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude (מילה חדשה)"
 			],
@@ -4844,8 +4859,8 @@
 			"pattern": "(?:מין|סקס) אוראלי",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude (מילה חדשה)"
 			],
@@ -4940,8 +4955,8 @@
 			"pattern": "פטמ(?:ה|ות)(?![א-ת])",
 			"level": "review",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude (מילה חדשה)"
 			],
@@ -4952,8 +4967,8 @@
 			"pattern": "משכב זכר",
 			"level": "review",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude (מילה חדשה)"
 			],
@@ -5000,8 +5015,8 @@
 			"pattern": "שפיכה",
 			"level": "review",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude (מילה חדשה)"
 			],
@@ -5012,20 +5027,21 @@
 			"pattern": "(?<![א-ת])[וה]?זי?קפה(?![א-ת])",
 			"level": "review",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude (מילה חדשה)"
 			],
-			"note": "זקפה / זיקפה (שני הכתיבים - לבקשת חיים בסקירה). לא \"זקיפה\" (חשבונאות)."
+			"note": "זקפה / זיקפה (שני הכתיבים - לבקשת חיים בסקירה). לא \"זקיפה\" (חשבונאות).",
+			"reviewNote": "מה עם זיקפה?"
 		},
 		{
 			"id": "w0410",
 			"pattern": "\\bLGBT\\w*",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude (מילה חדשה)"
 			],
@@ -5036,8 +5052,8 @@
 			"pattern": "\\b(?:lesbian|homosexual|bisexual|transgender)\\w*",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude (מילה חדשה)"
 			],
@@ -5048,8 +5064,8 @@
 			"pattern": "\\bqueer\\w*",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude (מילה חדשה)"
 			],
@@ -5072,8 +5088,8 @@
 			"pattern": "\\borgasm\\w*",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude (מילה חדשה)"
 			],
@@ -5096,8 +5112,8 @@
 			"pattern": "\\berotic\\w*",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude (מילה חדשה)"
 			],
@@ -5132,8 +5148,8 @@
 			"pattern": "\\bprostitut\\w*|\\bbrothel\\w*",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude (מילה חדשה)"
 			],
@@ -5168,8 +5184,8 @@
 			"pattern": "\\b(?:penis|vagina|clitor|testicl)\\w*",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude (מילה חדשה)"
 			],
@@ -5192,8 +5208,8 @@
 			"pattern": "\\bpant(?:y|ies)\\b",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "rejected",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude (מילה חדשה)"
 			],
@@ -5226,10 +5242,10 @@
 		{
 			"id": "w0427",
 			"pattern": "\\b(?:rape[ds]?|raping|rapist\\w*)\\b",
-			"level": "review",
+			"level": "problem",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude (מילה חדשה)"
 			],
