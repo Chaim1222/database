@@ -175,6 +175,8 @@ function imagesOf(page, text) {
 function scanPage(text, lists) {
 	const both = {};
 	const counted = (m) => engine.VERDICT_TOPICS.includes(m.topic);
+	// שמות הקודש - קטגוריה נפרדת (הכרעת חיים 2026-09-27): הרמה "names", לא נספרים ברמת הדף.
+	const separate = (m) => engine.SEPARATE_TOPICS.includes(m.topic);
 	for (const mode of ['approved', 'suggested']) {
 		const matches = engine.contextLevels(text, engine.scan(text, lists[mode]), lists.usage, lists.clues[mode]);
 		// רשת ביטחון: התאמות בקוד המוסתר (יעד קישור, הערה, קובץ...) - נשמרות עם h,
@@ -183,10 +185,10 @@ function scanPage(text, lists) {
 		both[mode] = { matches, hidden, verdict: engine.verdict(matches), ctx: engine.contextVerdict(matches) };
 	}
 	// הרמה לפי ההקשר: problem / high / medium / low (חשד בתוך "לבדיקה") / wording.
-	const ctxOf = (m) => (!counted(m) ? 'wording' : m.context ? m.context.suspicion || m.context.level : m.level);
+	const ctxOf = (m) => (separate(m) ? 'names' : !counted(m) ? 'wording' : m.context ? m.context.suspicion || m.context.level : m.level);
 	// איחוד ההתאמות של שני המצבים לפי מיקום: a = הרמה לפי המאושרות,
 	// s = לפי ההצעות (null = לא נמצא במצב הזה). הדשבורד מציג לכל מצב את שלו.
-	const levelOf = (m) => (counted(m) ? m.level : 'wording');
+	const levelOf = (m) => (separate(m) ? 'names' : counted(m) ? m.level : 'wording');
 	const bySpan = new Map();
 	for (const mode of ['approved', 'suggested']) {
 		for (const m of both[mode].matches) {
@@ -228,23 +230,23 @@ function scanPage(text, lists) {
 			for (const e of m.entries) if (!row.e.includes(e.id)) row.e.push(e.id);
 		}
 	}
-	const rank = { problem: 0, high: 1, medium: 2, low: 3, review: 3, wording: 4 };
+	const rank = { problem: 0, high: 1, medium: 2, low: 3, review: 3, wording: 4, names: 5 };
 	const all = [...bySpan.values()].sort((x, y) => (rank[x.cs || x.ca] - rank[y.cs || y.ca]) || x.pos - y.pos);
 	const hiddenRows = [...hiddenBySpan.values()].sort((x, y) => (rank[x.s || x.a] - rank[y.s || y.a]) || x.pos - y.pos);
 	// הספירה (למסנן בדשבורד): בלי הערות ניסוח, בלי שמות פרמטרים ("| מין = זכר" - שדה
 	// קבוע של התבנית) ובלי מפתחות מיון ("{{מיון רגיל:הרצוג, רומן}}" - שם הערך עצמו).
 	// הם נשמרים ומוצגים בשורת ההקשר, אבל לא נספרים.
 	const UNCOUNTED_HIDDEN = ['p', 'k'];
-	const hiddenCount = (mode) => both[mode].hidden.filter((m) => levelOf(m) !== 'wording' && !UNCOUNTED_HIDDEN.includes(m.hidden)).length;
+	const hiddenCount = (mode) => both[mode].hidden.filter((m) => counted(m) && !UNCOUNTED_HIDDEN.includes(m.hidden)).length;
 	const counts = {};
 	for (const mode of ['approved', 'suggested']) {
-		const c = { problem: 0, review: 0, wording: 0 };
+		const c = { problem: 0, review: 0, wording: 0, names: 0 };
 		for (const m of both[mode].matches) c[levelOf(m)]++;
 		counts[mode === 'approved' ? 'a' : 's'] = c;
-		const cc = { problem: 0, high: 0, medium: 0, low: 0, wording: 0 };
+		const cc = { problem: 0, high: 0, medium: 0, low: 0, wording: 0, names: 0 };
 		for (const m of both[mode].matches) cc[ctxOf(m)]++;
 		counts[mode === 'approved' ? 'ca' : 'cs'] = cc;
-		const hc = { problem: 0, review: 0, wording: 0 };
+		const hc = { problem: 0, review: 0, wording: 0, names: 0 };
 		for (const m of both[mode].hidden) hc[levelOf(m)]++;
 		counts[mode === 'approved' ? 'ha' : 'hs'] = hc;
 	}
@@ -262,6 +264,9 @@ function scanPage(text, lists) {
 		// התאמות בקוד בלבד שנספרות (צניעות / גיל העולם, בלי הערות ניסוח).
 		hidden_count: hiddenCount('approved'),
 		hidden_count_suggested: hiddenCount('suggested'),
+		// שמות הקודש שבטקסט המוצג - למסנן נפרד בדשבורד.
+		names_count: counts.a.names,
+		names_count_suggested: counts.s.names,
 	};
 }
 

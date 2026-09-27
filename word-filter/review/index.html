@@ -86,6 +86,7 @@ code.pat {
 .pill.decided-approve, .pill.decided-real { background: var(--ok-soft); color: var(--ok); }
 .pill.decided-reject, .pill.decided-false { background: var(--no-soft); color: var(--no); }
 .note { margin: 4px 0 0; max-width: 72ch; }
+.note.merged { color: var(--muted); font-size: 0.92em; }
 .meta { color: var(--muted); font-size: 0.85rem; margin: 2px 0 0; }
 .meta s { color: var(--muted); }
 .evidence { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 0.9rem; margin-top: 6px; font-variant-numeric: tabular-nums; }
@@ -388,6 +389,7 @@ button:disabled, textarea:disabled { opacity: 0.55; cursor: not-allowed; }
 		if (d.decision) head.appendChild(el('span', 'pill decided-' + d.decision, DECIDED_LABELS[d.decision]));
 		r.main.appendChild(head);
 		if (item.note) r.main.appendChild(el('p', 'note', item.note));
+		if (item.mergeNote) r.main.appendChild(el('p', 'note merged', 'איחוד: ' + item.mergeNote));
 		if (kind !== 'finding') {
 			var meta = el('p', 'meta');
 			meta.appendChild(document.createTextNode(item.id + ' · ' + item.sources.join(', ')));

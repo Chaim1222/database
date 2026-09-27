@@ -17,7 +17,8 @@ test('lists: every entry compiles and has the required fields', () => {
 	for (const e of words.entries.concat(allow.entries)) {
 		assert.ok(!ids.has(e.id), 'duplicate id ' + e.id);
 		ids.add(e.id);
-		assert.ok(['active', 'suggested', 'rejected'].includes(e.status), e.id);
+		assert.ok(['active', 'suggested', 'rejected', 'merged'].includes(e.status), e.id);
+		if (e.status === 'merged') assert.ok(words.entries.some((m) => m.id === e.mergedInto && m.status !== 'merged'), e.id);
 		assert.ok(e.sources && e.sources.length, e.id);
 	}
 	for (const e of words.entries) {
@@ -61,8 +62,9 @@ test('hidden markup is ignored; raw mode sees it', () => {
 test('word start: no matches inside words', () => {
 	for (const t of ['פסטיבל אשדודאנס', 'חזונות הנביאים', "ג'וזפין בייקר", 'מדינת אבחזיה', 'האמינית']) {
 		assert.deepStrictEqual(texts(t), [], t);
-		assert.ok(texts(t, ACTIVE, { wordStart: false }).length, t);
 	}
+	// "תחילת מילה" עדיין נחוץ לתבניות שאינן מילה שלמה (אחרי האיחוד רוב התבניות כבר מילה שלמה).
+	assert.ok(texts('מדינת אבחזיה', ACTIVE, { wordStart: false }).length);
 	assert.ok(texts('ולסביות').length);
 	assert.ok(texts('מסיבה עם אורגיה גדולה').length);
 });
@@ -136,12 +138,12 @@ test('contained matches merge; sentence context is readable text', () => {
 });
 
 test('context inside a template shows only the parameter text', () => {
-	const src = 'בפסטיבל {{קישור שפה|אנגלית|Annecy Festival|פסטיבל האנימציה של אנסי}} הוכרז השם.';
+	const src = 'בפסטיבל {{קישור שפה|אנגלית|Rape Film|סרט על אונס}} הוכרז השם.';
 	const lists = engine.compileLists(words, { entries: [] });
-	const m = engine.scan(src, lists).find((x) => x.text === 'אנסי');
+	const m = engine.scan(src, lists).find((x) => x.text === 'אונס');
 	assert.ok(m);
 	const c = engine.contextOf(src, m);
-	assert.strictEqual(c.before + '[' + c.text + ']' + c.after, 'בפסטיבל פסטיבל האנימציה של [אנסי] הוכרז השם.');
+	assert.strictEqual(c.before + '[' + c.text + ']' + c.after, 'בפסטיבל סרט על [אונס] הוכרז השם.');
 });
 
 // רמות חשד לפי הקשר (usage.json, analysis/word-rates.md).
@@ -203,7 +205,7 @@ test('context clues: a neighbour word decides the sense', () => {
 	assert.strictEqual(one('הוא הכיר בזכויות של בני זוג מאותו המין.').level, 'problem');     // k018 - w0089
 	assert.strictEqual(one('בתום תקופה זו הוחלפה בחיה חדשה מאותו המין.').suspicion, 'low'); // k016
 	// "אנסה את" הוא עתיד של ניסה - לא פועל האונס; "באותו מין" בביולוגיה - לא להט"ב.
-	assert.ok(!(one('אני אנסה את מזלי.').clues || []).length);
+	assert.ok(!engine.scan('אני אנסה את מזלי.', FULL).some((m) => m.topic === 'modesty')); // w0027 - מילה שלמה, בלי "אנסה"
 	assert.ok(!(one('בין הזכרים והנקבות באותו מין.').clues || []).includes('k013'));
 });
 
@@ -261,22 +263,26 @@ test('precision fixes approved 2026-09-26 (analysis/pattern-precision.md)', () =
 	assert.strictEqual(v('שוד מזוין'), 'review'); // w0119 הורד ל"לבדיקה"
 });
 
-test('names of God (topic names) count in the level as review; whole words only', () => {
-	assert.strictEqual(verdict('שאלוהים יעזור לך'), 'review');
-	assert.strictEqual(verdict('הסימטריה האלוהית'), 'review'); // גם תארים
-	assert.strictEqual(verdict('ברוך האל'), 'review');
-	assert.strictEqual(verdict('יהוה צבאות'), 'review');
-	assert.strictEqual(verdict('האלבום החדש'), 'clean');
-	assert.strictEqual(verdict('שדי אברהם הוא יישוב. כך שדי ב-2 מיקרוגרם.'), 'clean');
-	assert.strictEqual(verdict('אבן אלהיתי כתב פירוש'), 'clean');
+test('names of God: a separate category - found, but not in the level; whole words only', () => {
+	// הכרעת חיים 2026-09-27: "זה לא בעיה ולא חשד ולא ניסוח. זה קטגוריה שמות הקודש."
+	const names = (t) => engine.scan(t, FULL).filter((m) => m.topic === 'names').map((m) => m.text);
+	for (const t of ['שאלוהים יעזור לך', 'הסימטריה האלוהית', 'ברוך האל', 'יהוה צבאות', 'אלוהינו שבשמים']) {
+		assert.ok(names(t).length, t);
+		assert.strictEqual(verdict(t), 'clean', t); // לא בעיה, לא לבדיקה ולא דורש ניסוח
+	}
+	assert.strictEqual(verdict('ברוך האל. היא הייתה זונה.'), 'problem');
+	assert.deepStrictEqual(names('האלבום החדש'), []);
+	assert.deepStrictEqual(names('שדי אברהם הוא יישוב. כך שדי ב-2 מיקרוגרם.'), []);
+	assert.deepStrictEqual(names('אבן אלהיתי כתב פירוש'), []);
+	assert.deepStrictEqual(names('מדינת יִשְׂרָאֵל'), []); // אֵל - מילה שלמה
 });
 
 test('review decisions 2026-09-27: pattern fixes from Chaim\'s notes', () => {
 	const L = engine.compileLists(words, allow);
 	const hit = (t, id) => engine.scan(t, L).some((m) => m.entries.some((e) => e.id === id));
-	// w0298/w0299: רק זונה/זונות - לא מזונות (המקור [מ]זונ תפס רק אותן)
-	assert.ok(!hit('חייב במזונותיה', 'w0298') && !hit('מזונות הילדים', 'w0299'));
-	assert.ok(hit('היא הייתה זונה', 'w0298') && hit('בית של זונות', 'w0299'));
+	// w0298/w0299 (אוחדו ל-w0004): רק זונה/זונות - לא מזונות (המקור [מ]זונ תפס רק אותן)
+	assert.ok(!hit('חייב במזונותיה', 'w0004') && !hit('מזונות הילדים', 'w0004'));
+	assert.ok(hit('היא הייתה זונה', 'w0004') && hit('בית של זונות', 'w0004'));
 	// w0047: וסת כמילה בודדת - לא וסתם, וסתיו
 	assert.ok(hit('בזמן הווסת', 'w0047') && hit('מחזור וסת', 'w0047'));
 	assert.ok(!hit('וסתם כך הלך', 'w0047') && !hit('בקיץ וסתיו', 'w0047'));
@@ -285,4 +291,20 @@ test('review decisions 2026-09-27: pattern fixes from Chaim\'s notes', () => {
 	const demoted = (t) => engine.scan(t, FULLL).some((m) => (m.demotedBy || []).some((e) => e.id === 'a003'));
 	assert.ok(demoted('תת-המין הצפוני'));
 	assert.ok(!demoted('שביתת מין') && !demoted('סירבה לתת מין'));
+});
+
+test('duplicates merged (analysis/duplicates.md): one entry per word, fixes not undone by a copy', () => {
+	const L = engine.compileLists(words, allow);
+	const ids = (t) => [...new Set(engine.scan(t, L).flatMap((m) => m.entries.map((e) => e.id)))];
+	assert.deepStrictEqual(ids('הוא נאשם באונס'), ['w0027']);
+	assert.deepStrictEqual(ids('הסרט אינוסבך'), []);                 // w0086 לא מבטל את התיקון של w0289
+	for (const t of ['אנסמבל כלי נשיפה', 'אתר אונסק"ו', 'נאן צ\'אונסי', 'האנוסים בספרד', 'לא אנסה להתחמק', 'מזימה נגד המלך', 'מזונות הילדים'])
+		assert.ok(!engine.scan(t, L).some((m) => m.topic === 'modesty'), t);
+	for (const t of ['היא הייתה אנוסה', 'אנסו אותה', 'שנאנסה על ידי', 'בזנות', 'ריקוד [[זנות]]י', 'דמות של חשפנית'])
+		assert.strictEqual(verdict(t), 'problem', t);
+	assert.strictEqual(verdict('החוקרים חשפו את הממצא'), 'review'); // w0310 - "תלוי בהקשר"
+	assert.strictEqual(verdict('היא חושפת את גופה'), 'review');
+	assert.strictEqual(verdict('מעשים מגונים בקטינים'), 'problem');   // w0102 (במקום "מעשיה מגונה")
+	assert.ok(!engine.scan('נגיע לפינה', L).length);                  // פין - מילה שלמה
+	assert.ok(engine.scan('ביקור באיי הבתולה', L).every((m) => m.topic !== 'modesty')); // היתר חדש
 });

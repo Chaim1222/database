@@ -6,8 +6,9 @@
  *   לבדיקה      - נמצאה רק מילה דו-משמעית (למשל "מין", "רומן", "אונס" ההלכתי).
  *   דורש ניסוח  - נמצאו רק הערות ניסוח (אמונה ונצרות, תיארוך, שאריות מוויקיפדיה).
  *   נקי         - לא נמצא דבר.
- * הנושאים שקובעים בעיה/לבדיקה: צניעות, גיל העולם והיווצרות היקום (age) - חמור
- * ודורש הסרה, ושמות השם כתובים במלואם (names, "לבדיקה"; הכרעת חיים 2026-09-27).
+ * הנושאים שקובעים בעיה/לבדיקה: צניעות, וגיל העולם והיווצרות היקום (age) - חמור
+ * ודורש הסרה. שמות הקודש (names) - קטגוריה נפרדת: לא בעיה, לא חשד ולא ניסוח
+ * (הכרעת חיים 2026-09-27), מוצגים לחוד ולא משפיעים על הרמה.
  * שאר הנושאים דורשים ניסוח ולא פסילה (הכרעות חיים, 2026-09-24).
  *
  * רשימות המילים הן שני דפי JSON (ראו WORDS_PAGE, ALLOW_PAGE):
@@ -44,7 +45,7 @@
 	var LEVELS = { problem: 2, review: 1 };
 	var LEVEL_LABELS = { problem: 'בעיה ודאית', review: 'לבדיקה', wording: 'דורש ניסוח', clean: 'נקי' };
 	var LEVEL_COLORS = { problem: '#ff5555', review: '#ffd966', wording: '#c9d3e8', clean: '#b6e3b6' };
-	var TOPIC_LABELS = { modesty: 'צניעות', faith: 'אמונה ונצרות', dating: 'תיארוך ומדע', wiki: 'שאריות מוויקיפדיה', age: 'גיל העולם', names: 'שמות השם' };
+	var TOPIC_LABELS = { modesty: 'צניעות', faith: 'אמונה ונצרות', dating: 'תיארוך ומדע', wiki: 'שאריות מוויקיפדיה', age: 'גיל העולם', names: 'שמות הקודש' };
 
 	// ===== טעינת הרשימות =====
 
@@ -450,8 +451,11 @@
 		});
 	}
 
-	// נושאים שקובעים את רמת הדף. השאר - הערות ניסוח (ראו בראש הקובץ).
-	var VERDICT_TOPICS = ['modesty', 'age', 'names'];
+	// נושאים שקובעים את רמת הדף. SEPARATE_TOPICS - קטגוריה נפרדת שלא נוגעת ברמה (שמות הקודש).
+	// השאר - הערות ניסוח (ראו בראש הקובץ).
+	var VERDICT_TOPICS = ['modesty', 'age'];
+	var SEPARATE_TOPICS = ['names'];
+	var isSeparate = function (m) { return SEPARATE_TOPICS.indexOf(m.topic) >= 0; };
 
 	// הרמה של הדף כולו: problem / review / wording / clean. topics - אילו נושאים נספרים;
 	// התאמה בנושא אחר הופכת דף נקי ל"דורש ניסוח".
@@ -460,6 +464,7 @@
 		var level = 'clean';
 		matches.forEach(function (m) {
 			if (topics.indexOf(m.topic) < 0) {
+				if (isSeparate(m)) return;
 				if (level === 'clean') level = 'wording';
 				return;
 			}
@@ -621,7 +626,7 @@
 			}
 		});
 		if (level === 'wording' && !matches.some(function (m) {
-			return topics.indexOf(m.topic) < 0 || (m.context && m.context.level === 'wording');
+			return (topics.indexOf(m.topic) < 0 && !isSeparate(m)) || (m.context && m.context.level === 'wording');
 		})) level = 'clean';
 		return { level: level, suspicion: level === 'review' ? suspicion : null };
 	}
@@ -671,7 +676,7 @@
 	var core = {
 		compileLists: compileLists, maskWikitext: maskWikitext, scan: scan, scanHidden: scanHidden, HIDDEN_KINDS: HIDDEN_KINDS, verdict: verdict, contextOf: contextOf, sentenceSpan: sentenceSpan,
 		compileClues: compileClues, contextLevels: contextLevels, contextVerdict: contextVerdict, SUSPICION_LABELS: SUSPICION_LABELS,
-		VERDICT_TOPICS: VERDICT_TOPICS, LEVEL_LABELS: LEVEL_LABELS, TOPIC_LABELS: TOPIC_LABELS
+		VERDICT_TOPICS: VERDICT_TOPICS, SEPARATE_TOPICS: SEPARATE_TOPICS, LEVEL_LABELS: LEVEL_LABELS, TOPIC_LABELS: TOPIC_LABELS
 	};
 
 	// ===== ממשק - רק בתוך מדיה ויקי, בדף עריכה =====
@@ -724,7 +729,8 @@
 		var groups = [
 			{ label: LEVEL_LABELS.problem, color: LEVEL_COLORS.problem, items: matches.filter(function (m) { return counted(m) && m.level === 'problem'; }) },
 			{ label: LEVEL_LABELS.review, color: LEVEL_COLORS.review, items: matches.filter(function (m) { return counted(m) && m.level === 'review'; }) },
-			{ label: 'הערות ניסוח (אמונה, תיארוך, ויקיפדיה)', color: '#c9d3e8', items: matches.filter(function (m) { return !counted(m); }) },
+			{ label: 'הערות ניסוח (אמונה, תיארוך, ויקיפדיה)', color: '#c9d3e8', items: matches.filter(function (m) { return !counted(m) && !isSeparate(m); }) },
+			{ label: 'שמות הקודש - לא משפיעים על הרמה', color: '#e3d7f3', items: matches.filter(isSeparate) },
 			{ label: 'בקוד שהקורא לא רואה - לא נספר ברמה (יעד קישור, הערה, קובץ, תבנית, כתובת)', color: '#ffffff',
 				items: (hidden || []).filter(counted), hidden: true }
 		];

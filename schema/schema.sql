@@ -494,7 +494,10 @@ create table if not exists word_filter_results (
     dictionary text,
     dictionary_why text,
     -- נושא הערך (word-filter/topics.js): 'people_congress', 'art', 'sensitive', 'years', 'disambig', 'dictionary', 'other'...
-    topic text
+    topic text,
+    -- שמות הקודש (נושא names) - קטגוריה נפרדת, לא נספרת ברמה (migration_add_word_filter_names.sql)
+    names_count integer,
+    names_count_suggested integer
 );
 create index if not exists word_filter_results_verdict_idx on word_filter_results (verdict);
 create index if not exists word_filter_results_verdict_suggested_idx on word_filter_results (verdict_suggested);

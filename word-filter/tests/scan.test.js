@@ -85,13 +85,13 @@ test('scanPage: context verdict and per-match suspicion', () => {
 	const r = scanPage('הרומן "נפשות מתות" מאת גוגול. היא ספרה על האונס.', lists);
 	assert.strictEqual(r.ctx_verdict_suggested, 'review');
 	assert.strictEqual(r.ctx_suspicion_suggested, 'medium');
-	assert.strictEqual(r.matches.find((m) => m.x === 'הרומן').cs, 'low');
+	assert.strictEqual(r.matches.find((m) => m.x === 'רומן').cs, 'low');
 	assert.strictEqual(r.counts.cs.medium, 1);
 });
 
 test('scanPage: a context clue is stored with the match (ks/kw), per mode', () => {
 	const r = scanPage('הוא הורשע באונס.', lists);
-	const m = r.matches.find((x) => x.x === 'אונס');
+	const m = r.matches.find((x) => /אונס/.test(x.x));
 	assert.strictEqual(m.ca, 'medium');   // המאושרות - מילות ההקשר עוד הצעות
 	assert.strictEqual(m.cs, 'problem');
 	assert.deepStrictEqual(m.ks, ['k001']);

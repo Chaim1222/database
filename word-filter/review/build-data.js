@@ -23,6 +23,8 @@ const words = JSON.parse(fs.readFileSync(path.join(lists, 'words.json'), 'utf8')
 const allow = JSON.parse(fs.readFileSync(path.join(lists, 'allow.json'), 'utf8'));
 const ev = JSON.parse(fs.readFileSync(evidenceFile, 'utf8'));
 
+const merged = Object.fromEntries(words.entries.filter((e) => e.mergedInto).map((e) => [e.id, e.mergedInto]));
+
 // מופעים במדגם האקראי מוויקיפדיה, מסווגים לפי ההקשר (analysis/wiki-random-occurrences.json).
 const analysisFile = path.join(__dirname, '..', 'analysis', 'wiki-random-occurrences.json');
 const wr = {};
@@ -32,7 +34,8 @@ if (fs.existsSync(analysisFile)) {
 	const idsFile = path.join(__dirname, '..', 'corpus-ids', 'wiki-random.txt');
 	wikiRandomTotal = fs.existsSync(idsFile) ? fs.readFileSync(idsFile, 'utf8').trim().split('\n').length : 0;
 	for (const o of analysis.occurrences) {
-		for (const id of o.entries) {
+		// רשומות שאוחדו (status: merged) נספרות ברשומה הראשית.
+		for (const id of new Set(o.entries.map((x) => merged[x] || x))) {
 			const r = wr[id] = wr[id] || { n: 0, problem: 0, innocent: 0, unclear: 0, all: [] };
 			r.n++;
 			r[o.label]++;
@@ -55,14 +58,14 @@ const hash = (s) => {
 };
 const pick = (e, x) => ({
 	id: e.id, pattern: e.pattern, level: e.level, topic: e.topic, status: e.status, sources: e.sources, kind: e.kind,
-	note: e.note || '', original: e.original || '',
+	note: e.note || '', original: e.original || '', mergeNote: e.mergeNote || '',
 	ev: x ? { b: x.blacklist, m: x.mechalol, xb: x.examples.blacklist, xm: x.examples.mechalol } : null,
 	wr: wr[e.id] || null,
 });
 const data = {
 	generated: ev.generated, totals: { ...ev.totals, wikiRandom: wikiRandomTotal }, topics: words.topics, levels: words.levels,
-	words: words.entries.filter((e) => e.status !== 'rejected').map((e) => pick(e, ev.entries[e.id])),
-	allow: allow.entries.filter((e) => e.status !== 'rejected').map((e) => pick(e, ev.allow[e.id])),
+	words: words.entries.filter((e) => e.status !== 'rejected' && e.status !== 'merged').map((e) => pick(e, ev.entries[e.id])),
+	allow: allow.entries.filter((e) => e.status !== 'rejected' && e.status !== 'merged').map((e) => pick(e, ev.allow[e.id])),
 	findings: ev.findings.map((f) => ({ id: 'f-' + hash(f.title), title: f.title, matches: f.matches })),
 };
 const out = path.join(__dirname, 'review-data.json');

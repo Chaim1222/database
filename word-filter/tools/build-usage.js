@@ -15,6 +15,10 @@
  *   analysis/wiki-random-occurrences.json - 1,196 מופעים מוויקיפדיה אקראית.
  * שדה "override" במשפחה (A/B/C) גובר על החישוב - שם חיים קובע.
  *
+ * המשפחה של כל מופע נקבעת בסריקה מחדש של המשפט שלו (analysis/missing-labels-contexts.json,
+ * וההקשר ב-wiki-random-occurrences.json) עם הרשימות הנוכחיות, כולל ההצעות - כך המשפחות
+ * מתאימות לרשומות גם אחרי איחוד כפילויות ותיקוני תבניות. מופע שכבר לא נתפס (היתר, תיקון) לא נספר.
+ *
  *   node word-filter/tools/build-usage.js
  */
 'use strict';
@@ -26,27 +30,50 @@ const OUT = path.join(ROOT, 'lists', 'usage.json');
 const THRESHOLDS = { A: 0.75, B: 0.4 };
 const MIN_LABELED = 10;
 
-const key = (entries) => entries.slice().sort().join(',');
+const key = (entries) => [...new Set(entries)].sort().join(',');
+const lib = require('./lib');
+const LISTS = lib.loadLists({ suggested: true });
+const MERGED = Object.fromEntries(lib.readJson('words.json').entries.filter((e) => e.mergedInto).map((e) => [e.id, e.mergedInto]));
+const dropped = {};
+
+// הרשומות שתופסות היום את המילה שבמרכז המשפט (before + x + after), או null.
+function entriesNow(before, x, after, why) {
+	before = (before || '').replace(/^…/, '');
+	const text = before + x + (after || '').replace(/…$/, '');
+	const from = before.length, to = from + x.length;
+	const m = lib.engine.scan(text, LISTS).find((m) => m.topic === 'modesty' && m.start < to && m.end > from);
+	if (!m) { dropped[why] = (dropped[why] || 0) + 1; return null; }
+	return m.entries.map((e) => e.id);
+}
 
 function main() {
 	const families = {};
 	const add = (fam, label, source, word) => {
-		const f = (families[fam] = families[fam] || { word: word || '', p: 0, i: 0, u: 0, sources: {} });
-		if (word && !f.word) f.word = word;
+		const f = (families[fam] = families[fam] || { word: '', words: {}, p: 0, i: 0, u: 0, sources: {} });
+		// השם של המשפחה - המילה הנפוצה ביותר בין המופעים שלה.
+		if (word) {
+			f.words[word] = (f.words[word] || 0) + 1;
+			f.word = Object.entries(f.words).sort((x, y) => y[1] - x[1])[0][0];
+		}
 		f[label]++;
 		f.sources[source] = (f.sources[source] || 0) + 1;
 	};
 
 	const missing = JSON.parse(fs.readFileSync(path.join(ROOT, 'analysis', 'missing-labels.json'), 'utf8'));
+	const contexts = JSON.parse(fs.readFileSync(path.join(ROOT, 'analysis', 'missing-labels-contexts.json'), 'utf8')).contexts;
 	for (const [frank, l] of Object.entries(missing.labels)) {
 		const fam = missing.families[frank];
 		for (let rn = 1; rn <= l.n; rn++) {
-			add(key(fam.entries.split(',')), l.p.includes(rn) ? 'p' : l.u.includes(rn) ? 'u' : 'i', 'missing', fam.word);
+			const c = contexts[frank][rn];
+			const ids = entriesNow(c.b, c.x, c.f, 'missing');
+			if (ids) add(key(ids), l.p.includes(rn) ? 'p' : l.u.includes(rn) ? 'u' : 'i', 'missing', fam.word);
 		}
 	}
 	const random = JSON.parse(fs.readFileSync(path.join(ROOT, 'analysis', 'wiki-random-occurrences.json'), 'utf8'));
 	for (const o of random.occurrences) {
-		add(key(o.entries), o.label === 'problem' ? 'p' : o.label === 'innocent' ? 'i' : 'u', 'wiki-random');
+		const a = o.context.indexOf('【'), z = o.context.indexOf('】');
+		const ids = a < 0 ? null : entriesNow(o.context.slice(0, a), o.context.slice(a + 1, z), o.context.slice(z + 1), 'wiki-random');
+		if (ids) add(key(ids), o.label === 'problem' ? 'p' : o.label === 'innocent' ? 'i' : 'u', 'wiki-random');
 	}
 
 	// שומרים החלטות קודמות של חיים (override) אם הקובץ כבר קיים.
@@ -71,11 +98,12 @@ function main() {
 		thresholds: { A: THRESHOLDS.A, B: THRESHOLDS.B, minLabeled: MIN_LABELED },
 		status: 'suggested',
 		// עוגנים מוחלטים: "בעיה ודאית" גם לבד (analysis/anchors.json).
-		anchors: JSON.parse(fs.readFileSync(path.join(ROOT, 'analysis', 'anchors.json'), 'utf8')).entries.map((a) => a.id),
+		anchors: [...new Set(JSON.parse(fs.readFileSync(path.join(ROOT, 'analysis', 'anchors.json'), 'utf8')).entries.map((a) => MERGED[a.id] || a.id))],
 		families: out,
 	};
 	fs.writeFileSync(OUT, JSON.stringify(doc, null, '\t') + '\n');
 	const count = (g) => Object.values(out).filter((f) => f.group === g).length;
+	console.log('מופעים שכבר לא נתפסים (לא נספרו):', JSON.stringify(dropped));
 	console.log(`${Object.keys(out).length} משפחות: A ${count('A')}, B ${count('B')}, C ${count('C')} -> ${OUT}`);
 }
 

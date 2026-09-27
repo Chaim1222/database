@@ -1462,6 +1462,20 @@
   "level": null,
   "note": ""
  },
+ "w0002": {
+  "at": "2026-09-27T12:47:57.889Z",
+  "decision": null,
+  "kind": "word",
+  "level": null,
+  "note": "תלוי בהקשר"
+ },
+ "w0024": {
+  "at": "2026-09-27T12:47:44.211Z",
+  "decision": null,
+  "kind": "word",
+  "level": null,
+  "note": "חשפנות/חשפנית- בעיה. חשופות חשפו חשפה חשופי- תלוי בהקשר"
+ },
  "w0025": {
   "at": "2026-09-27T12:11:45.658Z",
   "decision": "approve",
@@ -1476,6 +1490,13 @@
   "level": "review",
   "note": "צריך להגביל למילה בודדת, בתוספת אותיות תחיליות"
  },
+ "w0055": {
+  "at": "2026-09-27T12:30:42.386Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": "חוץ מאיי הבתולה"
+ },
  "w0096": {
   "at": "2026-09-27T12:11:49.590Z",
   "decision": "approve",
@@ -1483,12 +1504,243 @@
   "level": "review",
   "note": "רק בערכים החסומים כביטוי שלילי"
  },
- "w0288": {
-  "at": "2026-09-27T12:12:44.154Z",
+ "w0115": {
+  "at": "2026-09-27T12:46:13.535Z",
   "decision": null,
   "kind": "word",
   "level": null,
-  "note": "רק בערכים החסומים שלילי, ואחד מתוך כמה, בוויקיפדיה הכללית"
+  "note": "תלוי בהקשר"
+ },
+ "w0122": {
+  "at": "2026-09-27T12:46:33.257Z",
+  "decision": null,
+  "kind": "word",
+  "level": null,
+  "note": "כמו אונס  אנסו"
+ },
+ "w0223": {
+  "at": "2026-09-27T12:27:55.827Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": "problem",
+  "note": ""
+ },
+ "w0227": {
+  "at": "2026-09-27T12:24:51.429Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": "problem",
+  "note": "בעילה אסורה זה תוכן מיני מפורש, שאסור במכלול"
+ },
+ "w0236": {
+  "at": "2026-09-27T12:24:17.090Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0238": {
+  "at": "2026-09-27T12:24:03.365Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0239": {
+  "at": "2026-09-27T12:23:50.105Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0240": {
+  "at": "2026-09-27T12:23:47.559Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0248": {
+  "at": "2026-09-27T12:23:44.101Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0249": {
+  "at": "2026-09-27T12:23:38.828Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0250": {
+  "at": "2026-09-27T12:23:29.765Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0251": {
+  "at": "2026-09-27T12:23:34.160Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": "יש הרבה שורשים של המילה אלוהים/אלוהים בהטיות, לכל אחד יש תבנית נפרדת. זה נצרך?\nהאמת שזה קטגוריה נפרדת. זה לא בעיה ולא חשד ולא ניסוח. זה קטגוריה שמות הקודש."
+ },
+ "w0252": {
+  "at": "2026-09-27T12:23:31.510Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0253": {
+  "at": "2026-09-27T12:22:14.409Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0254": {
+  "at": "2026-09-27T12:22:12.196Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0255": {
+  "at": "2026-09-27T12:22:06.436Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0256": {
+  "at": "2026-09-27T12:22:01.078Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0257": {
+  "at": "2026-09-27T12:21:46.293Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0258": {
+  "at": "2026-09-27T12:21:43.421Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0259": {
+  "at": "2026-09-27T12:21:37.386Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0266": {
+  "at": "2026-09-27T12:21:33.889Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0267": {
+  "at": "2026-09-27T12:21:27.279Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0268": {
+  "at": "2026-09-27T12:21:50.176Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0269": {
+  "at": "2026-09-27T12:21:55.529Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0271": {
+  "at": "2026-09-27T12:21:53.732Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0274": {
+  "at": "2026-09-27T12:21:16.739Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0279": {
+  "at": "2026-09-27T12:21:08.948Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0282": {
+  "at": "2026-09-27T12:20:55.405Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0283": {
+  "at": "2026-09-27T12:20:49.446Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0284": {
+  "at": "2026-09-27T12:20:40.300Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0285": {
+  "at": "2026-09-27T12:20:36.729Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0288": {
+  "at": "2026-09-27T12:27:14.724Z",
+  "decision": null,
+  "kind": "word",
+  "level": null,
+  "note": "רק בערכים החסומים שלילי, ואחד מתוך כמה, בוויקיפדיה הכללית. אני לא יודע אם לאשר או לדחות. אולי צריך הקשר"
+ },
+ "w0289": {
+  "at": "2026-09-27T12:20:29.888Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0291": {
+  "at": "2026-09-27T12:30:12.837Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": "רק אם המילה מסתיימת באנסו, ואין אותיות נוספות אחרי המילה אנסו"
  },
  "w0298": {
   "at": "2026-09-27T10:22:30.271Z",
@@ -1504,12 +1756,194 @@
   "level": "review",
   "note": "נתפס בעיקר מזונות, אפילו לא לבדיקה. צריך לתפוס רק זונות, זונה, זנות"
  },
+ "w0301": {
+  "at": "2026-09-27T12:20:03.051Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0302": {
+  "at": "2026-09-27T12:28:55.491Z",
+  "decision": null,
+  "kind": "word",
+  "level": null,
+  "note": "צריך לתקן את הביטוי, לשלול אות מ בהתחלה"
+ },
+ "w0303": {
+  "at": "2026-09-27T12:19:57.361Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0304": {
+  "at": "2026-09-27T12:19:50.225Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0305": {
+  "at": "2026-09-27T12:19:43.553Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0306": {
+  "at": "2026-09-27T12:19:38.667Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0307": {
+  "at": "2026-09-27T12:19:34.523Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0308": {
+  "at": "2026-09-27T12:19:27.962Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0309": {
+  "at": "2026-09-27T12:19:19.698Z",
+  "decision": null,
+  "kind": "word",
+  "level": null,
+  "note": "מעשה מגונה גם כדאי לבדוק?"
+ },
  "w0310": {
-  "at": "2026-09-27T10:20:35.658Z",
+  "at": "2026-09-27T12:45:29.652Z",
   "decision": null,
   "kind": "word",
   "level": "review",
-  "note": "תלוי בהקשר"
+  "note": "תלוי בהקשר. המילה עצמה לא תפסה כלום מעבר למילה חשופה , חשופות או חשופים. התבנית מורכבת"
+ },
+ "w0311": {
+  "at": "2026-09-27T12:18:49.675Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0312": {
+  "at": "2026-09-27T12:18:43.008Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0313": {
+  "at": "2026-09-27T12:46:52.343Z",
+  "decision": null,
+  "kind": "word",
+  "level": null,
+  "note": "כמו אונס אנסו"
+ },
+ "w0317": {
+  "at": "2026-09-27T12:18:19.267Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0321": {
+  "at": "2026-09-27T12:18:08.510Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0323": {
+  "at": "2026-09-27T12:18:03.292Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0325": {
+  "at": "2026-09-27T12:17:56.664Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0328": {
+  "at": "2026-09-27T12:17:23.234Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0330": {
+  "at": "2026-09-27T12:17:18.502Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0331": {
+  "at": "2026-09-27T12:17:06.964Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0332": {
+  "at": "2026-09-27T12:16:58.599Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0333": {
+  "at": "2026-09-27T12:16:46.636Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0334": {
+  "at": "2026-09-27T12:16:38.934Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0335": {
+  "at": "2026-09-27T12:16:34.322Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0336": {
+  "at": "2026-09-27T12:16:26.985Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0343": {
+  "at": "2026-09-27T12:16:10.328Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0345": {
+  "at": "2026-09-27T12:16:03.944Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
  },
  "w0357": {
   "at": "2026-09-24T20:27:22.996Z",

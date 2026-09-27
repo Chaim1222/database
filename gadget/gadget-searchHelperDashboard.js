@@ -42,9 +42,10 @@
 		problem: { label: 'בעיה ודאית', cls: 'mchl-alert' },
 		review: { label: 'לבדיקה', cls: 'mchl-review' },
 		wording: { label: 'דורש ניסוח', cls: 'mchl-neutral' },
-		clean: { label: 'נקי', cls: 'mchl-wiki' }
+		clean: { label: 'נקי', cls: 'mchl-wiki' },
+		names: { label: 'שמות הקודש', cls: 'mchl-neutral' }
 	};
-	var WF_TOPICS = { modesty: 'צניעות', age: 'גיל העולם', names: 'שמות השם', faith: 'אמונה ונצרות', dating: 'תיארוך ומדע', wiki: 'שאריות מוויקיפדיה' };
+	var WF_TOPICS = { modesty: 'צניעות', age: 'גיל העולם', names: 'שמות הקודש', faith: 'אמונה ונצרות', dating: 'תיארוך ומדע', wiki: 'שאריות מוויקיפדיה' };
 	var wfMode = 'a'; // a = רשימות מאושרות, s = כולל הצעות
 	// שיטה: ctx = לפי הקשר (רמות חשד בתוך "לבדיקה" - המילה והמשפט שלה, ראו
 	// word-filter/analysis/word-rates.md); list = לפי הרמה שברשימה בלבד.
@@ -57,6 +58,10 @@
 	var wfHiddenChoice = ''; // '' / 'with' / 'without'
 	var WF_HIDDEN_KINDS = { l: 'יעד קישור', c: 'הערה מוסתרת', f: 'קובץ', m: 'תבנית', p: 'שם פרמטר', k: 'קטגוריה / מיון', u: 'כתובת', h: 'תגית', x: 'קוד' };
 	function wfHiddenColumn() { return wfMode === 's' ? 'hidden_count_suggested' : 'hidden_count'; }
+	// שמות הקודש (נושא names) - קטגוריה נפרדת, לא בעיה, לא חשד ולא ניסוח (הכרעת חיים 2026-09-27):
+	// לא משפיעים על הרמה; מסנן נפרד (names_count) וקבוצה נפרדת בשורת ההקשר.
+	var wfNamesChoice = ''; // '' / 'with' / 'without'
+	function wfNamesColumn() { return wfMode === 's' ? 'names_count_suggested' : 'names_count'; }
 	// מועמד לייבוא מילוני (עמודת dictionary - word-filter/dictionary.js): ערכי ספורט,
 	// מוזיקה, סרטים, שחקנים, טלוויזיה וספרות, לפי תבנית המידע והקטגוריות. לא משפיע על הרמה.
 	var wfDictChoice = ''; // '' / 'without' / 'only'
@@ -877,7 +882,9 @@
 		html += '</div>';
 		// עוד
 		html += '<div class="mchl-side-sec"><div class="mchl-side-h">מילים בקוד המוסתר</div>' +
-			segHtml('hidden', wfHiddenChoice, [['', 'הכול'], ['with', 'יש'], ['without', 'אין']]);
+			segHtml('hidden', wfHiddenChoice, [['', 'הכול'], ['with', 'יש'], ['without', 'אין']]) +
+			'<div class="mchl-side-h" style="margin-top:10px;">שמות הקודש</div>' +
+			segHtml('names', wfNamesChoice, [['', 'הכול'], ['with', 'יש'], ['without', 'אין']]);
 		if (cfg.redirectFilter) {
 			html += '<div class="mchl-side-h" style="margin-top:10px;">הפניה במכלול</div>' +
 				segHtml('redirect', wfRedirectChoice, [['', 'הכול'], ['absent', 'נבדק - אין'], ['unchecked', 'טרם נבדק']]);
@@ -908,6 +915,7 @@
 		else if (kind === 'dict') wfDictChoice = v;
 		else if (kind === 'img') wfImagesChoice = v;
 		else if (kind === 'hidden') wfHiddenChoice = v;
+		else if (kind === 'names') wfNamesChoice = v;
 		else if (kind === 'redirect') wfRedirectChoice = v;
 		else if (kind === 'topic-none') wfTopicChoice = [];
 		else return;
@@ -1001,6 +1009,7 @@
 		if (wfImagesChoice) chips.push(['img', wfImagesChoice === 'with' ? 'עם תמונות' : 'בלי תמונות']);
 		if (wfTopicChoice.length) chips.push(['topic', wfTopicChoice.length === 1 ? 'נושא: ' + WF_TOPIC_LABELS[wfTopicChoice[0]] : wfTopicChoice.length + ' נושאים']);
 		if (wfHiddenChoice) chips.push(['hidden', wfHiddenChoice === 'with' ? 'יש מילים בקוד המוסתר' : 'אין מילים בקוד המוסתר']);
+		if (wfNamesChoice) chips.push(['names', wfNamesChoice === 'with' ? 'יש שמות הקודש' : 'אין שמות הקודש']);
 		if (wfRedirectChoice) chips.push(['redirect', wfRedirectChoice === 'absent' ? 'נבדק - אין הפניה' : 'הפניה - טרם נבדק']);
 		if (wfMaxLen) chips.push(['maxlen', 'עד ' + Number(wfMaxLen).toLocaleString('he-IL') + ' בתים']);
 		if (wfExcludeNew) chips.push(['new', 'בלי ערכים חדשים']);
@@ -1019,6 +1028,7 @@
 		else if (kind === 'img') wfImagesChoice = '';
 		else if (kind === 'topic') wfTopicChoice = [];
 		else if (kind === 'hidden') wfHiddenChoice = '';
+		else if (kind === 'names') wfNamesChoice = '';
 		else if (kind === 'redirect') wfRedirectChoice = '';
 		else if (kind === 'maxlen') wfMaxLen = '';
 		else if (kind === 'new') wfExcludeNew = false;
@@ -1028,7 +1038,7 @@
 
 	function applyContentLevelFilter() {
 		['verdict', 'verdict_suggested', 'ctx_verdict', 'ctx_verdict_suggested', 'ctx_suspicion', 'ctx_suspicion_suggested',
-			'hidden_count', 'hidden_count_suggested', 'dictionary', 'topic', 'has_images', 'created_at', 'mechalol_redirect_exists', 'easy_import_length']
+			'hidden_count', 'hidden_count_suggested', 'names_count', 'names_count_suggested', 'dictionary', 'topic', 'has_images', 'created_at', 'mechalol_redirect_exists', 'easy_import_length']
 			.forEach(function (c) { delete activeFilters[c]; });
 		if (wfTopicChoice.length) activeFilters.topic = { op: 'in', value: '(' + wfTopicChoice.join(',') + ')' };
 		if (wfDictChoice) activeFilters.dictionary = { op: wfDictChoice === 'only' ? 'not.is' : 'is', value: 'null' };
@@ -1038,6 +1048,7 @@
 		else if (wfRedirectChoice === 'unchecked') activeFilters.mechalol_redirect_exists = { op: 'is', value: 'null' };
 		if (wfMaxLen && !isNaN(Number(wfMaxLen))) activeFilters.easy_import_length = { op: 'lte', value: Number(wfMaxLen) };
 		if (wfHiddenChoice) activeFilters[wfHiddenColumn()] = wfHiddenChoice === 'with' ? { op: 'gt', value: 0 } : { op: 'eq', value: 0 };
+		if (wfNamesChoice) activeFilters[wfNamesColumn()] = wfNamesChoice === 'with' ? { op: 'gt', value: 0 } : { op: 'eq', value: 0 };
 		var col = wfColumn(), v = wfLevelChoice;
 		if (!v) return;
 		var sub = /^review_(high|medium|low|medium_up)$/.exec(v);
@@ -1137,6 +1148,7 @@
 		activeFilters = {};
 		wfLevelChoice = '';
 		wfHiddenChoice = '';
+		wfNamesChoice = '';
 		wfDictChoice = '';
 		wfTopicChoice = [];
 		wfImagesChoice = '';
@@ -1455,7 +1467,7 @@
 		return '<span class="mchl-badge ' + info.cls + '">' + escapeHtml(info.label) + '</span>';
 	}
 
-	function wfHasDetails(row) { return !!(row.matches_total || row.has_images || row[wfHiddenColumn()]); }
+	function wfHasDetails(row) { return !!(row.matches_total || row.has_images || row[wfHiddenColumn()] || row[wfNamesColumn()]); }
 
 	// ספירה קצרה של המילים שנמצאו, לפי השיטה והרשימות שנבחרו; ומילים בקוד המוסתר.
 	function renderWfMatches(row) {
@@ -1469,6 +1481,7 @@
 				if (counts.low) parts.push(counts.low + ' נמוך');
 			} else if (counts.review) parts.push(counts.review + ' לבדיקה');
 			if (counts.wording) parts.push(counts.wording + ' ניסוח');
+			if (counts.names) parts.push(counts.names + ' שמות הקודש');
 		}
 		var html = parts.length ? '<span class="mchl-num-cell mchl-nowrap">' + escapeHtml(parts.join(' · ')) + '</span>' : '<span class="mchl-muted">—</span>';
 		var hidden = row[wfHiddenColumn()];
@@ -1532,7 +1545,7 @@
 		var matches = all.filter(function (m) { return !m.h; });
 		var hiddenMatches = all.filter(function (m) { return m.h; });
 		var html = '';
-		['problem', 'high', 'medium', 'low', 'review', 'wording'].forEach(function (level) {
+		['problem', 'high', 'medium', 'low', 'review', 'wording', 'names'].forEach(function (level) {
 			var items = matches.filter(function (m) { return levelOf(m) === level; });
 			if (!items.length) return;
 			var info = WF_SUSPICION[level] || WF_LEVELS[level];
@@ -2345,6 +2358,7 @@
 		'#mchl-dash .mchl-wf-box mark.mchl-wf-problem{background:#E07A62;}' +
 		'#mchl-dash .mchl-wf-box mark.mchl-wf-review{background:#E3C15E;}' +
 		'#mchl-dash .mchl-wf-box mark.mchl-wf-wording{background:#9FADAF;}' +
+		'#mchl-dash .mchl-wf-box mark.mchl-wf-names{background:#C9B8E0;}' +
 		'#mchl-dash .mchl-wf-ids{font-size:11px;}' +
 		'#mchl-dash .mchl-wf-box mark.mchl-wf-hidden{background:none;color:inherit;outline:1px dashed #E3C15E;}' +
 		'#mchl-dash .mchl-wf-code{font-size:12.5px;direction:rtl;unicode-bidi:plaintext;white-space:pre-wrap;}' +

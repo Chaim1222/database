@@ -29,13 +29,24 @@ for (const file of fs.readdirSync(dir)) {
 	if (file.endsWith('.json')) decisions[file.slice(0, -5)] = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8'));
 }
 
+// החלטה על רשומה שאוחדה (status: merged, tools/merge-duplicates.js) חלה על הרשומה הראשית,
+// אלא אם יש החלטה על הראשית עצמה.
+for (const name of ['words.json', 'allow.json']) {
+	for (const entry of JSON.parse(fs.readFileSync(path.join(LISTS_DIR, name), 'utf8')).entries) {
+		if (entry.status === 'merged' && decisions[entry.id] && !decisions[entry.mergedInto]) {
+			decisions[entry.mergedInto] = decisions[entry.id];
+			console.log(`${entry.id} אוחדה ל-${entry.mergedInto} - ההחלטה עליה חלה על ${entry.mergedInto}`);
+		}
+	}
+}
+
 const summary = { approve: 0, reject: 0, level: 0, findings: {} };
 for (const name of ['words.json', 'allow.json']) {
 	const file = path.join(LISTS_DIR, name);
 	const list = JSON.parse(fs.readFileSync(file, 'utf8'));
 	for (const entry of list.entries) {
 		const d = decisions[entry.id];
-		if (!d) continue;
+		if (!d || entry.status === 'merged') continue;
 		if (d.note) entry.reviewNote = d.note;
 		if (d.decision === 'approve') {
 			entry.status = 'active';

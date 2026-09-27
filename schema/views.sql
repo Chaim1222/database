@@ -162,7 +162,8 @@ select m.id, m.title, m.checked_at, m.wikidata_desc, m.easy_import_length, m.cre
     r.ctx_verdict, r.ctx_suspicion, r.ctx_verdict_suggested, r.ctx_suspicion_suggested,
     r.hidden_count, r.hidden_count_suggested,
     r.dictionary, r.dictionary_why,
-    r.topic
+    r.topic,
+    r.names_count, r.names_count_suggested
 from report_missing_from_mechalol m
 left join word_filter_results r on r.wikipedia_id = m.id;
 
