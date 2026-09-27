@@ -62,6 +62,8 @@ const GROUPS = [
 	['w0102', ['w0103', 'w0309'], 'מעש(?:ה|י|ים)\\s+מגונ(?:ה|ים|ות)', {},
 		'מעשה / מעשים מגונים (w0309 "מעשיה מגונה" - שגיאת כתיב במקור; חיים: "מעשה מגונה גם כדאי לבדוק?").'],
 	['w0115', [], null, { level: 'review' }, 'הזין - "תלוי בהקשר" (חיים 2026-09-27) -> לבדיקה.'],
+	['w0123', [], null, { level: 'review' },
+		'אותו המין - לבדיקה. חיים (2026-09-27): "שינוי מין בעיה, אותו המין לא"; "נישואים של זוגות מאותו המין זה בעיה" - זה מגיע ממילות ההקשר (k015, k017) ומ"זוג מאותו המין" (w0089, בעיה).'],
 	// ===== תיארוך, גיל העולם =====
 	['w0149', ['w0150', 'w0337'], '000 שנ[הים]*', {}, '000 שנה / שנים.'],
 	['w0148', ['w0336'], '(?:מיליו[ןנ]י?|מליו[ןנ]י?|מיליארדי?|מליארדי?)\\s+שנ(?:ה|ים)' + E, {},
@@ -147,10 +149,19 @@ const FAMILIES = [
 	['w0224', ['w0225'], 'היא נמשכה|הוא נמשך', {}, 'היא נמשכה / הוא נמשך.'],
 	['w0219', ['w0220'], null, {}, 'פין (w0220 "לפין" כלולה).'],
 	['w0206', ['w0207'], 'נישואים (?:פתוחים|גאים)', {}, 'נישואים פתוחים / גאים.'],
+	// שלב 3 - רשומות שכל ההתאמות שלהן כבר נתפסות ברשומה אחרת באותה רמה, בלי משמעות נפרדת
+	// (חיים 2026-09-27: "יש עוד ביטויים שמסוננים כבר בהקשר הבעייתי על ידי ביטויים אחרים?").
+	['w0027', ['w0140'], null, {}, null],
+	['w0033', ['w0054'], null, {}, null],
+	['w0278', ['w0236'], null, {}, null],
+	['w0203', ['w0341'], 'ג[י]*אולוג', {}, 'גאולוג - רשומה אחת (w0341 מ"אמונה" הייתה אותה מילה בנושא אחר; כל ההתאמות שלה נתפסו ב-w0203).'],
 	// שמות הקודש, ויקי
 	['w0279', ['w0281', 'w0282'], 'אֱלֹה(?:ֵי|ֶ|ִים)', {}, 'אֱלֹהֵי, אֱלֹהֶ..., אֱלֹהִים.'],
 	['w0283', ['w0284'], 'תמונה (?:חילופית|מוחלפת)', {}, 'תמונה חילופית / מוחלפת.'],
 ];
+
+// רשומות שמותר לאחד לנושא אחר (אותה מילה בשני נושאים של הערות ניסוח).
+const CROSS_TOPIC = ['w0341'];
 
 const file = path.join(LISTS_DIR, 'words.json');
 const list = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -164,7 +175,7 @@ for (const [main, others, pattern, extra, note] of GROUPS.concat(FAMILIES)) {
 		const o = byId[id];
 		if (!o) throw new Error('אין רשומה ' + id);
 		if (o.status === 'merged') continue;
-		if (o.topic !== m.topic) throw new Error(`נושא שונה: ${id} ${o.topic} / ${main} ${m.topic}`);
+		if (o.topic !== m.topic && !CROSS_TOPIC.includes(id)) throw new Error(`נושא שונה: ${id} ${o.topic} / ${main} ${m.topic}`);
 		if (FAMILIES.some((f) => f[0] === main) && (o.status !== m.status || o.level !== m.level))
 			throw new Error(`רמה או סטטוס שונים: ${id} ${o.level}/${o.status} - ${main} ${m.level}/${m.status}`);
 		// רשומה שכבר ראשית של קבוצה אחרת - הילדים שלה עוברים לראשית החדשה.
@@ -184,6 +195,11 @@ for (const [main, others, pattern, extra, note] of GROUPS.concat(FAMILIES)) {
 	}
 	Object.assign(m, extra);
 	if (!(m.sources || []).includes(NOTE)) (m.sources = m.sources || []).push(NOTE);
+	if (note === null) { // שלב 3: ההסבר הקיים נשאר, ומתווסף מה שנבלע
+		const added = others.filter((id) => !(m.mergeNote || '').includes(id));
+		if (added.length) m.mergeNote = ((m.mergeNote || '') + ' נבלעו (כל ההתאמות שלהן כבר נתפסו כאן): ' + added.join(', ') + '.').trim();
+		continue;
+	}
 	m.mergeNote = note + (others.length ? ' אוחדו: ' + others.join(', ') + '.' : '');
 }
 fs.writeFileSync(file, JSON.stringify(list, null, '\t') + '\n');
