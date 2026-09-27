@@ -1,54 +1,60 @@
 {
-	"description": "מילות עוגן לרמות החשד: רשומות צניעות שהיו בעייתיות ב-85% ומעלה מהמופעים המסווגים במדגם האקראי מוויקיפדיה (לפחות 4 בעייתיים). הצעה - ממתין לאישור חיים. עותק בסופבייס: word_filter_anchors.",
+	"description": "מילות עוגן לרמות החשד: רשומות צניעות שבעייתיות ב-85% ומעלה מהמופעים המסווגים (שני המקורות: חסר במכלול + ויקיפדיה אקראית; לפחות 4 בעייתיים, ובכל משפחה שהרשומה בה). נבנה ב-tools/build-usage.js. manual: true - הכרעת חיים, נשמר תמיד. עותק ישן בסופבייס: word_filter_anchors.",
 	"status": "suggested",
 	"entries": [
 		{
+			"id": "w0003",
+			"pattern": "(?<![א-ת])(?:[ובלכמש]{0,2}ה?זנו(?:ת|תה|תו|תן|תי|תית|תיים|תיות)|זנו)(?![א-ת])",
+			"problematic": 36,
+			"labeled": 40
+		},
+		{
 			"id": "w0004",
-			"pattern": "(?<!ארי|ת|מ)זונ(?:ה|ות)",
+			"pattern": "(?<![א-ת])[ובלכשה]{0,3}זונ(?:ה|ות)(?![א-ת])",
 			"problematic": 10,
 			"labeled": 10
 		},
 		{
-			"id": "w0005",
-			"pattern": "(?<!ארי|ת)זונה",
-			"problematic": 7,
-			"labeled": 7
-		},
-		{
-			"id": "w0006",
-			"pattern": "(\\s|^)זונ(ה|ות)",
-			"problematic": 7,
-			"labeled": 7
+			"id": "w0009",
+			"pattern": "סרסור",
+			"problematic": 30,
+			"labeled": 31
 		},
 		{
 			"id": "w0013",
-			"pattern": "יחסי מין",
-			"problematic": 8,
-			"labeled": 8
+			"pattern": "יחסי[- ]מין",
+			"problematic": 17,
+			"labeled": 17
+		},
+		{
+			"id": "w0015",
+			"pattern": "טרנסג'נדר",
+			"problematic": 32,
+			"labeled": 32
 		},
 		{
 			"id": "w0017",
-			"pattern": ".?.?.?.?.?.?סקסואל.?.?",
-			"problematic": 21,
-			"labeled": 21
+			"pattern": "[א-ת]*סקסו[אלס][א-ת]*",
+			"problematic": 32,
+			"labeled": 32
 		},
 		{
 			"id": "w0018",
-			"pattern": "לסבי[ות]",
-			"problematic": 14,
-			"labeled": 14
+			"pattern": "לסבי(?:ת|ם|ות|ית|ו)",
+			"problematic": 17,
+			"labeled": 17
 		},
 		{
 			"id": "w0019",
-			"pattern": "[^שז]מינ(י|יו)ת(\\W)",
-			"problematic": 35,
-			"labeled": 37
+			"pattern": "(?<![א-ת])(?![ובלכמה]{0,2}שמיני)[ובלכמשה]{0,3}מיני(?:ו)?ת(?:ו|ה|ם|ן|י|נו|כם)?(?![א-ת])",
+			"problematic": 45,
+			"labeled": 48
 		},
 		{
 			"id": "w0021",
-			"pattern": "(ניצול|אופי|אופן|אקט|תוכן|העדפה|חד|חינוך) ה?מיני",
-			"problematic": 7,
-			"labeled": 8
+			"pattern": "(?:ניצול|אופי|אופן|אקט|תוכן|העדפה|חד|חינוך|מגע|חשק|תפקוד|התעללות|תקף)[- ]ה?מיני",
+			"problematic": 70,
+			"labeled": 71
 		},
 		{
 			"id": "w0023",
@@ -57,34 +63,46 @@
 			"labeled": 7
 		},
 		{
+			"id": "w0024",
+			"pattern": "(?<![א-ת])[ובלכמשה]{0,3}חשפנ(?:ות|ית|יות|ים|י)(?![א-ת])",
+			"problematic": 6,
+			"labeled": 6
+		},
+		{
 			"id": "w0026",
-			"pattern": "אי?ברי? ה?מין",
-			"problematic": 4,
-			"labeled": 4
+			"pattern": "אי?ברי? ה?מי(?:ן|נ(?!ימ))",
+			"problematic": 9,
+			"labeled": 9
 		},
 		{
 			"id": "w0033",
-			"pattern": "עי?רו[מהם]",
+			"pattern": "עי?רו[מהם]|ע[י]*רו(?!י)[מים]+",
 			"problematic": 12,
 			"labeled": 14
 		},
 		{
+			"id": "w0036",
+			"pattern": "פדופיל",
+			"problematic": 31,
+			"labeled": 31
+		},
+		{
 			"id": "w0038",
-			"pattern": "פי?לגש",
+			"pattern": "פי*לגש",
 			"problematic": 4,
 			"labeled": 4
 		},
 		{
-			"id": "w0043",
-			"pattern": "מאהב[ת]",
-			"problematic": 6,
-			"labeled": 7
-		},
-		{
 			"id": "w0044",
 			"pattern": "[מלה]*תאהב",
-			"problematic": 35,
-			"labeled": 39
+			"problematic": 37,
+			"labeled": 41
+		},
+		{
+			"id": "w0046",
+			"pattern": "אמצעי מניעה",
+			"problematic": 26,
+			"labeled": 27
 		},
 		{
 			"id": "w0051",
@@ -94,15 +112,9 @@
 		},
 		{
 			"id": "w0052",
-			"pattern": "להט\"ב",
-			"problematic": 25,
-			"labeled": 25
-		},
-		{
-			"id": "w0064",
-			"pattern": "[ה]גאה",
-			"problematic": 7,
-			"labeled": 8
+			"pattern": "להט\"ב|להטב\"ק",
+			"problematic": 29,
+			"labeled": 29
 		},
 		{
 			"id": "w0071",
@@ -111,22 +123,42 @@
 			"labeled": 9
 		},
 		{
-			"id": "w0073",
-			"pattern": "להט\"בים",
-			"problematic": 11,
-			"labeled": 11
+			"id": "w0079",
+			"pattern": "מיס (יוניברס|תבל|עולם)",
+			"problematic": 4,
+			"labeled": 4
 		},
 		{
-			"id": "w0095",
-			"pattern": "מיניות",
-			"problematic": 17,
-			"labeled": 18
+			"id": "w0089",
+			"pattern": "זוג מאותו המין",
+			"problematic": 5,
+			"labeled": 5
 		},
 		{
-			"id": "w0128",
-			"pattern": " מינית",
-			"problematic": 21,
-			"labeled": 22
+			"id": "w0097",
+			"pattern": "gay",
+			"problematic": 33,
+			"labeled": 33
+		},
+		{
+			"id": "w0098",
+			"pattern": "(?:עבריי?(?:ן|ני|נים|נית)|עבירו?ת|שפחות) מין",
+			"problematic": 4,
+			"labeled": 4
+		},
+		{
+			"id": "w0120",
+			"pattern": "(?<!שו)גייז(?![א-ת])",
+			"problematic": 7,
+			"labeled": 7
+		},
+		{
+			"id": "w0131",
+			"pattern": "קהילה ה?גאה",
+			"problematic": 8,
+			"labeled": 8,
+			"manual": true,
+			"note": "הכרעת חיים 2026-09-27: \"קהילה הגאה זה בהחלט עוגן\"."
 		},
 		{
 			"id": "w0223",
@@ -135,34 +167,22 @@
 			"labeled": 19
 		},
 		{
-			"id": "w0304",
-			"pattern": "לסבי(?:ם|ות|ית)",
-			"problematic": 5,
-			"labeled": 5
+			"id": "w0323",
+			"pattern": "הומופוב",
+			"problematic": 34,
+			"labeled": 34
 		},
 		{
-			"id": "w0315",
-			"pattern": "ע[י]*רו(?!י)[מים]+",
-			"problematic": 12,
-			"labeled": 14
+			"id": "w0410",
+			"pattern": "\\b(?:LGBT|GLBT|lesbian|homosexual|bisexual|transgender|queer)\\w*",
+			"problematic": 97,
+			"labeled": 97
 		},
 		{
-			"id": "w0316",
-			"pattern": "פ[י]*לגש",
-			"problematic": 4,
-			"labeled": 4
-		},
-		{
-			"id": "w0326",
-			"pattern": "[^ש]מיני(ו)?ת(?!ימליים|ימום)",
-			"problematic": 35,
-			"labeled": 37
-		},
-		{
-			"id": "w0386",
-			"pattern": "שוכב(?:ת|ים|ות)? עם|שכב(?:ה|ו)? עם",
-			"problematic": 4,
-			"labeled": 4
+			"id": "w0427",
+			"pattern": "\\b(?:rape[ds]?|raping|rapist\\w*)\\b",
+			"problematic": 27,
+			"labeled": 29
 		}
 	]
 }

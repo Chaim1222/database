@@ -308,3 +308,21 @@ test('duplicates merged (analysis/duplicates.md): one entry per word, fixes not 
 	assert.ok(!engine.scan('נגיע לפינה', L).length);                  // פין - מילה שלמה
 	assert.ok(engine.scan('ביקור באיי הבתולה', L).every((m) => m.topic !== 'modesty')); // היתר חדש
 });
+
+test('anchors (analysis/anchors.json, built by build-usage.js): refreshed 2026-09-27', () => {
+	const usage = require('../lists/usage.json');
+	const anchors = require('../analysis/anchors.json').entries;
+	const W = Object.fromEntries(words.entries.map((e) => [e.id, e]));
+	assert.deepStrictEqual(usage.anchors.slice().sort(), anchors.map((a) => a.id).sort());
+	for (const a of anchors) {
+		assert.strictEqual(W[a.id].status, 'active', a.id);       // לא רשומה שאוחדה
+		assert.strictEqual(W[a.id].level, 'problem', a.id);       // לא דורס "לבדיקה" של חיים
+	}
+	assert.ok(usage.anchors.includes('w0131'));                  // קהילה הגאה - הכרעת חיים
+	assert.ok(!usage.anchors.includes('w0063'));                 // הגאים / הגאה - 50%, לא עוגן
+	assert.ok(!usage.anchors.includes('w0121'));                 // טרנס - לא בזכות טרנסג'נדר
+	const ctx = (t) => engine.contextVerdict(engine.contextLevels(t, engine.scan(t, FULL), usage)).level;
+	assert.strictEqual(ctx('הוא פעיל בקהילה הגאה.'), 'problem');
+	assert.notStrictEqual(ctx('גבורות עשה בזרעו פיזר גאים.'), 'problem');
+	assert.notStrictEqual(ctx('למטבעות שהוזנו למדחן.'), 'problem');  // זנות עוגן - אבל לא הוזנו
+});
