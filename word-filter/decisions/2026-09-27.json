@@ -1,0 +1,2158 @@
+{
+ "a001": {
+  "at": "2026-09-27T11:02:13.985Z",
+  "decision": "approve",
+  "kind": "allow",
+  "level": null,
+  "note": ""
+ },
+ "a002": {
+  "at": "2026-09-27T10:59:00.017Z",
+  "decision": "approve",
+  "kind": "allow",
+  "level": null,
+  "note": ""
+ },
+ "a003": {
+  "at": "2026-09-27T11:00:04.390Z",
+  "decision": "approve",
+  "kind": "allow",
+  "level": null,
+  "note": "רק תת-המין  או תת-מין. בשונה משביתת מין או לתת מין"
+ },
+ "a004": {
+  "at": "2026-09-27T11:01:54.612Z",
+  "decision": "approve",
+  "kind": "allow",
+  "level": null,
+  "note": ""
+ },
+ "a005": {
+  "at": "2026-09-27T11:03:56.682Z",
+  "decision": null,
+  "kind": "allow",
+  "level": null,
+  "note": "מלבד חיי המין או כל צירוף בעייתי, גם אם אחריו מופיע המילה של"
+ },
+ "a006": {
+  "at": "2026-09-27T11:00:40.034Z",
+  "decision": "approve",
+  "kind": "allow",
+  "level": null,
+  "note": ""
+ },
+ "a007": {
+  "at": "2026-09-27T11:00:14.871Z",
+  "decision": "approve",
+  "kind": "allow",
+  "level": null,
+  "note": ""
+ },
+ "a008": {
+  "at": "2026-09-27T11:01:35.462Z",
+  "decision": "approve",
+  "kind": "allow",
+  "level": null,
+  "note": ""
+ },
+ "a009": {
+  "at": "2026-09-27T11:00:28.623Z",
+  "decision": "approve",
+  "kind": "allow",
+  "level": null,
+  "note": ""
+ },
+ "a010": {
+  "at": "2026-09-27T11:03:23.049Z",
+  "decision": "approve",
+  "kind": "allow",
+  "level": null,
+  "note": ""
+ },
+ "a011": {
+  "at": "2026-09-27T11:00:20.784Z",
+  "decision": "approve",
+  "kind": "allow",
+  "level": null,
+  "note": ""
+ },
+ "a012": {
+  "at": "2026-09-27T10:59:17.021Z",
+  "decision": "approve",
+  "kind": "allow",
+  "level": null,
+  "note": ""
+ },
+ "a015": {
+  "at": "2026-09-27T11:03:07.940Z",
+  "decision": "reject",
+  "kind": "allow",
+  "level": null,
+  "note": ""
+ },
+ "a016": {
+  "at": "2026-09-27T11:02:54.711Z",
+  "decision": "approve",
+  "kind": "allow",
+  "level": null,
+  "note": ""
+ },
+ "a018": {
+  "at": "2026-09-27T11:01:22.400Z",
+  "decision": "approve",
+  "kind": "allow",
+  "level": null,
+  "note": ""
+ },
+ "a019": {
+  "at": "2026-09-27T11:03:17.867Z",
+  "decision": "approve",
+  "kind": "allow",
+  "level": null,
+  "note": ""
+ },
+ "a021": {
+  "at": "2026-09-27T11:03:28.026Z",
+  "decision": "approve",
+  "kind": "allow",
+  "level": null,
+  "note": ""
+ },
+ "a022": {
+  "at": "2026-09-27T10:59:08.237Z",
+  "decision": "approve",
+  "kind": "allow",
+  "level": null,
+  "note": ""
+ },
+ "f-10d5v8n": {
+  "at": "2026-09-27T10:39:22.487Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-10dhj4g": {
+  "at": "2026-09-27T10:37:19.269Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-10gh4sy": {
+  "at": "2026-09-27T10:29:38.578Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-12xae6t": {
+  "at": "2026-09-27T10:25:57.347Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-13scokd": {
+  "at": "2026-09-27T10:39:17.798Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-13zqw5b": {
+  "at": "2026-09-27T10:36:44.624Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-14dptbp": {
+  "at": "2026-09-27T10:25:58.952Z",
+  "decision": "real",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-14k3qw3": {
+  "at": "2026-09-27T10:39:12.886Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-14ogjj9": {
+  "at": "2026-09-27T10:29:54.030Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-15311rd": {
+  "at": "2026-09-27T10:37:21.919Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1599qe0": {
+  "at": "2026-09-27T10:37:42.548Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-15xqvhb": {
+  "at": "2026-09-27T10:35:01.488Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-16x9bew": {
+  "at": "2026-09-27T10:29:57.220Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-17aqb1q": {
+  "at": "2026-09-27T10:37:45.332Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-17mrnvm": {
+  "at": "2026-09-27T10:39:08.637Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-17vr5v0": {
+  "at": "2026-09-27T10:36:13.513Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-18q9w99": {
+  "at": "2026-09-27T10:40:57.517Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-18yb3y3": {
+  "at": "2026-09-27T10:29:58.883Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-19cwf6a": {
+  "at": "2026-09-27T10:30:00.860Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-19g4dgd": {
+  "at": "2026-09-27T10:26:01.712Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-19jbx66": {
+  "at": "2026-09-27T10:35:55.231Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-19n12qf": {
+  "at": "2026-09-27T10:36:35.136Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-19ufakt": {
+  "at": "2026-09-27T10:26:06.569Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1a0mcq3": {
+  "at": "2026-09-27T10:24:41.933Z",
+  "decision": "real",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1abh5tx": {
+  "at": "2026-09-27T10:29:41.074Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1abpflj": {
+  "at": "2026-09-27T10:39:07.155Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1ae6ens": {
+  "at": "2026-09-27T10:37:23.983Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1amqjyf": {
+  "at": "2026-09-27T10:37:26.587Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1buyycg": {
+  "at": "2026-09-27T10:39:05.383Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1cbl81q": {
+  "at": "2026-09-27T10:26:08.413Z",
+  "decision": "real",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1cw91dr": {
+  "at": "2026-09-27T10:40:59.880Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1d4zk5s": {
+  "at": "2026-09-27T10:37:46.999Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1d7r0px": {
+  "at": "2026-09-27T10:35:58.104Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1dltc6j": {
+  "at": "2026-09-27T10:26:32.251Z",
+  "decision": null,
+  "kind": "finding",
+  "level": null,
+  "note": "נאנסה בלבד בעיה אמיתית"
+ },
+ "f-1do3y9v": {
+  "at": "2026-09-27T10:35:21.104Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1eg4sw9": {
+  "at": "2026-09-27T10:28:21.041Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1eviuk8": {
+  "at": "2026-09-27T10:26:37.680Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1f2zcyo": {
+  "at": "2026-09-27T10:41:02.402Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1f534av": {
+  "at": "2026-09-27T10:37:28.636Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1fk33wp": {
+  "at": "2026-09-27T10:36:14.539Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1fqqcjk": {
+  "at": "2026-09-27T10:42:09.297Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1gag4u6": {
+  "at": "2026-09-27T10:42:11.481Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1gd5oo": {
+  "at": "2026-09-27T10:41:05.001Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1h92c3w": {
+  "at": "2026-09-27T10:30:02.127Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1hr560a": {
+  "at": "2026-09-27T10:37:29.968Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1i7277": {
+  "at": "2026-09-27T10:28:37.389Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1ieu4fe": {
+  "at": "2026-09-27T10:35:24.604Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1igivnz": {
+  "at": "2026-09-27T10:27:12.897Z",
+  "decision": null,
+  "kind": "finding",
+  "level": null,
+  "note": "השני בעיה הראשון לא"
+ },
+ "f-1iot5sx": {
+  "at": "2026-09-27T10:30:03.960Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1iw8buk": {
+  "at": "2026-09-27T10:36:02.081Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1j00ku5": {
+  "at": "2026-09-27T10:35:03.555Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1j0qin4": {
+  "at": "2026-09-27T10:41:06.575Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1jq0yfd": {
+  "at": "2026-09-27T10:36:16.184Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1jyt0u4": {
+  "at": "2026-09-27T10:28:42.230Z",
+  "decision": "real",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1kaqpj4": {
+  "at": "2026-09-27T10:24:50.251Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1kjxrva": {
+  "at": "2026-09-27T10:35:23.092Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1km5mvr": {
+  "at": "2026-09-27T10:27:23.726Z",
+  "decision": null,
+  "kind": "finding",
+  "level": null,
+  "note": "השני בעיה הראשון לא"
+ },
+ "f-1kvkzxo": {
+  "at": "2026-09-27T10:27:26.730Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1m92hc9": {
+  "at": "2026-09-27T10:36:17.829Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1n3mmu0": {
+  "at": "2026-09-27T10:35:35.171Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1n4d0er": {
+  "at": "2026-09-27T10:36:00.616Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1o22mjg": {
+  "at": "2026-09-27T10:36:19.374Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1o2w0u": {
+  "at": "2026-09-27T10:41:16.346Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1oc3vbn": {
+  "at": "2026-09-27T10:36:20.735Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1oo0ovh": {
+  "at": "2026-09-27T10:35:36.321Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1oq8zx5": {
+  "at": "2026-09-27T10:36:52.331Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1pbjj8x": {
+  "at": "2026-09-27T10:28:52.089Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1pjyfjw": {
+  "at": "2026-09-27T10:41:22.005Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1q2pcvl": {
+  "at": "2026-09-27T10:34:45.141Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1rdx4xa": {
+  "at": "2026-09-27T10:27:41.079Z",
+  "decision": null,
+  "kind": "finding",
+  "level": null,
+  "note": "השלישי בעיה"
+ },
+ "f-1sn282b": {
+  "at": "2026-09-27T10:36:21.943Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1spl18e": {
+  "at": "2026-09-27T10:28:52.918Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1tjoba7": {
+  "at": "2026-09-27T10:44:23.933Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1tlqyqq": {
+  "at": "2026-09-27T10:36:04.001Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1trfi11": {
+  "at": "2026-09-27T10:42:18.385Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1u3clnt": {
+  "at": "2026-09-27T10:44:55.924Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1u9o9l3": {
+  "at": "2026-09-27T10:36:05.453Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1ug0g3z": {
+  "at": "2026-09-27T10:28:54.461Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1ukxutc": {
+  "at": "2026-09-27T10:30:04.743Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1uw6ij4": {
+  "at": "2026-09-27T10:42:20.936Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1uxcyhn": {
+  "at": "2026-09-27T10:42:22.563Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1vzojai": {
+  "at": "2026-09-27T10:41:26.053Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1x5f98q": {
+  "at": "2026-09-27T10:35:05.393Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1xda9g9": {
+  "at": "2026-09-27T10:42:24.366Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1xh8o6l": {
+  "at": "2026-09-27T10:36:36.292Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-1y1zzsm": {
+  "at": "2026-09-27T10:44:59.028Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-23jtd0": {
+  "at": "2026-09-27T10:40:29.749Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-2lsnz6": {
+  "at": "2026-09-27T10:35:38.189Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-2tezs1": {
+  "at": "2026-09-27T10:40:31.579Z",
+  "decision": "real",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-2v83i8": {
+  "at": "2026-09-27T10:39:48.718Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-327vw3": {
+  "at": "2026-09-27T10:28:56.212Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-33812x": {
+  "at": "2026-09-27T10:34:43.853Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-376gvy": {
+  "at": "2026-09-27T10:37:31.788Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-37kyq9": {
+  "at": "2026-09-27T10:36:37.321Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-384s7h": {
+  "at": "2026-09-27T10:35:26.142Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-464hap": {
+  "at": "2026-09-27T10:27:54.811Z",
+  "decision": null,
+  "kind": "finding",
+  "level": null,
+  "note": "השלישי והרביעי בעיה"
+ },
+ "f-5bt6w8": {
+  "at": "2026-09-27T10:27:58.279Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-5jvkdr": {
+  "at": "2026-09-27T10:39:46.640Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-6023om": {
+  "at": "2026-09-27T10:36:22.933Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-6b3ehs": {
+  "at": "2026-09-27T10:29:06.109Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-6e1qty": {
+  "at": "2026-09-27T10:39:41.403Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-6jgxky": {
+  "at": "2026-09-27T10:28:01.931Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-6ln2ug": {
+  "at": "2026-09-27T10:29:09.762Z",
+  "decision": "real",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-6xuvp2": {
+  "at": "2026-09-27T10:29:15.641Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-70x5n7": {
+  "at": "2026-09-27T10:36:23.919Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-73ysx2": {
+  "at": "2026-09-27T10:25:05.481Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-7jahj2": {
+  "at": "2026-09-27T10:36:38.355Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-80m8pg": {
+  "at": "2026-09-27T10:34:47.382Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-8o4dek": {
+  "at": "2026-09-27T10:28:05.708Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-95k77j": {
+  "at": "2026-09-27T10:36:06.681Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-98lr2s": {
+  "at": "2026-09-27T10:39:03.500Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-9hlvcx": {
+  "at": "2026-09-27T10:42:47.451Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-9pfcik": {
+  "at": "2026-09-27T10:36:24.984Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-9u4eeh": {
+  "at": "2026-09-27T10:36:26.015Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-a2y8p6": {
+  "at": "2026-09-27T10:37:33.618Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-amm18e": {
+  "at": "2026-09-27T10:35:27.403Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-b0b1qi": {
+  "at": "2026-09-27T10:37:35.116Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-b4mbce": {
+  "at": "2026-09-27T10:25:15.932Z",
+  "decision": "real",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-c29dy5": {
+  "at": "2026-09-27T10:40:36.616Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-d94qce": {
+  "at": "2026-09-27T10:29:23.965Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-da5qek": {
+  "at": "2026-09-27T10:41:47.230Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-drot1n": {
+  "at": "2026-09-27T10:39:39.293Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-e5pqla": {
+  "at": "2026-09-27T10:35:39.484Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-ezksiv": {
+  "at": "2026-09-27T10:34:48.926Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-fe0g3z": {
+  "at": "2026-09-27T10:39:36.949Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-fpz6uk": {
+  "at": "2026-09-27T10:25:18.372Z",
+  "decision": "real",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-fwyat8": {
+  "at": "2026-09-27T10:37:36.415Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-g0r7gi": {
+  "at": "2026-09-27T10:34:50.506Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-g39gdm": {
+  "at": "2026-09-27T10:28:10.013Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-g4xrnw": {
+  "at": "2026-09-27T10:28:11.788Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-gfk0vh": {
+  "at": "2026-09-27T10:35:41.088Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-ghntui": {
+  "at": "2026-09-27T10:39:34.284Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-glkvkv": {
+  "at": "2026-09-27T10:41:49.865Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-gnazif": {
+  "at": "2026-09-27T10:39:01.818Z",
+  "decision": "real",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-gsx929": {
+  "at": "2026-09-27T10:42:26.965Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-h88bhz": {
+  "at": "2026-09-27T10:36:26.936Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-i3y1o5": {
+  "at": "2026-09-27T10:36:27.945Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-i5omcw": {
+  "at": "2026-09-24T20:57:34.373Z",
+  "decision": "real",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-j5alnz": {
+  "at": "2026-09-27T10:38:58.950Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-j7dnil": {
+  "at": "2026-09-27T10:37:37.580Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-jd2kk6": {
+  "at": "2026-09-27T10:35:42.545Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-jhi1va": {
+  "at": "2026-09-27T10:35:10.517Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-ji5wtl": {
+  "at": "2026-09-27T10:36:29.032Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-k3b4b9": {
+  "at": "2026-09-27T10:39:29.737Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-k5hdr8": {
+  "at": "2026-09-27T10:29:26.473Z",
+  "decision": "real",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-ke8e5": {
+  "at": "2026-09-27T10:41:52.679Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-l0xsgr": {
+  "at": "2026-09-27T10:39:26.886Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-lap2ke": {
+  "at": "2026-09-27T10:35:12.533Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-lbz2vz": {
+  "at": "2026-09-27T10:25:35.933Z",
+  "decision": null,
+  "kind": "finding",
+  "level": null,
+  "note": "תלוי בהקשר אם זה זוג גברים"
+ },
+ "f-lrso77": {
+  "at": "2026-09-27T10:35:46.771Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-lvw8gy": {
+  "at": "2026-09-27T10:40:44.167Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-m6clqy": {
+  "at": "2026-09-27T10:28:13.314Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-nbcxr1": {
+  "at": "2026-09-27T10:42:03.149Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-nfy260": {
+  "at": "2026-09-27T10:25:47.114Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": "נושא: צמחים"
+ },
+ "f-nxo2uj": {
+  "at": "2026-09-27T10:44:39.897Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-ov7yqa": {
+  "at": "2026-09-27T10:29:52.331Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-owqnst": {
+  "at": "2026-09-27T10:36:30.141Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-p49s7w": {
+  "at": "2026-09-27T10:37:10.092Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-pdz3rh": {
+  "at": "2026-09-27T10:34:51.906Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-plrgfk": {
+  "at": "2026-09-27T10:37:05.204Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-pmcif9": {
+  "at": "2026-09-27T10:37:08.270Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-pxph4r": {
+  "at": "2026-09-27T10:35:15.622Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-qqji9d": {
+  "at": "2026-09-27T10:36:08.304Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-rok1hv": {
+  "at": "2026-09-27T10:25:49.147Z",
+  "decision": "real",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-rsje36": {
+  "at": "2026-09-27T10:35:28.622Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-ryvg4c": {
+  "at": "2026-09-27T10:37:38.721Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-s43b24": {
+  "at": "2026-09-27T10:35:48.718Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-tv3qv0": {
+  "at": "2026-09-27T10:40:50.084Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-u91eh4": {
+  "at": "2026-09-27T10:36:09.958Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-vlhz7f": {
+  "at": "2026-09-27T10:34:39.056Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-w6o7pa": {
+  "at": "2026-09-27T10:28:14.982Z",
+  "decision": "real",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-wc1iiq": {
+  "at": "2026-09-27T10:35:32.537Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-wcjx95": {
+  "at": "2026-09-27T10:37:39.948Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-we5n0u": {
+  "at": "2026-09-27T10:37:12.622Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-wgdy50": {
+  "at": "2026-09-27T10:37:41.235Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-wgiij0": {
+  "at": "2026-09-27T10:44:35.741Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-x5g0sb": {
+  "at": "2026-09-27T10:25:51.837Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-x5g7w8": {
+  "at": "2026-09-27T10:39:31.179Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-x9eph8": {
+  "at": "2026-09-27T10:25:54.102Z",
+  "decision": "real",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-xuvuih": {
+  "at": "2026-09-27T10:36:31.178Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-y7p9wx": {
+  "at": "2026-09-27T10:36:11.189Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-y9o9m3": {
+  "at": "2026-09-27T10:28:17.012Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-z3xs2": {
+  "at": "2026-09-27T10:37:15.282Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-zf2whp": {
+  "at": "2026-09-27T10:36:34.070Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-zfkex9": {
+  "at": "2026-09-27T10:36:12.377Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-zgkj1k": {
+  "at": "2026-09-27T10:39:20.943Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-zgl691": {
+  "at": "2026-09-27T10:35:33.866Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-zj2clw": {
+  "at": "2026-09-27T10:35:17.484Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-zpemlz": {
+  "at": "2026-09-27T10:36:32.808Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-zsty7w": {
+  "at": "2026-09-27T10:37:17.067Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "f-zw485d": {
+  "at": "2026-09-27T10:34:41.593Z",
+  "decision": "false",
+  "kind": "finding",
+  "level": null,
+  "note": ""
+ },
+ "w0002": {
+  "at": "2026-09-27T12:47:57.889Z",
+  "decision": null,
+  "kind": "word",
+  "level": null,
+  "note": "תלוי בהקשר"
+ },
+ "w0024": {
+  "at": "2026-09-27T12:47:44.211Z",
+  "decision": null,
+  "kind": "word",
+  "level": null,
+  "note": "חשפנות/חשפנית- בעיה. חשופות חשפו חשפה חשופי- תלוי בהקשר"
+ },
+ "w0025": {
+  "at": "2026-09-27T12:11:45.658Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": "review",
+  "note": ""
+ },
+ "w0047": {
+  "at": "2026-09-27T10:24:25.485Z",
+  "decision": null,
+  "kind": "word",
+  "level": "review",
+  "note": "צריך להגביל למילה בודדת, בתוספת אותיות תחיליות"
+ },
+ "w0055": {
+  "at": "2026-09-27T12:30:42.386Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": "חוץ מאיי הבתולה"
+ },
+ "w0096": {
+  "at": "2026-09-27T12:11:49.590Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": "review",
+  "note": "רק בערכים החסומים כביטוי שלילי"
+ },
+ "w0115": {
+  "at": "2026-09-27T12:46:13.535Z",
+  "decision": null,
+  "kind": "word",
+  "level": null,
+  "note": "תלוי בהקשר"
+ },
+ "w0122": {
+  "at": "2026-09-27T12:46:33.257Z",
+  "decision": null,
+  "kind": "word",
+  "level": null,
+  "note": "כמו אונס  אנסו"
+ },
+ "w0223": {
+  "at": "2026-09-27T12:27:55.827Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": "problem",
+  "note": ""
+ },
+ "w0227": {
+  "at": "2026-09-27T12:24:51.429Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": "problem",
+  "note": "בעילה אסורה זה תוכן מיני מפורש, שאסור במכלול"
+ },
+ "w0236": {
+  "at": "2026-09-27T12:24:17.090Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0238": {
+  "at": "2026-09-27T12:24:03.365Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0239": {
+  "at": "2026-09-27T12:23:50.105Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0240": {
+  "at": "2026-09-27T12:23:47.559Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0248": {
+  "at": "2026-09-27T12:23:44.101Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0249": {
+  "at": "2026-09-27T12:23:38.828Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0250": {
+  "at": "2026-09-27T12:23:29.765Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0251": {
+  "at": "2026-09-27T12:23:34.160Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": "יש הרבה שורשים של המילה אלוהים/אלוהים בהטיות, לכל אחד יש תבנית נפרדת. זה נצרך?\nהאמת שזה קטגוריה נפרדת. זה לא בעיה ולא חשד ולא ניסוח. זה קטגוריה שמות הקודש."
+ },
+ "w0252": {
+  "at": "2026-09-27T12:23:31.510Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0253": {
+  "at": "2026-09-27T12:22:14.409Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0254": {
+  "at": "2026-09-27T12:22:12.196Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0255": {
+  "at": "2026-09-27T12:22:06.436Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0256": {
+  "at": "2026-09-27T12:22:01.078Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0257": {
+  "at": "2026-09-27T12:21:46.293Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0258": {
+  "at": "2026-09-27T12:21:43.421Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0259": {
+  "at": "2026-09-27T12:21:37.386Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0266": {
+  "at": "2026-09-27T12:21:33.889Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0267": {
+  "at": "2026-09-27T12:21:27.279Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0268": {
+  "at": "2026-09-27T12:21:50.176Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0269": {
+  "at": "2026-09-27T12:21:55.529Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0271": {
+  "at": "2026-09-27T12:21:53.732Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0274": {
+  "at": "2026-09-27T12:21:16.739Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0279": {
+  "at": "2026-09-27T12:21:08.948Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0282": {
+  "at": "2026-09-27T12:20:55.405Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0283": {
+  "at": "2026-09-27T12:20:49.446Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0284": {
+  "at": "2026-09-27T12:20:40.300Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0285": {
+  "at": "2026-09-27T12:20:36.729Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0288": {
+  "at": "2026-09-27T12:27:14.724Z",
+  "decision": null,
+  "kind": "word",
+  "level": null,
+  "note": "רק בערכים החסומים שלילי, ואחד מתוך כמה, בוויקיפדיה הכללית. אני לא יודע אם לאשר או לדחות. אולי צריך הקשר"
+ },
+ "w0289": {
+  "at": "2026-09-27T12:20:29.888Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0291": {
+  "at": "2026-09-27T12:30:12.837Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": "רק אם המילה מסתיימת באנסו, ואין אותיות נוספות אחרי המילה אנסו"
+ },
+ "w0298": {
+  "at": "2026-09-27T10:22:30.271Z",
+  "decision": null,
+  "kind": "word",
+  "level": "review",
+  "note": "נתפס בעיקר מזונות, שזה בכלל לא בעיה, אפילו לא בדיקה צריך לתפוס רק זונות, זונה, זנות"
+ },
+ "w0299": {
+  "at": "2026-09-27T10:22:33.271Z",
+  "decision": null,
+  "kind": "word",
+  "level": "review",
+  "note": "נתפס בעיקר מזונות, אפילו לא לבדיקה. צריך לתפוס רק זונות, זונה, זנות"
+ },
+ "w0301": {
+  "at": "2026-09-27T12:20:03.051Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0302": {
+  "at": "2026-09-27T12:28:55.491Z",
+  "decision": null,
+  "kind": "word",
+  "level": null,
+  "note": "צריך לתקן את הביטוי, לשלול אות מ בהתחלה"
+ },
+ "w0303": {
+  "at": "2026-09-27T12:19:57.361Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0304": {
+  "at": "2026-09-27T12:19:50.225Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0305": {
+  "at": "2026-09-27T12:19:43.553Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0306": {
+  "at": "2026-09-27T12:19:38.667Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0307": {
+  "at": "2026-09-27T12:19:34.523Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0308": {
+  "at": "2026-09-27T12:19:27.962Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0309": {
+  "at": "2026-09-27T12:19:19.698Z",
+  "decision": null,
+  "kind": "word",
+  "level": null,
+  "note": "מעשה מגונה גם כדאי לבדוק?"
+ },
+ "w0310": {
+  "at": "2026-09-27T12:45:29.652Z",
+  "decision": null,
+  "kind": "word",
+  "level": "review",
+  "note": "תלוי בהקשר. המילה עצמה לא תפסה כלום מעבר למילה חשופה , חשופות או חשופים. התבנית מורכבת"
+ },
+ "w0311": {
+  "at": "2026-09-27T12:18:49.675Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0312": {
+  "at": "2026-09-27T12:18:43.008Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0313": {
+  "at": "2026-09-27T12:46:52.343Z",
+  "decision": null,
+  "kind": "word",
+  "level": null,
+  "note": "כמו אונס אנסו"
+ },
+ "w0317": {
+  "at": "2026-09-27T12:18:19.267Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0321": {
+  "at": "2026-09-27T12:18:08.510Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0323": {
+  "at": "2026-09-27T12:18:03.292Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0325": {
+  "at": "2026-09-27T12:17:56.664Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0328": {
+  "at": "2026-09-27T12:17:23.234Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0330": {
+  "at": "2026-09-27T12:17:18.502Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0331": {
+  "at": "2026-09-27T12:17:06.964Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0332": {
+  "at": "2026-09-27T12:16:58.599Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0333": {
+  "at": "2026-09-27T12:16:46.636Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0334": {
+  "at": "2026-09-27T12:16:38.934Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0335": {
+  "at": "2026-09-27T12:16:34.322Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0336": {
+  "at": "2026-09-27T12:16:26.985Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0343": {
+  "at": "2026-09-27T12:16:10.328Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0345": {
+  "at": "2026-09-27T12:16:03.944Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0357": {
+  "at": "2026-09-24T20:27:22.996Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0359": {
+  "at": "2026-09-24T20:34:25.564Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0363": {
+  "at": "2026-09-24T20:29:38.868Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0364": {
+  "at": "2026-09-24T20:34:45.062Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0365": {
+  "at": "2026-09-24T20:34:54.509Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0366": {
+  "at": "2026-09-24T20:29:12.357Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": "review",
+  "note": ""
+ },
+ "w0372": {
+  "at": "2026-09-24T20:35:03.861Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": "review",
+  "note": ""
+ },
+ "w0377": {
+  "at": "2026-09-24T20:32:21.087Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0378": {
+  "at": "2026-09-24T20:32:59.784Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0380": {
+  "at": "2026-09-24T20:34:31.395Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0384": {
+  "at": "2026-09-24T20:30:04.425Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0385": {
+  "at": "2026-09-24T20:32:38.940Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0386": {
+  "at": "2026-09-24T20:33:16.946Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0388": {
+  "at": "2026-09-24T20:29:27.699Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0393": {
+  "at": "2026-09-24T20:34:15.844Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0394": {
+  "at": "2026-09-24T20:34:39.425Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0395": {
+  "at": "2026-09-24T20:31:01.457Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0403": {
+  "at": "2026-09-24T20:27:41.527Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0404": {
+  "at": "2026-09-24T20:33:39.098Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0408": {
+  "at": "2026-09-24T20:32:53.476Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0409": {
+  "at": "2026-09-24T20:34:01.903Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": "מה עם זיקפה?"
+ },
+ "w0410": {
+  "at": "2026-09-24T20:30:42.586Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0411": {
+  "at": "2026-09-24T20:30:34.469Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0412": {
+  "at": "2026-09-24T20:30:54.994Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0414": {
+  "at": "2026-09-24T20:34:10.560Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0416": {
+  "at": "2026-09-24T20:32:45.073Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0419": {
+  "at": "2026-09-24T20:33:24.821Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0422": {
+  "at": "2026-09-24T20:33:30.807Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0424": {
+  "at": "2026-09-24T20:30:23.857Z",
+  "decision": "reject",
+  "kind": "word",
+  "level": null,
+  "note": ""
+ },
+ "w0427": {
+  "at": "2026-09-24T20:32:00.577Z",
+  "decision": "approve",
+  "kind": "word",
+  "level": "problem",
+  "note": ""
+ }
+}

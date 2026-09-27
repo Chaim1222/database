@@ -46,7 +46,8 @@ async function main() {
 		const groups = [
 			[engine.LEVEL_LABELS.problem, matches.filter((m) => counted(m) && m.level === 'problem')],
 			[engine.LEVEL_LABELS.review, matches.filter((m) => counted(m) && m.level === 'review')],
-			['הערות ניסוח (אמונה, תיארוך, ויקיפדיה)', matches.filter((m) => !counted(m))],
+			['הערות ניסוח (אמונה, תיארוך, ויקיפדיה)', matches.filter((m) => !counted(m) && !engine.SEPARATE_TOPICS.includes(m.topic))],
+			['שמות הקודש (לא משפיעים על הרמה)', matches.filter((m) => engine.SEPARATE_TOPICS.includes(m.topic))],
 		];
 		for (const [label, items] of groups) {
 			if (!items.length) continue;

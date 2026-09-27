@@ -4,8 +4,8 @@
 		{
 			"id": "a001",
 			"pattern": "[ובכלמשה]{0,3}מינים(?![א-ת])",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude"
 			],
@@ -15,8 +15,8 @@
 		{
 			"id": "a002",
 			"pattern": "[ובכלמשה]{0,3}מין האנושי",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude"
 			],
@@ -25,20 +25,22 @@
 		},
 		{
 			"id": "a003",
-			"pattern": "תת[-־ ]?ה?מין",
-			"status": "suggested",
-			"reviewed": false,
+			"pattern": "(?<![א-ת])תת[-־ ]?ה?מין(?![א-ת])",
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude"
 			],
-			"note": "\"תת-מין\" - מונח טקסונומי.",
-			"kind": "demote"
+			"note": "\"תת-מין\" - מונח טקסונומי. הערת חיים 2026-09-27: רק \"תת-המין\" / \"תת-מין\" - לא \"שביתת מין\", \"לתת מין\".",
+			"kind": "demote",
+			"reviewNote": "רק תת-המין  או תת-מין. בשונה משביתת מין או לתת מין",
+			"original": "תת[-־ ]?ה?מין"
 		},
 		{
 			"id": "a004",
 			"pattern": "\\[\\[מין \\(טקסונומיה\\)[^\\]]*\\]\\]",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude"
 			],
@@ -54,7 +56,8 @@
 				"הצעת Claude"
 			],
 			"note": "\"מין\" ואחריו מילה ביולוגית - species. בכוונה לא \"מין אחד\"/\"מין זה\" וכו' (לא חד-משמעי).",
-			"kind": "demote"
+			"kind": "demote",
+			"reviewNote": "מלבד חיי המין או כל צירוף בעייתי, גם אם אחריו מופיע המילה של"
 		},
 		{
 			"id": "a006",
@@ -95,8 +98,8 @@
 		{
 			"id": "a009",
 			"pattern": "[ובכלמשה]{0,3}אונסק[\"״]?ו",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude"
 			],
@@ -106,8 +109,8 @@
 		{
 			"id": "a010",
 			"pattern": "[ובכלמשה]{0,3}[\"״]?אונסקו[\"״]?",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude"
 			],
@@ -117,8 +120,8 @@
 		{
 			"id": "a011",
 			"pattern": "[ובכלמשה]{0,3}בואנוס",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude"
 			],
@@ -128,8 +131,8 @@
 		{
 			"id": "a012",
 			"pattern": "[ובכלמשה]{0,3}אוונס(?![א-ת])",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude"
 			],
@@ -161,8 +164,8 @@
 		{
 			"id": "a015",
 			"pattern": "(?:ב?שוגג או ב?|מחמת |מפני |מתוך |ב)אונס(?![א-ת])",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "rejected",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude"
 			],
@@ -172,8 +175,8 @@
 		{
 			"id": "a016",
 			"pattern": "\\[\\[אונס \\(הלכה\\)[^\\]]*\\]\\]",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude"
 			],
@@ -194,8 +197,8 @@
 		{
 			"id": "a018",
 			"pattern": "[ובכלמשה]{0,3}[\"״]?סקס(?:וני|ה[-־]|הומן)[א-ת-]*",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude"
 			],
@@ -205,8 +208,8 @@
 		{
 			"id": "a019",
 			"pattern": "[ובכלמשה]{0,3}סקסופו?ן[א-ת]*",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude"
 			],
@@ -228,8 +231,8 @@
 		{
 			"id": "a021",
 			"pattern": "[ובכלמשה]{0,3}[\"״]?דראגו(?:ן|נ[א-ת]*)",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude"
 			],
@@ -239,8 +242,8 @@
 		{
 			"id": "a022",
 			"pattern": "[ובכלמשה]{0,3}רומנסק[א-ת]*",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude"
 			],
@@ -377,6 +380,28 @@
 				"הכרעת חיים 2026-09-26 (analysis/pattern-precision.md)"
 			],
 			"note": "\"זיין\" בשמות: סמי זיין, אלכס זיין (מתאבקים), זיין מאליק (זמר), זיין לואו.",
+			"kind": "hide"
+		},
+		{
+			"id": "a035",
+			"pattern": "[ובכלמשה]{0,3}איי הבתולה",
+			"status": "active",
+			"reviewed": true,
+			"sources": [
+				"הכרעת חיים 2026-09-27 (w0055)"
+			],
+			"note": "\"איי הבתולה\" - שם מקום. חיים (w0055 בתולה): \"חוץ מאיי הבתולה\".",
+			"kind": "hide"
+		},
+		{
+			"id": "a036",
+			"pattern": "[ובכלמשה]{0,3}הזנ(?:ת|ות) (?:יתר|חסר|לקויה)|תת[- ]הזנה",
+			"status": "suggested",
+			"reviewed": false,
+			"sources": [
+				"הצעת Claude (2026-09-27)"
+			],
+			"note": "\"הזנות יתר\", \"תת-הזנה\" - האכלה (השורש ז-ו-ן), לא זנות. נמצא ב\"אחוז השומן בגוף\" (\"שמנות והזנות יתר\").",
 			"kind": "hide"
 		}
 	]

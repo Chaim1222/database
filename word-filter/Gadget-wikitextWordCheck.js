@@ -6,8 +6,9 @@
  *   לבדיקה      - נמצאה רק מילה דו-משמעית (למשל "מין", "רומן", "אונס" ההלכתי).
  *   דורש ניסוח  - נמצאו רק הערות ניסוח (אמונה ונצרות, תיארוך, שאריות מוויקיפדיה).
  *   נקי         - לא נמצא דבר.
- * הנושאים שקובעים בעיה/לבדיקה: צניעות, גיל העולם והיווצרות היקום (age) - חמור
- * ודורש הסרה, ושמות השם כתובים במלואם (names, "לבדיקה"; הכרעת חיים 2026-09-27).
+ * הנושאים שקובעים בעיה/לבדיקה: צניעות, וגיל העולם והיווצרות היקום (age) - חמור
+ * ודורש הסרה. שמות הקודש (names) - קטגוריה נפרדת: לא בעיה, לא חשד ולא ניסוח
+ * (הכרעת חיים 2026-09-27), מוצגים לחוד ולא משפיעים על הרמה.
  * שאר הנושאים דורשים ניסוח ולא פסילה (הכרעות חיים, 2026-09-24).
  *
  * רשימות המילים הן שני דפי JSON (ראו WORDS_PAGE, ALLOW_PAGE):
@@ -44,7 +45,7 @@
 	var LEVELS = { problem: 2, review: 1 };
 	var LEVEL_LABELS = { problem: 'בעיה ודאית', review: 'לבדיקה', wording: 'דורש ניסוח', clean: 'נקי' };
 	var LEVEL_COLORS = { problem: '#ff5555', review: '#ffd966', wording: '#c9d3e8', clean: '#b6e3b6' };
-	var TOPIC_LABELS = { modesty: 'צניעות', faith: 'אמונה ונצרות', dating: 'תיארוך ומדע', wiki: 'שאריות מוויקיפדיה', age: 'גיל העולם', names: 'שמות השם' };
+	var TOPIC_LABELS = { modesty: 'צניעות', faith: 'אמונה ונצרות', dating: 'תיארוך ומדע', wiki: 'שאריות מוויקיפדיה', age: 'גיל העולם', names: 'שמות הקודש' };
 
 	// ===== טעינת הרשימות =====
 
@@ -450,8 +451,11 @@
 		});
 	}
 
-	// נושאים שקובעים את רמת הדף. השאר - הערות ניסוח (ראו בראש הקובץ).
-	var VERDICT_TOPICS = ['modesty', 'age', 'names'];
+	// נושאים שקובעים את רמת הדף. SEPARATE_TOPICS - קטגוריה נפרדת שלא נוגעת ברמה (שמות הקודש).
+	// השאר - הערות ניסוח (ראו בראש הקובץ).
+	var VERDICT_TOPICS = ['modesty', 'age'];
+	var SEPARATE_TOPICS = ['names'];
+	var isSeparate = function (m) { return SEPARATE_TOPICS.indexOf(m.topic) >= 0; };
 
 	// הרמה של הדף כולו: problem / review / wording / clean. topics - אילו נושאים נספרים;
 	// התאמה בנושא אחר הופכת דף נקי ל"דורש ניסוח".
@@ -460,6 +464,7 @@
 		var level = 'clean';
 		matches.forEach(function (m) {
 			if (topics.indexOf(m.topic) < 0) {
+				if (isSeparate(m)) return;
 				if (level === 'clean') level = 'wording';
 				return;
 			}
@@ -511,7 +516,62 @@
 		return match.level === 'problem' ? 'X' : 'B'; // אין נתונים - לפי הרשימה
 	}
 
-	function contextLevels(wikitext, matches, usage) {
+	// ===== מילות הקשר (lists/context.json) =====
+	// מילה שאינה בעייתית בעצמה, אבל מכריעה את המובן של מילה דו-משמעית באותו משפט:
+	// up - "הורשע באונס" -> בעיה ודאית; wording - "גזע, דת, מין" -> הערת ניסוח, לא נספרת
+	// ברמה (הכרעת חיים 2026-09-27); down - "מין של חרק" -> חשד נמוך. סדר העדיפות: up, wording, down.
+	// options.suggested - לכלול גם הצעות. מחזיר {clues, problems}.
+	function compileClues(context, options) {
+		options = options || {};
+		var problems = [], clues = [];
+		var targets = (context && context.targets) || {};
+		var escape = function (w) { return w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); };
+		((context && context.entries) || []).forEach(function (entry) {
+			if (!(entry.status === 'active' || (options.suggested && entry.status === 'suggested'))) return;
+			var wordsRe = function (words) {
+				return '(?<![א-ת])[ובלכמשה]{0,3}(?:' + words.slice()
+					.sort(function (a, b) { return b.length - a.length; }).map(escape).join('|') + ')(?![א-ת])';
+			};
+			var source = entry.pattern || wordsRe(entry.words || []);
+			// withWords - תנאי נוסף: גם אחת מהמילים האלה צריכה להופיע במשפט (או בהתאמה עצמה) ("מאותו המין" + "נישואים").
+			var withSource = entry.withWords ? wordsRe(entry.withWords) : null;
+			var regex, withRegex = null;
+			try {
+				regex = new RegExp(source, 'i');
+				if (withSource) withRegex = new RegExp(withSource, 'i');
+			} catch (e) {
+				problems.push({ id: entry.id, pattern: source, message: 'תבנית לא תקינה: ' + e.message });
+				return;
+			}
+			var ids = {};
+			(entry.targets || []).forEach(function (t) { ((targets[t] && targets[t].entries) || []).forEach(function (id) { ids[id] = true; }); });
+			clues.push({ entry: entry, regex: regex, withRegex: withRegex, ids: ids, forms: entry.forms || null });
+		});
+		return { clues: clues, problems: problems };
+	}
+
+	// מילות ההקשר שחלות על ההתאמה, על הטקסט הקריא של המשפט (contextOf) - לפני ההתאמה
+	// ואחריה בנפרד, כדי שההתאמה עצמה לא תיחשב. מחזיר {up, wording, down: [ids], words: {id: המילה שנמצאה}}.
+	function cluesFor(wikitext, match, clues) {
+		var found = { up: [], wording: [], down: [], words: {} }, sentence = null;
+		var bare = match.text.replace(/^[ובלכמשה]{1,3}(?=[א-ת]{3})/, '');
+		(clues || []).forEach(function (c) {
+			if (!match.entries.some(function (e) { return c.ids[e.id]; })) return;
+			if (c.forms && c.forms.indexOf(match.text) < 0 && c.forms.indexOf(bare) < 0) return;
+			if (!sentence) sentence = contextOf(wikitext, match, 250);
+			var near = c.entry.near || 'sentence';
+			var hit = (near !== 'after' && sentence.before.match(c.regex)) || (near !== 'before' && sentence.after.match(c.regex));
+			if (!hit) return;
+			var also = c.withRegex && (sentence.before.match(c.withRegex) || sentence.after.match(c.withRegex) || match.text.match(c.withRegex));
+			if (c.withRegex && !also) return;
+			found[c.entry.direction === 'down' || c.entry.direction === 'wording' ? c.entry.direction : 'up'].push(c.entry.id);
+			found.words[c.entry.id] = hit[0].replace(/^\s+|\s+$/g, '') + (also ? ' + ' + also[0].replace(/^\s+|\s+$/g, '') : '');
+		});
+		return found;
+	}
+
+	// clues - מ-compileClues (לא חובה).
+	function contextLevels(wikitext, matches, usage, clues) {
 		var flagged = matches.filter(function (m) { return m.topic === 'modesty' && LEVELS[m.level]; });
 		flagged.forEach(function (m) { m._group = groupOf(m, usage); });
 		var isAnchor = function (m) { return m._group === 'anchor' || m._group === 'A' || m._group === 'X'; };
@@ -529,9 +589,19 @@
 			else if (g === 'A') eff = strong || weak ? 'problem' : 'high';
 			else if (g === 'B') eff = strong ? 'problem' : weak ? 'high' : 'medium';
 			else eff = strong ? 'high' : weak ? 'medium' : 'low';
+			var found = clues && clues.clues && clues.clues.length ? cluesFor(wikitext, m, clues.clues) : { up: [], wording: [], down: [] };
+			var wording = !found.up.length && found.wording.length > 0 && g !== 'anchor' && g !== 'X';
+			if (found.down.length && !found.up.length && g !== 'anchor' && g !== 'X') eff = 'low';
 			if (eff === 'problem' && m.demotedBy && m.demotedBy.length) eff = 'high'; // שימוש תמים אפשרי - לא "ודאי"
+			// מילת הקשר מכריעה גם מול היתר demote: "הורשע באונס" אינו "באונס" ההלכתי.
+			if (found.up.length) eff = 'problem';
 			m.context = { group: g, level: eff === 'problem' ? 'problem' : 'review', suspicion: eff === 'problem' ? null : eff,
 				anchorInSentence: anchorInSentence, neighbors: mates.length, pageAnchor: pageAnchor };
+			if (wording) { m.context.level = 'wording'; m.context.suspicion = null; }
+			if (found.up.length || found.wording.length || found.down.length) {
+				m.context.clues = found.up.length ? found.up : wording ? found.wording : found.down.length ? found.down : found.wording;
+				m.context.clueWords = m.context.clues.map(function (id) { return found.words[id]; });
+			}
 			delete m._group;
 		});
 		// נושאים אחרים שנספרים (גיל העולם): בלי נתוני שימוש - "לבדיקה" = חשד בינוני.
@@ -543,18 +613,21 @@
 	}
 
 	// רמת הדף לפי ההקשר: {level: problem/review/wording/clean, suspicion: high/medium/low/null}.
+	// התאמה שמילת הקשר הפכה להערת ניסוח (context.level = wording) נספרת כמו נושא של ניסוח.
 	function contextVerdict(matches, topics) {
 		topics = topics || VERDICT_TOPICS;
 		var level = verdict(matches, topics) === 'clean' ? 'clean' : 'wording', suspicion = null;
 		matches.forEach(function (m) {
-			if (topics.indexOf(m.topic) < 0 || !m.context) return;
+			if (topics.indexOf(m.topic) < 0 || !m.context || m.context.level === 'wording') return;
 			if (m.context.level === 'problem') level = 'problem';
 			else if (level !== 'problem') {
 				level = 'review';
 				if (!suspicion || SUSPICION_RANK[m.context.suspicion] > SUSPICION_RANK[suspicion]) suspicion = m.context.suspicion;
 			}
 		});
-		if (level === 'wording' && !matches.some(function (m) { return topics.indexOf(m.topic) < 0; })) level = 'clean';
+		if (level === 'wording' && !matches.some(function (m) {
+			return (topics.indexOf(m.topic) < 0 && !isSeparate(m)) || (m.context && m.context.level === 'wording');
+		})) level = 'clean';
 		return { level: level, suspicion: level === 'review' ? suspicion : null };
 	}
 
@@ -602,8 +675,8 @@
 
 	var core = {
 		compileLists: compileLists, maskWikitext: maskWikitext, scan: scan, scanHidden: scanHidden, HIDDEN_KINDS: HIDDEN_KINDS, verdict: verdict, contextOf: contextOf, sentenceSpan: sentenceSpan,
-		contextLevels: contextLevels, contextVerdict: contextVerdict, SUSPICION_LABELS: SUSPICION_LABELS,
-		VERDICT_TOPICS: VERDICT_TOPICS, LEVEL_LABELS: LEVEL_LABELS, TOPIC_LABELS: TOPIC_LABELS
+		compileClues: compileClues, contextLevels: contextLevels, contextVerdict: contextVerdict, SUSPICION_LABELS: SUSPICION_LABELS,
+		VERDICT_TOPICS: VERDICT_TOPICS, SEPARATE_TOPICS: SEPARATE_TOPICS, LEVEL_LABELS: LEVEL_LABELS, TOPIC_LABELS: TOPIC_LABELS
 	};
 
 	// ===== ממשק - רק בתוך מדיה ויקי, בדף עריכה =====
@@ -656,7 +729,8 @@
 		var groups = [
 			{ label: LEVEL_LABELS.problem, color: LEVEL_COLORS.problem, items: matches.filter(function (m) { return counted(m) && m.level === 'problem'; }) },
 			{ label: LEVEL_LABELS.review, color: LEVEL_COLORS.review, items: matches.filter(function (m) { return counted(m) && m.level === 'review'; }) },
-			{ label: 'הערות ניסוח (אמונה, תיארוך, ויקיפדיה)', color: '#c9d3e8', items: matches.filter(function (m) { return !counted(m); }) },
+			{ label: 'הערות ניסוח (אמונה, תיארוך, ויקיפדיה)', color: '#c9d3e8', items: matches.filter(function (m) { return !counted(m) && !isSeparate(m); }) },
+			{ label: 'שמות הקודש - לא משפיעים על הרמה', color: '#e3d7f3', items: matches.filter(isSeparate) },
 			{ label: 'בקוד שהקורא לא רואה - לא נספר ברמה (יעד קישור, הערה, קובץ, תבנית, כתובת)', color: '#ffffff',
 				items: (hidden || []).filter(counted), hidden: true }
 		];

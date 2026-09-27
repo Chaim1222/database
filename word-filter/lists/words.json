@@ -10,40 +10,48 @@
 		"dating": "תיארוך ומדע",
 		"wiki": "שאריות מוויקיפדיה",
 		"age": "גיל העולם",
-		"names": "שמות השם"
+		"names": "שמות הקודש"
 	},
 	"statuses": {
 		"active": "פעיל",
-		"suggested": "הצעה - לא פעיל עד אישור"
+		"suggested": "הצעה - לא פעיל עד אישור",
+		"rejected": "נדחה - לא נבדק",
+		"merged": "אוחד לרשומה אחרת (mergedInto) - לא נבדק"
 	},
 	"entries": [
 		{
 			"id": "w0001",
-			"pattern": "סקס",
+			"pattern": "סקס(?!וניה)",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום כהה"
-			]
+				"במח/אדום כהה",
+				"בומח/צניעות",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "סקס",
+			"mergeNote": "סקס (לא סקסוניה - וגם היתר a018). אוחדו: w0292."
 		},
 		{
 			"id": "w0002",
 			"pattern": "\\sמין",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום כהה"
-			]
+			],
+			"reviewNote": "תלוי בהקשר",
+			"mergedInto": "w0296"
 		},
 		{
 			"id": "w0003",
-			"pattern": "זנות?(?![חבן])",
+			"pattern": "(?<![א-ת])(?:[ובלכמש]{0,2}ה?זנו(?:ת|תה|תו|תן|תי|תית|תיים|תיות)|זנו)(?![א-ת])",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
@@ -51,57 +59,66 @@
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום כהה",
-				"הכרעת חיים 2026-09-26 (analysis/pattern-precision.md)"
+				"הכרעת חיים 2026-09-26 (analysis/pattern-precision.md)",
+				"בומח/צניעות",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
 			],
 			"original": "זנות?",
-			"note": "תיקון דיוק, אושר ע\"י חיים 2026-09-26: לא לזנוח, זנוביה, זנון, מזנון."
+			"note": "תיקון דיוק, אושר ע\"י חיים 2026-09-26: לא לזנוח, זנוביה, זנון, מזנון.",
+			"mergeNote": "זנות / זנו - מילה שלמה (לא לזנוח, זנוביה, מאוזנות). אותיות שימוש רק לפני זנות ונטיותיה; \"זנו\" רק לבד - לא \"מזנו\" (מזונו), \"שהוזנו\", \"הזנו\" (מהשורש ז-ו-ן). אוחדו: w0007, w0297."
 		},
 		{
 			"id": "w0004",
-			"pattern": "(?<!ארי|ת|מ)זונ(?:ה|ות)",
+			"pattern": "(?<![א-ת])[ובלכשה]{0,3}זונ(?:ה|ות)(?![א-ת])",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום כהה"
+				"במח/אדום כהה",
+				"בומח/צניעות",
+				"הערת חיים 2026-09-27",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
 			],
 			"original": "[^(ת|מ|ארי)]זונ(ה|ות)",
-			"note": "במקור [^(ת|מ|ארי)] - רשימת אותיות אסורות, לא \"לא אחרי המילה\". הכוונה: לא תזונה, מזונות, אריזונה."
+			"note": "במקור [^(ת|מ|ארי)] - רשימת אותיות אסורות, לא \"לא אחרי המילה\". הכוונה: לא תזונה, מזונות, אריזונה.",
+			"mergeNote": "זונה (w0005 כלולה). אוחדו: w0005."
 		},
 		{
 			"id": "w0005",
 			"pattern": "(?<!ארי|ת)זונה",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום כהה"
 			],
 			"original": "[^(ת|ארי)]זונה",
-			"note": "במקור [^(ת|ארי)] - רשימת אותיות במקום \"לא אחרי המילה\"."
+			"note": "במקור [^(ת|ארי)] - רשימת אותיות במקום \"לא אחרי המילה\".",
+			"mergedInto": "w0004"
 		},
 		{
 			"id": "w0006",
 			"pattern": "(\\s|^)זונ(ה|ות)",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום כהה"
-			]
+			],
+			"mergedInto": "w0004"
 		},
 		{
 			"id": "w0007",
 			"pattern": "(?!אוזנות)(?:[^ז]ב|[^מר]ו|[^ה]ה|[יכלמש]|\\s)זנות",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
@@ -109,7 +126,8 @@
 				"הכרעת חיים 2026-09-26 (analysis/pattern-precision.md)"
 			],
 			"original": "([^ז]ב|[^מר]ו|[^ה]ה|[יכלמש]|\\s)זנות",
-			"note": "תיקון דיוק, אושר ע\"י חיים 2026-09-26: לא מאוזנות."
+			"note": "תיקון דיוק, אושר ע\"י חיים 2026-09-26: לא מאוזנות.",
+			"mergedInto": "w0003"
 		},
 		{
 			"id": "w0008",
@@ -144,8 +162,11 @@
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום כהה"
-			]
+				"במח/אדום כהה",
+				"בומח/צניעות",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"mergeNote": "נערת / נערות ליווי. אוחדו: w0301, w0328."
 		},
 		{
 			"id": "w0011",
@@ -161,39 +182,51 @@
 		},
 		{
 			"id": "w0012",
-			"pattern": "(ה|\\s)זימה",
+			"pattern": "(?<![א-ת])[ובלכשה]{0,3}זימה(?![א-ת])",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום כהה"
-			]
+				"במח/אדום כהה",
+				"בומח/צניעות",
+				"הכרעת חיים 2026-09-26 (analysis/pattern-precision.md)",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "(ה|\\s)זימה",
+			"mergeNote": "זימה - מילה שלמה, בלי מ' תחילית (חיים 2026-09-27: \"לשלול אות מ בהתחלה\"; לא מזימה). אוחדו: w0302."
 		},
 		{
 			"id": "w0013",
-			"pattern": "יחסי מין",
+			"pattern": "יחסי[- ]מין",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום כהה",
-				"בומח/צניעות"
-			]
+				"בומח/צניעות",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "יחסי מין",
+			"mergeNote": "יחסי מין. אוחדו: w0303."
 		},
 		{
 			"id": "w0014",
-			"pattern": "הומו(?!גני|לוגי|ת|ר)",
+			"pattern": "(?<!מ)הומו(?!גני|לוגי|ת|ר)",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום כהה"
-			]
+				"במח/אדום כהה",
+				"בומח/צניעות",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "הומו(?!גני|לוגי|ת|ר)",
+			"mergeNote": "הומו. אוחדו: w0295."
 		},
 		{
 			"id": "w0015",
@@ -212,48 +245,61 @@
 			"pattern": "הטרוסקסואל",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום כהה"
-			]
+			],
+			"mergedInto": "w0017"
 		},
 		{
 			"id": "w0017",
-			"pattern": ".?.?.?.?.?.?סקסואל.?.?",
+			"pattern": "[א-ת]*סקסו[אלס][א-ת]*",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום כהה"
-			]
+				"במח/אדום כהה",
+				"בומח/צניעות",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": ".?.?.?.?.?.?סקסואל.?.?",
+			"mergeNote": "סקסואל (הומו-, הטרו-, בי-), סקסולוגיה - המילה כולה. נפרד מ\"סקס\" (w0001) - ההתנהגות שונה. אוחדו: w0016, w0072, w0293."
 		},
 		{
 			"id": "w0018",
-			"pattern": "לסבי[ות]",
+			"pattern": "לסבי(?:ת|ם|ות|ית|ו)",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום כהה"
-			]
+				"במח/אדום כהה",
+				"בומח/צניעות",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "לסבי[ות]",
+			"mergeNote": "לסבית, לסביות, לסבים. אוחדו: w0304."
 		},
 		{
 			"id": "w0019",
-			"pattern": "[^שז]מינ(י|יו)ת(\\W)",
+			"pattern": "(?<![א-ת])(?![ובלכמה]{0,2}שמיני)[ובלכמשה]{0,3}מיני(?:ו)?ת(?:ו|ה|ם|ן|י|נו|כם)?(?![א-ת])",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום כהה"
-			]
+				"במח/אדום כהה",
+				"בומח/צניעות",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "[^שז]מינ(י|יו)ת(\\W)",
+			"mergeNote": "מינית / מיניות (w0095 \"מיניות\" כלולה). אוחדו: w0095."
 		},
 		{
 			"id": "w0020",
@@ -269,15 +315,19 @@
 		},
 		{
 			"id": "w0021",
-			"pattern": "(ניצול|אופי|אופן|אקט|תוכן|העדפה|חד|חינוך) ה?מיני",
+			"pattern": "(?:ניצול|אופי|אופן|אקט|תוכן|העדפה|חד|חינוך|מגע|חשק|תפקוד|התעללות|תקף)[- ]ה?מיני",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום כהה"
-			]
+				"במח/אדום כהה",
+				"בומח/צניעות",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "(ניצול|אופי|אופן|אקט|תוכן|העדפה|חד|חינוך) ה?מיני",
+			"mergeNote": "\"X מיני / מינית\" - ניצול, אופי, אופן, אקט, תוכן, העדפה, חד, חינוך, מגע, חשק, תפקוד, התעללות, תקף. רשומה אחת במקום 15. אוחדו: w0053, w0092, w0093, w0094, w0129, w0130, w0137, w0305, w0306, w0307, w0308, w0317, w0321, w0322."
 		},
 		{
 			"id": "w0022",
@@ -305,23 +355,27 @@
 		},
 		{
 			"id": "w0024",
-			"pattern": "חו?שו?פ[הניות]*",
+			"pattern": "(?<![א-ת])[ובלכמשה]{0,3}חשפנ(?:ות|ית|יות|ים|י)(?![א-ת])",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום כהה"
-			]
+				"במח/אדום כהה",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"reviewNote": "חשפנות/חשפנית- בעיה. חשופות חשפו חשפה חשופי- תלוי בהקשר",
+			"original": "חו?שו?פ[הניות]*",
+			"mergeNote": "חשפנות / חשפנית - בעיה (חיים 2026-09-27). חשופה, חשפו וכו' - w0310, לבדיקה."
 		},
 		{
 			"id": "w0025",
 			"pattern": "איידס",
-			"level": "problem",
+			"level": "review",
 			"topic": "modesty",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"sources": [
 				"במח/אדום כהה",
 				"בומח/צניעות"
@@ -329,63 +383,77 @@
 		},
 		{
 			"id": "w0026",
-			"pattern": "אי?ברי? ה?מין",
+			"pattern": "אי?ברי? ה?מי(?:ן|נ(?!ימ))",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום כהה"
-			]
+				"במח/אדום כהה",
+				"בומח/צניעות",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"mergeNote": "אבר / איבר מין, מינו, מינה (w0081 \"איבר מינ\" - נ רגילה; לא \"איבר מינימלי\"). אוחדו: w0081.",
+			"original": "אי?ברי? ה?מין"
 		},
 		{
 			"id": "w0027",
-			"pattern": "((?<!יו)א[ו]*נ[ו]*ס[^קח]|(?:^|[^\\u0590-\\u05FF])(אנס|נאנס|תאנס)(?=[^\\u0590-\\u05FF]|$))",
+			"pattern": "(?<![א-ת])[ובלכמשה]{0,3}(?:אונס(?:ה|ו|ם|ן|ת|ים)?|אנס(?:ו|ת|תי|נו|ים)?|נאנס(?:ה|ו|ת|ים|ות)?|אנוס(?:ה|ות|תו|תה)|תאנס|יאנוס|תאנוס|לאנוס)(?![א-ת])",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום כהה"
-			]
+				"במח/אדום כהה",
+				"בומח/צניעות",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "((?<!יו)א[ו]*נ[ו]*ס[^קח]|(?:^|[^\\u0590-\\u05FF])(אנס|נאנס|תאנס)(?=[^\\u0590-\\u05FF]|$))",
+			"mergeNote": "אונס - מילה שלמה בלבד (חיים 2026-09-27: w0291 \"רק אם המילה מסתיימת באנסו\"; w0122, w0313 \"כמו אונס אנסו\"). לא אונסק\"ו, אנסמבל, אנסטסיה, צ'אונסי, אנוסים (אבל כן אנוסה, אנוסתו). \"אנסה\" לא נכלל (עתיד של ניסה). אוחדו: w0122, w0290, w0291, w0313. נבלעו (כל ההתאמות שלהן כבר נתפסו כאן): w0140."
 		},
 		{
 			"id": "w0028",
-			"pattern": "לאונן",
+			"pattern": "לאונן|מאונן|מאוננ(?:ת|ים|ות)|אוננות",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום כהה",
-				"בומח/צניעות"
-			]
+				"בומח/צניעות",
+				"הצעת Claude (מילה חדשה)",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "לאונן",
+			"mergeNote": "אוננות ונטיותיה. אוחדו: w0029, w0030, w0388."
 		},
 		{
 			"id": "w0029",
 			"pattern": "מאונן",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום כהה",
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0028"
 		},
 		{
 			"id": "w0030",
 			"pattern": "מאוננ(ת|ים|ות)",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום כהה",
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0028"
 		},
 		{
 			"id": "w0031",
@@ -401,27 +469,35 @@
 		},
 		{
 			"id": "w0032",
-			"pattern": "[^ט]רומ+[נן]+[^יה]",
+			"pattern": "(?<!ט)רומ+[נן]+(?![יה])",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום כהה"
-			]
+				"במח/אדום כהה",
+				"בומח/צניעות",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "[^ט]רומ+[נן]+[^יה]",
+			"mergeNote": "רומן (לא טרומן, רומניה, רומנטיקה). אוחדו: w0314."
 		},
 		{
 			"id": "w0033",
-			"pattern": "עי?רו[מהם]",
+			"pattern": "עי?רו[מהם]|ע[י]*רו(?!י)[מים]+",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום כהה"
-			]
+				"במח/אדום כהה",
+				"בומח/צניעות",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "עי?רו[מהם]",
+			"mergeNote": "עירום, ערום, עירומה. אוחדו: w0315. נבלעו (כל ההתאמות שלהן כבר נתפסו כאן): w0054."
 		},
 		{
 			"id": "w0034",
@@ -440,12 +516,13 @@
 			"pattern": "[מל]התאהב",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום כהה"
-			]
+			],
+			"mergedInto": "w0044"
 		},
 		{
 			"id": "w0036",
@@ -473,15 +550,19 @@
 		},
 		{
 			"id": "w0038",
-			"pattern": "פי?לגש",
+			"pattern": "פי*לגש",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום כהה"
-			]
+				"במח/אדום כהה",
+				"בומח/צניעות",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "פי?לגש",
+			"mergeNote": "פילגש. אוחדו: w0316."
 		},
 		{
 			"id": "w0039",
@@ -497,27 +578,31 @@
 		},
 		{
 			"id": "w0040",
-			"pattern": "שדיים",
+			"pattern": "שדי(?:ים|ה)",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום כהה",
-				"בומח/צניעות"
-			]
+				"בומח/צניעות",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "שדיים",
+			"mergeNote": "שדיים, שדיה. אוחדו: w0041."
 		},
 		{
 			"id": "w0041",
 			"pattern": "שדיה",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום כהה"
-			]
+			],
+			"mergedInto": "w0040"
 		},
 		{
 			"id": "w0042",
@@ -552,8 +637,10 @@
 			"reviewed": false,
 			"sources": [
 				"במח/אדום כהה",
-				"בומח/צניעות"
-			]
+				"בומח/צניעות",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"mergeNote": "התאהב / מתאהב. אוחדו: w0035."
 		},
 		{
 			"id": "w0045",
@@ -581,15 +668,22 @@
 		},
 		{
 			"id": "w0047",
-			"pattern": "(\\s|^)[ו]*וסת",
+			"pattern": "(?<![א-ת])[ובלכמשה]{0,3}ו?וסת(?:ות|ה|ו)?(?![א-ת])",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום כהה"
-			]
+				"במח/אדום כהה",
+				"הערת חיים 2026-09-27",
+				"בומח/צניעות",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"reviewNote": "צריך להגביל למילה בודדת, בתוספת אותיות תחיליות",
+			"original": "(\\s|^)[ו]*וסת",
+			"note": "הערת חיים 2026-09-27: \"צריך להגביל למילה בודדת, בתוספת אותיות תחיליות\" - לא וסתם, וסתיו, וסתר.",
+			"mergeNote": "וסת - מילה שלמה (הערת חיים 2026-09-27). אוחדו: w0318."
 		},
 		{
 			"id": "w0048",
@@ -600,8 +694,11 @@
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום כהה"
-			]
+				"במח/אדום כהה",
+				"בומח/צניעות",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"mergeNote": "ילד לא חוקי. w0319 = בלי ה-*. אוחדו: w0319."
 		},
 		{
 			"id": "w0049",
@@ -612,8 +709,11 @@
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום כהה"
-			]
+				"במח/אדום כהה",
+				"בומח/צניעות",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"mergeNote": "בן / בת לא חוקי. w0320 = בלי ה-*. אוחדו: w0320."
 		},
 		{
 			"id": "w0050",
@@ -636,44 +736,52 @@
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום כהה"
-			]
+				"במח/אדום כהה",
+				"בומח/צניעות",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"mergeNote": "ארוטי. w0065 = w0051 בלי ה-* (תופסת רק \"אירוטי\"). אוחדו: w0065."
 		},
 		{
 			"id": "w0052",
-			"pattern": "להט\"ב",
+			"pattern": "להט\"ב|להטב\"ק",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום כהה",
-				"בומח/צניעות"
-			]
+				"בומח/צניעות",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "להט\"ב",
+			"mergeNote": "להט\"ב(ים), להטב\"ק. אוחדו: w0073, w0109."
 		},
 		{
 			"id": "w0053",
 			"pattern": "חד-מיני",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום כהה",
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0021"
 		},
 		{
 			"id": "w0054",
 			"pattern": "מערומיה",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום כהה",
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0033"
 		},
 		{
 			"id": "w0055",
@@ -681,11 +789,12 @@
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום כהה"
-			]
+			],
+			"reviewNote": "חוץ מאיי הבתולה"
 		},
 		{
 			"id": "w0056",
@@ -701,111 +810,125 @@
 		},
 		{
 			"id": "w0057",
-			"pattern": "נואף",
+			"pattern": "נואף|ניאוף|לנאוף|נאף",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום כהה",
-				"בומח/צניעות"
-			]
+				"בומח/צניעות",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "נואף",
+			"mergeNote": "ניאוף ונטיותיו. אוחדו: w0058, w0059, w0060."
 		},
 		{
 			"id": "w0058",
 			"pattern": "ניאוף",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום כהה",
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0057"
 		},
 		{
 			"id": "w0059",
 			"pattern": "לנאוף",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום כהה",
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0057"
 		},
 		{
 			"id": "w0060",
 			"pattern": "נאף",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום כהה",
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0057"
 		},
 		{
 			"id": "w0061",
 			"pattern": "בן[-]זוגו",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום כהה",
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0082"
 		},
 		{
 			"id": "w0062",
 			"pattern": "יצא מהארון",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום כהה"
-			]
+			],
+			"mergedInto": "w0325"
 		},
 		{
 			"id": "w0063",
-			"pattern": "ה?גאים",
+			"pattern": "ה?גאים|הגאה",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום כהה"
-			]
+				"במח/אדום כהה",
+				"בומח/צניעות",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "ה?גאים",
+			"mergeNote": "הגאים, הגאה. אוחדו: w0064, w0327."
 		},
 		{
 			"id": "w0064",
 			"pattern": "[ה]גאה",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום כהה",
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0063"
 		},
 		{
 			"id": "w0065",
 			"pattern": "א[י]רוטי",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום כהה",
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0051"
 		},
 		{
 			"id": "w0066",
@@ -852,8 +975,11 @@
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום כהה"
-			]
+				"במח/אדום כהה",
+				"בומח/צניעות",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"mergeNote": "מצעד(י) הגאווה. אוחדו: w0090."
 		},
 		{
 			"id": "w0070",
@@ -884,48 +1010,58 @@
 			"pattern": "[ה]סקסולוג*",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום כהה"
-			]
+			],
+			"mergedInto": "w0017"
 		},
 		{
 			"id": "w0073",
 			"pattern": "להט\"בים",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום כהה",
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0052"
 		},
 		{
 			"id": "w0074",
-			"pattern": "פלי?רטו?ט",
+			"pattern": "פלי*רטו*ט",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום כהה"
-			]
+				"במח/אדום כהה",
+				"בומח/צניעות",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "פלי?רטו?ט",
+			"mergeNote": "פלירטוט. אוחדו: w0329."
 		},
 		{
 			"id": "w0075",
-			"pattern": "(\\s|\\S|^\\|\\[)?[^גי]אורגי(ה|ות)(\\s|\\S|$|\\])?",
+			"pattern": "(?<![א-ת])[ובלכמשה]{0,3}אורגי(?:ה|ות)(?![א-ת])",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום כהה"
-			]
+				"במח/אדום כהה",
+				"בומח/צניעות",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "(\\s|\\S|^\\|\\[)?[^גי]אורגי(ה|ות)(\\s|\\S|$|\\])?",
+			"mergeNote": "אורגיה / אורגיות (לא גאורגיה). אוחדו: w0330, w0331."
 		},
 		{
 			"id": "w0076",
@@ -936,8 +1072,11 @@
 			"reviewed": false,
 			"sources": [
 				"במח/אדום כהה",
-				"בומח/צניעות"
-			]
+				"בומח/צניעות",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"caseSensitive": false,
+			"mergeNote": "sex / Sex / SEX - בלי תלות ברישיות. אוחדו: w0112, w0113."
 		},
 		{
 			"id": "w0077",
@@ -953,15 +1092,18 @@
 		},
 		{
 			"id": "w0078",
-			"pattern": "מלכת היופי",
+			"pattern": "מלכת ה?יופי|תחרות ה?יופי",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום כהה",
-				"בומח/צניעות"
-			]
+				"בומח/צניעות",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "מלכת היופי",
+			"mergeNote": "מלכת / תחרות (ה)יופי. אוחדו: w0108, w0084."
 		},
 		{
 			"id": "w0079",
@@ -972,8 +1114,11 @@
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום כהה"
-			]
+				"במח/אדום כהה",
+				"בומח/צניעות",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"mergeNote": "מיס יוניברס / תבל / עולם. אוחדו: w0332, w0333, w0334."
 		},
 		{
 			"id": "w0080",
@@ -992,48 +1137,54 @@
 			"pattern": "איבר מינ",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום כהה",
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0026"
 		},
 		{
 			"id": "w0082",
-			"pattern": "בן זוגו",
+			"pattern": "בן[- ]זוגו|בת[- ]זוגה",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום כהה",
-				"בומח/צניעות"
-			]
+				"בומח/צניעות",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "בן זוגו",
+			"mergeNote": "בן זוגו (של גבר), בת זוגה (של אישה). אוחדו: w0061, w0083."
 		},
 		{
 			"id": "w0083",
 			"pattern": "בת זוגה",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום כהה",
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0082"
 		},
 		{
 			"id": "w0084",
 			"pattern": "תחרות יופי",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום כהה",
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0078"
 		},
 		{
 			"id": "w0085",
@@ -1044,32 +1195,40 @@
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום כהה"
-			]
+				"במח/אדום כהה",
+				"בומח/צניעות",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"mergeNote": "נודיסט / נודיזם. אוחדו: w0335."
 		},
 		{
 			"id": "w0086",
-			"pattern": "אינוס",
+			"pattern": "אינוס(?!בך)",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום כהה"
-			]
+				"במח/אדום כהה",
+				"בומח/צניעות",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "אינוס",
+			"mergeNote": "אינוס (לא אינוסבך). אוחדו: w0289."
 		},
 		{
 			"id": "w0087",
 			"pattern": "דראג קווין",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום כהה"
-			]
+			],
+			"mergedInto": "w0300"
 		},
 		{
 			"id": "w0088",
@@ -1100,77 +1259,91 @@
 			"pattern": "מצעד הגאווה",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום כהה",
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0069"
 		},
 		{
 			"id": "w0091",
-			"pattern": "מין אנאלי",
+			"pattern": "(?:מין|סקס) (?:אנאלי|אוראלי)",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום כהה"
-			]
+				"במח/אדום כהה",
+				"הצעת Claude (מילה חדשה)",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "מין אנאלי",
+			"mergeNote": "מין אנאלי / אוראלי. אוחדו: w0395."
 		},
 		{
 			"id": "w0092",
 			"pattern": "מגע ה?מיני",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום כהה"
-			]
+			],
+			"mergedInto": "w0021"
 		},
 		{
 			"id": "w0093",
 			"pattern": "חשק ה?מיני",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום כהה"
-			]
+				"במח/אדום כהה",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"mergeNote": "חשק (ה)מיני. אוחדו: w0126.",
+			"mergedInto": "w0021"
 		},
 		{
 			"id": "w0094",
 			"pattern": "תפקוד ה?מיני",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום כהה"
-			]
+				"במח/אדום כהה",
+				"בומח/צניעות",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"mergeNote": "תפקוד (ה)מיני. אוחדו: w0138.",
+			"mergedInto": "w0021"
 		},
 		{
 			"id": "w0095",
 			"pattern": "מיניות",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום כהה"
-			]
+			],
+			"mergedInto": "w0019"
 		},
 		{
 			"id": "w0096",
 			"pattern": "שמוק(?![א-ת])",
-			"level": "problem",
+			"level": "review",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": true,
@@ -1180,7 +1353,8 @@
 				"הכרעת חיים 2026-09-26 (analysis/pattern-precision.md)"
 			],
 			"original": "שמוק",
-			"note": "תיקון דיוק, אושר ע\"י חיים 2026-09-26: לא שמוקדש, שמוקם, שמוקמה (66% מההתאמות)."
+			"note": "תיקון דיוק, אושר ע\"י חיים 2026-09-26: לא שמוקדש, שמוקם, שמוקמה (66% מההתאמות).",
+			"reviewNote": "רק בערכים החסומים כביטוי שלילי"
 		},
 		{
 			"id": "w0097",
@@ -1196,15 +1370,18 @@
 		},
 		{
 			"id": "w0098",
-			"pattern": "עבריין מין",
+			"pattern": "(?:עבריי?(?:ן|ני|נים|נית)|עבירו?ת|שפחות) מין",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום כהה"
-			]
+				"במח/אדום כהה",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "עבריין מין",
+			"mergeNote": "עבריין / עבירות / שפחות מין. אוחדו: w0100, w0106."
 		},
 		{
 			"id": "w0099",
@@ -1223,12 +1400,13 @@
 			"pattern": "עבירו?ת מין",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום כהה"
-			]
+			],
+			"mergedInto": "w0098"
 		},
 		{
 			"id": "w0101",
@@ -1244,39 +1422,47 @@
 		},
 		{
 			"id": "w0102",
-			"pattern": "מעשה מגונה",
+			"pattern": "מעש(?:ה|י|ים)\\s+מגונ(?:ה|ים|ות)",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום כהה"
-			]
+				"במח/אדום כהה",
+				"בומח/צניעות",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "מעשה מגונה",
+			"mergeNote": "מעשה / מעשים מגונים (w0309 \"מעשיה מגונה\" - שגיאת כתיב במקור; חיים: \"מעשה מגונה גם כדאי לבדוק?\"). אוחדו: w0103, w0309."
 		},
 		{
 			"id": "w0103",
 			"pattern": "מעשים מגונים",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום כהה",
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0102"
 		},
 		{
 			"id": "w0104",
-			"pattern": "לזיין",
+			"pattern": "זיין",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום כהה",
-				"בומח/צניעות"
-			]
+				"בומח/צניעות",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "לזיין",
+			"mergeNote": "זיין (מזיין, נזיין כלולות). אוחדו: w0117, w0127."
 		},
 		{
 			"id": "w0105",
@@ -1295,12 +1481,13 @@
 			"pattern": "שפחות מין",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום כהה"
-			]
+			],
+			"mergedInto": "w0098"
 		},
 		{
 			"id": "w0107",
@@ -1320,24 +1507,26 @@
 			"pattern": "מלכת יופי",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום כהה"
-			]
+			],
+			"mergedInto": "w0078"
 		},
 		{
 			"id": "w0109",
 			"pattern": "להטב\"ק",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום כהה",
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0052"
 		},
 		{
 			"id": "w0110",
@@ -1371,24 +1560,26 @@
 			"pattern": "Sex",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום כהה"
-			]
+			],
+			"mergedInto": "w0076"
 		},
 		{
 			"id": "w0113",
 			"pattern": "SEX",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום כהה"
-			]
+			],
+			"mergedInto": "w0076"
 		},
 		{
 			"id": "w0114",
@@ -1407,38 +1598,43 @@
 		{
 			"id": "w0115",
 			"pattern": "הזין",
-			"level": "problem",
+			"level": "review",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום כהה"
-			]
+				"במח/אדום כהה",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"reviewNote": "תלוי בהקשר",
+			"mergeNote": "הזין - \"תלוי בהקשר\" (חיים 2026-09-27) -> לבדיקה."
 		},
 		{
 			"id": "w0116",
 			"pattern": "זיין",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום כהה"
-			]
+			],
+			"mergedInto": "w0104"
 		},
 		{
 			"id": "w0117",
 			"pattern": "מזיין",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום כהה"
-			]
+			],
+			"mergedInto": "w0104"
 		},
 		{
 			"id": "w0118",
@@ -1498,108 +1694,121 @@
 			"pattern": "נ?או?נסו?",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום כהה"
-			]
+			],
+			"reviewNote": "כמו אונס  אנסו",
+			"mergedInto": "w0027"
 		},
 		{
 			"id": "w0123",
 			"pattern": "אותו המין",
-			"level": "problem",
+			"level": "review",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום כהה"
-			]
+				"במח/אדום כהה",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"mergeNote": "אותו המין - לבדיקה. חיים (2026-09-27): \"שינוי מין בעיה, אותו המין לא\"; \"נישואים של זוגות מאותו המין זה בעיה\" - זה מגיע ממילות ההקשר (k015, k017) ומ\"זוג מאותו המין\" (w0089, בעיה)."
 		},
 		{
 			"id": "w0124",
-			"pattern": "חזיה",
+			"pattern": "חזי(?:ה|ות)",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום כהה"
-			]
+				"במח/אדום כהה",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "חזיה",
+			"mergeNote": "חזיה, חזיות. אוחדו: w0125."
 		},
 		{
 			"id": "w0125",
 			"pattern": "חזיות",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום כהה"
-			]
+			],
+			"mergedInto": "w0124"
 		},
 		{
 			"id": "w0126",
 			"pattern": "חשק המיני",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום כהה"
-			]
+			],
+			"mergedInto": "w0021"
 		},
 		{
 			"id": "w0127",
 			"pattern": "נזיין",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום כהה"
-			]
+			],
+			"mergedInto": "w0104"
 		},
 		{
 			"id": "w0128",
 			"pattern": " מינית",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום כהה"
-			]
+			],
+			"mergedInto": "w0019"
 		},
 		{
 			"id": "w0129",
 			"pattern": "תקף מינית",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום כהה"
-			]
+			],
+			"mergedInto": "w0021"
 		},
 		{
 			"id": "w0130",
 			"pattern": "התעללות מינית",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום כהה"
-			]
+			],
+			"mergedInto": "w0021"
 		},
 		{
 			"id": "w0131",
@@ -1639,27 +1848,31 @@
 		},
 		{
 			"id": "w0134",
-			"pattern": "מעשה סדום",
+			"pattern": "מעש(?:ה|י) סדום",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום כהה",
-				"בומח/צניעות"
-			]
+				"בומח/צניעות",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "מעשה סדום",
+			"mergeNote": "מעשה / מעשי סדום. אוחדו: w0135."
 		},
 		{
 			"id": "w0135",
 			"pattern": "מעשי סדום",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום כהה",
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0134"
 		},
 		{
 			"id": "w0136",
@@ -1678,48 +1891,52 @@
 			"pattern": "ניצול מיני",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום כהה",
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0021"
 		},
 		{
 			"id": "w0138",
 			"pattern": "תפקוד מיני",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום כהה",
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0021"
 		},
 		{
 			"id": "w0139",
 			"pattern": "GLBT",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום כהה",
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0410"
 		},
 		{
 			"id": "w0140",
 			"pattern": "נאנסה",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום כהה"
-			]
+			],
+			"mergedInto": "w0027"
 		},
 		{
 			"id": "w0141",
@@ -1747,92 +1964,93 @@
 		},
 		{
 			"id": "w0143",
-			"pattern": "התפתחות החיים",
+			"pattern": "(?:התפתחות|מוצא) החיים",
 			"level": "review",
 			"topic": "dating",
 			"status": "active",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום בהיר",
-				"בומח/כללי"
-			]
+				"בומח/כללי",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "התפתחות החיים",
+			"mergeNote": "התפתחות / מוצא החיים. אוחדו: w0144."
 		},
 		{
 			"id": "w0144",
 			"pattern": "מוצא החיים",
 			"level": "review",
 			"topic": "dating",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום בהיר",
 				"בומח/כללי"
-			]
+			],
+			"mergedInto": "w0143"
 		},
 		{
 			"id": "w0145",
-			"pattern": "אדם קדמון",
+			"pattern": "אדם ה?קדמון",
 			"level": "review",
 			"topic": "dating",
 			"status": "active",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום בהיר",
-				"בומח/כללי"
-			]
+				"בומח/כללי",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "אדם קדמון",
+			"mergeNote": "אדם (ה)קדמון. אוחדו: w0146."
 		},
 		{
 			"id": "w0146",
 			"pattern": "אדם הקדמון",
 			"level": "review",
 			"topic": "dating",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום בהיר",
 				"בומח/כללי"
-			]
+			],
+			"mergedInto": "w0145"
 		},
 		{
 			"id": "w0147",
 			"pattern": "מ[י]*ליו[ןני]* שנ[יםה]",
 			"level": "problem",
 			"topic": "age",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום בהיר"
 			],
-			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי).",
+			"mergedInto": "w0148"
 		},
 		{
 			"id": "w0148",
-			"pattern": "מ[י]ליארד[י]* שנ[הים]",
+			"pattern": "(?:מיליו[ןנ]י?|מליו[ןנ]י?|מיליארדי?|מליארדי?)\\s+שנ(?:ה|ים)(?![א-ת])",
 			"level": "problem",
 			"topic": "age",
 			"status": "active",
 			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום בהיר"
+				"במח/אדום בהיר",
+				"בומח/כללי",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
 			],
-			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי).",
+			"original": "מ[י]ליארד[י]* שנ[הים]",
+			"mergeNote": "מיליוני / מיליארדי שנים. אוחדו: w0147."
 		},
 		{
 			"id": "w0149",
-			"pattern": "000 שנה",
-			"level": "review",
-			"topic": "dating",
-			"status": "active",
-			"reviewed": false,
-			"caseSensitive": true,
-			"sources": [
-				"במח/אדום בהיר"
-			]
-		},
-		{
-			"id": "w0150",
 			"pattern": "000 שנ[הים]*",
 			"level": "review",
 			"topic": "dating",
@@ -1840,8 +2058,25 @@
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
+				"במח/אדום בהיר",
+				"בומח/כללי",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "000 שנה",
+			"mergeNote": "000 שנה / שנים. אוחדו: w0150, w0337."
+		},
+		{
+			"id": "w0150",
+			"pattern": "000 שנ[הים]*",
+			"level": "review",
+			"topic": "dating",
+			"status": "merged",
+			"reviewed": false,
+			"caseSensitive": true,
+			"sources": [
 				"במח/אדום בהיר"
-			]
+			],
+			"mergedInto": "w0149"
 		},
 		{
 			"id": "w0151",
@@ -1864,8 +2099,11 @@
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום בהיר"
-			]
+				"במח/אדום בהיר",
+				"בומח/כללי",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"mergeNote": "פרהיסטורי. אוחדו: w0338."
 		},
 		{
 			"id": "w0153",
@@ -1882,78 +2120,88 @@
 		},
 		{
 			"id": "w0154",
-			"pattern": "גיל היקום",
+			"pattern": "גיל היקום|ה[יו]*צרות כדור הארץ|ה[יו]*וצרות היקום",
 			"level": "problem",
 			"topic": "age",
 			"status": "active",
 			"reviewed": true,
 			"sources": [
 				"במח/אדום בהיר",
-				"בומח/כללי"
+				"בומח/כללי",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
 			],
-			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי).",
+			"original": "גיל היקום",
+			"mergeNote": "גיל היקום, היווצרות כדור הארץ / היקום. אוחדו: w0158, w0159."
 		},
 		{
 			"id": "w0155",
-			"pattern": "ביקורת המקרא",
+			"pattern": "(?:ביקורת|פרשנות|מסורת|אמינות) [ה]*מקרא",
 			"level": "review",
 			"topic": "dating",
 			"status": "active",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום בהיר",
-				"בומח/כללי"
-			]
+				"בומח/כללי",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "ביקורת המקרא",
+			"mergeNote": "ביקורת / פרשנות / מסורת / אמינות המקרא. אוחדו: w0156, w0157, w0193."
 		},
 		{
 			"id": "w0156",
 			"pattern": "פרשנות [ה]*מקרא",
 			"level": "review",
 			"topic": "dating",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום בהיר"
-			]
+			],
+			"mergedInto": "w0155"
 		},
 		{
 			"id": "w0157",
 			"pattern": "מסורת [ה]*מקרא",
 			"level": "review",
 			"topic": "dating",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום בהיר"
-			]
+			],
+			"mergedInto": "w0155"
 		},
 		{
 			"id": "w0158",
 			"pattern": "ה[יו]*צרות כדור הארץ",
 			"level": "problem",
 			"topic": "age",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"sources": [
 				"במח/אדום בהיר",
 				"בומח/כללי"
 			],
-			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי).",
+			"mergedInto": "w0154"
 		},
 		{
 			"id": "w0159",
 			"pattern": "ה[יו]*וצרות היקום",
 			"level": "problem",
 			"topic": "age",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"sources": [
 				"במח/אדום בהיר",
 				"בומח/כללי"
 			],
-			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי).",
+			"mergedInto": "w0154"
 		},
 		{
 			"id": "w0160",
@@ -1993,207 +2241,227 @@
 		},
 		{
 			"id": "w0163",
-			"pattern": "מתוארכת",
+			"pattern": "מתוארכ(?:ת|ות|ים)|מתוארך",
 			"level": "review",
 			"topic": "dating",
 			"status": "active",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום בהיר",
-				"בומח/כללי"
-			]
+				"בומח/כללי",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "מתוארכת",
+			"mergeNote": "מתוארך ונטיותיו. אוחדו: w0164, w0165, w0166."
 		},
 		{
 			"id": "w0164",
 			"pattern": "מתוארך",
 			"level": "review",
 			"topic": "dating",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום בהיר",
 				"בומח/כללי"
-			]
+			],
+			"mergedInto": "w0163"
 		},
 		{
 			"id": "w0165",
 			"pattern": "מתוארכות",
 			"level": "review",
 			"topic": "dating",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום בהיר",
 				"בומח/כללי"
-			]
+			],
+			"mergedInto": "w0163"
 		},
 		{
 			"id": "w0166",
 			"pattern": "מתוארכים",
 			"level": "review",
 			"topic": "dating",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום בהיר",
 				"בומח/כללי"
-			]
+			],
+			"mergedInto": "w0163"
 		},
 		{
 			"id": "w0167",
-			"pattern": "מיוקן",
+			"pattern": "(?:מיוקן|פליוקן|רביעון|שלישון|פלאוקן|פלאוגן|אאוקן|אוליגוקן|פליסטוקן|קרטיקון|הולוקן|קמבריון|פלאוזואיקון|מזוזואיקון|קנוזואיקון|נאוגן|פנרוזואיקון|ארכאיקון|פרוטרוזואיקון)",
 			"level": "problem",
 			"topic": "age",
 			"status": "active",
 			"reviewed": true,
 			"sources": [
 				"במח/אדום בהיר",
-				"בומח/כללי"
+				"בומח/כללי",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
 			],
-			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי).",
+			"original": "מיוקן",
+			"mergeNote": "תקופות גאולוגיות - רשומה אחת (במקום 19). אורדוביק, טריאס - לבדיקה, נפרד. אוחדו: w0168, w0169, w0170, w0171, w0172, w0173, w0174, w0175, w0176, w0177, w0178, w0181, w0182, w0183, w0184, w0185, w0186, w0189."
 		},
 		{
 			"id": "w0168",
 			"pattern": "פליוקן",
 			"level": "problem",
 			"topic": "age",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"sources": [
 				"במח/אדום בהיר",
 				"בומח/כללי"
 			],
-			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי).",
+			"mergedInto": "w0167"
 		},
 		{
 			"id": "w0169",
 			"pattern": "רביעון",
 			"level": "problem",
 			"topic": "age",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"sources": [
 				"במח/אדום בהיר",
 				"בומח/כללי"
 			],
-			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי).",
+			"mergedInto": "w0167"
 		},
 		{
 			"id": "w0170",
 			"pattern": "שלישון",
 			"level": "problem",
 			"topic": "age",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום בהיר"
 			],
-			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי).",
+			"mergedInto": "w0167"
 		},
 		{
 			"id": "w0171",
 			"pattern": "פלאוקן",
 			"level": "problem",
 			"topic": "age",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"sources": [
 				"במח/אדום בהיר",
 				"בומח/כללי"
 			],
-			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי).",
+			"mergedInto": "w0167"
 		},
 		{
 			"id": "w0172",
 			"pattern": "פלאוגן",
 			"level": "problem",
 			"topic": "age",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום בהיר"
 			],
-			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי).",
+			"mergedInto": "w0167"
 		},
 		{
 			"id": "w0173",
 			"pattern": "אאוקן",
 			"level": "problem",
 			"topic": "age",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום בהיר"
 			],
-			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי).",
+			"mergedInto": "w0167"
 		},
 		{
 			"id": "w0174",
 			"pattern": "אוליגוקן",
 			"level": "problem",
 			"topic": "age",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום בהיר"
 			],
-			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי).",
+			"mergedInto": "w0167"
 		},
 		{
 			"id": "w0175",
 			"pattern": "פליסטוקן",
 			"level": "problem",
 			"topic": "age",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"sources": [
 				"במח/אדום בהיר",
 				"בומח/כללי"
 			],
-			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי).",
+			"mergedInto": "w0167"
 		},
 		{
 			"id": "w0176",
 			"pattern": "קרטיקון",
 			"level": "problem",
 			"topic": "age",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום בהיר"
 			],
-			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי).",
+			"mergedInto": "w0167"
 		},
 		{
 			"id": "w0177",
 			"pattern": "הולוקן",
 			"level": "problem",
 			"topic": "age",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"sources": [
 				"במח/אדום בהיר",
 				"בומח/כללי"
 			],
-			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי).",
+			"mergedInto": "w0167"
 		},
 		{
 			"id": "w0178",
 			"pattern": "קמבריון",
 			"level": "problem",
 			"topic": "age",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"sources": [
 				"במח/אדום בהיר",
 				"בומח/כללי"
 			],
-			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי).",
+			"mergedInto": "w0167"
 		},
 		{
 			"id": "w0179",
@@ -2226,78 +2494,84 @@
 			"pattern": "פלאוזואיקון",
 			"level": "problem",
 			"topic": "age",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"sources": [
 				"במח/אדום בהיר",
 				"בומח/כללי"
 			],
-			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי).",
+			"mergedInto": "w0167"
 		},
 		{
 			"id": "w0182",
 			"pattern": "מזוזואיקון",
 			"level": "problem",
 			"topic": "age",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"sources": [
 				"במח/אדום בהיר",
 				"בומח/כללי"
 			],
-			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי).",
+			"mergedInto": "w0167"
 		},
 		{
 			"id": "w0183",
 			"pattern": "קנוזואיקון",
 			"level": "problem",
 			"topic": "age",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"sources": [
 				"במח/אדום בהיר",
 				"בומח/כללי"
 			],
-			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי).",
+			"mergedInto": "w0167"
 		},
 		{
 			"id": "w0184",
 			"pattern": "נאוגן",
 			"level": "problem",
 			"topic": "age",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום בהיר"
 			],
-			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי).",
+			"mergedInto": "w0167"
 		},
 		{
 			"id": "w0185",
 			"pattern": "פנרוזואיקון",
 			"level": "problem",
 			"topic": "age",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום בהיר"
 			],
-			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי).",
+			"mergedInto": "w0167"
 		},
 		{
 			"id": "w0186",
 			"pattern": "ארכאיקון",
 			"level": "problem",
 			"topic": "age",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום בהיר"
 			],
-			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי).",
+			"mergedInto": "w0167"
 		},
 		{
 			"id": "w0187",
@@ -2333,37 +2607,42 @@
 			"pattern": "פרוטרוזואיקון",
 			"level": "problem",
 			"topic": "age",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום בהיר"
 			],
-			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי).",
+			"mergedInto": "w0167"
 		},
 		{
 			"id": "w0190",
-			"pattern": "נאוליתית",
+			"pattern": "(?:נאו|כלכו)ליתית",
 			"level": "review",
 			"topic": "dating",
 			"status": "active",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום בהיר",
-				"בומח/כללי"
-			]
+				"בומח/כללי",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "נאוליתית",
+			"mergeNote": "נאוליתית, כלכוליתית. אוחדו: w0191."
 		},
 		{
 			"id": "w0191",
 			"pattern": "כלכוליתית",
 			"level": "review",
 			"topic": "dating",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"במח/אדום בהיר",
 				"בומח/כללי"
-			]
+			],
+			"mergedInto": "w0190"
 		},
 		{
 			"id": "w0192",
@@ -2382,12 +2661,13 @@
 			"pattern": "אמינות המקרא",
 			"level": "review",
 			"topic": "dating",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום בהיר"
-			]
+			],
+			"mergedInto": "w0155"
 		},
 		{
 			"id": "w0194",
@@ -2428,81 +2708,89 @@
 		},
 		{
 			"id": "w0197",
-			"pattern": "4000 לפנה\"ס",
+			"pattern": "[4-9]000 לפנה\"ס",
 			"level": "problem",
 			"topic": "age",
 			"status": "active",
 			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום בהיר"
+				"במח/אדום בהיר",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
 			],
-			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי).",
+			"original": "4000 לפנה\"ס",
+			"mergeNote": "4000-9000 לפנה\"ס. אוחדו: w0198, w0199, w0200, w0201, w0202."
 		},
 		{
 			"id": "w0198",
 			"pattern": "5000 לפנה\"ס",
 			"level": "problem",
 			"topic": "age",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום בהיר"
 			],
-			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי).",
+			"mergedInto": "w0197"
 		},
 		{
 			"id": "w0199",
 			"pattern": "6000 לפנה\"ס",
 			"level": "problem",
 			"topic": "age",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום בהיר"
 			],
-			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי).",
+			"mergedInto": "w0197"
 		},
 		{
 			"id": "w0200",
 			"pattern": "7000 לפנה\"ס",
 			"level": "problem",
 			"topic": "age",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום בהיר"
 			],
-			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי).",
+			"mergedInto": "w0197"
 		},
 		{
 			"id": "w0201",
 			"pattern": "8000 לפנה\"ס",
 			"level": "problem",
 			"topic": "age",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום בהיר"
 			],
-			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי).",
+			"mergedInto": "w0197"
 		},
 		{
 			"id": "w0202",
 			"pattern": "9000 לפנה\"ס",
 			"level": "problem",
 			"topic": "age",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
 				"במח/אדום בהיר"
 			],
-			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי).",
+			"mergedInto": "w0197"
 		},
 		{
 			"id": "w0203",
@@ -2513,8 +2801,11 @@
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/אדום בהיר"
-			]
+				"במח/אדום בהיר",
+				"בומח/כללי",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"mergeNote": "גאולוג - רשומה אחת (w0341 מ\"אמונה\" הייתה אותה מילה בנושא אחר; כל ההתאמות שלה נתפסו ב-w0203). אוחדו: w0341."
 		},
 		{
 			"id": "w0204",
@@ -2542,51 +2833,60 @@
 		},
 		{
 			"id": "w0206",
-			"pattern": "נישואים פתוחים",
+			"pattern": "נישואים (?:פתוחים|גאים)",
 			"level": "review",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"sources": [
 				"במח/ירוק",
-				"בומח/צניעות"
-			]
+				"בומח/צניעות",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "נישואים פתוחים",
+			"mergeNote": "נישואים פתוחים / גאים. אוחדו: w0207."
 		},
 		{
 			"id": "w0207",
 			"pattern": "נישואים גאים",
 			"level": "review",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"במח/ירוק",
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0206"
 		},
 		{
 			"id": "w0208",
-			"pattern": "בת לויה",
+			"pattern": "בת לוו?יה",
 			"level": "review",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"sources": [
 				"במח/ירוק",
-				"בומח/צניעות"
-			]
+				"בומח/צניעות",
+				"בומח/כללי",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "בת לויה",
+			"mergeNote": "בת לוויה. אוחדו: w0209."
 		},
 		{
 			"id": "w0209",
 			"pattern": "בת לוויה",
 			"level": "review",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"במח/ירוק",
 				"בומח/כללי"
-			]
+			],
+			"mergedInto": "w0208"
 		},
 		{
 			"id": "w0210",
@@ -2609,8 +2909,11 @@
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/ירוק"
-			]
+				"במח/ירוק",
+				"בומח/כללי",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"mergeNote": "הצעת נישואין. w0339 = בלי ה-*. אוחדו: w0339."
 		},
 		{
 			"id": "w0212",
@@ -2650,15 +2953,18 @@
 		},
 		{
 			"id": "w0215",
-			"pattern": "חיזור[הים]",
+			"pattern": "חיזור",
 			"level": "review",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"sources": [
 				"במח/ירוק",
-				"בומח/כללי"
-			]
+				"בומח/כללי",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "חיזור[הים]",
+			"mergeNote": "חיזור. אוחדו: w0230."
 		},
 		{
 			"id": "w0216",
@@ -2693,34 +2999,42 @@
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/ירוק"
-			]
+				"במח/ירוק",
+				"בומח/כללי",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"mergeNote": "אשכים. w0342 = בלי ה-*. אוחדו: w0342."
 		},
 		{
 			"id": "w0219",
-			"pattern": "(\\s|[בכמה]|^)פין",
+			"pattern": "(?<![א-ת])[ובכמלה]{0,2}פין(?![א-ת])",
 			"level": "review",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/ירוק"
-			]
+				"במח/ירוק",
+				"בומח/צניעות",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "(\\s|[בכמה]|^)פין",
+			"mergeNote": "פין (w0220 \"לפין\" כלולה). אוחדו: w0220."
 		},
 		{
 			"id": "w0220",
 			"pattern": "(?<!דו)לפין",
 			"level": "review",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
 				"במח/ירוק"
 			],
 			"original": "[^(דו)]לפין",
-			"note": "במקור [^(דו)] - חוסם כל ד או ו, לא את \"דו\" (דולפין)."
+			"note": "במקור [^(דו)] - חוסם כל ד או ו, לא את \"דו\" (דולפין).",
+			"mergedInto": "w0219"
 		},
 		{
 			"id": "w0221",
@@ -2736,23 +3050,26 @@
 		},
 		{
 			"id": "w0222",
-			"pattern": "הזד[ו]*וגות",
+			"pattern": "הזד[ו]*וגות|להזדוו?ג",
 			"level": "review",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"sources": [
 				"במח/ירוק",
-				"בומח/כללי"
-			]
+				"בומח/כללי",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"mergeNote": "הזדווגות, להזדווג. אוחדו: w0229.",
+			"original": "הזד[ו]*וגות"
 		},
 		{
 			"id": "w0223",
 			"pattern": "מאוהב",
-			"level": "review",
+			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
 				"במח/ירוק"
@@ -2760,27 +3077,31 @@
 		},
 		{
 			"id": "w0224",
-			"pattern": "היא נמשכה",
+			"pattern": "היא נמשכה|הוא נמשך",
 			"level": "review",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/ירוק"
-			]
+				"במח/ירוק",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "היא נמשכה",
+			"mergeNote": "היא נמשכה / הוא נמשך. אוחדו: w0225."
 		},
 		{
 			"id": "w0225",
 			"pattern": "הוא נמשך",
 			"level": "review",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
 				"במח/ירוק"
-			]
+			],
+			"mergedInto": "w0224"
 		},
 		{
 			"id": "w0226",
@@ -2797,50 +3118,54 @@
 		{
 			"id": "w0227",
 			"pattern": "בעילה אסורה",
-			"level": "review",
+			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
 				"במח/ירוק"
-			]
+			],
+			"reviewNote": "בעילה אסורה זה תוכן מיני מפורש, שאסור במכלול"
 		},
 		{
 			"id": "w0228",
 			"pattern": "הזדווגות",
 			"level": "review",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
 				"במח/ירוק"
-			]
+			],
+			"mergedInto": "w0222"
 		},
 		{
 			"id": "w0229",
 			"pattern": "להזדווג",
 			"level": "review",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
 				"במח/ירוק"
-			]
+			],
+			"mergedInto": "w0222"
 		},
 		{
 			"id": "w0230",
 			"pattern": "חיזור",
 			"level": "review",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
 				"במח/ירוק"
-			]
+			],
+			"mergedInto": "w0215"
 		},
 		{
 			"id": "w0231",
@@ -2895,27 +3220,32 @@
 		},
 		{
 			"id": "w0235",
-			"pattern": "(?<=\\s)ישו(?=\\s)",
+			"pattern": "(?<![א-ת])[ובלכמשה]?ישו(?![א-ת])",
 			"level": "review",
 			"topic": "faith",
 			"status": "active",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/כחול"
-			]
+				"במח/כחול",
+				"בומח/כללי",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "(?<=\\s)ישו(?=\\s)",
+			"mergeNote": "ישו - מילה שלמה. אוחדו: w0340."
 		},
 		{
 			"id": "w0236",
 			"pattern": "השילוש הקדוש",
 			"level": "review",
 			"topic": "faith",
-			"status": "active",
-			"reviewed": false,
+			"status": "merged",
+			"reviewed": true,
 			"sources": [
 				"במח/כחול",
 				"בומח/כללי"
-			]
+			],
+			"mergedInto": "w0278"
 		},
 		{
 			"id": "w0237",
@@ -2935,7 +3265,7 @@
 			"level": "review",
 			"topic": "faith",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"sources": [
 				"במח/כחול",
 				"בומח/כללי"
@@ -2943,7 +3273,7 @@
 		},
 		{
 			"id": "w0239",
-			"pattern": "(?<![א-ת])[ובלכמשה]?יהוה(?![א-ת])",
+			"pattern": "(?<![א-ת])[ובלכמשה]?(?:יהוה|יְהוָה)(?![א-ת])",
 			"level": "review",
 			"topic": "names",
 			"status": "active",
@@ -2951,28 +3281,32 @@
 			"caseSensitive": true,
 			"sources": [
 				"במח/צהוב",
-				"הכרעת חיים 2026-09-27"
+				"הכרעת חיים 2026-09-27",
+				"בומח/כללי",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
 			],
 			"original": "יהוה",
-			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\". מילה שלמה בלבד - התבנית הקודמת תפסה מילים אחרות (\"שדי אברהם\", \"כך שדי ב-\", \"אבן אלהיתי\"). כולל תארים (\"האלוהית\")."
+			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\". מילה שלמה בלבד - התבנית הקודמת תפסה מילים אחרות (\"שדי אברהם\", \"כך שדי ב-\", \"אבן אלהיתי\"). כולל תארים (\"האלוהית\").",
+			"mergeNote": "יהוה. אוחדו: w0240, w0343."
 		},
 		{
 			"id": "w0240",
 			"pattern": "יְהוָה",
 			"level": "review",
 			"topic": "names",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
 				"במח/צהוב",
 				"הכרעת חיים 2026-09-27"
 			],
-			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\"."
+			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\".",
+			"mergedInto": "w0239"
 		},
 		{
 			"id": "w0241",
-			"pattern": "(?<![א-ת])[ובלכמש]?ה?אלוהים(?![א-ת])",
+			"pattern": "(?<![א-ת])[ובלכמש]?ה?(?:אלוהים|אלהים|אלוהי|אלהי|אלוהּ?|אלוהות|אלהות)(?:ת|ים|ות|יים|יות)?(?![א-ת])",
 			"level": "review",
 			"topic": "names",
 			"status": "active",
@@ -2980,17 +3314,20 @@
 			"caseSensitive": true,
 			"sources": [
 				"במח/צהוב",
-				"הכרעת חיים 2026-09-27"
+				"הכרעת חיים 2026-09-27",
+				"בומח/כללי",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
 			],
 			"original": "אלוהים",
-			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\". מילה שלמה בלבד - התבנית הקודמת תפסה מילים אחרות (\"שדי אברהם\", \"כך שדי ב-\", \"אבן אלהיתי\"). כולל תארים (\"האלוהית\")."
+			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\". מילה שלמה בלבד - התבנית הקודמת תפסה מילים אחרות (\"שדי אברהם\", \"כך שדי ב-\", \"אבן אלהיתי\"). כולל תארים (\"האלוהית\").",
+			"mergeNote": "אלוהים ונטיותיו - רשומה אחת (חיים 2026-09-27: \"לכל אחד יש תבנית נפרדת. זה נצרך?\"). אוחדו: w0242, w0243, w0244, w0245, w0247, w0248, w0344."
 		},
 		{
 			"id": "w0242",
 			"pattern": "(?<![א-ת])[ובלכמש]?ה?אלהים(?![א-ת])",
 			"level": "review",
 			"topic": "names",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
@@ -2998,14 +3335,15 @@
 				"הכרעת חיים 2026-09-27"
 			],
 			"original": "אלהים",
-			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\". מילה שלמה בלבד - התבנית הקודמת תפסה מילים אחרות (\"שדי אברהם\", \"כך שדי ב-\", \"אבן אלהיתי\"). כולל תארים (\"האלוהית\")."
+			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\". מילה שלמה בלבד - התבנית הקודמת תפסה מילים אחרות (\"שדי אברהם\", \"כך שדי ב-\", \"אבן אלהיתי\"). כולל תארים (\"האלוהית\").",
+			"mergedInto": "w0241"
 		},
 		{
 			"id": "w0243",
 			"pattern": "(?<![א-ת])[ובלכמש]?ה?אלוהי(?:ת|ים|ות|יים|יות)?(?![א-ת])",
 			"level": "review",
 			"topic": "names",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
@@ -3013,14 +3351,15 @@
 				"הכרעת חיים 2026-09-27"
 			],
 			"original": "אלוהי",
-			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\". מילה שלמה בלבד - התבנית הקודמת תפסה מילים אחרות (\"שדי אברהם\", \"כך שדי ב-\", \"אבן אלהיתי\"). כולל תארים (\"האלוהית\")."
+			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\". מילה שלמה בלבד - התבנית הקודמת תפסה מילים אחרות (\"שדי אברהם\", \"כך שדי ב-\", \"אבן אלהיתי\"). כולל תארים (\"האלוהית\").",
+			"mergedInto": "w0241"
 		},
 		{
 			"id": "w0244",
 			"pattern": "(?<![א-ת])[ובלכמש]?ה?אלהי(?:ת|ים|ות|יים|יות)?(?![א-ת])",
 			"level": "review",
 			"topic": "names",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
@@ -3028,14 +3367,15 @@
 				"הכרעת חיים 2026-09-27"
 			],
 			"original": "אלהי",
-			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\". מילה שלמה בלבד - התבנית הקודמת תפסה מילים אחרות (\"שדי אברהם\", \"כך שדי ב-\", \"אבן אלהיתי\"). כולל תארים (\"האלוהית\")."
+			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\". מילה שלמה בלבד - התבנית הקודמת תפסה מילים אחרות (\"שדי אברהם\", \"כך שדי ב-\", \"אבן אלהיתי\"). כולל תארים (\"האלוהית\").",
+			"mergedInto": "w0241"
 		},
 		{
 			"id": "w0245",
 			"pattern": "(?<![א-ת])[ובלכמש]?ה?אלוהּ?(?![א-ת])",
 			"level": "review",
 			"topic": "names",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
@@ -3043,7 +3383,8 @@
 				"הכרעת חיים 2026-09-27"
 			],
 			"original": "אלוה",
-			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\". מילה שלמה בלבד - התבנית הקודמת תפסה מילים אחרות (\"שדי אברהם\", \"כך שדי ב-\", \"אבן אלהיתי\"). כולל תארים (\"האלוהית\")."
+			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\". מילה שלמה בלבד - התבנית הקודמת תפסה מילים אחרות (\"שדי אברהם\", \"כך שדי ב-\", \"אבן אלהיתי\"). כולל תארים (\"האלוהית\").",
+			"mergedInto": "w0241"
 		},
 		{
 			"id": "w0246",
@@ -3065,7 +3406,7 @@
 			"pattern": "(?<![א-ת])[ובלכמש]?ה?אלוהות(?![א-ת])",
 			"level": "review",
 			"topic": "names",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
@@ -3073,14 +3414,15 @@
 				"הכרעת חיים 2026-09-27"
 			],
 			"original": "אלוהות",
-			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\". מילה שלמה בלבד - התבנית הקודמת תפסה מילים אחרות (\"שדי אברהם\", \"כך שדי ב-\", \"אבן אלהיתי\"). כולל תארים (\"האלוהית\")."
+			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\". מילה שלמה בלבד - התבנית הקודמת תפסה מילים אחרות (\"שדי אברהם\", \"כך שדי ב-\", \"אבן אלהיתי\"). כולל תארים (\"האלוהית\").",
+			"mergedInto": "w0241"
 		},
 		{
 			"id": "w0248",
 			"pattern": "(?<![א-ת])[ובלכמש]?ה?אלהות(?![א-ת])",
 			"level": "review",
 			"topic": "names",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
@@ -3088,7 +3430,8 @@
 				"הכרעת חיים 2026-09-27"
 			],
 			"original": "אלהות",
-			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\". מילה שלמה בלבד - התבנית הקודמת תפסה מילים אחרות (\"שדי אברהם\", \"כך שדי ב-\", \"אבן אלהיתי\"). כולל תארים (\"האלוהית\")."
+			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\". מילה שלמה בלבד - התבנית הקודמת תפסה מילים אחרות (\"שדי אברהם\", \"כך שדי ב-\", \"אבן אלהיתי\"). כולל תארים (\"האלוהית\").",
+			"mergedInto": "w0241"
 		},
 		{
 			"id": "w0249",
@@ -3096,7 +3439,7 @@
 			"level": "review",
 			"topic": "faith",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"sources": [
 				"במח/צהוב",
 				"בומח/כללי"
@@ -3118,7 +3461,7 @@
 		},
 		{
 			"id": "w0251",
-			"pattern": "(?<![א-ת])[ובלכמש]?אלוהיו(?![א-ת])",
+			"pattern": "(?<![א-ת])[ובלכמש]?(?:אלוהיו|אלהיו|אלוהיך|אלהיך|אלוהינו|אלהינו|אלוהיכם|אלהיכם|אלוהיהם|אלהיהם)(?![א-ת])",
 			"level": "review",
 			"topic": "names",
 			"status": "active",
@@ -3126,17 +3469,21 @@
 			"caseSensitive": true,
 			"sources": [
 				"במח/צהוב",
-				"הכרעת חיים 2026-09-27"
+				"הכרעת חיים 2026-09-27",
+				"בומח/כללי",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
 			],
 			"original": "אלוהיו",
-			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\". מילה שלמה בלבד - התבנית הקודמת תפסה מילים אחרות (\"שדי אברהם\", \"כך שדי ב-\", \"אבן אלהיתי\"). כולל תארים (\"האלוהית\")."
+			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\". מילה שלמה בלבד - התבנית הקודמת תפסה מילים אחרות (\"שדי אברהם\", \"כך שדי ב-\", \"אבן אלהיתי\"). כולל תארים (\"האלוהית\").",
+			"reviewNote": "יש הרבה שורשים של המילה אלוהים/אלוהים בהטיות, לכל אחד יש תבנית נפרדת. זה נצרך?\nהאמת שזה קטגוריה נפרדת. זה לא בעיה ולא חשד ולא ניסוח. זה קטגוריה שמות הקודש.",
+			"mergeNote": "אלוהיו, אלוהינו... - רשומה אחת. אוחדו: w0252, w0253, w0254, w0255, w0256, w0257, w0258, w0259, w0345."
 		},
 		{
 			"id": "w0252",
 			"pattern": "(?<![א-ת])[ובלכמש]?אלהיו(?![א-ת])",
 			"level": "review",
 			"topic": "names",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
@@ -3144,14 +3491,15 @@
 				"הכרעת חיים 2026-09-27"
 			],
 			"original": "אלהיו",
-			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\". מילה שלמה בלבד - התבנית הקודמת תפסה מילים אחרות (\"שדי אברהם\", \"כך שדי ב-\", \"אבן אלהיתי\"). כולל תארים (\"האלוהית\")."
+			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\". מילה שלמה בלבד - התבנית הקודמת תפסה מילים אחרות (\"שדי אברהם\", \"כך שדי ב-\", \"אבן אלהיתי\"). כולל תארים (\"האלוהית\").",
+			"mergedInto": "w0251"
 		},
 		{
 			"id": "w0253",
 			"pattern": "(?<![א-ת])[ובלכמש]?אלוהיך(?![א-ת])",
 			"level": "review",
 			"topic": "names",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
@@ -3159,14 +3507,15 @@
 				"הכרעת חיים 2026-09-27"
 			],
 			"original": "אלוהיך",
-			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\". מילה שלמה בלבד - התבנית הקודמת תפסה מילים אחרות (\"שדי אברהם\", \"כך שדי ב-\", \"אבן אלהיתי\"). כולל תארים (\"האלוהית\")."
+			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\". מילה שלמה בלבד - התבנית הקודמת תפסה מילים אחרות (\"שדי אברהם\", \"כך שדי ב-\", \"אבן אלהיתי\"). כולל תארים (\"האלוהית\").",
+			"mergedInto": "w0251"
 		},
 		{
 			"id": "w0254",
 			"pattern": "(?<![א-ת])[ובלכמש]?אלהיך(?![א-ת])",
 			"level": "review",
 			"topic": "names",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
@@ -3174,14 +3523,15 @@
 				"הכרעת חיים 2026-09-27"
 			],
 			"original": "אלהיך",
-			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\". מילה שלמה בלבד - התבנית הקודמת תפסה מילים אחרות (\"שדי אברהם\", \"כך שדי ב-\", \"אבן אלהיתי\"). כולל תארים (\"האלוהית\")."
+			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\". מילה שלמה בלבד - התבנית הקודמת תפסה מילים אחרות (\"שדי אברהם\", \"כך שדי ב-\", \"אבן אלהיתי\"). כולל תארים (\"האלוהית\").",
+			"mergedInto": "w0251"
 		},
 		{
 			"id": "w0255",
 			"pattern": "(?<![א-ת])[ובלכמש]?אלוהינו(?![א-ת])",
 			"level": "review",
 			"topic": "names",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
@@ -3189,14 +3539,15 @@
 				"הכרעת חיים 2026-09-27"
 			],
 			"original": "אלוהינו",
-			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\". מילה שלמה בלבד - התבנית הקודמת תפסה מילים אחרות (\"שדי אברהם\", \"כך שדי ב-\", \"אבן אלהיתי\"). כולל תארים (\"האלוהית\")."
+			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\". מילה שלמה בלבד - התבנית הקודמת תפסה מילים אחרות (\"שדי אברהם\", \"כך שדי ב-\", \"אבן אלהיתי\"). כולל תארים (\"האלוהית\").",
+			"mergedInto": "w0251"
 		},
 		{
 			"id": "w0256",
 			"pattern": "(?<![א-ת])[ובלכמש]?אלהינו(?![א-ת])",
 			"level": "review",
 			"topic": "names",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
@@ -3204,14 +3555,15 @@
 				"הכרעת חיים 2026-09-27"
 			],
 			"original": "אלהינו",
-			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\". מילה שלמה בלבד - התבנית הקודמת תפסה מילים אחרות (\"שדי אברהם\", \"כך שדי ב-\", \"אבן אלהיתי\"). כולל תארים (\"האלוהית\")."
+			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\". מילה שלמה בלבד - התבנית הקודמת תפסה מילים אחרות (\"שדי אברהם\", \"כך שדי ב-\", \"אבן אלהיתי\"). כולל תארים (\"האלוהית\").",
+			"mergedInto": "w0251"
 		},
 		{
 			"id": "w0257",
 			"pattern": "(?<![א-ת])[ובלכמש]?אלוהיכם(?![א-ת])",
 			"level": "review",
 			"topic": "names",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
@@ -3219,14 +3571,15 @@
 				"הכרעת חיים 2026-09-27"
 			],
 			"original": "אלוהיכם",
-			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\". מילה שלמה בלבד - התבנית הקודמת תפסה מילים אחרות (\"שדי אברהם\", \"כך שדי ב-\", \"אבן אלהיתי\"). כולל תארים (\"האלוהית\")."
+			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\". מילה שלמה בלבד - התבנית הקודמת תפסה מילים אחרות (\"שדי אברהם\", \"כך שדי ב-\", \"אבן אלהיתי\"). כולל תארים (\"האלוהית\").",
+			"mergedInto": "w0251"
 		},
 		{
 			"id": "w0258",
 			"pattern": "(?<![א-ת])[ובלכמש]?אלהיכם(?![א-ת])",
 			"level": "review",
 			"topic": "names",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
@@ -3234,14 +3587,15 @@
 				"הכרעת חיים 2026-09-27"
 			],
 			"original": "אלהיכם",
-			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\". מילה שלמה בלבד - התבנית הקודמת תפסה מילים אחרות (\"שדי אברהם\", \"כך שדי ב-\", \"אבן אלהיתי\"). כולל תארים (\"האלוהית\")."
+			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\". מילה שלמה בלבד - התבנית הקודמת תפסה מילים אחרות (\"שדי אברהם\", \"כך שדי ב-\", \"אבן אלהיתי\"). כולל תארים (\"האלוהית\").",
+			"mergedInto": "w0251"
 		},
 		{
 			"id": "w0259",
 			"pattern": "(?<![א-ת])[ובלכמש]?אלוהיהם(?![א-ת])",
 			"level": "review",
 			"topic": "names",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
@@ -3249,7 +3603,8 @@
 				"הכרעת חיים 2026-09-27"
 			],
 			"original": "אלוהיהם",
-			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\". מילה שלמה בלבד - התבנית הקודמת תפסה מילים אחרות (\"שדי אברהם\", \"כך שדי ב-\", \"אבן אלהיתי\"). כולל תארים (\"האלוהית\")."
+			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\". מילה שלמה בלבד - התבנית הקודמת תפסה מילים אחרות (\"שדי אברהם\", \"כך שדי ב-\", \"אבן אלהיתי\"). כולל תארים (\"האלוהית\").",
+			"mergedInto": "w0251"
 		},
 		{
 			"id": "w0260",
@@ -3286,24 +3641,29 @@
 			"pattern": "האלים",
 			"level": "review",
 			"topic": "faith",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
 				"במח/צהוב"
-			]
+			],
+			"mergedInto": "w0263"
 		},
 		{
 			"id": "w0263",
-			"pattern": "[^ר]אלים",
+			"pattern": "האלים|(?<![א-ת])אלים(?![א-ת])",
 			"level": "review",
 			"topic": "faith",
 			"status": "active",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/צהוב"
-			]
+				"במח/צהוב",
+				"בומח/כללי",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "[^ר]אלים",
+			"mergeNote": "האלים; אלים - מילה שלמה (לא שואלים). אוחדו: w0262."
 		},
 		{
 			"id": "w0264",
@@ -3331,123 +3691,142 @@
 		},
 		{
 			"id": "w0266",
-			"pattern": "פי התורה",
+			"pattern": "פי (?:התורה|התנ\"ך|המסופר בתנ\"ך|התלמוד|הגמרא|חז\"ל)",
 			"level": "review",
 			"topic": "faith",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"sources": [
 				"במח/צהוב",
-				"בומח/כללי"
-			]
+				"בומח/כללי",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "פי התורה",
+			"mergeNote": "על פי התורה / התנ\"ך / התלמוד / הגמרא / חז\"ל. אוחדו: w0268, w0269, w0270, w0271, w0272."
 		},
 		{
 			"id": "w0267",
-			"pattern": "הלכה [ה]*יהודית",
+			"pattern": "(?:הלכה|מסורת) [ה]*יהודית",
 			"level": "review",
 			"topic": "faith",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"sources": [
 				"במח/צהוב",
-				"בומח/כללי"
-			]
+				"בומח/כללי",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "הלכה [ה]*יהודית",
+			"mergeNote": "הלכה / מסורת יהודית. אוחדו: w0275."
 		},
 		{
 			"id": "w0268",
 			"pattern": "פי התנ\"ך",
 			"level": "review",
 			"topic": "faith",
-			"status": "active",
-			"reviewed": false,
+			"status": "merged",
+			"reviewed": true,
 			"sources": [
 				"במח/צהוב",
 				"בומח/כללי"
-			]
+			],
+			"mergedInto": "w0266"
 		},
 		{
 			"id": "w0269",
 			"pattern": "פי המסופר בתנ\"ך",
 			"level": "review",
 			"topic": "faith",
-			"status": "active",
-			"reviewed": false,
+			"status": "merged",
+			"reviewed": true,
 			"sources": [
 				"במח/צהוב",
 				"בומח/כללי"
-			]
+			],
+			"mergedInto": "w0266"
 		},
 		{
 			"id": "w0270",
 			"pattern": "פי התלמוד",
 			"level": "review",
 			"topic": "faith",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"במח/צהוב",
 				"בומח/כללי"
-			]
+			],
+			"mergedInto": "w0266"
 		},
 		{
 			"id": "w0271",
 			"pattern": "פי הגמרא",
 			"level": "review",
 			"topic": "faith",
-			"status": "active",
-			"reviewed": false,
+			"status": "merged",
+			"reviewed": true,
 			"sources": [
 				"במח/צהוב",
 				"בומח/כללי"
-			]
+			],
+			"mergedInto": "w0266"
 		},
 		{
 			"id": "w0272",
 			"pattern": "פי חז\"ל",
 			"level": "review",
 			"topic": "faith",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"במח/צהוב",
 				"בומח/כללי"
-			]
+			],
+			"mergedInto": "w0266"
 		},
 		{
 			"id": "w0273",
-			"pattern": "מיסטי[יםקה]*",
+			"pattern": "(?<!אסלא)מיסטי[יםקה]*",
 			"level": "review",
 			"topic": "faith",
 			"status": "active",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/צהוב"
-			]
+				"במח/צהוב",
+				"בומח/כללי",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "מיסטי[יםקה]*",
+			"mergeNote": "מיסטי (לא אסלאמיסטי). אוחדו: w0348."
 		},
 		{
 			"id": "w0274",
-			"pattern": "חוק [ה]*מקראי",
+			"pattern": "חוק [ה]*מקראי|דמות מקראית|(?:המחבר|המספר) המקראי|ה?(?:פרשנות|מסורת) ה?מקראית",
 			"level": "review",
 			"topic": "faith",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"sources": [
 				"במח/צהוב",
-				"בומח/כללי"
-			]
+				"בומח/כללי",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "חוק [ה]*מקראי",
+			"mergeNote": "חוק / דמות / המחבר / המספר / פרשנות / מסורת מקראית. אוחדו: w0277, w0351, w0352, w0353, w0354, w0355, w0356."
 		},
 		{
 			"id": "w0275",
 			"pattern": "מסורת [ה]*יהודית",
 			"level": "review",
 			"topic": "faith",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"במח/צהוב",
 				"בומח/כללי"
-			]
+			],
+			"mergedInto": "w0267"
 		},
 		{
 			"id": "w0276",
@@ -3458,20 +3837,24 @@
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
-				"במח/צהוב"
-			]
+				"במח/צהוב",
+				"בומח/כללי",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"mergeNote": "חוקרי המקרא. אוחדו: w0349."
 		},
 		{
 			"id": "w0277",
 			"pattern": "דמות מקראית",
 			"level": "review",
 			"topic": "faith",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"במח/צהוב",
 				"בומח/כללי"
-			]
+			],
+			"mergedInto": "w0274"
 		},
 		{
 			"id": "w0278",
@@ -3482,12 +3865,15 @@
 			"reviewed": false,
 			"sources": [
 				"במח/צהוב",
-				"בומח/כללי"
-			]
+				"בומח/כללי",
+				"במח/כחול",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"mergeNote": "נבלעו (כל ההתאמות שלהן כבר נתפסו כאן): w0236."
 		},
 		{
 			"id": "w0279",
-			"pattern": "אֱלֹהֵי",
+			"pattern": "אֱלֹה(?:ֵי|ֶ|ִים)",
 			"level": "review",
 			"topic": "names",
 			"status": "active",
@@ -3495,13 +3881,16 @@
 			"sources": [
 				"במח/צהוב",
 				"בומח/כללי",
-				"הכרעת חיים 2026-09-27"
+				"הכרעת חיים 2026-09-27",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
 			],
-			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\"."
+			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\".",
+			"original": "אֱלֹהֵי",
+			"mergeNote": "אֱלֹהֵי, אֱלֹהֶ..., אֱלֹהִים. אוחדו: w0281, w0282."
 		},
 		{
 			"id": "w0280",
-			"pattern": " אֵל ",
+			"pattern": "(?<![א-ת\\u0591-\\u05C7])אֵל(?![א-ת\\u0591-\\u05C7])",
 			"level": "review",
 			"topic": "names",
 			"status": "active",
@@ -3509,85 +3898,99 @@
 			"caseSensitive": true,
 			"sources": [
 				"במח/צהוב",
-				"הכרעת חיים 2026-09-27"
+				"הכרעת חיים 2026-09-27",
+				"בומח/כללי",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
 			],
-			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\"."
+			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\".",
+			"original": " אֵל ",
+			"mergeNote": "אֵל (לא יִשְׂרָאֵל). אוחדו: w0350."
 		},
 		{
 			"id": "w0281",
 			"pattern": "אֱלֹהֶ",
 			"level": "review",
 			"topic": "names",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"sources": [
 				"במח/צהוב",
 				"בומח/כללי",
 				"הכרעת חיים 2026-09-27"
 			],
-			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\"."
+			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\".",
+			"mergedInto": "w0279"
 		},
 		{
 			"id": "w0282",
 			"pattern": "אֱלֹהִים",
 			"level": "review",
 			"topic": "names",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"sources": [
 				"במח/צהוב",
 				"בומח/כללי",
 				"הכרעת חיים 2026-09-27"
 			],
-			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\"."
+			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\".",
+			"mergedInto": "w0279"
 		},
 		{
 			"id": "w0283",
-			"pattern": "תמונה חילופית",
+			"pattern": "תמונה (?:חילופית|מוחלפת)",
 			"level": "review",
 			"topic": "wiki",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
-				"במח/סגול"
-			]
+				"במח/סגול",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "תמונה חילופית",
+			"mergeNote": "תמונה חילופית / מוחלפת. אוחדו: w0284."
 		},
 		{
 			"id": "w0284",
 			"pattern": "תמונה מוחלפת",
 			"level": "review",
 			"topic": "wiki",
-			"status": "active",
-			"reviewed": false,
+			"status": "merged",
+			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
 				"במח/סגול"
-			]
+			],
+			"mergedInto": "w0283"
 		},
 		{
 			"id": "w0285",
-			"pattern": "ויקיפדיה:",
+			"pattern": "ו[ו]*יקיפדיה",
 			"level": "review",
 			"topic": "wiki",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"caseSensitive": true,
 			"sources": [
-				"במח/סגול"
-			]
+				"במח/סגול",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "ויקיפדיה:",
+			"mergeNote": "ויקיפדיה. אוחדו: w0286."
 		},
 		{
 			"id": "w0286",
 			"pattern": "ו[ו]*יקיפדיה",
 			"level": "review",
 			"topic": "wiki",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"caseSensitive": true,
 			"sources": [
 				"במח/סגול"
-			]
+			],
+			"mergedInto": "w0285"
 		},
 		{
 			"id": "w0287",
@@ -3606,66 +4009,74 @@
 			"pattern": "פין(?!\\w)",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"בומח/צניעות"
-			]
+			],
+			"reviewNote": "רק בערכים החסומים שלילי, ואחד מתוך כמה, בוויקיפדיה הכללית. אני לא יודע אם לאשר או לדחות. אולי צריך הקשר",
+			"mergedInto": "w0219"
 		},
 		{
 			"id": "w0289",
 			"pattern": "אינוס(?!בך)",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
-			"reviewed": false,
+			"status": "merged",
+			"reviewed": true,
 			"sources": [
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0086"
 		},
 		{
 			"id": "w0290",
 			"pattern": "אונס(?!ק)",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0027"
 		},
 		{
 			"id": "w0291",
 			"pattern": "אנס[ו]",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
-			"reviewed": false,
+			"status": "merged",
+			"reviewed": true,
 			"sources": [
 				"בומח/צניעות"
-			]
+			],
+			"reviewNote": "רק אם המילה מסתיימת באנסו, ואין אותיות נוספות אחרי המילה אנסו",
+			"mergedInto": "w0027"
 		},
 		{
 			"id": "w0292",
 			"pattern": "סקס(?!וניה)",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0001"
 		},
 		{
 			"id": "w0293",
 			"pattern": "סקסו[אלס]",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0017"
 		},
 		{
 			"id": "w0294",
@@ -3683,55 +4094,70 @@
 			"pattern": "(?<!מ)הומו(?!גני|לוגי|ר)",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0014"
 		},
 		{
 			"id": "w0296",
 			"pattern": "(\\s|ה)מין(?!ימליים|ימום)",
-			"level": "problem",
+			"level": "review",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"sources": [
-				"בומח/צניעות"
-			]
+				"בומח/צניעות",
+				"במח/אדום כהה",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"mergeNote": "מין. חיים (2026-09-27): \"תלוי בהקשר\" -> לבדיקה; ההכרעה - מילות ההקשר (lists/context.json). w0296 הרחבה מבין השתיים (גם \"המין\"). אוחדו: w0002."
 		},
 		{
 			"id": "w0297",
 			"pattern": "זנות",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0003"
 		},
 		{
 			"id": "w0298",
-			"pattern": "(?<!ארי)[מ]זונ[הות]",
+			"pattern": "(?<![א-ת])[ובלכשה]{0,3}זונ(?:ה|ות)(?![א-ת])",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
-				"בומח/צניעות"
-			]
+				"בומח/צניעות",
+				"הערת חיים 2026-09-27"
+			],
+			"reviewNote": "נתפס בעיקר מזונות, שזה בכלל לא בעיה, אפילו לא בדיקה צריך לתפוס רק זונות, זונה, זנות",
+			"original": "(?<!ארי)[מ]זונ[הות]",
+			"note": "הערת חיים 2026-09-27: \"צריך לתפוס רק זונות, זונה, זנות\" - המקור `[מ]זונ` תפס רק מזונה/מזונות (מחלקת תווים במקום [^מ]). מילה שלמה, בלי מ' תחילית (מזונות). זנות - w0003/w0007.",
+			"mergedInto": "w0004"
 		},
 		{
 			"id": "w0299",
-			"pattern": "[מ]זונות",
+			"pattern": "(?<![א-ת])[ובלכשה]{0,3}זונות(?![א-ת])",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
-				"בומח/צניעות"
-			]
+				"בומח/צניעות",
+				"הערת חיים 2026-09-27"
+			],
+			"reviewNote": "נתפס בעיקר מזונות, אפילו לא לבדיקה. צריך לתפוס רק זונות, זונה, זנות",
+			"original": "[מ]זונות",
+			"note": "הערת חיים 2026-09-27: המקור `[מ]זונות` תפס רק \"מזונות\" (מחלקת תווים במקום [^מ]). מילה שלמה, בלי מ' תחילית.",
+			"mergedInto": "w0004"
 		},
 		{
 			"id": "w0300",
@@ -3741,259 +4167,290 @@
 			"status": "active",
 			"reviewed": false,
 			"sources": [
-				"בומח/צניעות"
-			]
+				"בומח/צניעות",
+				"במח/אדום כהה",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"mergeNote": "דראג (w0087 \"דראג קווין\" כלולה). אוחדו: w0087."
 		},
 		{
 			"id": "w0301",
 			"pattern": "נערת ליווי",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
-			"reviewed": false,
+			"status": "merged",
+			"reviewed": true,
 			"sources": [
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0010"
 		},
 		{
 			"id": "w0302",
 			"pattern": "(?<!מ)זימה(?!ה)",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"sources": [
 				"בומח/צניעות",
 				"הכרעת חיים 2026-09-26 (analysis/pattern-precision.md)"
 			],
 			"original": "זימה(?!ה)",
-			"note": "תיקון דיוק, אושר ע\"י חיים 2026-09-26: לא מזימה (77% מההתאמות)."
+			"note": "תיקון דיוק, אושר ע\"י חיים 2026-09-26: לא מזימה (77% מההתאמות).",
+			"reviewNote": "צריך לתקן את הביטוי, לשלול אות מ בהתחלה",
+			"mergedInto": "w0012"
 		},
 		{
 			"id": "w0303",
 			"pattern": "יחסי-מין",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
-			"reviewed": false,
+			"status": "merged",
+			"reviewed": true,
 			"sources": [
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0013"
 		},
 		{
 			"id": "w0304",
 			"pattern": "לסבי(?:ם|ות|ית)",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
-			"reviewed": false,
+			"status": "merged",
+			"reviewed": true,
 			"sources": [
 				"בומח/צניעות"
 			],
 			"original": "(?<!ל)לסביםוזית",
-			"note": "במקור טקסט משובש (לסביםוזית) - לא התאים אף פעם."
+			"note": "במקור טקסט משובש (לסביםוזית) - לא התאים אף פעם.",
+			"mergedInto": "w0018"
 		},
 		{
 			"id": "w0305",
 			"pattern": "אופי מיני",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
-			"reviewed": false,
+			"status": "merged",
+			"reviewed": true,
 			"sources": [
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0021"
 		},
 		{
 			"id": "w0306",
 			"pattern": "אופן מיני",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
-			"reviewed": false,
+			"status": "merged",
+			"reviewed": true,
 			"sources": [
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0021"
 		},
 		{
 			"id": "w0307",
 			"pattern": "אקט ה?מיני",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
-			"reviewed": false,
+			"status": "merged",
+			"reviewed": true,
 			"sources": [
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0021"
 		},
 		{
 			"id": "w0308",
 			"pattern": "תוכן מיני",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
-			"reviewed": false,
+			"status": "merged",
+			"reviewed": true,
 			"sources": [
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0021"
 		},
 		{
 			"id": "w0309",
 			"pattern": "מעשיה מגונה",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"בומח/צניעות"
-			]
+			],
+			"reviewNote": "מעשה מגונה גם כדאי לבדוק?",
+			"mergedInto": "w0102"
 		},
 		{
 			"id": "w0310",
-			"pattern": "ח[ו]*ש[ו]פ[הניות](?!ה)",
-			"level": "problem",
+			"pattern": "(?<![א-ת])[ובלכמשה]{0,3}(?:חשופ(?:ה|ות|ים|י)|חושפ(?:ת|ים|ות)|חשפ(?:ה|ו))(?![א-ת])",
+			"level": "review",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
 			"sources": [
-				"בומח/צניעות"
-			]
+				"בומח/צניעות",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"reviewNote": "תלוי בהקשר. המילה עצמה לא תפסה כלום מעבר למילה חשופה , חשופות או חשופים. התבנית מורכבת",
+			"original": "ח[ו]*ש[ו]פ[הניות](?!ה)",
+			"mergeNote": "חשופה, חשופות, חשופי, חושפת, חשפה, חשפו - \"תלוי בהקשר\" (חיים 2026-09-27) -> לבדיקה. חשפנות - w0024."
 		},
 		{
 			"id": "w0311",
 			"pattern": "א[י]*בר מין",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
-			"reviewed": false,
+			"status": "merged",
+			"reviewed": true,
 			"sources": [
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0026"
 		},
 		{
 			"id": "w0312",
 			"pattern": "א[י]בר[י] [ה]*מין",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
-			"reviewed": false,
+			"status": "merged",
+			"reviewed": true,
 			"sources": [
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0026"
 		},
 		{
 			"id": "w0313",
 			"pattern": "(?<!יו)א[ו]*נ[ו]*ס(?!ק)",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"בומח/צניעות"
 			],
 			"original": "(?<!יו)א[ו]*נ[ו]*ס^ק",
-			"note": "במקור ^ק - באמצע תבנית ^ הוא \"תחילת טקסט\", ולכן לא התאימה אף פעם. הכוונה: לא ואחריו ק (אונסק\"ו)."
+			"note": "במקור ^ק - באמצע תבנית ^ הוא \"תחילת טקסט\", ולכן לא התאימה אף פעם. הכוונה: לא ואחריו ק (אונסק\"ו).",
+			"reviewNote": "כמו אונס אנסו",
+			"mergedInto": "w0027"
 		},
 		{
 			"id": "w0314",
 			"pattern": "רומ+[נן]+(?![יה])",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"בומח/צניעות"
 			],
 			"original": "רומ+[נן]+^יה",
-			"note": "במקור ^יה - לא התאימה אף פעם. הכוונה: [^יה], לא ואחריו י או ה (רומני, רומניה)."
+			"note": "במקור ^יה - לא התאימה אף פעם. הכוונה: [^יה], לא ואחריו י או ה (רומני, רומניה).",
+			"mergedInto": "w0032"
 		},
 		{
 			"id": "w0315",
 			"pattern": "ע[י]*רו(?!י)[מים]+",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0033"
 		},
 		{
 			"id": "w0316",
 			"pattern": "פ[י]*לגש",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0038"
 		},
 		{
 			"id": "w0317",
 			"pattern": "העדפה מינית",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
-			"reviewed": false,
+			"status": "merged",
+			"reviewed": true,
 			"sources": [
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0021"
 		},
 		{
 			"id": "w0318",
 			"pattern": "(\\s|^)[ו]וסת",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0047"
 		},
 		{
 			"id": "w0319",
 			"pattern": "ילד[ים] לא חוקי[ים]",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0048"
 		},
 		{
 			"id": "w0320",
 			"pattern": "ב[ןת]+ לא חוקי[תיים]",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0049"
 		},
 		{
 			"id": "w0321",
 			"pattern": "מגע מיני",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
-			"reviewed": false,
+			"status": "merged",
+			"reviewed": true,
 			"sources": [
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0021"
 		},
 		{
 			"id": "w0322",
 			"pattern": "חד מיני",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0021"
 		},
 		{
 			"id": "w0323",
@@ -4001,7 +4458,7 @@
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"sources": [
 				"בומח/צניעות"
 			]
@@ -4019,244 +4476,268 @@
 		},
 		{
 			"id": "w0325",
-			"pattern": "(יצא|יציאה) מהארון",
+			"pattern": "(?:יצא(?:ה|ו)?|יציאה(?:ו|תו|תה)?) מהארון",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
 			"sources": [
-				"בומח/צניעות"
-			]
+				"בומח/צניעות",
+				"במח/אדום כהה",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
+			],
+			"original": "(יצא|יציאה) מהארון",
+			"mergeNote": "יצא / יצאה / יציאה מהארון. אוחדו: w0062."
 		},
 		{
 			"id": "w0326",
 			"pattern": "[^ש]מיני(ו)?ת(?!ימליים|ימום)",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0019"
 		},
 		{
 			"id": "w0327",
 			"pattern": "הגאים",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0063"
 		},
 		{
 			"id": "w0328",
 			"pattern": "נער[ו]ת ליווי",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
-			"reviewed": false,
+			"status": "merged",
+			"reviewed": true,
 			"sources": [
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0010"
 		},
 		{
 			"id": "w0329",
 			"pattern": "פל[י]*רט[ו]*ט",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0074"
 		},
 		{
 			"id": "w0330",
 			"pattern": "[^ג]אורגיה",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
-			"reviewed": false,
+			"status": "merged",
+			"reviewed": true,
 			"sources": [
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0075"
 		},
 		{
 			"id": "w0331",
 			"pattern": "[^ג]אורגיות",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
-			"reviewed": false,
+			"status": "merged",
+			"reviewed": true,
 			"sources": [
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0075"
 		},
 		{
 			"id": "w0332",
 			"pattern": "מיס יוניברס",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
-			"reviewed": false,
+			"status": "merged",
+			"reviewed": true,
 			"sources": [
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0079"
 		},
 		{
 			"id": "w0333",
 			"pattern": "מיס תבל",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
-			"reviewed": false,
+			"status": "merged",
+			"reviewed": true,
 			"sources": [
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0079"
 		},
 		{
 			"id": "w0334",
 			"pattern": "מיס עולם",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
-			"reviewed": false,
+			"status": "merged",
+			"reviewed": true,
 			"sources": [
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0079"
 		},
 		{
 			"id": "w0335",
 			"pattern": "נודיסטים",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "active",
-			"reviewed": false,
+			"status": "merged",
+			"reviewed": true,
 			"sources": [
 				"בומח/צניעות"
-			]
+			],
+			"mergedInto": "w0085"
 		},
 		{
 			"id": "w0336",
 			"pattern": "(מיליו[ןנ]י?|מיליארדי?) שנ[הי]ם?",
 			"level": "problem",
 			"topic": "age",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"sources": [
 				"בומח/כללי"
 			],
-			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי)."
+			"reviewNote": "חיים, 2026-09-24: \"בוודאי שזה גיל העולם\" - הועבר מתיארוך לגיל העולם. רמה: בעיה (חד-משמעי).",
+			"mergedInto": "w0148"
 		},
 		{
 			"id": "w0337",
 			"pattern": "000 שנ[הים]",
 			"level": "review",
 			"topic": "dating",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"בומח/כללי"
-			]
+			],
+			"mergedInto": "w0149"
 		},
 		{
 			"id": "w0338",
 			"pattern": "פרה[י][\\sהי]סטורי[הים]",
 			"level": "review",
 			"topic": "dating",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"בומח/כללי"
-			]
+			],
+			"mergedInto": "w0152"
 		},
 		{
 			"id": "w0339",
 			"pattern": "הצעת [ה]נישואי[םן]",
 			"level": "review",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"בומח/כללי"
-			]
+			],
+			"mergedInto": "w0211"
 		},
 		{
 			"id": "w0340",
 			"pattern": "(?<!או)ישו(\\s|$)",
 			"level": "review",
 			"topic": "faith",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"בומח/כללי"
-			]
+			],
+			"mergedInto": "w0235"
 		},
 		{
 			"id": "w0341",
 			"pattern": "(?<!ג)ג[י]*אולוג(?!יה)",
 			"level": "review",
 			"topic": "faith",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"בומח/כללי"
-			]
+			],
+			"mergedInto": "w0203"
 		},
 		{
 			"id": "w0342",
 			"pattern": "אש[כך][יהום](\\s|$)",
 			"level": "review",
 			"topic": "modesty",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"בומח/כללי"
-			]
+			],
+			"mergedInto": "w0218"
 		},
 		{
 			"id": "w0343",
 			"pattern": "(?<![א-ת])[ובלכמשה]?(?:יהוה|יְהוָה)(?![א-ת])",
 			"level": "review",
 			"topic": "names",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"sources": [
 				"בומח/כללי",
 				"הכרעת חיים 2026-09-27"
 			],
 			"original": "יהוה|יְהוָה",
-			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\". מילה שלמה בלבד - התבנית הקודמת תפסה מילים אחרות (\"שדי אברהם\", \"כך שדי ב-\", \"אבן אלהיתי\"). כולל תארים (\"האלוהית\")."
+			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\". מילה שלמה בלבד - התבנית הקודמת תפסה מילים אחרות (\"שדי אברהם\", \"כך שדי ב-\", \"אבן אלהיתי\"). כולל תארים (\"האלוהית\").",
+			"mergedInto": "w0239"
 		},
 		{
 			"id": "w0344",
 			"pattern": "(?<![א-ת])[ובלכמש]?ה?(?:אלוהים|אלהים|אלוהי|אלהי|אלוה|אלוהות|אלהות)(?:ת|ים|ות|יים|יות)?(?![א-ת])",
 			"level": "review",
 			"topic": "names",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"sources": [
 				"בומח/כללי",
 				"הכרעת חיים 2026-09-27"
 			],
 			"original": "אלוהים|אלהים|אלוהי|אלהי|אלוה|אלוהות|אלהות",
-			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\". מילה שלמה בלבד - התבנית הקודמת תפסה מילים אחרות (\"שדי אברהם\", \"כך שדי ב-\", \"אבן אלהיתי\"). כולל תארים (\"האלוהית\")."
+			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\". מילה שלמה בלבד - התבנית הקודמת תפסה מילים אחרות (\"שדי אברהם\", \"כך שדי ב-\", \"אבן אלהיתי\"). כולל תארים (\"האלוהית\").",
+			"mergedInto": "w0241"
 		},
 		{
 			"id": "w0345",
 			"pattern": "(?<![א-ת])[ובלכמש]?(?:אלוהיו|אלהיו|אלוהיך|אלהיך|אלוהינו|אלהינו|אלוהיכם|אלהיכם|אלוהיהם)(?![א-ת])",
 			"level": "review",
 			"topic": "names",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"sources": [
 				"בומח/כללי",
 				"הכרעת חיים 2026-09-27"
 			],
 			"original": "אלוהיו|אלהיו|אלוהיך|אלהיך|אלוהינו|אלהינו|אלוהיכם|אלהיכם|אלוהיהם",
-			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\". מילה שלמה בלבד - התבנית הקודמת תפסה מילים אחרות (\"שדי אברהם\", \"כך שדי ב-\", \"אבן אלהיתי\"). כולל תארים (\"האלוהית\")."
+			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\". מילה שלמה בלבד - התבנית הקודמת תפסה מילים אחרות (\"שדי אברהם\", \"כך שדי ב-\", \"אבן אלהיתי\"). כולל תארים (\"האלוהית\").",
+			"mergedInto": "w0251"
 		},
 		{
 			"id": "w0346",
@@ -4274,122 +4755,132 @@
 			"pattern": "(?<![\\u0590-\\u05FF])אלים(?![\\u0590-\\u05FF])",
 			"level": "review",
 			"topic": "faith",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"בומח/כללי"
 			],
 			"original": "^(אלים)$",
-			"note": "במקור ^...$ - מתאים רק אם כל הדף הוא המילה. הכוונה: מילה בודדת."
+			"note": "במקור ^...$ - מתאים רק אם כל הדף הוא המילה. הכוונה: מילה בודדת.",
+			"mergedInto": "w0263"
 		},
 		{
 			"id": "w0348",
 			"pattern": "(?<!אסלא)מיסטי[יםקה]",
 			"level": "review",
 			"topic": "faith",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"בומח/כללי"
-			]
+			],
+			"mergedInto": "w0273"
 		},
 		{
 			"id": "w0349",
 			"pattern": "ח[ו]קר[י] [ה]*מקרא",
 			"level": "review",
 			"topic": "faith",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"בומח/כללי"
-			]
+			],
+			"mergedInto": "w0276"
 		},
 		{
 			"id": "w0350",
 			"pattern": "אֵל",
 			"level": "review",
 			"topic": "names",
-			"status": "active",
+			"status": "merged",
 			"reviewed": true,
 			"sources": [
 				"בומח/כללי",
 				"הכרעת חיים 2026-09-27"
 			],
-			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\"."
+			"note": "שמות השם (הכרעת חיים 2026-09-27): נושא names, נספר ברמה כ\"לבדיקה\".",
+			"mergedInto": "w0280"
 		},
 		{
 			"id": "w0351",
 			"pattern": "המחבר המקראי",
 			"level": "review",
 			"topic": "faith",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"בומח/כללי"
-			]
+			],
+			"mergedInto": "w0274"
 		},
 		{
 			"id": "w0352",
 			"pattern": "המספר המקראי",
 			"level": "review",
 			"topic": "faith",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"בומח/כללי"
-			]
+			],
+			"mergedInto": "w0274"
 		},
 		{
 			"id": "w0353",
 			"pattern": "פרשנות המקראית",
 			"level": "review",
 			"topic": "faith",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"בומח/כללי"
-			]
+			],
+			"mergedInto": "w0274"
 		},
 		{
 			"id": "w0354",
 			"pattern": "פרשנות מקראית",
 			"level": "review",
 			"topic": "faith",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"בומח/כללי"
-			]
+			],
+			"mergedInto": "w0274"
 		},
 		{
 			"id": "w0355",
 			"pattern": "המסורת המקראית",
 			"level": "review",
 			"topic": "faith",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"בומח/כללי"
-			]
+			],
+			"mergedInto": "w0274"
 		},
 		{
 			"id": "w0356",
 			"pattern": "מסורת מקראית",
 			"level": "review",
 			"topic": "faith",
-			"status": "active",
+			"status": "merged",
 			"reviewed": false,
 			"sources": [
 				"בומח/כללי"
-			]
+			],
+			"mergedInto": "w0274"
 		},
 		{
 			"id": "w0357",
 			"pattern": "\\bfuck\\w*",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude"
 			],
@@ -4412,8 +4903,8 @@
 			"pattern": "\\bbitch\\w*",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude"
 			],
@@ -4460,8 +4951,8 @@
 			"pattern": "\\bporn\\w*",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude"
 			],
@@ -4472,8 +4963,8 @@
 			"pattern": "\\bnude\\w*",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude"
 			],
@@ -4484,8 +4975,8 @@
 			"pattern": "\\bsexy\\b",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude"
 			],
@@ -4494,10 +4985,10 @@
 		{
 			"id": "w0366",
 			"pattern": "\\bhorny\\b",
-			"level": "problem",
+			"level": "review",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude"
 			],
@@ -4566,10 +5057,10 @@
 		{
 			"id": "w0372",
 			"pattern": "פיתוח גוף",
-			"level": "problem",
+			"level": "review",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude"
 			],
@@ -4628,8 +5119,8 @@
 			"pattern": "נשיק(?:ה|ות|ת)(?![א-ת])",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude"
 			],
@@ -4640,8 +5131,8 @@
 			"pattern": "מתנשק[א-ת]*",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude"
 			],
@@ -4664,8 +5155,8 @@
 			"pattern": "בגד(?:י)? (?:ים|רחצה)",
 			"level": "review",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude"
 			],
@@ -4712,8 +5203,8 @@
 			"pattern": "רקדני(?:ת|יות)(?![א-ת])",
 			"level": "review",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude"
 			],
@@ -4724,8 +5215,8 @@
 			"pattern": "מועדוני? לילה",
 			"level": "review",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude"
 			],
@@ -4736,8 +5227,8 @@
 			"pattern": "שוכב(?:ת|ים|ות)? עם|שכב(?:ה|ו)? עם",
 			"level": "review",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude"
 			],
@@ -4760,12 +5251,13 @@
 			"pattern": "אוננות",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "merged",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude (מילה חדשה)"
 			],
-			"note": "שם העצם (ברשימות יש רק את הפעלים לאונן/מאונן)."
+			"note": "שם העצם (ברשימות יש רק את הפעלים לאונן/מאונן).",
+			"mergedInto": "w0028"
 		},
 		{
 			"id": "w0389",
@@ -4820,8 +5312,8 @@
 			"pattern": "ויברטור|דילדו",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude (מילה חדשה)"
 			],
@@ -4832,8 +5324,8 @@
 			"pattern": "פוליאמורי",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude (מילה חדשה)"
 			],
@@ -4844,12 +5336,13 @@
 			"pattern": "(?:מין|סקס) אוראלי",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "merged",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude (מילה חדשה)"
 			],
-			"note": "ברשימות יש \"מין אנאלי\" אבל לא אוראלי."
+			"note": "ברשימות יש \"מין אנאלי\" אבל לא אוראלי.",
+			"mergedInto": "w0091"
 		},
 		{
 			"id": "w0396",
@@ -4940,8 +5433,8 @@
 			"pattern": "פטמ(?:ה|ות)(?![א-ת])",
 			"level": "review",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude (מילה חדשה)"
 			],
@@ -4952,8 +5445,8 @@
 			"pattern": "משכב זכר",
 			"level": "review",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude (מילה חדשה)"
 			],
@@ -5000,8 +5493,8 @@
 			"pattern": "שפיכה",
 			"level": "review",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude (מילה חדשה)"
 			],
@@ -5012,48 +5505,56 @@
 			"pattern": "(?<![א-ת])[וה]?זי?קפה(?![א-ת])",
 			"level": "review",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude (מילה חדשה)"
 			],
-			"note": "זקפה / זיקפה (שני הכתיבים - לבקשת חיים בסקירה). לא \"זקיפה\" (חשבונאות)."
+			"note": "זקפה / זיקפה (שני הכתיבים - לבקשת חיים בסקירה). לא \"זקיפה\" (חשבונאות).",
+			"reviewNote": "מה עם זיקפה?"
 		},
 		{
 			"id": "w0410",
-			"pattern": "\\bLGBT\\w*",
+			"pattern": "\\b(?:LGBT|GLBT|lesbian|homosexual|bisexual|transgender|queer)\\w*",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
-				"הצעת Claude (מילה חדשה)"
+				"הצעת Claude (מילה חדשה)",
+				"במח/אדום כהה",
+				"בומח/צניעות",
+				"איחוד כפילויות במח/בומח (2026-09-27)"
 			],
-			"note": "באנגלית, כמו להט\"ב ברשימה האדומה."
+			"note": "באנגלית, כמו להט\"ב ברשימה האדומה.",
+			"original": "\\bLGBT\\w*",
+			"mergeNote": "LGBT, GLBT, lesbian... queer. אוחדו: w0139, w0411, w0412."
 		},
 		{
 			"id": "w0411",
 			"pattern": "\\b(?:lesbian|homosexual|bisexual|transgender)\\w*",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "merged",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude (מילה חדשה)"
 			],
-			"note": "באנגלית, כמו המקבילות העבריות ברשימה האדומה."
+			"note": "באנגלית, כמו המקבילות העבריות ברשימה האדומה.",
+			"mergedInto": "w0410"
 		},
 		{
 			"id": "w0412",
 			"pattern": "\\bqueer\\w*",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "merged",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude (מילה חדשה)"
 			],
-			"note": "באנגלית, כמו \"קוויר\" ברשימה האדומה."
+			"note": "באנגלית, כמו \"קוויר\" ברשימה האדומה.",
+			"mergedInto": "w0410"
 		},
 		{
 			"id": "w0413",
@@ -5072,8 +5573,8 @@
 			"pattern": "\\borgasm\\w*",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude (מילה חדשה)"
 			],
@@ -5096,8 +5597,8 @@
 			"pattern": "\\berotic\\w*",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude (מילה חדשה)"
 			],
@@ -5132,8 +5633,8 @@
 			"pattern": "\\bprostitut\\w*|\\bbrothel\\w*",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude (מילה חדשה)"
 			],
@@ -5168,8 +5669,8 @@
 			"pattern": "\\b(?:penis|vagina|clitor|testicl)\\w*",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude (מילה חדשה)"
 			],
@@ -5192,8 +5693,8 @@
 			"pattern": "\\bpant(?:y|ies)\\b",
 			"level": "problem",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "rejected",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude (מילה חדשה)"
 			],
@@ -5226,10 +5727,10 @@
 		{
 			"id": "w0427",
 			"pattern": "\\b(?:rape[ds]?|raping|rapist\\w*)\\b",
-			"level": "review",
+			"level": "problem",
 			"topic": "modesty",
-			"status": "suggested",
-			"reviewed": false,
+			"status": "active",
+			"reviewed": true,
 			"sources": [
 				"הצעת Claude (מילה חדשה)"
 			],
