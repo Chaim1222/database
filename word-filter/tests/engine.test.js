@@ -156,6 +156,37 @@ test('context levels: the word and its sentence decide the suspicion', () => {
 	assert.deepStrictEqual(ctx('נפטר בשנת 419 לפנה"ס.'), { level: 'wording', suspicion: null });
 });
 
+// מילות הקשר (lists/context.json): מכריעות את המובן של "אונס" / "מין" באותו משפט.
+test('context clues: a neighbour word decides the sense', () => {
+	const usage = require('../lists/usage.json');
+	const context = require('../lists/context.json');
+	const clues = engine.compileClues(context, { suggested: true });
+	assert.deepStrictEqual(clues.problems, []);
+	assert.strictEqual(engine.compileClues(context).clues.length,
+		context.entries.filter((e) => e.status === 'active').length); // הצעות רק עם suggested
+	const one = (t, c) => engine.contextLevels(t, engine.scan(t, FULL), usage, c === undefined ? clues : c)
+		.find((m) => m.topic === 'modesty').context;
+	// up: הקשר פלילי / פועל עם מושא / צירוף מיני -> בעיה ודאית, עם המילה שהכריעה.
+	const convicted = one('הוא הורשע באונס.');
+	assert.strictEqual(convicted.level, 'problem');
+	assert.deepStrictEqual(convicted.clueWords, ['הורשע']);
+	assert.strictEqual(one('הוא הורשע באונס.', null).suspicion, 'medium'); // בלי מילות הקשר - כמו קודם
+	assert.strictEqual(one('לאחר מכן הוא אנס אותה.').level, 'problem');
+	assert.strictEqual(one('היא נאנסה על ידי שכנה.').level, 'problem');
+	assert.strictEqual(one('לה היו חיי מין סוערים.').level, 'problem');
+	assert.strictEqual(one('פגישה של עובדות מין.').level, 'problem');
+	// up גובר על היתר demote ("באונס" ההלכתי, a015).
+	assert.strictEqual(one('הוא נאשם באונס של שכנתו.').level, 'problem');
+	// down: שם, הלכה, טקסונומיה, מגדר ברשימה -> חשד נמוך.
+	assert.strictEqual(one('הברון האנס פון ונגנהיים (Hans von Wangenheim) היה שגריר.').suspicion, 'low');
+	assert.strictEqual(one('מי שנאנס באיומי מוות להזיק ממון של אחר.').suspicion, 'low');
+	assert.strictEqual(one('הקמטן הוא מין של לטאה ממשפחת הקמטניים, והמשגל אצלו נדיר.').suspicion, 'low');
+	assert.strictEqual(one('ללא הבדל גזע, דת, מין או לאום.').suspicion, 'low');
+	// "אנסה את" הוא עתיד של ניסה - לא פועל האונס; "באותו מין" בביולוגיה - לא להט"ב.
+	assert.ok(!(one('אני אנסה את מזלי.').clues || []).length);
+	assert.ok(!(one('בין הזכרים והנקבות באותו מין.').clues || []).includes('k013'));
+});
+
 test('links: a letter right after ]] joins the word, as the reader sees it', () => {
 	// "[[מין (טקסונומיה)|מין]]ים" = "מינים" (species) - לא "מין" לבד.
 	assert.deepStrictEqual(texts('[[לסבי]]ת', FULL), ['לסבית']);

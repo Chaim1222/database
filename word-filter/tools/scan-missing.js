@@ -71,17 +71,18 @@ const log = (msg) => console.log(new Date().toISOString().slice(0, 19).replace('
 // גרסת הרשימות, המנוע, כללי הערך המילוני והנושאים: שינוי באחד מהם מחייב סריקה מחדש של הכל.
 function listsVersion() {
 	const hash = crypto.createHash('sha1');
-	for (const file of [path.join(LISTS_DIR, 'words.json'), path.join(LISTS_DIR, 'allow.json'), path.join(LISTS_DIR, 'usage.json'),
+	for (const file of [path.join(LISTS_DIR, 'words.json'), path.join(LISTS_DIR, 'allow.json'), path.join(LISTS_DIR, 'usage.json'), path.join(LISTS_DIR, 'context.json'),
 		path.join(__dirname, '..', 'Gadget-wikitextWordCheck.js'), path.join(__dirname, '..', 'dictionary.js'), path.join(__dirname, '..', 'topics.js')]) hash.update(fs.readFileSync(file));
 	return hash.digest('hex').slice(0, 12);
 }
 
 function compileBoth() {
-	const words = readJson('words.json'), allow = readJson('allow.json');
+	const words = readJson('words.json'), allow = readJson('allow.json'), context = readJson('context.json');
 	return {
 		approved: engine.compileLists(words, allow),
 		suggested: engine.compileLists(words, allow, { suggested: true }),
 		usage: readJson('usage.json'),
+		clues: { approved: engine.compileClues(context), suggested: engine.compileClues(context, { suggested: true }) },
 	};
 }
 
@@ -175,7 +176,7 @@ function scanPage(text, lists) {
 	const both = {};
 	const counted = (m) => engine.VERDICT_TOPICS.includes(m.topic);
 	for (const mode of ['approved', 'suggested']) {
-		const matches = engine.contextLevels(text, engine.scan(text, lists[mode]), lists.usage);
+		const matches = engine.contextLevels(text, engine.scan(text, lists[mode]), lists.usage, lists.clues[mode]);
 		// רשת ביטחון: התאמות בקוד המוסתר (יעד קישור, הערה, קובץ...) - נשמרות עם h,
 		// ולא נספרות ברמות.
 		const hidden = engine.scanHidden(text, lists[mode], matches);
@@ -200,6 +201,11 @@ function scanPage(text, lists) {
 			row[mode === 'approved' ? 'a' : 's'] = levelOf(m);
 			row[mode === 'approved' ? 'ca' : 'cs'] = ctxOf(m);
 			if (m.context && m.context.group) row.g = m.context.group;
+			// מילות הקשר שהכריעו (lists/context.json): ka/ks - המזהים לפי המצב, kw - המילים שנמצאו במשפט.
+			if (m.context && m.context.clues) {
+				row[mode === 'approved' ? 'ka' : 'ks'] = m.context.clues;
+				row.kw = m.context.clueWords;
+			}
 			for (const e of m.entries) if (!row.e.includes(e.id)) row.e.push(e.id);
 			for (const e of m.demotedBy || []) if (!row.d.includes(e.id)) row.d.push(e.id);
 		}
@@ -307,7 +313,8 @@ async function main() {
 	const args = parseArgs(process.argv.slice(2));
 	const version = listsVersion();
 	const lists = compileBoth();
-	if (lists.suggested.problems.length) throw new Error('תבניות לא תקינות: ' + JSON.stringify(lists.suggested.problems));
+	const problems = lists.suggested.problems.concat(lists.clues.suggested.problems);
+	if (problems.length) throw new Error('תבניות לא תקינות: ' + JSON.stringify(problems));
 	const db = args.dryRun ? null : supabase();
 
 	let targets;

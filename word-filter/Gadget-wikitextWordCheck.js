@@ -511,7 +511,51 @@
 		return match.level === 'problem' ? 'X' : 'B'; // אין נתונים - לפי הרשימה
 	}
 
-	function contextLevels(wikitext, matches, usage) {
+	// ===== מילות הקשר (lists/context.json) =====
+	// מילה שאינה בעייתית בעצמה, אבל מכריעה את המובן של מילה דו-משמעית באותו משפט:
+	// up - "הורשע באונס" -> בעיה ודאית; down - "מין של חרק" -> חשד נמוך. up גובר.
+	// options.suggested - לכלול גם הצעות. מחזיר {clues, problems}.
+	function compileClues(context, options) {
+		options = options || {};
+		var problems = [], clues = [];
+		var targets = (context && context.targets) || {};
+		var escape = function (w) { return w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); };
+		((context && context.entries) || []).forEach(function (entry) {
+			if (!(entry.status === 'active' || (options.suggested && entry.status === 'suggested'))) return;
+			var source = entry.pattern || '(?<![א-ת])[ובלכמשה]{0,3}(?:' + (entry.words || []).slice()
+				.sort(function (a, b) { return b.length - a.length; }).map(escape).join('|') + ')(?![א-ת])';
+			var regex;
+			try { regex = new RegExp(source, 'i'); } catch (e) {
+				problems.push({ id: entry.id, pattern: source, message: 'תבנית לא תקינה: ' + e.message });
+				return;
+			}
+			var ids = {};
+			(entry.targets || []).forEach(function (t) { ((targets[t] && targets[t].entries) || []).forEach(function (id) { ids[id] = true; }); });
+			clues.push({ entry: entry, regex: regex, ids: ids, forms: entry.forms || null });
+		});
+		return { clues: clues, problems: problems };
+	}
+
+	// מילות ההקשר שחלות על ההתאמה, על הטקסט הקריא של המשפט (contextOf) - לפני ההתאמה
+	// ואחריה בנפרד, כדי שההתאמה עצמה לא תיחשב. מחזיר {up: [ids], down: [ids], words: {id: המילה שנמצאה}}.
+	function cluesFor(wikitext, match, clues) {
+		var found = { up: [], down: [], words: {} }, sentence = null;
+		var bare = match.text.replace(/^[ובלכמשה]{1,3}(?=[א-ת]{3})/, '');
+		(clues || []).forEach(function (c) {
+			if (!match.entries.some(function (e) { return c.ids[e.id]; })) return;
+			if (c.forms && c.forms.indexOf(match.text) < 0 && c.forms.indexOf(bare) < 0) return;
+			if (!sentence) sentence = contextOf(wikitext, match, 250);
+			var near = c.entry.near || 'sentence';
+			var hit = (near !== 'after' && sentence.before.match(c.regex)) || (near !== 'before' && sentence.after.match(c.regex));
+			if (!hit) return;
+			found[c.entry.direction === 'down' ? 'down' : 'up'].push(c.entry.id);
+			found.words[c.entry.id] = hit[0].replace(/^\s+|\s+$/g, '');
+		});
+		return found;
+	}
+
+	// clues - מ-compileClues (לא חובה).
+	function contextLevels(wikitext, matches, usage, clues) {
 		var flagged = matches.filter(function (m) { return m.topic === 'modesty' && LEVELS[m.level]; });
 		flagged.forEach(function (m) { m._group = groupOf(m, usage); });
 		var isAnchor = function (m) { return m._group === 'anchor' || m._group === 'A' || m._group === 'X'; };
@@ -529,9 +573,17 @@
 			else if (g === 'A') eff = strong || weak ? 'problem' : 'high';
 			else if (g === 'B') eff = strong ? 'problem' : weak ? 'high' : 'medium';
 			else eff = strong ? 'high' : weak ? 'medium' : 'low';
+			var found = clues && clues.clues && clues.clues.length ? cluesFor(wikitext, m, clues.clues) : { up: [], down: [] };
+			if (found.down.length && !found.up.length && g !== 'anchor' && g !== 'X') eff = 'low';
 			if (eff === 'problem' && m.demotedBy && m.demotedBy.length) eff = 'high'; // שימוש תמים אפשרי - לא "ודאי"
+			// מילת הקשר מכריעה גם מול היתר demote: "הורשע באונס" אינו "באונס" ההלכתי.
+			if (found.up.length) eff = 'problem';
 			m.context = { group: g, level: eff === 'problem' ? 'problem' : 'review', suspicion: eff === 'problem' ? null : eff,
 				anchorInSentence: anchorInSentence, neighbors: mates.length, pageAnchor: pageAnchor };
+			if (found.up.length || found.down.length) {
+				m.context.clues = found.up.length ? found.up : found.down;
+				m.context.clueWords = m.context.clues.map(function (id) { return found.words[id]; });
+			}
 			delete m._group;
 		});
 		// נושאים אחרים שנספרים (גיל העולם): בלי נתוני שימוש - "לבדיקה" = חשד בינוני.
@@ -602,7 +654,7 @@
 
 	var core = {
 		compileLists: compileLists, maskWikitext: maskWikitext, scan: scan, scanHidden: scanHidden, HIDDEN_KINDS: HIDDEN_KINDS, verdict: verdict, contextOf: contextOf, sentenceSpan: sentenceSpan,
-		contextLevels: contextLevels, contextVerdict: contextVerdict, SUSPICION_LABELS: SUSPICION_LABELS,
+		compileClues: compileClues, contextLevels: contextLevels, contextVerdict: contextVerdict, SUSPICION_LABELS: SUSPICION_LABELS,
 		VERDICT_TOPICS: VERDICT_TOPICS, LEVEL_LABELS: LEVEL_LABELS, TOPIC_LABELS: TOPIC_LABELS
 	};
 
