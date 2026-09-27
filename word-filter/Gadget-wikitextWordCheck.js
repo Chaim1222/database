@@ -513,7 +513,8 @@
 
 	// ===== מילות הקשר (lists/context.json) =====
 	// מילה שאינה בעייתית בעצמה, אבל מכריעה את המובן של מילה דו-משמעית באותו משפט:
-	// up - "הורשע באונס" -> בעיה ודאית; down - "מין של חרק" -> חשד נמוך. up גובר.
+	// up - "הורשע באונס" -> בעיה ודאית; wording - "גזע, דת, מין" -> הערת ניסוח, לא נספרת
+	// ברמה (הכרעת חיים 2026-09-27); down - "מין של חרק" -> חשד נמוך. סדר העדיפות: up, wording, down.
 	// options.suggested - לכלול גם הצעות. מחזיר {clues, problems}.
 	function compileClues(context, options) {
 		options = options || {};
@@ -537,9 +538,9 @@
 	}
 
 	// מילות ההקשר שחלות על ההתאמה, על הטקסט הקריא של המשפט (contextOf) - לפני ההתאמה
-	// ואחריה בנפרד, כדי שההתאמה עצמה לא תיחשב. מחזיר {up: [ids], down: [ids], words: {id: המילה שנמצאה}}.
+	// ואחריה בנפרד, כדי שההתאמה עצמה לא תיחשב. מחזיר {up, wording, down: [ids], words: {id: המילה שנמצאה}}.
 	function cluesFor(wikitext, match, clues) {
-		var found = { up: [], down: [], words: {} }, sentence = null;
+		var found = { up: [], wording: [], down: [], words: {} }, sentence = null;
 		var bare = match.text.replace(/^[ובלכמשה]{1,3}(?=[א-ת]{3})/, '');
 		(clues || []).forEach(function (c) {
 			if (!match.entries.some(function (e) { return c.ids[e.id]; })) return;
@@ -548,7 +549,7 @@
 			var near = c.entry.near || 'sentence';
 			var hit = (near !== 'after' && sentence.before.match(c.regex)) || (near !== 'before' && sentence.after.match(c.regex));
 			if (!hit) return;
-			found[c.entry.direction === 'down' ? 'down' : 'up'].push(c.entry.id);
+			found[c.entry.direction === 'down' || c.entry.direction === 'wording' ? c.entry.direction : 'up'].push(c.entry.id);
 			found.words[c.entry.id] = hit[0].replace(/^\s+|\s+$/g, '');
 		});
 		return found;
@@ -573,15 +574,17 @@
 			else if (g === 'A') eff = strong || weak ? 'problem' : 'high';
 			else if (g === 'B') eff = strong ? 'problem' : weak ? 'high' : 'medium';
 			else eff = strong ? 'high' : weak ? 'medium' : 'low';
-			var found = clues && clues.clues && clues.clues.length ? cluesFor(wikitext, m, clues.clues) : { up: [], down: [] };
+			var found = clues && clues.clues && clues.clues.length ? cluesFor(wikitext, m, clues.clues) : { up: [], wording: [], down: [] };
+			var wording = !found.up.length && found.wording.length > 0 && g !== 'anchor' && g !== 'X';
 			if (found.down.length && !found.up.length && g !== 'anchor' && g !== 'X') eff = 'low';
 			if (eff === 'problem' && m.demotedBy && m.demotedBy.length) eff = 'high'; // שימוש תמים אפשרי - לא "ודאי"
 			// מילת הקשר מכריעה גם מול היתר demote: "הורשע באונס" אינו "באונס" ההלכתי.
 			if (found.up.length) eff = 'problem';
 			m.context = { group: g, level: eff === 'problem' ? 'problem' : 'review', suspicion: eff === 'problem' ? null : eff,
 				anchorInSentence: anchorInSentence, neighbors: mates.length, pageAnchor: pageAnchor };
-			if (found.up.length || found.down.length) {
-				m.context.clues = found.up.length ? found.up : found.down;
+			if (wording) { m.context.level = 'wording'; m.context.suspicion = null; }
+			if (found.up.length || found.wording.length || found.down.length) {
+				m.context.clues = found.up.length ? found.up : wording ? found.wording : found.down.length ? found.down : found.wording;
 				m.context.clueWords = m.context.clues.map(function (id) { return found.words[id]; });
 			}
 			delete m._group;
@@ -595,18 +598,21 @@
 	}
 
 	// רמת הדף לפי ההקשר: {level: problem/review/wording/clean, suspicion: high/medium/low/null}.
+	// התאמה שמילת הקשר הפכה להערת ניסוח (context.level = wording) נספרת כמו נושא של ניסוח.
 	function contextVerdict(matches, topics) {
 		topics = topics || VERDICT_TOPICS;
 		var level = verdict(matches, topics) === 'clean' ? 'clean' : 'wording', suspicion = null;
 		matches.forEach(function (m) {
-			if (topics.indexOf(m.topic) < 0 || !m.context) return;
+			if (topics.indexOf(m.topic) < 0 || !m.context || m.context.level === 'wording') return;
 			if (m.context.level === 'problem') level = 'problem';
 			else if (level !== 'problem') {
 				level = 'review';
 				if (!suspicion || SUSPICION_RANK[m.context.suspicion] > SUSPICION_RANK[suspicion]) suspicion = m.context.suspicion;
 			}
 		});
-		if (level === 'wording' && !matches.some(function (m) { return topics.indexOf(m.topic) < 0; })) level = 'clean';
+		if (level === 'wording' && !matches.some(function (m) {
+			return topics.indexOf(m.topic) < 0 || (m.context && m.context.level === 'wording');
+		})) level = 'clean';
 		return { level: level, suspicion: level === 'review' ? suspicion : null };
 	}
 

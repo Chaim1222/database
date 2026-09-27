@@ -181,7 +181,14 @@ test('context clues: a neighbour word decides the sense', () => {
 	assert.strictEqual(one('הברון האנס פון ונגנהיים (Hans von Wangenheim) היה שגריר.').suspicion, 'low');
 	assert.strictEqual(one('מי שנאנס באיומי מוות להזיק ממון של אחר.').suspicion, 'low');
 	assert.strictEqual(one('הקמטן הוא מין של לטאה ממשפחת הקמטניים, והמשגל אצלו נדיר.').suspicion, 'low');
-	assert.strictEqual(one('ללא הבדל גזע, דת, מין או לאום.').suspicion, 'low');
+	// wording (הכרעת חיים): "מין" כמגדר ברשימה - הערת ניסוח, לא נספרת ברמה.
+	assert.strictEqual(one('ללא הבדל גזע, דת, מין או לאום.').level, 'wording');
+	const page = (t) => engine.contextVerdict(engine.contextLevels(t, engine.scan(t, FULL), usage, clues));
+	assert.deepStrictEqual(page('ללא הבדל גזע, דת, מין או לאום.'), { level: 'wording', suspicion: null });
+	assert.strictEqual(page('ללא הבדל גזע, דת, מין או לאום. הם קיימו יחסי מין.').level, 'problem');
+	// "שינוי מין" - בעיה; "בני אותו המין" - לא (חיים, 2026-09-27).
+	assert.strictEqual(one('הוא עבר ניתוח לשינוי מין.').level, 'problem');
+	assert.strictEqual(one('יחסים בין בני אותו המין.').suspicion, 'low');
 	// "אנסה את" הוא עתיד של ניסה - לא פועל האונס; "באותו מין" בביולוגיה - לא להט"ב.
 	assert.ok(!(one('אני אנסה את מזלי.').clues || []).length);
 	assert.ok(!(one('בין הזכרים והנקבות באותו מין.').clues || []).includes('k013'));
