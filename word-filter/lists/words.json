@@ -2232,12 +2232,13 @@
 			"pattern": "לפנה\"ס",
 			"level": "review",
 			"topic": "dating",
-			"status": "active",
-			"reviewed": false,
+			"status": "rejected",
+			"reviewed": true,
 			"sources": [
 				"במח/אדום בהיר",
 				"בומח/כללי"
-			]
+			],
+			"reviewNote": "חיים 2026-09-27: \"לפנה\"ס לבד זה סתם רעש\". שנים שקודמות לבריאה - בגיל העולם (w0197, w0432, w0433)."
 		},
 		{
 			"id": "w0163",

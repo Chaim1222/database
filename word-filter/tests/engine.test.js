@@ -73,9 +73,13 @@ test('three-level verdict', () => {
 	assert.strictEqual(verdict('תעשיית הפורנו'), 'problem');
 	assert.strictEqual(verdict('סיפור אהבה'), 'review');
 	// נושאים שאינם צניעות הם הערות ניסוח: נמצאים, אבל לא משנים את רמת הדף.
-	assert.strictEqual(verdict('נפטר בשנת 419 לפנה"ס'), 'wording'); // הערת ניסוח בלבד
-	assert.strictEqual(engine.scan('נפטר בשנת 419 לפנה"ס', FULL)[0].topic, 'dating');
-	assert.strictEqual(engine.verdict(engine.scan('נפטר בשנת 419 לפנה"ס', FULL), ['dating']), 'review');
+	assert.strictEqual(verdict('לפי תורת האבולוציה'), 'wording'); // הערת ניסוח בלבד
+	assert.strictEqual(engine.scan('לפי תורת האבולוציה', FULL)[0].topic, 'dating');
+	assert.strictEqual(engine.verdict(engine.scan('לפי תורת האבולוציה', FULL), ['dating']), 'review');
+	// חיים 2026-09-27: "לפנה"ס לבד זה סתם רעש" (w0162 נדחה). שנים שקודמות לבריאה - גיל העולם.
+	assert.strictEqual(verdict('נפטר בשנת 419 לפנה"ס'), 'clean');
+	assert.strictEqual(verdict('נבנה ב-1900 לפנה"ס'), 'clean');
+	assert.strictEqual(verdict('מסביבות 4000 לפנה"ס'), 'problem');
 	assert.strictEqual(verdict('שלום עולם'), 'clean');
 	const [m] = engine.scan('שורה\nמשהו פורנו כאן', FULL);
 	assert.strictEqual(m.line, 2);
@@ -158,7 +162,7 @@ test('context levels: the word and its sentence decide the suspicion', () => {
 	const ms = engine.contextLevels(t, engine.scan(t, FULL), usage);
 	assert.strictEqual(ms.find((m) => m.text === 'רומן').context.suspicion, 'high');                        // C + עוגן במשפט
 	assert.deepStrictEqual(ctx('ירושלים עיר עתיקה.'), { level: 'clean', suspicion: null });
-	assert.deepStrictEqual(ctx('נפטר בשנת 419 לפנה"ס.'), { level: 'wording', suspicion: null });
+	assert.deepStrictEqual(ctx('לפי תורת האבולוציה.'), { level: 'wording', suspicion: null });
 });
 
 // מילות הקשר (lists/context.json): מכריעות את המובן של "אונס" / "מין" באותו משפט.

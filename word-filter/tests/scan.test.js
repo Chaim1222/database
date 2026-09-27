@@ -7,7 +7,7 @@ const { scanPage, imagesOf, compileBoth, resultRow } = require('../tools/scan-mi
 const lists = compileBoth();
 
 test('scanPage: two verdicts, counts, and sentence context per match', () => {
-	const text = 'פתיחה. הסרט עוסק בתעשיית הפורנו בשנות ה-70. נפטר בשנת 419 לפנה"ס.';
+	const text = 'פתיחה. הסרט עוסק בתעשיית הפורנו בשנות ה-70. לפי תורת האבולוציה.';
 	const r = scanPage(text, lists);
 	assert.strictEqual(r.verdict, 'problem');
 	assert.strictEqual(r.verdict_suggested, 'problem');

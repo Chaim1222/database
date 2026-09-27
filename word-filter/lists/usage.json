@@ -55,13 +55,13 @@
 		"w0003": {
 			"word": "זנות",
 			"group": "A",
-			"rate": 0.9,
+			"rate": 0.95,
 			"problematic": 36,
-			"innocent": 4,
+			"innocent": 2,
 			"unclear": 1,
 			"sources": {
 				"missing": 32,
-				"wiki-random": 9
+				"wiki-random": 7
 			}
 		},
 		"w0004": {
