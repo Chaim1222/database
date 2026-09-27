@@ -523,16 +523,24 @@
 		var escape = function (w) { return w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); };
 		((context && context.entries) || []).forEach(function (entry) {
 			if (!(entry.status === 'active' || (options.suggested && entry.status === 'suggested'))) return;
-			var source = entry.pattern || '(?<![א-ת])[ובלכמשה]{0,3}(?:' + (entry.words || []).slice()
-				.sort(function (a, b) { return b.length - a.length; }).map(escape).join('|') + ')(?![א-ת])';
-			var regex;
-			try { regex = new RegExp(source, 'i'); } catch (e) {
+			var wordsRe = function (words) {
+				return '(?<![א-ת])[ובלכמשה]{0,3}(?:' + words.slice()
+					.sort(function (a, b) { return b.length - a.length; }).map(escape).join('|') + ')(?![א-ת])';
+			};
+			var source = entry.pattern || wordsRe(entry.words || []);
+			// withWords - תנאי נוסף: גם אחת מהמילים האלה צריכה להופיע במשפט (או בהתאמה עצמה) ("מאותו המין" + "נישואים").
+			var withSource = entry.withWords ? wordsRe(entry.withWords) : null;
+			var regex, withRegex = null;
+			try {
+				regex = new RegExp(source, 'i');
+				if (withSource) withRegex = new RegExp(withSource, 'i');
+			} catch (e) {
 				problems.push({ id: entry.id, pattern: source, message: 'תבנית לא תקינה: ' + e.message });
 				return;
 			}
 			var ids = {};
 			(entry.targets || []).forEach(function (t) { ((targets[t] && targets[t].entries) || []).forEach(function (id) { ids[id] = true; }); });
-			clues.push({ entry: entry, regex: regex, ids: ids, forms: entry.forms || null });
+			clues.push({ entry: entry, regex: regex, withRegex: withRegex, ids: ids, forms: entry.forms || null });
 		});
 		return { clues: clues, problems: problems };
 	}
@@ -549,8 +557,10 @@
 			var near = c.entry.near || 'sentence';
 			var hit = (near !== 'after' && sentence.before.match(c.regex)) || (near !== 'before' && sentence.after.match(c.regex));
 			if (!hit) return;
+			var also = c.withRegex && (sentence.before.match(c.withRegex) || sentence.after.match(c.withRegex) || match.text.match(c.withRegex));
+			if (c.withRegex && !also) return;
 			found[c.entry.direction === 'down' || c.entry.direction === 'wording' ? c.entry.direction : 'up'].push(c.entry.id);
-			found.words[c.entry.id] = hit[0].replace(/^\s+|\s+$/g, '');
+			found.words[c.entry.id] = hit[0].replace(/^\s+|\s+$/g, '') + (also ? ' + ' + also[0].replace(/^\s+|\s+$/g, '') : '');
 		});
 		return found;
 	}

@@ -188,7 +188,17 @@ test('context clues: a neighbour word decides the sense', () => {
 	assert.strictEqual(page('ללא הבדל גזע, דת, מין או לאום. הם קיימו יחסי מין.').level, 'problem');
 	// "שינוי מין" - בעיה; "בני אותו המין" - לא (חיים, 2026-09-27).
 	assert.strictEqual(one('הוא עבר ניתוח לשינוי מין.').level, 'problem');
-	assert.strictEqual(one('יחסים בין בני אותו המין.').suspicion, 'low');
+	assert.strictEqual(one('ההורה מאותו המין.').suspicion, 'low');
+	assert.strictEqual(one('תהליך שבו הציפור שומעת מבוגר מאותו מין.').suspicion, 'low');
+	// אבל זוגיות / נישואים / יחסים בין בני אותו המין - בעיה (k015, withWords).
+	const marriage = one('האיסור על נישואים של זוגות מאותו המין בוטל.');
+	assert.strictEqual(marriage.level, 'problem');
+	assert.deepStrictEqual(marriage.clues, ['k017']); // ההתאמה היא "אותו המין" (w0123)
+	assert.strictEqual(one('יחסים בין בני אותו המין.').level, 'problem');
+	assert.strictEqual(one('רצונן בבת-זוג מאותו מין.').level, 'problem');                   // k015 - ההתאמה "מין"
+	assert.strictEqual(one('ההורה מאותו מין.').suspicion, 'low');
+	assert.strictEqual(one('הוא הכיר בזכויות של בני זוג מאותו המין.').level, 'problem');     // k018 - w0089
+	assert.strictEqual(one('בתום תקופה זו הוחלפה בחיה חדשה מאותו המין.').suspicion, 'low'); // k016
 	// "אנסה את" הוא עתיד של ניסה - לא פועל האונס; "באותו מין" בביולוגיה - לא להט"ב.
 	assert.ok(!(one('אני אנסה את מזלי.').clues || []).length);
 	assert.ok(!(one('בין הזכרים והנקבות באותו מין.').clues || []).includes('k013'));
