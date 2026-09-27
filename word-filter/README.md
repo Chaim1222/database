@@ -67,6 +67,12 @@
 2. ליצור שני דפי JSON (מודל תוכן JSON): `מדיה ויקי:Gadget-wikitextWordCheck-words.json` ו-`מדיה ויקי:Gadget-wikitextWordCheck-allow.json`, עם התוכן של `lists/`. (דפי מרחב "מדיה ויקי" ניתנים לעריכה רק למנהלי ממשק. אם עדיף שעורכים רגילים יתחזקו את הרשימות - אפשר דף במרחב אחר עם שינוי מודל תוכן, ולעדכן את `WORDS_PAGE`/`ALLOW_PAGE` בראש הקובץ.)
 3. בדף עריכה מופיע "בדיקת מילים חשודות בקוד" בתפריט הפעולות.
 
+**כסקריפט אישי** (בלי גאדג'ט ובלי הרשאות מנהל ממשק): להעתיק את הקובץ לדף משתמש, למשל `משתמש:X/wordcheck.js`, ואת שתי הרשימות לדפים `משתמש:X/words.json` ו-`משתמש:X/allow.json` (דף משתמש שמסתיים ב-`.json` מקבל אוטומטית מודל תוכן JSON, ורק בעל החשבון ומנהלי ממשק יכולים לערוך אותו). ב-`משתמש:X/common.js`:
+```
+window.wikitextWordCheckPages = { words: 'משתמש:X/words.json', allow: 'משתמש:X/allow.json' };
+mw.loader.load('/w/index.php?title=משתמש:X/wordcheck.js&action=raw&ctype=text/javascript');
+```
+
 הגדרות אישיות (common.js): `window.wikitextWordCheckSuggested = true` - לכלול הצעות שלא אושרו; `window.wikitextWordCheckAllow = ['...']` - ביטויים מותרים נוספים.
 
 ## בדיקה ומדידה

@@ -39,8 +39,11 @@
 (function () {
 	'use strict';
 
-	var WORDS_PAGE = 'מדיה ויקי:Gadget-wikitextWordCheck-words.json';
-	var ALLOW_PAGE = 'מדיה ויקי:Gadget-wikitextWordCheck-allow.json';
+	// דפי הרשימות. כסקריפט אישי אפשר להחזיק אותם בדפי משתמש - ב-common.js, לפני הטעינה:
+	//   window.wikitextWordCheckPages = { words: 'משתמש:X/words.json', allow: 'משתמש:X/allow.json' };
+	var PAGES = (typeof window !== 'undefined' && window.wikitextWordCheckPages) || {};
+	var WORDS_PAGE = PAGES.words || 'מדיה ויקי:Gadget-wikitextWordCheck-words.json';
+	var ALLOW_PAGE = PAGES.allow || 'מדיה ויקי:Gadget-wikitextWordCheck-allow.json';
 
 	var LEVELS = { problem: 2, review: 1 };
 	var LEVEL_LABELS = { problem: 'בעיה ודאית', review: 'לבדיקה', wording: 'דורש ניסוח', clean: 'נקי' };
