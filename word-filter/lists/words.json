@@ -1080,15 +1080,18 @@
 		},
 		{
 			"id": "w0077",
-			"pattern": "(\\s|^)ass",
+			"pattern": "\\b(?:ass|asses|asshole\\w*|jackass\\w*|dumbass\\w*|badass\\w*)\\b",
 			"level": "problem",
 			"topic": "modesty",
 			"status": "active",
 			"reviewed": false,
-			"caseSensitive": true,
+			"caseSensitive": false,
 			"sources": [
-				"במח/אדום כהה"
-			]
+				"במח/אדום כהה",
+				"הערת חיים 2026-09-27 (דשבורד)"
+			],
+			"original": "(\\s|^)ass",
+			"note": "ass - המילה עצמה בלבד. המקור `(\\s|^)ass` תפס כל מילה באנגלית שמתחילה ב-ass (assault, associated, assessment, assets...): 6 מתוך כ-250 התאמות במדגמים. חיים הראה בדשבורד (2026-09-27): BEPS, TNK-BP, Listeria."
 		},
 		{
 			"id": "w0078",

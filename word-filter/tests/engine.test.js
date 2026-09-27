@@ -330,3 +330,10 @@ test('anchors (analysis/anchors.json, built by build-usage.js): refreshed 2026-0
 	assert.notStrictEqual(ctx('גבורות עשה בזרעו פיזר גאים.'), 'problem');
 	assert.notStrictEqual(ctx('למטבעות שהוזנו למדחן.'), 'problem');  // זנות עוגן - אבל לא הוזנו
 });
+
+test('w0077 ass - the word itself, not assets/assessment (Chaim, dashboard 2026-09-27)', () => {
+	const L = engine.compileLists(words, allow);
+	const hit = (t) => engine.scan(t, L).some((m) => m.entries.some((e) => e.id === 'w0077'));
+	for (const t of ['intangible assets', 'risk assessment', 'sexual assault', 'General Assembly', 'associated with']) assert.ok(!hit(t), t);
+	for (const t of ['kick his ass', 'What an asshole', 'Ass Kickin', 'Jackass (TV series)']) assert.ok(hit(t), t);
+});
