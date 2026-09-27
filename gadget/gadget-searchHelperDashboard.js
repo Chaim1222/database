@@ -29,7 +29,7 @@
 		wikipedia_title: 'ערך בוויקיפדיה', mechalol_title: 'דף מקביל במכלול',
 		mechalol_status: 'סטטוס במכלול', candidate_count: 'מספר מועמדים',
 		mechalol_id: 'מזהה מכלול',
-		verdict: 'סינון תוכן', has_images: 'תמונות'
+		verdict: 'רמת תוכן', has_images: 'תמונות', topic: 'נושא', wf_matches: 'מילים', import_action: '', expand: ''
 	};
 
 	// ===== סינון תוכן (word-filter) - טאבי "חסר במכלול" =====
@@ -127,13 +127,16 @@
 		// פעולה שונה לגמרי: לבדוק את יעד ההפניה, לא לייבא).
 		missing: {
 			view: 'report_missing_word_filter', label: 'חסר במכלול',
-			columns: ['title', 'verdict', 'has_images', 'created_at', 'mechalol_redirect_exists', 'checked_at', 'wikidata_desc'], filters: [],
+			// columns - לייצוא; displayColumns - מה שמוצג בטבלה (התיאור מוויקינתונים מתחת לכותרת).
+			columns: ['title', 'verdict', 'topic', 'has_images', 'created_at', 'mechalol_redirect_exists', 'checked_at', 'wikidata_desc'], filters: [],
+			displayColumns: ['title', 'topic', 'verdict', 'wf_matches', 'has_images', 'created_at', 'import_action', 'expand'],
 			baseFilters: [['mechalol_redirect_exists', 'not.is.true']],
 			titleLink: 'edit', wikidata: true, easyImport: true, redirectFilter: true, lockable: true, manualMatch: true
 		},
 		missing_redirect: {
 			view: 'report_missing_word_filter', label: 'קיים במכלול כהפניה',
-			columns: ['title', 'verdict', 'has_images', 'created_at', 'checked_at', 'wikidata_desc'], filters: [],
+			columns: ['title', 'verdict', 'topic', 'has_images', 'created_at', 'checked_at', 'wikidata_desc'], filters: [],
+			displayColumns: ['title', 'topic', 'verdict', 'wf_matches', 'has_images', 'created_at', 'import_action', 'expand'],
 			baseFilters: [['mechalol_redirect_exists', 'is.true']],
 			titleLink: 'edit', wikidata: true, easyImport: true, manualMatch: true
 		},
@@ -153,7 +156,7 @@
 	// אין תוכן בדפים האלה מלבד תבנית הסיווג, אז אין טעם/צורך לשלוף
 	// אותם דרך מסד הנתונים בכלל). ראו EXTRA_TABS, cultureState,
 	// loadCultureSubcats/loadCultureMembers למטה.
-	var EXTRA_TABS = { culture: { label: 'דפים לטיפול - תרבות' } };
+	var EXTRA_TABS = { culture: { label: 'דפים לטיפול - תרבות' }, stats: { label: 'נתונים סטטיסטיים' } };
 	var CATEGORY_MAINTENANCE_CULTURE = 'קטגוריה:דפים לטיפול תרבות';
 	// יחסי בכוונה, לא כתובת מלאה - הגאדג'ט רץ כבר בתוך הדומיין של
 	// המכלול (בניגוד לקובץ dashboard.html העצמאי, שצריך כתובת מלאה +
@@ -637,10 +640,17 @@
 		document.querySelectorAll('#mchl-dash .mchl-tab').forEach(function (t) { t.classList.remove('mchl-active'); });
 		$id('mchl-tab-' + key).classList.add('mchl-active');
 		updateSelectionBar();
+		var isStats = key === 'stats';
+		$id('mchl-stats-area').style.display = isStats ? 'block' : 'none';
+		$id('mchl-body').style.display = isStats ? 'none' : '';
 		if (EXTRA_TABS[key]) {
 			$id('mchl-filter-bar').style.display = 'none';
 			$id('mchl-pager').style.display = 'none';
-			loadCultureTab();
+			$id('mchl-body').classList.remove('mchl-with-side');
+			$id('mchl-side').style.display = 'none';
+			$id('mchl-wf-meter').style.display = 'none';
+			renderChips();
+			if (!isStats) loadCultureTab();
 			return;
 		}
 		$id('mchl-filter-bar').style.display = 'flex';
@@ -765,210 +775,268 @@
 			});
 			host.appendChild(sel);
 		});
-		if (cfg.easyImport) buildEasyImportFilters(host, cfg);
-		else $id('mchl-wf-meter').style.display = 'none';
+		var side = $id('mchl-side');
+		$id('mchl-body').classList.toggle('mchl-with-side', !!cfg.easyImport);
+		side.style.display = cfg.easyImport ? 'block' : 'none';
+		if (cfg.easyImport) buildEasyImportFilters(side, cfg);
+		else { side.innerHTML = ''; $id('mchl-wf-meter').style.display = 'none'; renderChips(); }
 		toggleClearFiltersBtn();
 	}
 
-	function buildEasyImportFilters(host, cfg) {
-		var lenInput = document.createElement('input');
-		lenInput.type = 'number'; lenInput.min = '0';
-		lenInput.className = 'mchl-filter-number'; lenInput.id = 'mchl-filter-easy-length';
-		lenInput.placeholder = "אורך מקס' (בתים)";
-		lenInput.addEventListener('input', function () {
-			var raw = lenInput.value.trim();
-			if (raw === '' || isNaN(Number(raw))) delete activeFilters.easy_import_length;
-			else activeFilters.easy_import_length = { op: 'lte', value: Number(raw) };
-			currentPage = 0; loadActiveView(); toggleClearFiltersBtn();
-		});
-		host.appendChild(lenInput);
+	// ===== פאנל המסננים בצד - טאבי "חסר במכלול" =====
+	// כל מסנן הוא משתנה מצב (wf...), ו-applyContentLevelFilter מתרגם את כולם ל-activeFilters.
+	// ליד כל אפשרות - מספר הערכים (מתוך report_missing_word_filter_summary, בהתחשב בשאר
+	// המסננים שבסיכום: רמה, מילוני, תמונות, נושא). חיפוש, ערכים חדשים, קוד מוסתר ואורך
+	// לא נכללים בסיכום, ולכן המספרים לא מושפעים מהם.
+	var wfImagesChoice = ''; // '' / 'with' / 'without'
+	var wfExcludeNew = true; // בלי ערכים שנוצרו בשבועיים האחרונים
+	var wfRedirectChoice = ''; // '' / 'absent' / 'unchecked' (רק בטאב "חסר במכלול")
+	var wfMaxLen = '';
+	var wfSettingsOpen = false;
+	var wfTopicOpen = { 0: true, 1: false, 2: true }; // אילו קבוצות נושא פתוחות
+	var WF_LEVEL_OPTIONS = {
+		ctx: [['clean', 'נקי', '#5C9686'], ['clean_wording', 'נקי או דורש ניסוח', null], ['wording', 'דורש ניסוח', '#7C8C99'],
+			['review_low', 'חשד נמוך', '#A8A860'], ['review_medium', 'חשד בינוני', '#D9B44A'], ['review_high', 'חשד גבוה', '#D98B3A'],
+			['problem', 'בעיה ודאית', '#C1634A'], ['unscanned', 'טרם נסרק', '#3A4A52']],
+		list: [['clean', 'נקי', '#5C9686'], ['clean_wording', 'נקי או דורש ניסוח', null], ['wording', 'דורש ניסוח', '#7C8C99'],
+			['review', 'לבדיקה', '#D9B44A'], ['problem', 'בעיה ודאית', '#C1634A'], ['unscanned', 'טרם נסרק', '#3A4A52']]
+	};
+	var WF_LEVEL_LABELS = { review_medium_up: 'חשד בינוני וגבוה' };
+	WF_LEVEL_OPTIONS.ctx.concat(WF_LEVEL_OPTIONS.list).forEach(function (o) { WF_LEVEL_LABELS[o[0]] = o[1]; });
 
-		// תמונות: רק תמונות של הערך עצמו (לא אייקונים מתבניות) - ראו
-		// imagesOf ב-scan-missing.js. (easy_import_has_images הישן ספר רק
-		// חלק מהתמונות - 10 לכל אצוות של 50 דפים - ולכן הוחלף.)
-		var imgSel = document.createElement('select');
-		imgSel.className = 'mchl-filter-select'; imgSel.id = 'mchl-filter-easy-images';
-		imgSel.innerHTML = '<option value="">תמונות — הכול</option><option value="no_images">בלי תמונות</option><option value="with_images">עם תמונות</option>';
-		imgSel.addEventListener('change', function () {
-			if (imgSel.value === 'no_images') activeFilters.has_images = { op: 'eq', value: false };
-			else if (imgSel.value === 'with_images') activeFilters.has_images = { op: 'eq', value: true };
-			else delete activeFilters.has_images;
-			currentPage = 0; loadActiveView(); toggleClearFiltersBtn();
-			renderWfMeter();
-		});
-		host.appendChild(imgSel);
-
-		// רמת התוכן (ארבע הרמות) + בורר הרשימות.
-		var levelSel = document.createElement('select');
-		levelSel.className = 'mchl-filter-select'; levelSel.id = 'mchl-filter-content-level';
-		levelSel.innerHTML = '<option value="">סינון תוכן — הכול</option>' +
-			'<option value="clean">נקי (בלי שום התאמה)</option>' +
-			'<option value="clean_wording">נקי או דורש ניסוח בלבד</option>' +
-			'<option value="wording">דורש ניסוח</option>' +
-			'<option value="review_low">לבדיקה – חשד נמוך</option>' +
-			'<option value="review_medium">לבדיקה – חשד בינוני</option>' +
-			'<option value="review_high">לבדיקה – חשד גבוה</option>' +
-			'<option value="review_medium_up">לבדיקה – בינוני וגבוה</option>' +
-			'<option value="review">לבדיקה – הכול</option>' +
-			'<option value="problem">בעיה ודאית</option>' +
-			'<option value="unscanned">טרם נסרק</option>';
-		levelSel.value = wfLevelChoice;
-		levelSel.addEventListener('change', function () { setWfLevel(levelSel.value); });
-		host.appendChild(levelSel);
-
-		var methodSel = document.createElement('select');
-		methodSel.className = 'mchl-filter-select'; methodSel.id = 'mchl-filter-content-method';
-		methodSel.title = 'לפי הקשר: המילה עצמה (כמה היא בעייתית בדרך כלל) והמשפט שלה קובעים בעיה ודאית או חשד גבוה/בינוני/נמוך. לפי רמת הרשימה: רק הרמה שכתובה ברשימת המילים.';
-		methodSel.innerHTML = '<option value="ctx">שיטה: לפי הקשר (רמות חשד)</option><option value="list">שיטה: לפי רמת הרשימה</option>';
-		methodSel.value = wfMethod;
-		methodSel.addEventListener('change', function () {
-			wfMethod = methodSel.value;
-			applyContentLevelFilter();
-			currentPage = 0; loadActiveView(); toggleClearFiltersBtn();
-			renderWfMeter();
-		});
-		host.appendChild(methodSel);
-
-		var modeSel = document.createElement('select');
-		modeSel.className = 'mchl-filter-select'; modeSel.id = 'mchl-filter-content-mode';
-		modeSel.title = 'לפי אילו רשימות מילים לסנן: רק מה שאושר, או כולל ההצעות שעוד ממתינות לאישור';
-		modeSel.innerHTML = '<option value="a">רשימות מאושרות</option><option value="s">כולל הצעות שטרם אושרו</option>';
-		modeSel.value = wfMode;
-		modeSel.addEventListener('change', function () {
-			wfMode = modeSel.value;
-			applyContentLevelFilter();
-			currentPage = 0; loadActiveView(); toggleClearFiltersBtn();
-			renderWfMeter();
-		});
-		host.appendChild(modeSel);
-
-		var hiddenSel = document.createElement('select');
-		hiddenSel.className = 'mchl-filter-select'; hiddenSel.id = 'mchl-filter-content-hidden';
-		hiddenSel.title = 'מילים שנמצאו רק בקוד שהקורא לא רואה - יעד של קישור, הערה מוסתרת, שם קובץ, תבנית, כתובת. הקוד כולו עובר למכלול, אבל הרבה מהן רעש, ולכן הן לא נספרות ברמה.';
-		hiddenSel.innerHTML = '<option value="">קוד מוסתר — הכול</option><option value="with">יש מילים בקוד המוסתר</option><option value="without">אין מילים בקוד המוסתר</option>';
-		hiddenSel.value = wfHiddenChoice;
-		hiddenSel.addEventListener('change', function () {
-			wfHiddenChoice = hiddenSel.value;
-			applyContentLevelFilter();
-			currentPage = 0; loadActiveView(); toggleClearFiltersBtn();
-		});
-		host.appendChild(hiddenSel);
-
-		var dictSel = document.createElement('select');
-		dictSel.className = 'mchl-filter-select'; dictSel.id = 'mchl-filter-content-dictionary';
-		dictSel.title = 'ערכים שמיובאים כערך מילוני (ספורט, מוזיקה, סרטים, שחקנים, טלוויזיה, ספרות) - לפי תבנית המידע והקטגוריות. במדגם ממערכי המכלול: 93.5% מהמסומנים מילוניים באמת, ו-87% מהמילוניים מסומנים.';
-		dictSel.innerHTML = '<option value="">ייבוא מילוני — כל הערכים</option><option value="without">ללא מועמדים לייבוא מילוני</option><option value="only">מילוני בלבד</option>';
-		dictSel.value = wfDictChoice;
-		dictSel.addEventListener('change', function () {
-			wfDictChoice = dictSel.value;
-			applyContentLevelFilter();
-			currentPage = 0; loadActiveView(); toggleClearFiltersBtn();
-			renderWfMeter();
-		});
-		host.appendChild(dictSel);
-		host.appendChild(buildTopicPicker());
+	function buildEasyImportFilters(side, cfg) {
+		if (!cfg.redirectFilter) wfRedirectChoice = '';
 		applyContentLevelFilter();
+		renderSide();
+		side.onclick = onSideClick;
+		side.onchange = onSideChange;
+		side.oninput = onSideInput;
 		renderWfMeter();
-
-		var ageSel = document.createElement('select');
-		ageSel.className = 'mchl-filter-select'; ageSel.id = 'mchl-filter-age';
-		ageSel.innerHTML = '<option value="exclude">ללא ערכים חדשים (שבועיים אחרונים)</option><option value="include">כולל ערכים חדשים</option>';
-		ageSel.value = 'exclude';
-		activeFilters.created_at = { op: 'lt', value: newArticleCutoffIso() };
-		ageSel.addEventListener('change', function () {
-			if (ageSel.value === 'exclude') activeFilters.created_at = { op: 'lt', value: newArticleCutoffIso() };
-			else delete activeFilters.created_at;
-			currentPage = 0; loadActiveView(); toggleClearFiltersBtn();
-		});
-		host.appendChild(ageSel);
-
-		if (!cfg.redirectFilter) return;
-		var redirectSel = document.createElement('select');
-		redirectSel.className = 'mchl-filter-select'; redirectSel.id = 'mchl-filter-redirect-status';
-		redirectSel.innerHTML = '<option value="all">בדיקת הפניה במכלול - הכול</option>' +
-			'<option value="absent">רק נבדקו ואין בכלל</option>' +
-			'<option value="unchecked">רק טרם נבדקו</option>';
-		redirectSel.value = 'all';
-		redirectSel.addEventListener('change', function () {
-			if (redirectSel.value === 'absent') activeFilters.mechalol_redirect_exists = { op: 'eq', value: false };
-			else if (redirectSel.value === 'unchecked') activeFilters.mechalol_redirect_exists = { op: 'is', value: 'null' };
-			else delete activeFilters.mechalol_redirect_exists;
-			currentPage = 0; loadActiveView(); toggleClearFiltersBtn();
-		});
-		host.appendChild(redirectSel);
+		renderChips();
 	}
 
-	// בורר הנושאים: כפתור שפותח רשימת תיבות סימון, בחלוקה לקבוצות. כותרת קבוצה מסמנת את כולה.
-	function buildTopicPicker() {
-		var wrap = document.createElement('span');
-		wrap.className = 'mchl-topic-picker';
-		var btn = document.createElement('button');
-		btn.type = 'button'; btn.className = 'mchl-filter-select mchl-topic-btn'; btn.id = 'mchl-filter-content-topic';
-		btn.title = 'נושא הערך לפי תבנית המידע והקטגוריות (word-filter/topics.js). אפשר לבחור כמה נושאים.';
-		var panel = document.createElement('div');
-		panel.className = 'mchl-topic-panel'; panel.style.display = 'none';
-		var html = '<div class="mchl-topic-actions"><button type="button" data-topic-all="1">בחירת הכול</button>' +
-			'<button type="button" data-topic-none="1">ניקוי</button></div>';
+	function segHtml(kind, current, options) {
+		return '<div class="mchl-seg">' + options.map(function (o) {
+			return '<button type="button" data-side="' + kind + '" data-v="' + o[0] + '"' + (current === o[0] ? ' class="mchl-on"' : '') + '>' +
+				escapeHtml(o[1]) + (o[2] ? ' <span class="mchl-n" data-count="' + kind + ':' + o[0] + '"></span>' : '') + '</button>';
+		}).join('') + '</div>';
+	}
+
+	function renderSide() {
+		var side = $id('mchl-side');
+		var cfg = VIEWS[activeTab];
+		if (!side || !cfg || !cfg.easyImport) return;
+		var html = '';
+		// הגדרות החישוב - נקבעות פעם אחת, ולכן מקופלות.
+		html += '<div class="mchl-side-sec"><div class="mchl-settings-line"><span>רמה ' +
+			(wfMethod === 'ctx' ? '<b>לפי המילה והמשפט</b>' : '<b>לפי המילה בלבד</b>') + ' · ' +
+			(wfMode === 's' ? '<b>כולל מילים מוצעות</b>' : '<b>מילים שאושרו</b>') + '</span>' +
+			'<button type="button" data-side="settings">⚙ ' + (wfSettingsOpen ? 'סגירה' : 'שינוי') + '</button></div>';
+		if (wfSettingsOpen) {
+			html += '<div class="mchl-settings-box">' +
+				'<div class="mchl-side-h">איך נקבעת רמת התוכן</div>' +
+				'<label class="mchl-radio"><input type="radio" name="wf-method" value="ctx"' + (wfMethod === 'ctx' ? ' checked' : '') + '> לפי המילה והמשפט שלה <span class="mchl-hint">(מומלץ) - מילה בעייתית, או מילה דו-משמעית במשפט חשוד, קובעת "בעיה ודאית"; אחרת חשד גבוה, בינוני או נמוך</span></label>' +
+				'<label class="mchl-radio"><input type="radio" name="wf-method" value="list"' + (wfMethod === 'list' ? ' checked' : '') + '> לפי המילה בלבד <span class="mchl-hint">- הרמה שכתובה ליד המילה ברשימה: "בעיה ודאית" או "לבדיקה"</span></label>' +
+				'<div class="mchl-side-h">אילו מילים נבדקות</div>' +
+				'<label class="mchl-radio"><input type="radio" name="wf-mode" value="a"' + (wfMode === 'a' ? ' checked' : '') + '> רק מילים שאושרו</label>' +
+				'<label class="mchl-radio"><input type="radio" name="wf-mode" value="s"' + (wfMode === 's' ? ' checked' : '') + '> גם מילים שהוצעו וטרם אושרו</label>' +
+				'</div>';
+		}
+		html += '</div>';
+		// רמת תוכן
+		html += '<div class="mchl-side-sec"><div class="mchl-side-h">רמת תוכן' +
+			(wfLevelChoice ? ' <button type="button" class="mchl-link" data-side="level" data-v="">הכול</button>' : '') + '</div>';
+		WF_LEVEL_OPTIONS[wfMethod].forEach(function (o) {
+			html += '<button type="button" class="mchl-opt' + (wfLevelChoice === o[0] ? ' mchl-on' : '') + (o[2] ? '' : ' mchl-opt-sub') + '" data-side="level" data-v="' + o[0] + '">' +
+				(o[2] ? '<span class="mchl-dot-c" style="background:' + o[2] + '"></span>' : '') + escapeHtml(o[1]) +
+				'<span class="mchl-n" data-count="level:' + o[0] + '"></span></button>';
+		});
+		html += '</div>';
+		// ייבוא מילוני ותמונות - שורות כפתורים, זו מעל זו
+		html += '<div class="mchl-side-sec"><div class="mchl-side-h">ייבוא מילוני</div>' +
+			segHtml('dict', wfDictChoice, [['', 'הכול'], ['without', 'ללא מילוני', 1], ['only', 'מילוני בלבד', 1]]) +
+			'<div class="mchl-side-h" style="margin-top:10px;">תמונות</div>' +
+			segHtml('img', wfImagesChoice, [['', 'הכול'], ['with', 'עם תמונות', 1], ['without', 'בלי תמונות', 1]]) + '</div>';
+		// נושא
+		html += '<div class="mchl-side-sec"><div class="mchl-side-h">נושא' +
+			(wfTopicChoice.length ? ' <button type="button" class="mchl-link" data-side="topic-none">ניקוי</button>' : '') + '</div>';
 		WF_TOPIC_GROUPS.forEach(function (g, gi) {
-			html += '<div class="mchl-topic-group"><label class="mchl-topic-head"><input type="checkbox" data-topic-group="' + gi + '"> ' +
-				escapeHtml(g.label) + '</label>';
-			g.items.forEach(function (it) {
-				html += '<label class="mchl-topic-item"><input type="checkbox" value="' + it[0] + '"' +
-					(wfTopicChoice.indexOf(it[0]) >= 0 ? ' checked' : '') + '> ' + escapeHtml(it[1]) + '</label>';
-			});
+			var all = g.items.every(function (it) { return wfTopicChoice.indexOf(it[0]) >= 0; });
+			var some = !all && g.items.some(function (it) { return wfTopicChoice.indexOf(it[0]) >= 0; });
+			html += '<div class="mchl-tgroup"><div class="mchl-thead"><label><input type="checkbox" data-tgroup="' + gi + '"' + (all ? ' checked' : '') +
+				(some ? ' data-some="1"' : '') + '> ' + escapeHtml(g.label) + '</label><span class="mchl-n" data-count="tgroup:' + gi + '"></span>' +
+				'<button type="button" class="mchl-tg-toggle" data-side="tg-toggle" data-g="' + gi + '">' + (wfTopicOpen[gi] ? '▾' : '▸') + '</button></div>';
+			if (wfTopicOpen[gi]) {
+				html += '<div class="mchl-titems">' + g.items.map(function (it) {
+					return '<label class="mchl-titem"><input type="checkbox" value="' + it[0] + '"' + (wfTopicChoice.indexOf(it[0]) >= 0 ? ' checked' : '') + '> ' +
+						escapeHtml(it[1]) + '<span class="mchl-n" data-count="topic:' + it[0] + '"></span></label>';
+				}).join('') + '</div>';
+			}
 			html += '</div>';
 		});
-		panel.innerHTML = html;
-		function sync() {
-			WF_TOPIC_GROUPS.forEach(function (g, gi) {
-				var all = g.items.every(function (it) { return wfTopicChoice.indexOf(it[0]) >= 0; });
-				var some = g.items.some(function (it) { return wfTopicChoice.indexOf(it[0]) >= 0; });
-				var head = panel.querySelector('input[data-topic-group="' + gi + '"]');
-				head.checked = all; head.indeterminate = some && !all;
-			});
-			panel.querySelectorAll('input[value]').forEach(function (cb) { cb.checked = wfTopicChoice.indexOf(cb.value) >= 0; });
-			btn.textContent = !wfTopicChoice.length ? 'נושאים — הכול ▾' :
-				wfTopicChoice.length === 1 ? 'נושא: ' + WF_TOPIC_LABELS[wfTopicChoice[0]] + ' ▾' : 'נושאים: ' + wfTopicChoice.length + ' נבחרו ▾';
+		html += '</div>';
+		// עוד
+		html += '<div class="mchl-side-sec"><div class="mchl-side-h">מילים בקוד המוסתר</div>' +
+			segHtml('hidden', wfHiddenChoice, [['', 'הכול'], ['with', 'יש'], ['without', 'אין']]);
+		if (cfg.redirectFilter) {
+			html += '<div class="mchl-side-h" style="margin-top:10px;">הפניה במכלול</div>' +
+				segHtml('redirect', wfRedirectChoice, [['', 'הכול'], ['absent', 'נבדק - אין'], ['unchecked', 'טרם נבדק']]);
 		}
-		function changed() {
-			sync();
-			applyContentLevelFilter();
-			currentPage = 0; loadActiveView(); toggleClearFiltersBtn();
-			renderWfMeter();
+		html += '<label class="mchl-check"><input type="checkbox" data-side-check="new"' + (wfExcludeNew ? ' checked' : '') + '> בלי ערכים חדשים (' + NEW_ARTICLE_CUTOFF_DAYS + ' יום)</label>' +
+			'<label class="mchl-check">אורך מקסימלי <input type="number" min="0" class="mchl-filter-number" data-side-input="maxlen" placeholder="בתים" value="' + escapeHtml(wfMaxLen) + '"></label>' +
+			'<div class="mchl-hint" style="margin-top:8px;">המספרים ליד האפשרויות לא מושפעים מחיפוש, מערכים חדשים, מהקוד המוסתר ומאורך.</div></div>';
+		$id('mchl-side').innerHTML = html;
+		$id('mchl-side').querySelectorAll('input[data-some]').forEach(function (cb) { cb.indeterminate = true; });
+		renderSideCounts();
+	}
+
+	function onEasyChange(keepSide) {
+		applyContentLevelFilter();
+		currentPage = 0; loadActiveView();
+		if (!keepSide) renderSide();
+		renderWfMeter();
+		renderChips();
+	}
+
+	function onSideClick(e) {
+		var b = e.target.closest('[data-side]');
+		if (!b) return;
+		var kind = b.getAttribute('data-side'), v = b.getAttribute('data-v');
+		if (kind === 'settings') { wfSettingsOpen = !wfSettingsOpen; renderSide(); return; }
+		if (kind === 'tg-toggle') { var g = b.getAttribute('data-g'); wfTopicOpen[g] = !wfTopicOpen[g]; renderSide(); return; }
+		if (kind === 'level') wfLevelChoice = (wfLevelChoice === v ? '' : v);
+		else if (kind === 'dict') wfDictChoice = v;
+		else if (kind === 'img') wfImagesChoice = v;
+		else if (kind === 'hidden') wfHiddenChoice = v;
+		else if (kind === 'redirect') wfRedirectChoice = v;
+		else if (kind === 'topic-none') wfTopicChoice = [];
+		else return;
+		onEasyChange();
+	}
+
+	function onSideChange(e) {
+		var t = e.target;
+		if (t.name === 'wf-method') {
+			wfMethod = t.value;
+			// "לבדיקה" ורמות החשד לא קיימים בשתי השיטות
+			if (!WF_LEVEL_OPTIONS[wfMethod].some(function (o) { return o[0] === wfLevelChoice; })) wfLevelChoice = /^review/.test(wfLevelChoice) ? (wfMethod === 'list' ? 'review' : '') : wfLevelChoice;
+		} else if (t.name === 'wf-mode') wfMode = t.value;
+		else if (t.hasAttribute('data-tgroup')) {
+			var codes = WF_TOPIC_GROUPS[+t.getAttribute('data-tgroup')].items.map(function (it) { return it[0]; });
+			wfTopicChoice = wfTopicChoice.filter(function (c) { return codes.indexOf(c) < 0; });
+			if (t.checked) wfTopicChoice = wfTopicChoice.concat(codes);
+		} else if (t.getAttribute('data-side-check') === 'new') wfExcludeNew = t.checked;
+		else if (t.type === 'checkbox' && t.value && WF_TOPIC_LABELS[t.value]) {
+			wfTopicChoice = wfTopicChoice.filter(function (c) { return c !== t.value; });
+			if (t.checked) wfTopicChoice.push(t.value);
+		} else return;
+		onEasyChange();
+	}
+
+	var wfLenDebounce = null;
+	function onSideInput(e) {
+		if (e.target.getAttribute('data-side-input') !== 'maxlen') return;
+		wfMaxLen = e.target.value.trim();
+		clearTimeout(wfLenDebounce);
+		wfLenDebounce = setTimeout(function () { onEasyChange(true); }, 450);
+	}
+
+	// האם שורה (בעמודות ה-view או הסיכום) מתאימה לבחירת הרמה.
+	function wfLevelMatches(row, choice) {
+		var level = wfRowLevel(row);
+		switch (choice) {
+			case '': return true;
+			case 'unscanned': return !level;
+			case 'clean_wording': return level === 'clean' || level === 'wording';
+			case 'review': return level === 'review' || level === 'high' || level === 'medium' || level === 'low';
+			case 'review_low': return level === 'low';
+			case 'review_medium': return level === 'medium';
+			case 'review_high': return level === 'high';
+			case 'review_medium_up': return level === 'high' || level === 'medium';
+			default: return level === choice;
 		}
-		panel.addEventListener('change', function (e) {
-			var t = e.target;
-			if (t.hasAttribute('data-topic-group')) {
-				var codes = WF_TOPIC_GROUPS[+t.getAttribute('data-topic-group')].items.map(function (it) { return it[0]; });
-				wfTopicChoice = wfTopicChoice.filter(function (c) { return codes.indexOf(c) < 0; });
-				if (t.checked) wfTopicChoice = wfTopicChoice.concat(codes);
-			} else if (t.value) {
-				wfTopicChoice = wfTopicChoice.filter(function (c) { return c !== t.value; });
-				if (t.checked) wfTopicChoice.push(t.value);
+	}
+
+	// שורת סיכום עוברת את המסננים הנוכחיים, חוץ מ-skip (כדי לספור את האפשרויות שלו).
+	function wfSummaryPasses(r, skip) {
+		if (r.redirect !== (activeTab === 'missing_redirect')) return false;
+		if (skip !== 'img' && wfImagesChoice && r.has_images !== (wfImagesChoice === 'with')) return false;
+		if (skip !== 'dict' && wfDictChoice && r.dictionary !== (wfDictChoice === 'only')) return false;
+		if (skip !== 'topic' && wfTopicChoice.length && wfTopicChoice.indexOf(r.topic) < 0) return false;
+		if (skip !== 'level' && !wfLevelMatches(r, wfLevelChoice)) return false;
+		return true;
+	}
+
+	function renderSideCounts() {
+		var side = $id('mchl-side');
+		if (!side || !wfSummary) return;
+		var counts = {};
+		var add = function (k, n) { counts[k] = (counts[k] || 0) + n; };
+		wfSummary.forEach(function (r) {
+			if (wfSummaryPasses(r, 'level')) WF_LEVEL_OPTIONS[wfMethod].forEach(function (o) { if (wfLevelMatches(r, o[0])) add('level:' + o[0], r.n); });
+			if (wfSummaryPasses(r, 'dict')) add('dict:' + (r.dictionary ? 'only' : 'without'), r.n);
+			if (wfSummaryPasses(r, 'img')) add('img:' + (r.has_images ? 'with' : 'without'), r.n);
+			if (wfSummaryPasses(r, 'topic') && r.topic) {
+				add('topic:' + r.topic, r.n);
+				WF_TOPIC_GROUPS.forEach(function (g, gi) { if (g.items.some(function (it) { return it[0] === r.topic; })) add('tgroup:' + gi, r.n); });
 			}
-			changed();
 		});
-		panel.addEventListener('click', function (e) {
-			if (e.target.hasAttribute('data-topic-all')) {
-				wfTopicChoice = [];
-				WF_TOPIC_GROUPS.forEach(function (g) { g.items.forEach(function (it) { wfTopicChoice.push(it[0]); }); });
-				changed();
-			} else if (e.target.hasAttribute('data-topic-none')) { wfTopicChoice = []; changed(); }
+		side.querySelectorAll('[data-count]').forEach(function (el) {
+			var n = counts[el.getAttribute('data-count')] || 0;
+			el.textContent = n.toLocaleString('he-IL');
+			var opt = el.closest('.mchl-opt');
+			if (opt && el.getAttribute('data-count') === 'level:unscanned') opt.style.display = n ? '' : 'none';
 		});
-		btn.addEventListener('click', function () { panel.style.display = panel.style.display === 'none' ? 'block' : 'none'; });
-		document.addEventListener('click', function (e) { if (!wrap.contains(e.target)) panel.style.display = 'none'; });
-		wrap.appendChild(btn);
-		wrap.appendChild(panel);
-		sync();
-		return wrap;
+	}
+
+	// שורת התגיות: כל מסנן פעיל, עם ✕ להסרה, ומספר התוצאות.
+	function renderChips() {
+		var host = $id('mchl-chips');
+		var cfg = VIEWS[activeTab];
+		if (!host) return;
+		if (!cfg || !cfg.easyImport) { host.style.display = 'none'; return; }
+		var chips = [];
+		if (wfLevelChoice) chips.push(['level', 'רמה: ' + (WF_LEVEL_LABELS[wfLevelChoice] || wfLevelChoice)]);
+		if (wfDictChoice) chips.push(['dict', wfDictChoice === 'only' ? 'מילוני בלבד' : 'ללא מילוני']);
+		if (wfImagesChoice) chips.push(['img', wfImagesChoice === 'with' ? 'עם תמונות' : 'בלי תמונות']);
+		if (wfTopicChoice.length) chips.push(['topic', wfTopicChoice.length === 1 ? 'נושא: ' + WF_TOPIC_LABELS[wfTopicChoice[0]] : wfTopicChoice.length + ' נושאים']);
+		if (wfHiddenChoice) chips.push(['hidden', wfHiddenChoice === 'with' ? 'יש מילים בקוד המוסתר' : 'אין מילים בקוד המוסתר']);
+		if (wfRedirectChoice) chips.push(['redirect', wfRedirectChoice === 'absent' ? 'נבדק - אין הפניה' : 'הפניה - טרם נבדק']);
+		if (wfMaxLen) chips.push(['maxlen', 'עד ' + Number(wfMaxLen).toLocaleString('he-IL') + ' בתים']);
+		if (wfExcludeNew) chips.push(['new', 'בלי ערכים חדשים']);
+		var search = ($id('mchl-search-input').value || '').trim();
+		if (search) chips.push(['search', 'חיפוש: ' + search]);
+		host.style.display = 'flex';
+		host.innerHTML = chips.map(function (c) {
+			return '<button type="button" class="mchl-chip" data-action="chip-remove" data-chip="' + c[0] + '" title="הסרת המסנן">' + escapeHtml(c[1]) + ' ✕</button>';
+		}).join('') + (chips.length > 1 ? '<button type="button" class="mchl-link" data-action="clear-filters">ניקוי הכול</button>' : '') +
+			'<span class="mchl-chips-total" id="mchl-chips-total">' + (totalRows ? totalRows.toLocaleString('he-IL') + ' ערכים' : '') + '</span>';
+	}
+
+	function removeChip(kind) {
+		if (kind === 'level') wfLevelChoice = '';
+		else if (kind === 'dict') wfDictChoice = '';
+		else if (kind === 'img') wfImagesChoice = '';
+		else if (kind === 'topic') wfTopicChoice = [];
+		else if (kind === 'hidden') wfHiddenChoice = '';
+		else if (kind === 'redirect') wfRedirectChoice = '';
+		else if (kind === 'maxlen') wfMaxLen = '';
+		else if (kind === 'new') wfExcludeNew = false;
+		else if (kind === 'search') $id('mchl-search-input').value = '';
+		onEasyChange();
 	}
 
 	function applyContentLevelFilter() {
 		['verdict', 'verdict_suggested', 'ctx_verdict', 'ctx_verdict_suggested', 'ctx_suspicion', 'ctx_suspicion_suggested',
-			'hidden_count', 'hidden_count_suggested', 'dictionary', 'topic']
+			'hidden_count', 'hidden_count_suggested', 'dictionary', 'topic', 'has_images', 'created_at', 'mechalol_redirect_exists', 'easy_import_length']
 			.forEach(function (c) { delete activeFilters[c]; });
 		if (wfTopicChoice.length) activeFilters.topic = { op: 'in', value: '(' + wfTopicChoice.join(',') + ')' };
 		if (wfDictChoice) activeFilters.dictionary = { op: wfDictChoice === 'only' ? 'not.is' : 'is', value: 'null' };
+		if (wfImagesChoice) activeFilters.has_images = { op: 'eq', value: wfImagesChoice === 'with' };
+		if (wfExcludeNew) activeFilters.created_at = { op: 'lt', value: newArticleCutoffIso() };
+		if (wfRedirectChoice === 'absent') activeFilters.mechalol_redirect_exists = { op: 'eq', value: false };
+		else if (wfRedirectChoice === 'unchecked') activeFilters.mechalol_redirect_exists = { op: 'is', value: 'null' };
+		if (wfMaxLen && !isNaN(Number(wfMaxLen))) activeFilters.easy_import_length = { op: 'lte', value: Number(wfMaxLen) };
 		if (wfHiddenChoice) activeFilters[wfHiddenColumn()] = wfHiddenChoice === 'with' ? { op: 'gt', value: 0 } : { op: 'eq', value: 0 };
 		var col = wfColumn(), v = wfLevelChoice;
 		if (!v) return;
@@ -984,7 +1052,7 @@
 		} else activeFilters[col] = { op: 'eq', value: v };
 	}
 
-	// ===== מחוון הפילוח - כמה ערכים בכל רמה (לפי הטאב, הרשימות, השיטה והתמונות) =====
+	// ===== מחוון הפילוח - כמה ערכים בכל רמה (לפי הטאב ושאר המסננים שבסיכום) =====
 	var WF_METER_SEGMENTS = [
 		{ key: 'problem', label: 'בעיה ודאית', color: '#C1634A', filter: 'problem' },
 		{ key: 'high', label: 'חשד גבוה', color: '#D98B3A', filter: 'review_high' },
@@ -1020,14 +1088,9 @@
 		host.style.display = 'block';
 		loadWfSummary().then(function (rows) {
 			if (!VIEWS[activeTab] || !VIEWS[activeTab].easyImport) return;
-			var redirect = activeTab === 'missing_redirect';
-			var images = activeFilters.has_images ? activeFilters.has_images.value : null;
 			var counts = {}, total = 0;
 			rows.forEach(function (r) {
-				if (r.redirect !== redirect) return;
-				if (images !== null && r.has_images !== images) return;
-				if (wfDictChoice && r.dictionary !== (wfDictChoice === 'only')) return;
-				if (wfTopicChoice.length && wfTopicChoice.indexOf(r.topic) < 0) return;
+				if (!wfSummaryPasses(r, 'level')) return;
 				var level = wfRowLevel(r);
 				counts[level] = (counts[level] || 0) + r.n;
 				total += r.n;
@@ -1049,13 +1112,10 @@
 					'<span class="mchl-wf-dot" style="background:' + g.color + ';"></span>' + escapeHtml(g.label) + ' <b>' +
 					n.toLocaleString('he-IL') + '</b> <span class="mchl-muted">' + pct.toFixed(1) + '%</span></button>';
 			});
-			host.innerHTML = '<div class="mchl-wf-meter-head">פילוח תוכן · ' +
-				escapeHtml(wfMethod === 'ctx' ? 'לפי הקשר' : 'לפי רמת הרשימה') + ' · ' +
-				escapeHtml(wfMode === 's' ? 'כולל הצעות' : 'רשימות מאושרות') + (images === null ? '' : images ? ' · עם תמונות' : ' · בלי תמונות') +
-				(wfDictChoice === 'only' ? ' · מילוני בלבד' : wfDictChoice === 'without' ? ' · ללא מילוני' : '') +
-				(wfTopicChoice.length ? ' · ' + (wfTopicChoice.length === 1 ? WF_TOPIC_LABELS[wfTopicChoice[0]] : wfTopicChoice.length + ' נושאים') : '') +
-				' · ' + total.toLocaleString('he-IL') + ' ערכים <span class="mchl-muted">(לחיצה מסננת)</span></div>' +
+			host.innerHTML = '<div class="mchl-wf-meter-head">פילוח לפי רמת תוכן · ' + total.toLocaleString('he-IL') +
+				' ערכים <span class="mchl-muted">(לפי שאר המסננים; לחיצה מסננת)</span></div>' +
 				'<div class="mchl-wf-bar">' + bar + '</div><div class="mchl-wf-legends">' + legend + '</div>';
+			renderSideCounts();
 		}).catch(function () {
 			host.innerHTML = '<div class="mchl-muted">לא ניתן לטעון את פילוח התוכן (report_missing_word_filter_summary).</div>';
 		});
@@ -1063,16 +1123,14 @@
 
 	function setWfLevel(value) {
 		wfLevelChoice = value;
-		var sel = $id('mchl-filter-content-level');
-		if (sel) sel.value = value;
-		applyContentLevelFilter();
-		currentPage = 0; loadActiveView(); toggleClearFiltersBtn();
-		renderWfMeter();
+		onEasyChange();
 	}
 
 	function toggleClearFiltersBtn() {
 		var hasFilters = Object.keys(activeFilters).length > 0 || $id('mchl-search-input').value.trim().length > 0;
-		$id('mchl-clear-filters-btn').style.display = hasFilters ? 'inline' : 'none';
+		// בטאבי "חסר במכלול" - שורת התגיות מחליפה את הכפתור.
+		var easy = VIEWS[activeTab] && VIEWS[activeTab].easyImport;
+		$id('mchl-clear-filters-btn').style.display = hasFilters && !easy ? 'inline' : 'none';
 	}
 
 	function clearFilters() {
@@ -1081,6 +1139,10 @@
 		wfHiddenChoice = '';
 		wfDictChoice = '';
 		wfTopicChoice = [];
+		wfImagesChoice = '';
+		wfRedirectChoice = '';
+		wfMaxLen = '';
+		wfExcludeNew = true;
 		$id('mchl-search-input').value = '';
 		currentPage = 0;
 		buildDynamicFilters();
@@ -1094,6 +1156,7 @@
 	}
 
 	function loadCurrentTab() {
+		if (activeTab === 'stats') return loadStats();
 		if (EXTRA_TABS[activeTab]) {
 			cultureState.subcats = null; // כפתור רענון אמור לשלוף מחדש, לא להסתפק במטמון
 			return Promise.resolve(loadCultureTab());
@@ -1204,6 +1267,8 @@
 			totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
 			renderTable();
 			renderPager();
+			var chipsTotal = $id('mchl-chips-total');
+			if (chipsTotal) chipsTotal.textContent = totalRows.toLocaleString('he-IL') + ' ערכים';
 			loadWikidataDescriptionsForCurrentPage();
 			loadRedirectTargetsForCurrentPage();
 			loadDeletionHintsForCurrentPage();
@@ -1252,10 +1317,12 @@
 	function effectiveColumns(cfg) {
 		// עמודת השיוך הידני מתווספת רק בטאב "חסר במכלול", ורק כש-
 		// יש חיבור פעיל - לא כל מבקר בטאב הזה אמור לראות אותה בכלל.
+		var cols = cfg.displayColumns || cfg.columns;
 		if (VIEWS[activeTab] && VIEWS[activeTab].manualMatch && serviceKeyConnected) {
-			return cfg.columns.concat(['manual_match_action']);
+			var at = cols.indexOf('import_action');
+			return at < 0 ? cols.concat(['manual_match_action']) : cols.slice(0, at).concat(['manual_match_action'], cols.slice(at));
 		}
-		return cfg.columns;
+		return cols;
 	}
 
 	function renderTable() {
@@ -1267,10 +1334,11 @@
 		}
 		var allOnPageSelected = currentPageRows.every(function (r) { return selectedRows.has(rowKey(r)); });
 		var thead = '<tr><th class="mchl-chk-col"><input type="checkbox" data-action="toggle-page-selection" ' + (allOnPageSelected ? 'checked' : '') + '></th>' +
-			columns.map(function (c) { return '<th>' + escapeHtml(COLUMN_LABELS[c] || c) + '</th>'; }).join('') + '</tr>';
+			columns.map(function (c) { return '<th' + (c === 'import_action' || c === 'expand' ? ' class="mchl-narrow-col"' : '') + '>' + escapeHtml(c in COLUMN_LABELS ? COLUMN_LABELS[c] : c) + '</th>'; }).join('') + '</tr>';
 		var tbody = currentPageRows.map(function (r) {
 			var selected = selectedRows.has(rowKey(r));
-			return '<tr class="' + (selected ? 'mchl-selected' : '') + '">' +
+			var expandable = columns.indexOf('expand') >= 0 && wfHasDetails(r);
+			return '<tr class="' + (selected ? 'mchl-selected' : '') + (expandable ? ' mchl-expandable' : '') + '">' +
 				'<td class="mchl-chk-col" data-label=""><input type="checkbox" data-action="toggle-row-selection" data-row-id="' + escapeHtml(rowIdOf(r)) + '" ' + (selected ? 'checked' : '') + '></td>' +
 				columns.map(function (c) { return '<td data-label="' + escapeHtml(COLUMN_LABELS[c] || c) + '">' + renderCell(c, r) + '</td>'; }).join('') + '</tr>';
 		}).join('');
@@ -1281,7 +1349,22 @@
 		var val = row[col];
 		if (col === 'title') {
 			var url = VIEWS[activeTab].titleLink === 'edit' ? mechalolEditUrl(val) : mechalolUrl(row.id);
-			return '<span class="mchl-title"><a href="' + url + '" target="_blank" rel="noopener">' + escapeHtml(val) + '</a></span>';
+			var link = '<span class="mchl-title"><a href="' + url + '" target="_blank" rel="noopener">' + escapeHtml(val) + '</a></span>';
+			// בטאבים עם displayColumns התיאור מוויקינתונים מוצג מתחת לכותרת, במקום עמודה משלו.
+			if (VIEWS[activeTab].displayColumns && VIEWS[activeTab].wikidata) link += '<div class="mchl-row-desc">' + renderCell('wikidata_desc', row) + '</div>';
+			return link;
+		}
+		if (col === 'topic') {
+			if (row.dictionary) return '<span class="mchl-badge mchl-neutral" title="' + escapeHtml('מועמד לייבוא מילוני: ' + (row.dictionary_why || '')) + '">מילוני: ' + escapeHtml(row.dictionary) + '</span>';
+			return row.topic && WF_TOPIC_LABELS[row.topic] ? '<span class="mchl-topic-cell">' + escapeHtml(WF_TOPIC_LABELS[row.topic]) + '</span>' : '<span class="mchl-muted">—</span>';
+		}
+		if (col === 'wf_matches') return renderWfMatches(row);
+		if (col === 'import_action') {
+			// ייבוא - יחובר בהמשך למערך הייבוא; בינתיים מנוטרל.
+			return '<button type="button" class="mchl-import-btn" disabled title="ייבוא - יחובר בהמשך למערך הייבוא">ייבוא</button>';
+		}
+		if (col === 'expand') {
+			return wfHasDetails(row) ? '<button type="button" class="mchl-expand-btn" data-action="wf-details" data-id="' + row.id + '" title="פרטים: המילים במשפט שלהן, הקוד המוסתר והתמונות" aria-expanded="false">▾</button>' : '';
 		}
 		if (col === 'wikipedia_title') return '<span class="mchl-title"><a href="' + wikipediaUrl(row.wikipedia_id) + '" target="_blank" rel="noopener">' + escapeHtml(val) + '</a></span>';
 		if (col === 'mechalol_title') return '<a href="' + mechalolUrl(row.mechalol_id) + '" target="_blank" rel="noopener">' + escapeHtml(val) + '</a>';
@@ -1328,7 +1411,7 @@
 		}
 		if (col === 'verdict') return renderContentLevel(row);
 		if (col === 'has_images') {
-			if (row.has_images === true) return '<span class="mchl-badge mchl-neutral">יש (' + row.photo_count + ')</span>';
+			if (row.has_images === true) return '<span class="mchl-num-cell" title="תמונות של הערך">' + row.photo_count + '</span>';
 			if (row.has_images === false) return '<span class="mchl-muted">אין</span>';
 			return '<span class="mchl-muted">—</span>';
 		}
@@ -1364,10 +1447,18 @@
 		return escapeHtml(val == null ? '—' : val);
 	}
 
+	// רמת התוכן - התג בלבד. הספירות בעמודת "מילים", והפרטים בשורה הנפתחת.
 	function renderContentLevel(row) {
 		var level = wfRowLevel(row);
 		if (!level) return '<span class="mchl-muted">טרם נסרק</span>';
 		var info = WF_SUSPICION[level] || WF_LEVELS[level];
+		return '<span class="mchl-badge ' + info.cls + '">' + escapeHtml(info.label) + '</span>';
+	}
+
+	function wfHasDetails(row) { return !!(row.matches_total || row.has_images || row[wfHiddenColumn()]); }
+
+	// ספירה קצרה של המילים שנמצאו, לפי השיטה והרשימות שנבחרו; ומילים בקוד המוסתר.
+	function renderWfMatches(row) {
 		var counts = row.counts && row.counts[(wfMethod === 'ctx' ? 'c' : '') + wfMode];
 		var parts = [];
 		if (counts) {
@@ -1379,15 +1470,9 @@
 			} else if (counts.review) parts.push(counts.review + ' לבדיקה');
 			if (counts.wording) parts.push(counts.wording + ' ניסוח');
 		}
-		var html = '<span class="mchl-badge ' + info.cls + '">' + escapeHtml(info.label) + '</span>';
-		if (parts.length) html += ' <span class="mchl-num-cell">' + escapeHtml(parts.join(' · ')) + '</span>';
+		var html = parts.length ? '<span class="mchl-num-cell mchl-nowrap">' + escapeHtml(parts.join(' · ')) + '</span>' : '<span class="mchl-muted">—</span>';
 		var hidden = row[wfHiddenColumn()];
-		if (hidden) html += ' <span class="mchl-muted mchl-num-cell" title="מילים בקוד שהקורא לא רואה - לא נספרות ברמה">+' + hidden + ' בקוד</span>';
-		if (row.dictionary) html += ' <span class="mchl-badge mchl-neutral" title="' + escapeHtml('מועמד לייבוא מילוני: ' + (row.dictionary_why || '')) + '">מילוני: ' + escapeHtml(row.dictionary) + '</span>';
-		else if (row.topic && WF_TOPIC_LABELS[row.topic]) html += ' <span class="mchl-muted mchl-num-cell" title="נושא">' + escapeHtml(WF_TOPIC_LABELS[row.topic]) + '</span>';
-		if (row.matches_total || row.has_images || hidden) {
-			html += ' <button type="button" class="mchl-wf-toggle" data-action="wf-details" data-id="' + row.id + '">הקשר ▾</button>';
-		}
+		if (hidden) html += ' <span class="mchl-tag" title="מילים בקוד שהקורא לא רואה - לא נספרות ברמה">' + hidden + ' בקוד</span>';
 		return html;
 	}
 
@@ -1398,8 +1483,10 @@
 		var id = btn.getAttribute('data-id');
 		var tr = btn.closest('tr');
 		var next = tr.nextElementSibling;
-		if (next && next.classList.contains('mchl-wf-details-row')) { next.remove(); btn.textContent = 'הקשר ▾'; return; }
-		btn.textContent = 'הקשר ▴';
+		if (next && next.classList.contains('mchl-wf-details-row')) {
+			next.remove(); btn.textContent = '▾'; btn.setAttribute('aria-expanded', 'false'); tr.classList.remove('mchl-open'); return;
+		}
+		btn.textContent = '▴'; btn.setAttribute('aria-expanded', 'true'); tr.classList.add('mchl-open');
 		var detailsTr = document.createElement('tr');
 		detailsTr.className = 'mchl-wf-details-row';
 		detailsTr.innerHTML = '<td colspan="' + tr.children.length + '"><div class="mchl-wf-box mchl-muted">טוען…</div></td>';
@@ -1659,6 +1746,7 @@
 			var level = wfRowLevel(row);
 			return level ? (WF_SUSPICION[level] || WF_LEVELS[level]).label : 'טרם נסרק';
 		}
+		if (col === 'topic') return row.dictionary ? 'מילוני: ' + row.dictionary : (WF_TOPIC_LABELS[row.topic] || row.topic || '');
 		return row[col];
 	}
 
@@ -2018,7 +2106,15 @@
 	function wireEvents(root) {
 		root.addEventListener('click', function (e) {
 			var el = e.target.closest('[data-action]');
-			if (!el) return;
+			if (!el) {
+				// לחיצה על השורה עצמה (לא על קישור, כפתור או תיבת סימון) פותחת וסוגרת את הפרטים.
+				var tr = e.target.closest('#mchl-table-target tr.mchl-expandable');
+				if (tr && !e.target.closest('a, button, input, label, select, textarea')) {
+					var b = tr.querySelector('[data-action="wf-details"]');
+					if (b) toggleContentDetails(b);
+				}
+				return;
+			}
 			var action = el.getAttribute('data-action');
 			if (action === 'refresh') refreshAll();
 			else if (action === 'clear-filters') clearFilters();
@@ -2035,6 +2131,7 @@
 			else if (action === 'toggle-admin-panel') toggleAdminPanel();
 			else if (action === 'auth-login') authLogin();
 			else if (action === 'wf-details') toggleContentDetails(el);
+			else if (action === 'chip-remove') removeChip(el.getAttribute('data-chip'));
 			else if (action === 'wf-image') {
 				var detailsRow = el.closest('tr.mchl-wf-details-row');
 				var cached = detailsRow && wfDetailsCache.get(detailsRow.previousElementSibling.querySelector('[data-action="wf-details"]').getAttribute('data-id'));
@@ -2149,14 +2246,58 @@
 		'#mchl-dash input.mchl-search,#mchl-dash select.mchl-filter-select,#mchl-dash select.mchl-page-size,#mchl-dash input.mchl-filter-number{background:var(--mchl-ink-800);border:1px solid var(--mchl-line);border-radius:8px;color:var(--mchl-text-1);padding:9px 12px;font-size:13.5px;}' +
 		'#mchl-dash input.mchl-search{width:100%;}' +
 		'#mchl-dash select.mchl-filter-select{cursor:pointer;}' +
-		'#mchl-dash .mchl-topic-picker{position:relative;display:inline-block;}' +
-		'#mchl-dash .mchl-topic-btn{cursor:pointer;}' +
-		'#mchl-dash .mchl-topic-panel{position:absolute;top:100%;right:0;z-index:30;margin-top:4px;min-width:260px;max-height:60vh;overflow:auto;background:var(--mchl-ink-800);border:1px solid var(--mchl-line);border-radius:8px;box-shadow:0 6px 16px rgba(0,0,0,.35);padding:8px 10px;}' +
-		'#mchl-dash .mchl-topic-actions{display:flex;gap:8px;margin-bottom:6px;}' +
-		'#mchl-dash .mchl-topic-actions button{background:none;border:1px solid var(--mchl-line);border-radius:6px;color:inherit;padding:2px 8px;cursor:pointer;font:inherit;font-size:12px;}' +
-		'#mchl-dash .mchl-topic-group{margin:6px 0;}' +
-		'#mchl-dash .mchl-topic-head{display:block;font-weight:600;margin-bottom:2px;cursor:pointer;}' +
-		'#mchl-dash .mchl-topic-item{display:block;padding:1px 18px 1px 0;font-size:13px;cursor:pointer;white-space:nowrap;}' +
+		// פריסה: פאנל מסננים בצד + אזור ראשי (טאבי "חסר במכלול")
+		'#mchl-dash .mchl-body.mchl-with-side{display:grid;grid-template-columns:272px minmax(0,1fr);gap:18px;align-items:start;}' +
+		'#mchl-dash .mchl-main{min-width:0;}' +
+		'#mchl-dash .mchl-side{background:var(--mchl-ink-800);border:1px solid var(--mchl-line);border-radius:12px;padding:10px 14px;position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto;font-size:13.5px;}' +
+		'#mchl-dash .mchl-side-sec{border-top:1px solid var(--mchl-line);padding:10px 0;}' +
+		'#mchl-dash .mchl-side-sec:first-child{border-top:0;padding-top:2px;}' +
+		'#mchl-dash .mchl-side-h{font-size:12px;color:var(--mchl-text-2);font-weight:700;margin:0 0 6px;display:flex;justify-content:space-between;align-items:center;}' +
+		'#mchl-dash .mchl-link{background:none;border:0;color:var(--mchl-mechalol);cursor:pointer;font:inherit;font-size:12px;padding:0;}' +
+		'#mchl-dash .mchl-settings-line{display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:12px;color:var(--mchl-text-2);background:var(--mchl-ink-700);border-radius:8px;padding:6px 8px;}' +
+		'#mchl-dash .mchl-settings-line b{color:var(--mchl-text-1);font-weight:600;}' +
+		'#mchl-dash .mchl-settings-line button{background:none;border:0;color:var(--mchl-mechalol);cursor:pointer;font:inherit;white-space:nowrap;padding:0;}' +
+		'#mchl-dash .mchl-settings-box{margin-top:8px;padding:8px;border:1px solid var(--mchl-line);border-radius:8px;}' +
+		'#mchl-dash .mchl-settings-box .mchl-side-h{margin-top:6px;}' +
+		'#mchl-dash .mchl-radio{display:block;margin:4px 0;cursor:pointer;line-height:1.35;}' +
+		'#mchl-dash .mchl-hint{color:var(--mchl-text-3);font-size:11.5px;}' +
+		'#mchl-dash .mchl-opt{display:flex;align-items:center;gap:8px;width:100%;background:none;border:0;color:var(--mchl-text-1);font:inherit;text-align:right;padding:4px 6px;border-radius:6px;cursor:pointer;}' +
+		'#mchl-dash .mchl-opt:hover{background:var(--mchl-ink-700);}' +
+		'#mchl-dash .mchl-opt.mchl-on{background:var(--mchl-ink-700);font-weight:700;box-shadow:inset -3px 0 0 var(--mchl-mechalol);}' +
+		'#mchl-dash .mchl-opt-sub{padding-inline-start:23px;color:var(--mchl-text-2);font-size:12.5px;}' +
+		'#mchl-dash .mchl-dot-c{width:9px;height:9px;border-radius:50%;flex:none;}' +
+		'#mchl-dash .mchl-n{margin-inline-start:auto;color:var(--mchl-text-3);font-size:12px;font-variant-numeric:tabular-nums;font-weight:400;}' +
+		'#mchl-dash .mchl-seg{display:flex;border:1px solid var(--mchl-line);border-radius:8px;overflow:hidden;}' +
+		'#mchl-dash .mchl-seg button{flex:1;background:none;border:0;border-inline-start:1px solid var(--mchl-line);color:var(--mchl-text-2);font:inherit;font-size:12.5px;padding:6px 4px;cursor:pointer;line-height:1.25;}' +
+		'#mchl-dash .mchl-seg button:first-child{border-inline-start:0;}' +
+		'#mchl-dash .mchl-seg button.mchl-on{background:var(--mchl-ink-700);color:var(--mchl-text-1);font-weight:700;}' +
+		'#mchl-dash .mchl-seg .mchl-n{display:block;margin:1px 0 0;font-size:11px;}' +
+		'#mchl-dash .mchl-tgroup{margin:2px 0;}' +
+		'#mchl-dash .mchl-thead{display:flex;align-items:center;gap:6px;padding:3px 4px;}' +
+		'#mchl-dash .mchl-thead label{font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;}' +
+		'#mchl-dash .mchl-tg-toggle{background:none;border:0;color:var(--mchl-text-2);cursor:pointer;font-size:12px;padding:0 2px;}' +
+		'#mchl-dash .mchl-titem{display:flex;align-items:center;gap:6px;padding:2px 4px 2px 4px;padding-inline-start:24px;cursor:pointer;font-size:13px;}' +
+		'#mchl-dash .mchl-titem:hover,#mchl-dash .mchl-thead:hover{background:var(--mchl-ink-700);border-radius:6px;}' +
+		'#mchl-dash .mchl-side input[type=checkbox],#mchl-dash .mchl-side input[type=radio]{accent-color:var(--mchl-mechalol);margin:0;}' +
+		'#mchl-dash .mchl-check{display:flex;align-items:center;gap:6px;margin-top:10px;cursor:pointer;}' +
+		'#mchl-dash .mchl-check .mchl-filter-number{width:90px;margin-inline-start:auto;}' +
+		// תגיות המסננים הפעילים
+		'#mchl-dash .mchl-chips{flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 10px;font-size:12.5px;}' +
+		'#mchl-dash .mchl-chip{background:var(--mchl-ink-700);border:1px solid var(--mchl-line);border-radius:14px;padding:3px 10px;color:var(--mchl-text-1);font:inherit;font-size:12.5px;cursor:pointer;}' +
+		'#mchl-dash .mchl-chip:hover{border-color:var(--mchl-mechalol);}' +
+		'#mchl-dash .mchl-chips-total{margin-inline-start:auto;color:var(--mchl-text-2);}' +
+		// הטבלה
+		'#mchl-dash .mchl-nowrap{white-space:nowrap;}' +
+		'#mchl-dash .mchl-with-side .mchl-title{display:inline-block;min-width:11em;}' +
+		'#mchl-dash .mchl-row-desc{color:var(--mchl-text-3);font-size:12px;margin-top:2px;}' +
+		'#mchl-dash .mchl-topic-cell{color:var(--mchl-text-2);font-size:12.5px;}' +
+		'#mchl-dash .mchl-tag{font-size:11px;border:1px solid var(--mchl-line);border-radius:6px;padding:0 5px;color:var(--mchl-mechalol);white-space:nowrap;}' +
+		'#mchl-dash tr.mchl-expandable{cursor:pointer;}' +
+		'#mchl-dash tr.mchl-open > td{background:var(--mchl-ink-700);}' +
+		'#mchl-dash .mchl-narrow-col{width:1%;}' +
+		'#mchl-dash .mchl-expand-btn{background:none;border:1px solid var(--mchl-line);border-radius:6px;color:var(--mchl-text-2);cursor:pointer;width:26px;height:24px;line-height:1;}' +
+		'#mchl-dash .mchl-import-btn{background:none;border:1px solid var(--mchl-line);border-radius:6px;color:var(--mchl-text-3);padding:3px 10px;font:inherit;font-size:12.5px;white-space:nowrap;}' +
+		'#mchl-dash .mchl-import-btn:disabled{cursor:not-allowed;opacity:.6;}' +
 		'#mchl-dash input.mchl-filter-number{width:150px;}' +
 		'#mchl-dash .mchl-clear-filters{background:none;border:none;color:var(--mchl-text-2);font-size:13px;cursor:pointer;text-decoration:underline;padding:0;}' +
 		'#mchl-dash .mchl-spacer{flex:1;}' +
@@ -2242,6 +2383,7 @@
 		'#mchl-dash .mchl-culture-pill{background:var(--mchl-ink-700);border:1px solid var(--mchl-line);color:var(--mchl-text-1);padding:9px 14px;border-radius:20px;font-size:13.5px;cursor:pointer;display:flex;align-items:center;gap:8px;}' +
 		'#mchl-dash .mchl-culture-pill:hover{border-color:var(--mchl-mechalol);}' +
 		'#mchl-dash .mchl-culture-pill .mchl-count{background:var(--mchl-ink-800);color:var(--mchl-text-2);padding:1px 8px;border-radius:20px;font-size:11.5px;}' +
+		'@media (max-width:900px){#mchl-dash .mchl-body.mchl-with-side{grid-template-columns:1fr;}#mchl-dash .mchl-side{position:static;max-height:none;}}' +
 		'@media (max-width:640px){' +
 		'#mchl-dash .mchl-ledger-heads{flex-direction:column;gap:10px;}' +
 		'#mchl-dash thead{display:none;}' +
@@ -2268,6 +2410,8 @@
 		'</div>' +
 		'<div class="mchl-muted" id="mchl-admin-status" style="font-size:12.5px;margin-top:8px;">טרם התחברת - כפתור נעילת הכותרות בטאב "חסר במכלול" יופיע רק אחרי התחברות מוצלחת.</div>' +
 		'</section>' +
+		'<nav class="mchl-tabs" id="mchl-tabs"></nav>' +
+		'<div id="mchl-stats-area" style="display:none;">' +
 		'<section class="mchl-ledger">' +
 		'<div class="mchl-ledger-heads">' +
 		'<div class="mchl-ledger-head mchl-wikih"><span class="mchl-label">ערכים בוויקיפדיה <span class="mchl-mini-spinner" id="mchl-spin-wiki"></span><span class="mchl-warn-inline" id="mchl-warn-wiki" style="display:none;">⚠</span></span><span class="mchl-num" id="mchl-stat-wiki-total">—</span></div>' +
@@ -2282,7 +2426,10 @@
 		'<div class="mchl-stat-card"><div class="mchl-n" id="mchl-stat-undoc">—</div><div class="mchl-l"><span class="mchl-mini-spinner" id="mchl-spin-undoc"></span><span class="mchl-warn-inline" id="mchl-warn-undoc" style="display:none;">⚠</span>מיובא ללא תיעוד</div></div>' +
 		'<div class="mchl-stat-card"><div class="mchl-n" id="mchl-stat-missing">—</div><div class="mchl-l"><span class="mchl-mini-spinner" id="mchl-spin-missing"></span><span class="mchl-warn-inline" id="mchl-warn-missing" style="display:none;">⚠</span>חסרים במכלול</div></div>' +
 		'</section>' +
-		'<nav class="mchl-tabs" id="mchl-tabs"></nav>' +
+		'</div>' +
+		'<div class="mchl-body" id="mchl-body">' +
+		'<aside class="mchl-side" id="mchl-side" style="display:none;"></aside>' +
+		'<div class="mchl-main">' +
 		'<div class="mchl-filter-bar" id="mchl-filter-bar">' +
 		'<div class="mchl-search-wrap"><input class="mchl-search" id="mchl-search-input" placeholder="חיפוש בכותרת…"></div>' +
 		'<div id="mchl-dynamic-filters" style="display:flex;gap:10px;flex-wrap:wrap;"></div>' +
@@ -2290,6 +2437,7 @@
 		'<span class="mchl-spacer"></span>' +
 		'<select class="mchl-page-size" id="mchl-page-size"><option value="25">25 בעמוד</option><option value="50" selected>50 בעמוד</option><option value="100">100 בעמוד</option><option value="250">250 בעמוד</option></select>' +
 		'</div>' +
+		'<div class="mchl-chips" id="mchl-chips" style="display:none;"></div>' +
 		'<div class="mchl-selection-bar" id="mchl-selection-bar" style="display:none;">' +
 		'<span><b id="mchl-selected-count">0</b> נבחרו</span>' +
 		'<button type="button" class="mchl-select-all-matching" id="mchl-select-all-matching-btn" style="display:none;" data-action="select-all-matching"></button>' +
@@ -2311,6 +2459,7 @@
 		'<button type="button" id="mchl-pg-next" data-action="goto" data-target="next">›</button>' +
 		'<button type="button" id="mchl-pg-last" data-action="goto" data-target="last">»</button>' +
 		'</div></div></div>' +
+		'</div></div>' +
 		'<footer class="mchl-footer">הנתונים מתעדכנים אוטומטית כל לילה (עדכון מצטבר) ובכל מוצאי שבת (סנכרון מלא)</footer>';
 
 	function init() {
@@ -2345,7 +2494,7 @@
 		buildDynamicFilters();
 		$id('mchl-search-input').addEventListener('input', function () {
 			clearTimeout(searchDebounce);
-			searchDebounce = setTimeout(function () { currentPage = 0; loadActiveView(); }, 550);
+			searchDebounce = setTimeout(function () { currentPage = 0; loadActiveView(); renderChips(); }, 550);
 		});
 		$id('mchl-page-size').addEventListener('change', onPageSizeChange);
 		refreshAll();
