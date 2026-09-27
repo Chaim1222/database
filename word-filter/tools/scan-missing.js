@@ -13,8 +13,8 @@
  * רמות: problem / review / wording / clean; חשד: high / medium / low.
  * בנוסף: תמונות (ראו imagesOf), וכל התאמה עם המשפט שבו נמצאה (contextOf) -
  * כדי שהעורך יראה את ההקשר בדשבורד, בלי הטקסט המלא מול העיניים.
- * ומועמד לייבוא מילוני (dictionary, dictionary_why - ראו word-filter/dictionary.js):
- * סימון נפרד, שלא משפיע על הרמה.
+ * ומועמד לייבוא מילוני (dictionary, dictionary_why - ראו word-filter/dictionary.js) ונושא
+ * (topic - ראו word-filter/topics.js): סימונים נפרדים, שלא משפיעים על הרמה.
  *
  * ערך נסרק מחדש רק אם הגרסה שלו בוויקיפדיה השתנתה (rev_id), או שהרשימות
  * או המנוע השתנו (lists_version) - כך ריצה שבועית זולה.
@@ -36,6 +36,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { engine, readJson, apiGet, LISTS_DIR } = require('./lib');
 const { dictionaryOf } = require('../dictionary');
+const { topicOf } = require('../topics');
 
 const TABLE = 'word_filter_results';
 const REPORT = 'report_missing_from_mechalol';
@@ -67,11 +68,11 @@ const log = (msg) => console.log(new Date().toISOString().slice(0, 19).replace('
 
 // ===== רשימות =====
 
-// גרסת הרשימות, המנוע וכללי הערך המילוני: שינוי באחד מהם מחייב סריקה מחדש של הכל.
+// גרסת הרשימות, המנוע, כללי הערך המילוני והנושאים: שינוי באחד מהם מחייב סריקה מחדש של הכל.
 function listsVersion() {
 	const hash = crypto.createHash('sha1');
 	for (const file of [path.join(LISTS_DIR, 'words.json'), path.join(LISTS_DIR, 'allow.json'), path.join(LISTS_DIR, 'usage.json'),
-		path.join(__dirname, '..', 'Gadget-wikitextWordCheck.js'), path.join(__dirname, '..', 'dictionary.js')]) hash.update(fs.readFileSync(file));
+		path.join(__dirname, '..', 'Gadget-wikitextWordCheck.js'), path.join(__dirname, '..', 'dictionary.js'), path.join(__dirname, '..', 'topics.js')]) hash.update(fs.readFileSync(file));
 	return hash.digest('hex').slice(0, 12);
 }
 
@@ -294,6 +295,7 @@ function resultRow(page, lists, version) {
 		images: images.photos.slice(0, MAX_IMAGES),
 		dictionary: dictionary ? dictionary.cls : null,
 		dictionary_why: dictionary ? dictionary.why : null,
+		topic: topicOf(text, page.title),
 		lists_version: version,
 		scanned_at: new Date().toISOString(),
 	});

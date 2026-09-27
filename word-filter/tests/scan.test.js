@@ -55,6 +55,18 @@ test('resultRow: shape of the row saved to Supabase', () => {
 	assert.strictEqual(row.lists_version, 'v1');
 	assert.strictEqual(row.dictionary, null);
 	assert.strictEqual(row.dictionary_why, null);
+	assert.strictEqual(row.topic, 'other');
+});
+
+test('resultRow: topic from the title, the infobox and the categories', () => {
+	const row = (title, content) => resultRow({ pageid: 1, title, lastrevid: 1, images: [],
+		revisions: [{ revid: 1, slots: { main: { content } } }] }, lists, 'v1').topic;
+	assert.strictEqual(row('1999 בספורט', 'שנה.'), 'years');
+	assert.strictEqual(row('מרקורי', '{{פירושונים}}\n* מרקורי (אל)'), 'disambig');
+	assert.strictEqual(row('Falling Down', '{{סינגל\n|שם=א}}'), 'dictionary');
+	assert.strictEqual(row('ג', 'מדינאי.\n[[קטגוריה:חברי בית הנבחרים של ארצות הברית]]\n[[קטגוריה:אמריקאים שנולדו ב-1900]]'), 'people_congress');
+	assert.strictEqual(row('ד', 'ציור.\n[[קטגוריה:ציורי עירום]]'), 'sensitive');
+	assert.strictEqual(row('ה', '{{עיר\n|שם=ה}}'), 'geo');
 });
 
 test('resultRow: dictionary-import candidate from the infobox or the categories', () => {

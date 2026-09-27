@@ -209,3 +209,13 @@ test('precision fixes approved 2026-09-26 (analysis/pattern-precision.md)', () =
 	for (const t of ['ברוך האל', 'והאל אמר', 'בעזרת האל.']) assert.ok(engine.scan(t, FULL_ACTIVE).some((m) => /האל/.test(m.text)), t);
 	assert.strictEqual(v('שוד מזוין'), 'review'); // w0119 הורד ל"לבדיקה"
 });
+
+test('names of God (topic names) count in the level as review; whole words only', () => {
+	assert.strictEqual(verdict('שאלוהים יעזור לך'), 'review');
+	assert.strictEqual(verdict('הסימטריה האלוהית'), 'review'); // גם תארים
+	assert.strictEqual(verdict('ברוך האל'), 'review');
+	assert.strictEqual(verdict('יהוה צבאות'), 'review');
+	assert.strictEqual(verdict('האלבום החדש'), 'clean');
+	assert.strictEqual(verdict('שדי אברהם הוא יישוב. כך שדי ב-2 מיקרוגרם.'), 'clean');
+	assert.strictEqual(verdict('אבן אלהיתי כתב פירוש'), 'clean');
+});

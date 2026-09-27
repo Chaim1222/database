@@ -44,7 +44,7 @@
 		wording: { label: 'דורש ניסוח', cls: 'mchl-neutral' },
 		clean: { label: 'נקי', cls: 'mchl-wiki' }
 	};
-	var WF_TOPICS = { modesty: 'צניעות', age: 'גיל העולם', faith: 'אמונה ונצרות', dating: 'תיארוך ומדע', wiki: 'שאריות מוויקיפדיה' };
+	var WF_TOPICS = { modesty: 'צניעות', age: 'גיל העולם', names: 'שמות השם', faith: 'אמונה ונצרות', dating: 'תיארוך ומדע', wiki: 'שאריות מוויקיפדיה' };
 	var wfMode = 'a'; // a = רשימות מאושרות, s = כולל הצעות
 	// שיטה: ctx = לפי הקשר (רמות חשד בתוך "לבדיקה" - המילה והמשפט שלה, ראו
 	// word-filter/analysis/word-rates.md); list = לפי הרמה שברשימה בלבד.
@@ -60,6 +60,25 @@
 	// מועמד לייבוא מילוני (עמודת dictionary - word-filter/dictionary.js): ערכי ספורט,
 	// מוזיקה, סרטים, שחקנים, טלוויזיה וספרות, לפי תבנית המידע והקטגוריות. לא משפיע על הרמה.
 	var wfDictChoice = ''; // '' / 'without' / 'only'
+	// נושא הערך (עמודת topic - word-filter/topics.js). בחירה של כמה נושאים; ריק = הכול.
+	// הקודים והשמות - אותו סדר כמו TOPICS ב-topics.js.
+	var WF_TOPIC_GROUPS = [
+		{ label: 'מיוחדים', items: [['disambig', 'פירושונים'], ['years', 'ערכי שנים ותאריכים'], ['lists', 'רשימות'],
+			['dictionary', 'ערך מילוני'], ['sensitive', 'נושאים בעייתיים']] },
+		{ label: 'אישים', items: [['people_congress', 'חברי קונגרס אמריקאים'], ['people_politics', 'פוליטיקה, ממשל ואצולה'],
+			['people_military', 'צבא וביטחון'], ['people_rabbis', 'רבנים ואישי יהדות'], ['people_clergy', 'אנשי דת אחרים'],
+			['people_science', 'מדע, רפואה ואקדמיה'], ['people_art', 'אמנות חזותית ואדריכלות'], ['people_literature', 'ספרות ועיתונות'],
+			['people_law', 'משפט'], ['people_crime', 'פשע'], ['people_stage', 'קולנוע, במה ובידור'], ['people_business', 'עסקים'],
+			['people_public', 'חינוך ופעילות ציבורית'], ['people_other', 'אחר']] },
+		{ label: 'נושאים', items: [['art', 'יצירות אמנות'], ['geo', 'גאוגרפיה ומקומות'], ['buildings', 'מבנים ואתרים'],
+			['history', 'היסטוריה וצבא'], ['nature', 'טבע ומדע'], ['religion', 'דת ואמונה'], ['orgs', 'ארגונים, מוסדות וחברות'],
+			['tech', 'טכנולוגיה'], ['culture', 'תרבות ובידור (לא מילוני)'], ['society', 'חברה ותרבות'], ['other', 'אחר']] }
+	];
+	var WF_TOPIC_LABELS = {};
+	WF_TOPIC_GROUPS.forEach(function (g) {
+		g.items.forEach(function (it) { WF_TOPIC_LABELS[it[0]] = g.label === 'אישים' ? 'אישים: ' + it[1] : it[1]; });
+	});
+	var wfTopicChoice = []; // קודים שנבחרו
 	var WF_SUSPICION = {
 		high: { label: 'לבדיקה – חשד גבוה', cls: 'mchl-review-high' },
 		medium: { label: 'לבדיקה – חשד בינוני', cls: 'mchl-review' },
@@ -847,6 +866,7 @@
 			renderWfMeter();
 		});
 		host.appendChild(dictSel);
+		host.appendChild(buildTopicPicker());
 		applyContentLevelFilter();
 		renderWfMeter();
 
@@ -878,10 +898,76 @@
 		host.appendChild(redirectSel);
 	}
 
+	// בורר הנושאים: כפתור שפותח רשימת תיבות סימון, בחלוקה לקבוצות. כותרת קבוצה מסמנת את כולה.
+	function buildTopicPicker() {
+		var wrap = document.createElement('span');
+		wrap.className = 'mchl-topic-picker';
+		var btn = document.createElement('button');
+		btn.type = 'button'; btn.className = 'mchl-filter-select mchl-topic-btn'; btn.id = 'mchl-filter-content-topic';
+		btn.title = 'נושא הערך לפי תבנית המידע והקטגוריות (word-filter/topics.js). אפשר לבחור כמה נושאים.';
+		var panel = document.createElement('div');
+		panel.className = 'mchl-topic-panel'; panel.style.display = 'none';
+		var html = '<div class="mchl-topic-actions"><button type="button" data-topic-all="1">בחירת הכול</button>' +
+			'<button type="button" data-topic-none="1">ניקוי</button></div>';
+		WF_TOPIC_GROUPS.forEach(function (g, gi) {
+			html += '<div class="mchl-topic-group"><label class="mchl-topic-head"><input type="checkbox" data-topic-group="' + gi + '"> ' +
+				escapeHtml(g.label) + '</label>';
+			g.items.forEach(function (it) {
+				html += '<label class="mchl-topic-item"><input type="checkbox" value="' + it[0] + '"' +
+					(wfTopicChoice.indexOf(it[0]) >= 0 ? ' checked' : '') + '> ' + escapeHtml(it[1]) + '</label>';
+			});
+			html += '</div>';
+		});
+		panel.innerHTML = html;
+		function sync() {
+			WF_TOPIC_GROUPS.forEach(function (g, gi) {
+				var all = g.items.every(function (it) { return wfTopicChoice.indexOf(it[0]) >= 0; });
+				var some = g.items.some(function (it) { return wfTopicChoice.indexOf(it[0]) >= 0; });
+				var head = panel.querySelector('input[data-topic-group="' + gi + '"]');
+				head.checked = all; head.indeterminate = some && !all;
+			});
+			panel.querySelectorAll('input[value]').forEach(function (cb) { cb.checked = wfTopicChoice.indexOf(cb.value) >= 0; });
+			btn.textContent = !wfTopicChoice.length ? 'נושאים — הכול ▾' :
+				wfTopicChoice.length === 1 ? 'נושא: ' + WF_TOPIC_LABELS[wfTopicChoice[0]] + ' ▾' : 'נושאים: ' + wfTopicChoice.length + ' נבחרו ▾';
+		}
+		function changed() {
+			sync();
+			applyContentLevelFilter();
+			currentPage = 0; loadActiveView(); toggleClearFiltersBtn();
+			renderWfMeter();
+		}
+		panel.addEventListener('change', function (e) {
+			var t = e.target;
+			if (t.hasAttribute('data-topic-group')) {
+				var codes = WF_TOPIC_GROUPS[+t.getAttribute('data-topic-group')].items.map(function (it) { return it[0]; });
+				wfTopicChoice = wfTopicChoice.filter(function (c) { return codes.indexOf(c) < 0; });
+				if (t.checked) wfTopicChoice = wfTopicChoice.concat(codes);
+			} else if (t.value) {
+				wfTopicChoice = wfTopicChoice.filter(function (c) { return c !== t.value; });
+				if (t.checked) wfTopicChoice.push(t.value);
+			}
+			changed();
+		});
+		panel.addEventListener('click', function (e) {
+			if (e.target.hasAttribute('data-topic-all')) {
+				wfTopicChoice = [];
+				WF_TOPIC_GROUPS.forEach(function (g) { g.items.forEach(function (it) { wfTopicChoice.push(it[0]); }); });
+				changed();
+			} else if (e.target.hasAttribute('data-topic-none')) { wfTopicChoice = []; changed(); }
+		});
+		btn.addEventListener('click', function () { panel.style.display = panel.style.display === 'none' ? 'block' : 'none'; });
+		document.addEventListener('click', function (e) { if (!wrap.contains(e.target)) panel.style.display = 'none'; });
+		wrap.appendChild(btn);
+		wrap.appendChild(panel);
+		sync();
+		return wrap;
+	}
+
 	function applyContentLevelFilter() {
 		['verdict', 'verdict_suggested', 'ctx_verdict', 'ctx_verdict_suggested', 'ctx_suspicion', 'ctx_suspicion_suggested',
-			'hidden_count', 'hidden_count_suggested', 'dictionary']
+			'hidden_count', 'hidden_count_suggested', 'dictionary', 'topic']
 			.forEach(function (c) { delete activeFilters[c]; });
+		if (wfTopicChoice.length) activeFilters.topic = { op: 'in', value: '(' + wfTopicChoice.join(',') + ')' };
 		if (wfDictChoice) activeFilters.dictionary = { op: wfDictChoice === 'only' ? 'not.is' : 'is', value: 'null' };
 		if (wfHiddenChoice) activeFilters[wfHiddenColumn()] = wfHiddenChoice === 'with' ? { op: 'gt', value: 0 } : { op: 'eq', value: 0 };
 		var col = wfColumn(), v = wfLevelChoice;
@@ -912,8 +998,19 @@
 
 	function loadWfSummary(force) {
 		if (wfSummary && !force) return Promise.resolve(wfSummary);
-		return pgSelect('report_missing_word_filter_summary', { filterParams: [], order: 'n.desc', from: 0, to: 4999 })
-			.then(function (res) { wfSummary = res.data || []; return wfSummary; });
+		// בדפים של 1,000 שורות - סופבייס מגביל תשובה אחת (max rows).
+		var rows = [];
+		function page(from) {
+			return pgSelect('report_missing_word_filter_summary', { filterParams: [], order: 'n.desc', from: from, to: from + 999 })
+				.then(function (res) {
+					var data = res.data || [];
+					rows = rows.concat(data);
+					if (data.length && rows.length < res.count) return page(rows.length);
+					wfSummary = rows;
+					return wfSummary;
+				});
+		}
+		return page(0);
 	}
 
 	function renderWfMeter() {
@@ -930,6 +1027,7 @@
 				if (r.redirect !== redirect) return;
 				if (images !== null && r.has_images !== images) return;
 				if (wfDictChoice && r.dictionary !== (wfDictChoice === 'only')) return;
+				if (wfTopicChoice.length && wfTopicChoice.indexOf(r.topic) < 0) return;
 				var level = wfRowLevel(r);
 				counts[level] = (counts[level] || 0) + r.n;
 				total += r.n;
@@ -955,6 +1053,7 @@
 				escapeHtml(wfMethod === 'ctx' ? 'לפי הקשר' : 'לפי רמת הרשימה') + ' · ' +
 				escapeHtml(wfMode === 's' ? 'כולל הצעות' : 'רשימות מאושרות') + (images === null ? '' : images ? ' · עם תמונות' : ' · בלי תמונות') +
 				(wfDictChoice === 'only' ? ' · מילוני בלבד' : wfDictChoice === 'without' ? ' · ללא מילוני' : '') +
+				(wfTopicChoice.length ? ' · ' + (wfTopicChoice.length === 1 ? WF_TOPIC_LABELS[wfTopicChoice[0]] : wfTopicChoice.length + ' נושאים') : '') +
 				' · ' + total.toLocaleString('he-IL') + ' ערכים <span class="mchl-muted">(לחיצה מסננת)</span></div>' +
 				'<div class="mchl-wf-bar">' + bar + '</div><div class="mchl-wf-legends">' + legend + '</div>';
 		}).catch(function () {
@@ -981,6 +1080,7 @@
 		wfLevelChoice = '';
 		wfHiddenChoice = '';
 		wfDictChoice = '';
+		wfTopicChoice = [];
 		$id('mchl-search-input').value = '';
 		currentPage = 0;
 		buildDynamicFilters();
@@ -1284,6 +1384,7 @@
 		var hidden = row[wfHiddenColumn()];
 		if (hidden) html += ' <span class="mchl-muted mchl-num-cell" title="מילים בקוד שהקורא לא רואה - לא נספרות ברמה">+' + hidden + ' בקוד</span>';
 		if (row.dictionary) html += ' <span class="mchl-badge mchl-neutral" title="' + escapeHtml('מועמד לייבוא מילוני: ' + (row.dictionary_why || '')) + '">מילוני: ' + escapeHtml(row.dictionary) + '</span>';
+		else if (row.topic && WF_TOPIC_LABELS[row.topic]) html += ' <span class="mchl-muted mchl-num-cell" title="נושא">' + escapeHtml(WF_TOPIC_LABELS[row.topic]) + '</span>';
 		if (row.matches_total || row.has_images || hidden) {
 			html += ' <button type="button" class="mchl-wf-toggle" data-action="wf-details" data-id="' + row.id + '">הקשר ▾</button>';
 		}
@@ -2048,6 +2149,14 @@
 		'#mchl-dash input.mchl-search,#mchl-dash select.mchl-filter-select,#mchl-dash select.mchl-page-size,#mchl-dash input.mchl-filter-number{background:var(--mchl-ink-800);border:1px solid var(--mchl-line);border-radius:8px;color:var(--mchl-text-1);padding:9px 12px;font-size:13.5px;}' +
 		'#mchl-dash input.mchl-search{width:100%;}' +
 		'#mchl-dash select.mchl-filter-select{cursor:pointer;}' +
+		'#mchl-dash .mchl-topic-picker{position:relative;display:inline-block;}' +
+		'#mchl-dash .mchl-topic-btn{cursor:pointer;}' +
+		'#mchl-dash .mchl-topic-panel{position:absolute;top:100%;right:0;z-index:30;margin-top:4px;min-width:260px;max-height:60vh;overflow:auto;background:var(--mchl-ink-800);border:1px solid var(--mchl-line);border-radius:8px;box-shadow:0 6px 16px rgba(0,0,0,.35);padding:8px 10px;}' +
+		'#mchl-dash .mchl-topic-actions{display:flex;gap:8px;margin-bottom:6px;}' +
+		'#mchl-dash .mchl-topic-actions button{background:none;border:1px solid var(--mchl-line);border-radius:6px;color:inherit;padding:2px 8px;cursor:pointer;font:inherit;font-size:12px;}' +
+		'#mchl-dash .mchl-topic-group{margin:6px 0;}' +
+		'#mchl-dash .mchl-topic-head{display:block;font-weight:600;margin-bottom:2px;cursor:pointer;}' +
+		'#mchl-dash .mchl-topic-item{display:block;padding:1px 18px 1px 0;font-size:13px;cursor:pointer;white-space:nowrap;}' +
 		'#mchl-dash input.mchl-filter-number{width:150px;}' +
 		'#mchl-dash .mchl-clear-filters{background:none;border:none;color:var(--mchl-text-2);font-size:13px;cursor:pointer;text-decoration:underline;padding:0;}' +
 		'#mchl-dash .mchl-spacer{flex:1;}' +

@@ -492,7 +492,9 @@ create table if not exists word_filter_results (
     -- מועמד לייבוא מילוני (word-filter/dictionary.js): הסוג ('ספורט', 'מוזיקה'...) או null,
     -- והסיבה ("תבנית סינגל"). סימון נפרד, לא משפיע על הרמה.
     dictionary text,
-    dictionary_why text
+    dictionary_why text,
+    -- נושא הערך (word-filter/topics.js): 'people_congress', 'art', 'sensitive', 'years', 'disambig', 'dictionary', 'other'...
+    topic text
 );
 create index if not exists word_filter_results_verdict_idx on word_filter_results (verdict);
 create index if not exists word_filter_results_verdict_suggested_idx on word_filter_results (verdict_suggested);

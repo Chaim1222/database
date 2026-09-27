@@ -161,19 +161,21 @@ select m.id, m.title, m.checked_at, m.wikidata_desc, m.easy_import_length, m.cre
     r.verdict, r.verdict_suggested, r.has_images, r.photo_count, r.counts, r.matches_total, r.images, r.scanned_at,
     r.ctx_verdict, r.ctx_suspicion, r.ctx_verdict_suggested, r.ctx_suspicion_suggested,
     r.hidden_count, r.hidden_count_suggested,
-    r.dictionary, r.dictionary_why
+    r.dictionary, r.dictionary_why,
+    r.topic
 from report_missing_from_mechalol m
 left join word_filter_results r on r.wikipedia_id = m.id;
 
 -- 7. ספירה מקובצת למחוון הפילוח בדשבורד (מאות שורות במקום 25 אלף).
---    dictionary לפני n - שינוי בו מחייב drop + create (migration_add_word_filter_dictionary.sql).
+--    dictionary ו-topic לפני n - שינוי בהם מחייב drop + create (migration_add_word_filter_topic.sql).
 create or replace view report_missing_word_filter_summary with (security_invoker = true) as
 select coalesce(mechalol_redirect_exists, false) as redirect, has_images,
     verdict, verdict_suggested, ctx_verdict, ctx_suspicion, ctx_verdict_suggested, ctx_suspicion_suggested,
     dictionary is not null as dictionary,
+    topic,
     count(*)::int as n
 from report_missing_word_filter
-group by 1, 2, 3, 4, 5, 6, 7, 8, 9;
+group by 1, 2, 3, 4, 5, 6, 7, 8, 9, 10;
 
 -- --- הרשאות: קיימות בייצור, מעולם לא תועדו כאן עד 2026-09 ---
 -- מלכוד שהתגלה בפועל: view חדש שנוצר עם create or replace view רגיל
