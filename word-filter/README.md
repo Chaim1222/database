@@ -85,7 +85,7 @@ node --test word-filter/tests/*.test.js
 node word-filter/tools/evaluate.js fetch-blacklist --ids-file ids.txt   # או מסופרבייס עם SUPABASE_URL/SUPABASE_SERVICE_KEY
 node word-filter/tools/evaluate.js fetch-mechalol dev 500
 node word-filter/tools/evaluate.js fetch-mechalol holdout 1500
-node word-filter/tools/evaluate.js fetch-random wiki-random wikipedia 2000   # מדגם מייצג מוויקיפדיה (בלי blacklist)
+node word-filter/tools/evaluate.js fetch-random wiki-random wikipedia 5000   # מדגם מייצג מוויקיפדיה (בלי blacklist)
 node word-filter/tools/evaluate.js contexts /tmp/contexts.json    # הקשרי המופעים במדגם האקראי - לסיווג
 node word-filter/tools/evaluate.js fetch-ids dev mechalol word-filter/corpus-ids/dev.txt   # שחזור מדגם קיים
 node word-filter/tools/evaluate.js report --lost        # אחרי כל שינוי ברשימות
