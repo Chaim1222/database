@@ -47,14 +47,14 @@
 		{
 			"id": "w0019",
 			"pattern": "(?<![א-ת])(?![ובלכמה]{0,2}שמיני)[ובלכמשה]{0,3}מיני(?:ו)?ת(?:ו|ה|ם|ן|י|נו|כם)?(?![א-ת])",
-			"problematic": 45,
-			"labeled": 48
+			"problematic": 55,
+			"labeled": 58
 		},
 		{
 			"id": "w0021",
-			"pattern": "(?:ניצול|אופי|אופן|אקט|תוכן|העדפה|חד|חינוך|מגע|חשק|תפקוד|התעללות|תקף)[- ]ה?מיני",
+			"pattern": "(?<![א-ת])[ובלכמשה]{0,3}(?:ניצול|אופי|אופן|אקט|תוכן|העדפה|חד|חינוך|מגע|חשק|תפקוד|התעללות|תקף)[- ]ה?מיני",
 			"problematic": 70,
-			"labeled": 71
+			"labeled": 70
 		},
 		{
 			"id": "w0023",
@@ -93,6 +93,12 @@
 			"labeled": 4
 		},
 		{
+			"id": "w0043",
+			"pattern": "מאהב[ת]",
+			"problematic": 13,
+			"labeled": 14
+		},
+		{
 			"id": "w0044",
 			"pattern": "[מלה]*תאהב",
 			"problematic": 37,
@@ -117,10 +123,28 @@
 			"labeled": 29
 		},
 		{
+			"id": "w0057",
+			"pattern": "נואף|ניאוף|לנאוף|נאף",
+			"problematic": 32,
+			"labeled": 37
+		},
+		{
+			"id": "w0069",
+			"pattern": "מצעדי? ה?גאוו?ה",
+			"problematic": 8,
+			"labeled": 8
+		},
+		{
 			"id": "w0071",
 			"pattern": "אהובתו",
 			"problematic": 9,
 			"labeled": 9
+		},
+		{
+			"id": "w0074",
+			"pattern": "פלי*רטו*ט",
+			"problematic": 12,
+			"labeled": 13
 		},
 		{
 			"id": "w0079",
@@ -171,6 +195,36 @@
 			"pattern": "הומופוב",
 			"problematic": 34,
 			"labeled": 34
+		},
+		{
+			"id": "w0325",
+			"pattern": "(?:יצא(?:ה|ו)?|יציאה(?:ו|תו|תה)?) מהארון",
+			"problematic": 8,
+			"labeled": 9
+		},
+		{
+			"id": "w0357",
+			"pattern": "\\bfuck\\w*",
+			"problematic": 11,
+			"labeled": 12
+		},
+		{
+			"id": "w0359",
+			"pattern": "\\bbitch\\w*",
+			"problematic": 6,
+			"labeled": 6
+		},
+		{
+			"id": "w0365",
+			"pattern": "\\bsexy\\b",
+			"problematic": 9,
+			"labeled": 9
+		},
+		{
+			"id": "w0378",
+			"pattern": "מתנשק[א-ת]*",
+			"problematic": 7,
+			"labeled": 7
 		},
 		{
 			"id": "w0410",
