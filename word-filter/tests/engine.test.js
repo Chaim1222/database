@@ -353,3 +353,9 @@ test('explicit phrase without usage data stays problem when a general word merge
 	assert.ok(m.entries.some((e) => e.id === 'w0296'));
 	assert.strictEqual(m.context.level, 'problem');
 });
+
+test('fixed entry is not raised by other words ("דוגמנית", Chaim 2026-09-28)', () => {
+	const usage = require('../lists/usage.json');
+	const lvl = (t) => engine.contextLevels(t, engine.scan(t, FULL), usage).find((m) => m.entries.some((e) => e.id === 'w0039')).context;
+	assert.deepStrictEqual([lvl('היא דוגמנית ישראלית.').level, lvl('היא דוגמנית וקיימה יחסי מין עם הצלם.').level], ['review', 'review']);
+});

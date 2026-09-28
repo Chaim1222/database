@@ -567,10 +567,12 @@
 		{
 			"id": "w0039",
 			"pattern": "דוגמנ[ית]",
-			"level": "problem",
+			"level": "review",
 			"topic": "modesty",
 			"status": "active",
-			"reviewed": false,
+			"reviewed": true,
+			"fixed": true,
+			"note": "הכרעת חיים 2026-09-28: \"דוגמנית זה לבדיקה, וזה לא מושפע ממילים אחרות\". fixed - הרמה לפי קבוצת השימוש בלבד (A = חשד גבוה), בלי השפעה של מילים אחרות בדף.",
 			"sources": [
 				"במח/אדום כהה",
 				"בומח/צניעות"

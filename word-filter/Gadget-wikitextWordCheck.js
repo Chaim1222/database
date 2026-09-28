@@ -596,8 +596,11 @@
 			});
 			var anchorInSentence = mates.some(isAnchor);
 			var pageAnchor = flagged.some(function (o) { return o !== m && o.text !== m.text && isAnchor(o); });
-			var strong = anchorInSentence || (mates.length > 0 && pageAnchor);
-			var weak = mates.length > 0 || pageAnchor;
+			// רשומה עם fixed: true ("דוגמנית", הכרעת חיים 2026-09-28) - הרמה לפי הקבוצה בלבד,
+			// בלי השפעה של מילים אחרות בדף.
+			var fixed = m.entries.every(function (e) { return e.fixed; });
+			var strong = !fixed && (anchorInSentence || (mates.length > 0 && pageAnchor));
+			var weak = !fixed && (mates.length > 0 || pageAnchor);
 			var g = m._group, eff;
 			if (g === 'anchor' || g === 'X') eff = 'problem';
 			else if (g === 'A') eff = strong || weak ? 'problem' : 'high';
