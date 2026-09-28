@@ -519,6 +519,9 @@
 		var key = match.entries.map(function (e) { return e.id; }).sort().join(',');
 		if (families[key]) return families[key].group;
 		var best = null;
+		// רשומה "בעיה" בלי נתוני שימוש (צירוף מפורש כמו "מין אוראלי") - X, ולא נבלעת
+		// בקבוצה של מילה כללית שהתמזגה בה ("מין", קבוצה C).
+		if (match.entries.some(function (e) { return !families[e.id] && e.level === 'problem'; })) return 'X';
 		match.entries.forEach(function (e) {
 			var f = families[e.id];
 			if (f && (!best || GROUP_RANK[f.group] > GROUP_RANK[best])) best = f.group;

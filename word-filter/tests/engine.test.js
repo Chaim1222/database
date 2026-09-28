@@ -344,3 +344,12 @@ test('overlapping matches merge into one word ("חד-מיני" + "מיניים",
 	assert.strictEqual(ms[0].level, 'problem');
 	assert.ok(ms[0].entries.some((e) => e.id === 'w0021') && ms[0].entries.some((e) => e.id === 'w0022'));
 });
+
+test('explicit phrase without usage data stays problem when a general word merges into it ("מין אוראלי" + "מין", dashboard 2026-09-28)', () => {
+	const usage = require('../lists/usage.json');
+	const t = 'שם קיימו מין אוראלי הדדי בתשלום.';
+	const ms = engine.contextLevels(t, engine.scan(t, FULL), usage);
+	const m = ms.find((x) => x.entries.some((e) => e.id === 'w0091'));
+	assert.ok(m.entries.some((e) => e.id === 'w0296'));
+	assert.strictEqual(m.context.level, 'problem');
+});
