@@ -21,10 +21,10 @@ test('scanPage: two verdicts, counts, and sentence context per match', () => {
 });
 
 test('scanPage: a suggested entry changes only verdict_suggested', () => {
-	const r = scanPage('הם חיו בתקופת הפלייסטוקן.', lists); // w0435 - הצעה
+	const r = scanPage('על פי ישוע.', lists); // w0379 - הצעה (אמונה - הערת ניסוח)
 	assert.strictEqual(r.verdict, 'clean');
-	assert.strictEqual(r.verdict_suggested, 'problem');
-	assert.ok(r.matches.some((m) => m.s === 'problem' && m.a === null));
+	assert.strictEqual(r.verdict_suggested, 'wording');
+	assert.ok(r.matches.some((m) => m.s === 'wording' && m.a === null));
 });
 
 test('scanPage: clean page', () => {
@@ -92,12 +92,12 @@ test('scanPage: context verdict and per-match suspicion', () => {
 test('scanPage: a context clue is stored with the match (ks/kw), per mode', () => {
 	const r = scanPage('הוא הורשע באונס.', lists);
 	const m = r.matches.find((x) => /אונס/.test(x.x));
-	assert.strictEqual(m.ca, 'medium');   // המאושרות - מילות ההקשר עוד הצעות
+	assert.strictEqual(m.ca, 'problem');  // k001 הופעל (חיים, 2026-09-28)
 	assert.strictEqual(m.cs, 'problem');
 	assert.deepStrictEqual(m.ks, ['k001']);
 	assert.deepStrictEqual(m.kw, ['הורשע']);
-	assert.strictEqual(m.ka, undefined);
-	assert.strictEqual(r.ctx_verdict, 'review');
+	assert.deepStrictEqual(m.ka, ['k001']);
+	assert.strictEqual(r.ctx_verdict, 'problem');
 	assert.strictEqual(r.ctx_verdict_suggested, 'problem');
 });
 

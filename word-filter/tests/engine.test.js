@@ -28,9 +28,9 @@ test('lists: every entry compiles and has the required fields', () => {
 });
 
 test('suggested entries are off unless asked for', () => {
-	const age = 'חיו בתקופת הפלייסטוקן.'; // w0435 - עדיין הצעה (w0429 אושר בדף הסידור, 2026-09-28)
-	assert.ok(!engine.scan(age, ACTIVE).some((m) => m.topic === 'age'));
-	assert.ok(engine.scan(age, FULL).some((m) => m.topic === 'age'));
+	const t = 'על פי ישוע.'; // w0379 - עדיין הצעה (כל השאר אושרו, 2026-09-28)
+	assert.ok(!engine.scan(t, ACTIVE).some((m) => m.entries.some((e) => e.id === 'w0379')));
+	assert.ok(engine.scan(t, FULL).some((m) => m.entries.some((e) => e.id === 'w0379')));
 	assert.deepStrictEqual(texts('she wore panties', FULL), []); // w0424 נדחה - לא נבדק גם עם ההצעות
 });
 
@@ -96,10 +96,10 @@ test('allow list: hide = not the word at all; demote = innocent use, shown as re
 		'רבייה מינית אפשרית מהשנה השנייה', 'הפרחים דו-מיניים', 'מתבגרים מינית לאט']) {
 		assert.strictEqual(verdict(t), 'review', t);
 	}
-	assert.strictEqual(verdict('בשוגג או באונס'), 'problem'); // a015 נדחה (חיים, 2026-09-27)
+	assert.strictEqual(verdict('בשוגג או באונס'), 'review'); // a015 נדחה (חיים, 2026-09-27); "אונס" לבד - לבדיקה (2026-09-28)
 	assert.strictEqual(engine.verdict(engine.scan('רבייה מינית', ACTIVE)), 'problem'); // בלי ההיתר
 	assert.strictEqual(engine.verdict(engine.scan('רבייה מינית', engine.compileLists(words, allow))), 'review'); // a028 פעיל
-	for (const t of ['היא הייתה אנוסה', 'הוא אנס אותה', 'זוג מאותו המין', 'תעשיית הפורנו', 'אלבום Fuck You']) {
+	for (const t of ['הוא אנס אותה', 'זוג מאותו המין', 'תעשיית הפורנו', 'אלבום Fuck You']) {
 		assert.strictEqual(verdict(t), 'problem', t);
 	}
 });
@@ -126,7 +126,7 @@ test('age of the world counts in the verdict; recent dates do not', () => {
 	assert.strictEqual(engine.verdict(engine.scan('לפני מיליון שנה', ACTIVE)), 'problem');
 	// w0188 אחרי תיקון הדיוק (2026-09-26): טריאסטה (העיר) לא נתפסת, התקופה הטריאסית כן.
 	assert.strictEqual(engine.verdict(engine.scan('נסע לטריאסטה', ACTIVE)), 'clean');
-	assert.strictEqual(engine.verdict(engine.scan('בתקופה הטריאסית', ACTIVE)), 'review');
+	assert.strictEqual(engine.verdict(engine.scan('בתקופה הטריאסית', ACTIVE)), 'problem'); // w0188 אוחד בתקופות הגאולוגיות (2026-09-28)
 	assert.strictEqual(engine.verdict(engine.scan('חיו לפני 30,000 שנה', ACTIVE)), 'problem'); // w0429 אושר (דף הסידור, 2026-09-28)
 });
 
@@ -310,8 +310,9 @@ test('duplicates merged (analysis/duplicates.md): one entry per word, fixes not 
 	assert.deepStrictEqual(ids('הסרט אינוסבך'), []);                 // w0086 לא מבטל את התיקון של w0289
 	for (const t of ['אנסמבל כלי נשיפה', 'אתר אונסק"ו', 'נאן צ\'אונסי', 'האנוסים בספרד', 'לא אנסה להתחמק', 'מזימה נגד המלך', 'מזונות הילדים'])
 		assert.ok(!engine.scan(t, L).some((m) => m.topic === 'modesty'), t);
-	for (const t of ['היא הייתה אנוסה', 'אנסו אותה', 'שנאנסה על ידי', 'בזנות', 'ריקוד [[זנות]]י', 'דמות של חשפנית'])
+	for (const t of ['אנסו אותה', 'בזנות', 'ריקוד [[זנות]]י', 'דמות של חשפנית'])
 		assert.strictEqual(verdict(t), 'problem', t);
+	for (const t of ['היא הייתה אנוסה', 'שנאנסה על ידי']) assert.strictEqual(verdict(t), 'review', t); // "אונס" לבד - לבדיקה; מילות ההקשר מכריעות
 	assert.strictEqual(verdict('החוקרים חשפו את הממצא'), 'review'); // w0310 - "תלוי בהקשר"
 	assert.strictEqual(verdict('היא חושפת את גופה'), 'review');
 	assert.strictEqual(verdict('מעשים מגונים בקטינים'), 'problem');   // w0102 (במקום "מעשיה מגונה")
