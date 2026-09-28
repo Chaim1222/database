@@ -401,13 +401,21 @@
 				}
 			});
 		});
-		// התאמה שכלולה בהתאמה אחרת ("מיני" בתוך "מיניות", "לפנה"ס" בתוך "4000 לפנה"ס") מתמזגת
+		// התאמה שכלולה בהתאמה אחרת ("מיני" בתוך "מיניות", "לפנה"ס" בתוך "4000 לפנה"ס"), או חופפת לה, מתמזגת
 		// בה, כדי שכל מילה תופיע פעם אחת. הרמה - הגבוהה; הנושא - של הרמה הגבוהה, ועדיפות לנושא שנספר.
 		result.sort(function (a, b) { return a.start - b.start || b.end - a.end; });
 		var merged = [];
 		result.forEach(function (m) {
 			var outer = merged[merged.length - 1];
-			if (!outer || m.start >= outer.end || m.end > outer.end) { merged.push(m); return; }
+			if (!outer || m.start >= outer.end) { merged.push(m); return; }
+			if (m.end > outer.end) {
+				// חפיפה חלקית ("חד-מיני" ו"מיניים" ב"חד-מיניים") - מתאחדות למילה אחת, אם
+				// הקוד בטווח המשותף הוא טקסט רגיל (בלי סימון שמשנה את התצוגה).
+				var joined = wikitext.slice(outer.start, m.end);
+				if (/[\[\]{}<>|'&]/.test(joined)) { merged.push(m); return; }
+				outer.end = m.end;
+				outer.text = joined;
+			}
 			m.entries.forEach(function (e) { if (outer.entries.indexOf(e) < 0) outer.entries.push(e); });
 			m.demotedBy.forEach(function (e) { if (outer.demotedBy.indexOf(e) < 0) outer.demotedBy.push(e); });
 			var counts = function (x) { return VERDICT_TOPICS.indexOf(x.topic) >= 0; };

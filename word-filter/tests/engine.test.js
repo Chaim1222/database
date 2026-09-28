@@ -337,3 +337,10 @@ test('w0077 ass - the word itself, not assets/assessment (Chaim, dashboard 2026-
 	for (const t of ['intangible assets', 'risk assessment', 'sexual assault', 'General Assembly', 'associated with']) assert.ok(!hit(t), t);
 	for (const t of ['kick his ass', 'What an asshole', 'Ass Kickin', 'Jackass (TV series)']) assert.ok(hit(t), t);
 });
+
+test('overlapping matches merge into one word ("חד-מיני" + "מיניים", Chaim, dashboard 2026-09-28)', () => {
+	const ms = engine.scan('התנגדות לנישואין חד-מיניים.', ACTIVE);
+	assert.deepStrictEqual(ms.map((m) => m.text), ['חד-מיניים']);
+	assert.strictEqual(ms[0].level, 'problem');
+	assert.ok(ms[0].entries.some((e) => e.id === 'w0021') && ms[0].entries.some((e) => e.id === 'w0022'));
+});
