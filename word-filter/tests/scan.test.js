@@ -21,8 +21,8 @@ test('scanPage: two verdicts, counts, and sentence context per match', () => {
 });
 
 test('scanPage: a suggested entry changes only verdict_suggested', () => {
-	const r = scanPage('בני אדם חיו כאן לפני 30,000 שנה.', lists); // w0429 - הצעה
-	assert.strictEqual(r.verdict, 'wording');        // מאושרות: רק "000 שנה" (תיארוך)
+	const r = scanPage('הם חיו בתקופת הפלייסטוקן.', lists); // w0435 - הצעה
+	assert.strictEqual(r.verdict, 'clean');
 	assert.strictEqual(r.verdict_suggested, 'problem');
 	assert.ok(r.matches.some((m) => m.s === 'problem' && m.a === null));
 });
@@ -107,7 +107,7 @@ test('scanPage: hidden-code matches are stored apart and not counted in the leve
 	assert.strictEqual(r.verdict_suggested, 'clean');
 	assert.strictEqual(r.hidden_count_suggested, 1); // מפתח המיון נשמר, אבל לא נספר
 	const h = r.matches.filter((m) => m.h);
-	assert.deepStrictEqual(h.map((m) => m.x + ':' + m.h), ['אונס:l', 'רומן:k']);
+	assert.deepStrictEqual(h.map((m) => m.x + ':' + m.h), ['אונס נערה:l', 'רומן:k']);
 	assert.strictEqual(h[0].cs, null);
 });
 

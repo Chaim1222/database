@@ -28,14 +28,14 @@ test('lists: every entry compiles and has the required fields', () => {
 });
 
 test('suggested entries are off unless asked for', () => {
-	const age = 'בני אדם חיו כאן לפני 30,000 שנה.'; // w0429 - עדיין הצעה
+	const age = 'חיו בתקופת הפלייסטוקן.'; // w0435 - עדיין הצעה (w0429 אושר בדף הסידור, 2026-09-28)
 	assert.ok(!engine.scan(age, ACTIVE).some((m) => m.topic === 'age'));
 	assert.ok(engine.scan(age, FULL).some((m) => m.topic === 'age'));
 	assert.deepStrictEqual(texts('she wore panties', FULL), []); // w0424 נדחה - לא נבדק גם עם ההצעות
 });
 
 test('fixed patterns from the source pages now match', () => {
-	assert.ok(texts('הוא אנס אותה').includes('אנס'));
+	assert.ok(texts('הוא אנס אותה').some((t) => t.includes('אנס')));
 	assert.ok(texts('זוג לסביות').includes('לסביות'));
 	assert.deepStrictEqual(texts('מדינת אריזונה'), []);
 	assert.deepStrictEqual(texts('כלי זין רבים'), []);
@@ -88,11 +88,11 @@ test('three-level verdict', () => {
 
 test('allow list: hide = not the word at all; demote = innocent use, shown as review', () => {
 	for (const t of ['אתר מורשת של אונסק"ו', 'בואנוס איירס', 'הקיסר אדריאנוס', 'דוכס סקסוניה', 'טרנסילבניה',
-		'כל מיני כלים', 'כנסייה רומנסקית']) {
+		'כל מיני כלים', 'כנסייה רומנסקית', 'המין האנושי']) { // "המין האנושי" - תמים (דף הסידור, 2026-09-28)
 		assert.strictEqual(verdict(t), 'clean', t);
 	}
 	// הכרעת חיים: שימוש תמים במילה אמיתית לא נעלם - יורד ל"לבדיקה".
-	for (const t of ['המין האנושי', 'הממצאים חשפו', '[[מין (טקסונומיה)|מין]] של ציפור',
+	for (const t of ['הממצאים חשפו', '[[מין (טקסונומיה)|מין]] של ציפור',
 		'רבייה מינית אפשרית מהשנה השנייה', 'הפרחים דו-מיניים', 'מתבגרים מינית לאט']) {
 		assert.strictEqual(verdict(t), 'review', t);
 	}
@@ -127,7 +127,7 @@ test('age of the world counts in the verdict; recent dates do not', () => {
 	// w0188 אחרי תיקון הדיוק (2026-09-26): טריאסטה (העיר) לא נתפסת, התקופה הטריאסית כן.
 	assert.strictEqual(engine.verdict(engine.scan('נסע לטריאסטה', ACTIVE)), 'clean');
 	assert.strictEqual(engine.verdict(engine.scan('בתקופה הטריאסית', ACTIVE)), 'review');
-	assert.strictEqual(engine.verdict(engine.scan('חיו לפני 30,000 שנה', ACTIVE)), 'wording'); // w0429 - עדיין הצעה; נתפס רק כתיארוך
+	assert.strictEqual(engine.verdict(engine.scan('חיו לפני 30,000 שנה', ACTIVE)), 'problem'); // w0429 אושר (דף הסידור, 2026-09-28)
 });
 
 test('contained matches merge; sentence context is readable text', () => {
@@ -156,11 +156,15 @@ test('context levels: the word and its sentence decide the suspicion', () => {
 	const ctx = (t) => engine.contextVerdict(engine.contextLevels(t, engine.scan(t, FULL), usage));
 	assert.deepStrictEqual(ctx('הרומן "נפשות מתות" מאת גוגול.'), { level: 'review', suspicion: 'low' });      // C לבד
 	assert.deepStrictEqual(ctx('הוא הורשע באונס.'), { level: 'review', suspicion: 'medium' });                // B לבד
-	assert.deepStrictEqual(ctx('הסרט עוסק במערכת יחסים.'), { level: 'review', suspicion: 'high' });         // A לבד
+	assert.deepStrictEqual(ctx('הסרט עוסק במערכת יחסים.'), { level: 'clean', suspicion: null });            // "מערכת יחסים" לבד - הורד (דף הסידור)
+	assert.deepStrictEqual(ctx('ניהלה מערכת יחסים לסבית.'), { level: 'problem', suspicion: null });        // הצירוף - בעיה תמיד
 	assert.deepStrictEqual(ctx('תעשיית הפורנו.'), { level: 'problem', suspicion: null });                     // עוגן
 	const t = 'הוא ניהל רומן עם אשתו של חברו, והזונה צחקה.';
 	const ms = engine.contextLevels(t, engine.scan(t, FULL), usage);
-	assert.strictEqual(ms.find((m) => m.text === 'רומן').context.suspicion, 'high');                        // C + עוגן במשפט
+	assert.strictEqual(ms.find((m) => m.text.includes('רומן')).context.level, 'problem');                  // "ניהל רומן" - צירוף שחיים סימן
+	const t2 = 'הוא כתב רומן על אשתו של חברו, והזונה צחקה.';
+	const ms2 = engine.contextLevels(t2, engine.scan(t2, FULL), usage);
+	assert.strictEqual(ms2.find((m) => m.text === 'רומן').context.suspicion, 'high');                       // C + עוגן במשפט
 	assert.deepStrictEqual(ctx('ירושלים עיר עתיקה.'), { level: 'clean', suspicion: null });
 	assert.deepStrictEqual(ctx('לפי תורת האבולוציה.'), { level: 'wording', suspicion: null });
 });
@@ -202,7 +206,9 @@ test('context clues: a neighbour word decides the sense', () => {
 	// אבל זוגיות / נישואים / יחסים בין בני אותו המין - בעיה (k015, withWords).
 	const marriage = one('האיסור על נישואים של זוגות מאותו המין בוטל.');
 	assert.strictEqual(marriage.level, 'problem');
-	assert.deepStrictEqual(marriage.clues, ['k017']); // ההתאמה היא "אותו המין" (w0123)
+	// "זוגות מאותו המין" - עכשיו צירוף שחיים סימן (בעיה תמיד, בלי מילת הקשר); k017 - בזוגיות בלי הצירוף.
+	const married = one('הם נישאו אף שהם בני אותו המין.');
+	assert.deepStrictEqual([married.level, married.clues], ['problem', ['k017']]); // ההתאמה היא "אותו המין" (w0123)
 	assert.strictEqual(one('יחסים בין בני אותו המין.').level, 'problem');
 	assert.strictEqual(one('רצונן בבת-זוג מאותו מין.').level, 'problem');                   // k015 - ההתאמה "מין"
 	assert.strictEqual(one('ההורה מאותו מין.').suspicion, 'low');
@@ -235,7 +241,7 @@ test('match text is trimmed to the word itself', () => {
 
 test('scanHidden: words only in hidden code, with where they were found', () => {
 	const hidden = (t) => engine.scanHidden(t, FULL).map((m) => m.text + ':' + m.hidden);
-	assert.deepStrictEqual(hidden('התורה מתארת את [[אונס נערה (הלכה)|עינוי]] הנערה'), ['אונס:l']);
+	assert.deepStrictEqual(hidden('התורה מתארת את [[אונס נערה (הלכה)|עינוי]] הנערה'), ['אונס נערה:l']); // "אונס נערה" - צירוף שחיים סימן
 	assert.deepStrictEqual(hidden('טקסט <!-- סקס --> נוסף'), ['סקס:c']);
 	assert.deepStrictEqual(hidden('[[קובץ:Sex.jpg|ממוזער|כיתוב]]'), ['Sex:f']);
 	assert.deepStrictEqual(hidden('{{מיון רגיל:הרצוג, רומן}}'), ['רומן:k']);
@@ -342,7 +348,7 @@ test('overlapping matches merge into one word ("חד-מיני" + "מיניים",
 	const ms = engine.scan('התנגדות לנישואין חד-מיניים.', ACTIVE);
 	assert.deepStrictEqual(ms.map((m) => m.text), ['חד-מיניים']);
 	assert.strictEqual(ms[0].level, 'problem');
-	assert.ok(ms[0].entries.some((e) => e.id === 'w0021') && ms[0].entries.some((e) => e.id === 'w0022'));
+	assert.ok(ms[0].entries.some((e) => e.id === 'w0021') && ms[0].entries.some((e) => e.id === 'w0020')); // w0022 אוחד ב-w0020
 });
 
 test('explicit phrase without usage data stays problem when a general word merges into it ("מין אוראלי" + "מין", dashboard 2026-09-28)', () => {
@@ -363,7 +369,7 @@ test('fixed entry is not raised by other words ("דוגמנית", Chaim 2026-09-
 test('spelling variants and exclusions from the GPT study (Chaim approved, 2026-09-28)', () => {
 	const hit = (t, id) => engine.scan(t, FULL).some((m) => m.entries.some((e) => e.id === id));
 	for (const [t, id] of [['ארגון להט״ב', 'w0052'], ['אדם טרנסג׳נדר', 'w0015'], ['יחסי־מין', 'w0013'], ['בן־זוגו', 'w0082'],
-		['הם בילו במועדון לילה', 'w0385'], ['בשנת 3761 לפנה"ס', 'w0432'], ['בשנת 3,761 לפנה"ס', 'w0432'], ['בשנת 4000 לפנה״ס', 'w0197'], ['gay rights', 'w0097']]) assert.ok(hit(t, id), t);
-	for (const [t, id] of [['בשנת 3760 לפנה"ס', 'w0432'], ['ניגן בו הסקסופוניסט', 'w0001'], ['רמת הומוציסטאין', 'w0014'], ['ג׳יימס פין כתב', 'w0219'],
+		['הם בילו במועדון לילה', 'w0385'], ['בשנת 3761 לפנה"ס', 'w0197'], ['בשנת 3,761 לפנה"ס', 'w0197'], ['בשנת 4000 לפנה״ס', 'w0197'], ['gay rights', 'w0097']]) assert.ok(hit(t, id), t);
+	for (const [t, id] of [['בשנת 3760 לפנה"ס', 'w0197'], ['ניגן בו הסקסופוניסט', 'w0001'], ['רמת הומוציסטאין', 'w0014'], ['ג׳יימס פין כתב', 'w0219'],
 		['Gaylord Perry', 'w0097'], ['המועדון נסגר בלילה', 'w0385']]) assert.ok(!hit(t, id), t);
 });
