@@ -63,6 +63,7 @@
 		"w0134",
 		"w0223",
 		"w0227",
+		"w0300",
 		"w0323",
 		"w0325",
 		"w0357",
@@ -689,14 +690,14 @@
 		},
 		"w0300": {
 			"word": "דראג",
-			"group": "B",
-			"rate": 0.71,
+			"group": "A",
+			"rate": 0.76,
 			"problematic": 25,
-			"innocent": 10,
+			"innocent": 8,
 			"unclear": 0,
 			"sources": {
 				"missing": 23,
-				"wiki-random": 12
+				"wiki-random": 10
 			}
 		},
 		"w0310": {
