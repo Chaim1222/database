@@ -374,3 +374,12 @@ test('spelling variants and exclusions from the GPT study (Chaim approved, 2026-
 	for (const [t, id] of [['בשנת 3760 לפנה"ס', 'w0197'], ['ניגן בו הסקסופוניסט', 'w0001'], ['רמת הומוציסטאין', 'w0014'], ['ג׳יימס פין כתב', 'w0219'],
 		['Gaylord Perry', 'w0097'], ['המועדון נסגר בלילה', 'w0385']]) assert.ok(!hit(t, id), t);
 });
+
+test('k024: minors in the sentence make "מין"/"אונס" a certain problem, not "מקטינה" (Chaim, 2026-09-28)', () => {
+	const usage = require('../lists/usage.json');
+	const clues = engine.compileClues(require('../lists/context.json'));
+	const lvl = (t) => engine.contextLevels(t, engine.scan(t, FULL), usage, clues).find((m) => /מין|אונס/.test(m.text)).context;
+	assert.strictEqual(lvl('תחקיר המייחס לו מין עם קטינות.').level, 'problem');
+	assert.notStrictEqual(lvl('דעות לגבי אונס, המקטינות את הסיכוי.').clues, ['k024']);
+	assert.strictEqual(lvl('זרימת גנים בין אוכלוסיות של אותו המין, ובכך מקטינה את הסיכוי.').level, 'review');
+});
