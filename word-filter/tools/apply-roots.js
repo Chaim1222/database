@@ -50,8 +50,14 @@ const EXTRA = {
 	// w0022 "זה חופף למיניים בהרבה דוגמאות, זה בכוונה?" - לא. "מיני"/"מיניים" רשומה אחת, כמילה שלמה
 	// (" מיני" תפס גם את תחילת "מינים", "מינימום").
 	w0020: '(?<![א-ת])ו?ה?מיני(?:ים)?(?![א-ת])',
+	// קוויר - בעיה תמיד (חיים, 2026-09-28: "כן"): רק המילה ונטיותיה, לא קווירינל, קוויריקו, קווירוז, קווירל.
+	w0111: '(?<![א-ת])[ובלכמשה]{0,3}קוויר(?:י|ית|ים|יות|יים|בייטינג|קור)?(?![א-ת])',
 };
 const EXTRA_MERGE = { w0022: 'w0020', w0099: 'w0098' };
+// ביטויים מותרים שחיים אישר בצ'אט.
+const EXTRA_ALLOW = [
+	{ key: 'playboy-names', pattern: 'פלייבוי קרטי|Playboi Carti|Texas Playboys?', note: 'שמות: הראפר פלייבוי קרטי, להקת Texas Playboys. פלייבוי - בעיה תמיד (חיים, 2026-09-28: "כן").' },
+];
 
 // ===== 1. תפקידים =====
 function mergeInto(e, targetId) {
@@ -156,6 +162,12 @@ for (const [root, { bad, ok }] of Object.entries(byRoot)) {
 		Object.assign(a, { pattern, status: 'active', reviewed: true, sources: [SRC], kind: 'hide',
 			note: `צירופים של "${rootLabel[root]}" שחיים סימן "תמים" (${ok.length}): ${ok.map((p) => p.text).join(', ')}.` });
 	}
+}
+
+for (const x of EXTRA_ALLOW) {
+	let a = allow.entries.find((y) => y.extra === x.key);
+	if (!a) { a = { id: 'a' + String(nextA++).padStart(3, '0'), extra: x.key }; allow.entries.push(a); }
+	Object.assign(a, { pattern: x.pattern, status: 'active', reviewed: true, sources: [SRC], kind: 'hide', note: x.note });
 }
 
 // ===== 3. מילים חסרות (הערות לשורש) =====

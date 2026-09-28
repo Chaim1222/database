@@ -526,6 +526,18 @@
 			],
 			"kind": "hide",
 			"note": "צירופים של \"להט\"ב\" שחיים סימן \"תמים\" (1): מרוצי דראג."
+		},
+		{
+			"id": "a046",
+			"extra": "playboy-names",
+			"pattern": "פלייבוי קרטי|Playboi Carti|Texas Playboys?",
+			"status": "active",
+			"reviewed": true,
+			"sources": [
+				"הכרעת חיים, דף \"סידור המילים\" (2026-09-28)"
+			],
+			"kind": "hide",
+			"note": "שמות: הראפר פלייבוי קרטי, להקת Texas Playboys. פלייבוי - בעיה תמיד (חיים, 2026-09-28: \"כן\")."
 		}
 	]
 }
