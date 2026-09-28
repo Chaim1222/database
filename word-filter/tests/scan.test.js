@@ -7,7 +7,7 @@ const { scanPage, imagesOf, compileBoth, resultRow } = require('../tools/scan-mi
 const lists = compileBoth();
 
 test('scanPage: two verdicts, counts, and sentence context per match', () => {
-	const text = 'פתיחה. הסרט עוסק בתעשיית הפורנו בשנות ה-70. נפטר בשנת 419 לפנה"ס.';
+	const text = 'פתיחה. הסרט עוסק בתעשיית הפורנו בשנות ה-70. לפי תורת האבולוציה.';
 	const r = scanPage(text, lists);
 	assert.strictEqual(r.verdict, 'problem');
 	assert.strictEqual(r.verdict_suggested, 'problem');
@@ -21,10 +21,10 @@ test('scanPage: two verdicts, counts, and sentence context per match', () => {
 });
 
 test('scanPage: a suggested entry changes only verdict_suggested', () => {
-	const r = scanPage('בני אדם חיו כאן לפני 30,000 שנה.', lists); // w0429 - הצעה
-	assert.strictEqual(r.verdict, 'wording');        // מאושרות: רק "000 שנה" (תיארוך)
-	assert.strictEqual(r.verdict_suggested, 'problem');
-	assert.ok(r.matches.some((m) => m.s === 'problem' && m.a === null));
+	const r = scanPage('על פי ישוע.', lists); // w0379 - הצעה (אמונה - הערת ניסוח)
+	assert.strictEqual(r.verdict, 'clean');
+	assert.strictEqual(r.verdict_suggested, 'wording');
+	assert.ok(r.matches.some((m) => m.s === 'wording' && m.a === null));
 });
 
 test('scanPage: clean page', () => {
@@ -92,12 +92,12 @@ test('scanPage: context verdict and per-match suspicion', () => {
 test('scanPage: a context clue is stored with the match (ks/kw), per mode', () => {
 	const r = scanPage('הוא הורשע באונס.', lists);
 	const m = r.matches.find((x) => /אונס/.test(x.x));
-	assert.strictEqual(m.ca, 'medium');   // המאושרות - מילות ההקשר עוד הצעות
+	assert.strictEqual(m.ca, 'problem');  // k001 הופעל (חיים, 2026-09-28)
 	assert.strictEqual(m.cs, 'problem');
 	assert.deepStrictEqual(m.ks, ['k001']);
 	assert.deepStrictEqual(m.kw, ['הורשע']);
-	assert.strictEqual(m.ka, undefined);
-	assert.strictEqual(r.ctx_verdict, 'review');
+	assert.deepStrictEqual(m.ka, ['k001']);
+	assert.strictEqual(r.ctx_verdict, 'problem');
 	assert.strictEqual(r.ctx_verdict_suggested, 'problem');
 });
 
@@ -107,7 +107,7 @@ test('scanPage: hidden-code matches are stored apart and not counted in the leve
 	assert.strictEqual(r.verdict_suggested, 'clean');
 	assert.strictEqual(r.hidden_count_suggested, 1); // מפתח המיון נשמר, אבל לא נספר
 	const h = r.matches.filter((m) => m.h);
-	assert.deepStrictEqual(h.map((m) => m.x + ':' + m.h), ['אונס:l', 'רומן:k']);
+	assert.deepStrictEqual(h.map((m) => m.x + ':' + m.h), ['אונס נערה:l', 'רומן:k']);
 	assert.strictEqual(h[0].cs, null);
 });
 

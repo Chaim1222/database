@@ -49,6 +49,7 @@
   `rejected` - נדחה בסקירה; נשאר בקובץ לתיעוד ולא נבדק.
 - `reviewed`: האם אדם אישר את הרמה והנושא. אחרי ההסבה - `false` לכולם.
 - `caseSensitive`: רשומות מ"בדיקת מילים חשודות" (שם אין דגל i, ולכן יש בה `sex|Sex|SEX`).
+- `fixed: true`: הרמה לפי קבוצת השימוש בלבד, בלי השפעה של מילים אחרות בדף (לא עולה ל"בעיה" כשיש לידה מילה חשודה). "דוגמנית" - הכרעת חיים 2026-09-28.
 - `sources`, `original` (התבנית כפי שהייתה, אם תוקנה), `note`.
 
 הרמה והנושא נקבעו בהסבה לפי הרשימה שהתבנית הגיעה ממנה (אדום כהה ובומח-צניעות = בעיה ודאית), ולא אוטומטית לפי מדגם: המכלול נקי ברובו אבל לא במאה אחוז, ומילה שמופיעה בו יכולה להיות בדיוק תוכן שצריך לנקות. ההחלטה של העורכים.
@@ -67,6 +68,12 @@
 2. ליצור שני דפי JSON (מודל תוכן JSON): `מדיה ויקי:Gadget-wikitextWordCheck-words.json` ו-`מדיה ויקי:Gadget-wikitextWordCheck-allow.json`, עם התוכן של `lists/`. (דפי מרחב "מדיה ויקי" ניתנים לעריכה רק למנהלי ממשק. אם עדיף שעורכים רגילים יתחזקו את הרשימות - אפשר דף במרחב אחר עם שינוי מודל תוכן, ולעדכן את `WORDS_PAGE`/`ALLOW_PAGE` בראש הקובץ.)
 3. בדף עריכה מופיע "בדיקת מילים חשודות בקוד" בתפריט הפעולות.
 
+**כסקריפט אישי** (בלי גאדג'ט ובלי הרשאות מנהל ממשק): להעתיק את הקובץ לדף משתמש, למשל `משתמש:X/wordcheck.js`, ואת שתי הרשימות לדפים `משתמש:X/words.json` ו-`משתמש:X/allow.json` (דף משתמש שמסתיים ב-`.json` מקבל אוטומטית מודל תוכן JSON, ורק בעל החשבון ומנהלי ממשק יכולים לערוך אותו). ב-`משתמש:X/common.js`:
+```
+window.wikitextWordCheckPages = { words: 'משתמש:X/words.json', allow: 'משתמש:X/allow.json' };
+mw.loader.load('/w/index.php?title=משתמש:X/wordcheck.js&action=raw&ctype=text/javascript');
+```
+
 הגדרות אישיות (common.js): `window.wikitextWordCheckSuggested = true` - לכלול הצעות שלא אושרו; `window.wikitextWordCheckAllow = ['...']` - ביטויים מותרים נוספים.
 
 ## בדיקה ומדידה
@@ -79,7 +86,7 @@ node --test word-filter/tests/*.test.js
 node word-filter/tools/evaluate.js fetch-blacklist --ids-file ids.txt   # או מסופרבייס עם SUPABASE_URL/SUPABASE_SERVICE_KEY
 node word-filter/tools/evaluate.js fetch-mechalol dev 500
 node word-filter/tools/evaluate.js fetch-mechalol holdout 1500
-node word-filter/tools/evaluate.js fetch-random wiki-random wikipedia 2000   # מדגם מייצג מוויקיפדיה (בלי blacklist)
+node word-filter/tools/evaluate.js fetch-random wiki-random wikipedia 5000   # מדגם מייצג מוויקיפדיה (בלי blacklist)
 node word-filter/tools/evaluate.js contexts /tmp/contexts.json    # הקשרי המופעים במדגם האקראי - לסיווג
 node word-filter/tools/evaluate.js fetch-ids dev mechalol word-filter/corpus-ids/dev.txt   # שחזור מדגם קיים
 node word-filter/tools/evaluate.js report --lost        # אחרי כל שינוי ברשימות

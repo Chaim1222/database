@@ -11,7 +11,7 @@
  *   node word-filter/tools/evaluate.js fetch-blacklist [--ids-file ids.txt]
  *        בלי --ids-file: מזהים מסופרבייס (SUPABASE_URL + SUPABASE_SERVICE_KEY).
  *   node word-filter/tools/evaluate.js fetch-mechalol dev 500
- *   node word-filter/tools/evaluate.js fetch-random wiki-random wikipedia 2000   (מדגם מייצג מוויקיפדיה)
+ *   node word-filter/tools/evaluate.js fetch-random wiki-random wikipedia 5000   (מדגם מייצג מוויקיפדיה)
  *   node word-filter/tools/evaluate.js fetch-ids dev mechalol word-filter/corpus-ids/dev.txt
  *        שחזור מדגם קיים לפי מזהים (blacklist: wikipedia; dev/holdout: mechalol).
  *   node word-filter/tools/evaluate.js report [--lost]      טבלת תצורות, ומה אבד בכל שלב

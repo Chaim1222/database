@@ -39,8 +39,11 @@
 (function () {
 	'use strict';
 
-	var WORDS_PAGE = 'מדיה ויקי:Gadget-wikitextWordCheck-words.json';
-	var ALLOW_PAGE = 'מדיה ויקי:Gadget-wikitextWordCheck-allow.json';
+	// דפי הרשימות. כסקריפט אישי אפשר להחזיק אותם בדפי משתמש - ב-common.js, לפני הטעינה:
+	//   window.wikitextWordCheckPages = { words: 'משתמש:X/words.json', allow: 'משתמש:X/allow.json' };
+	var PAGES = (typeof window !== 'undefined' && window.wikitextWordCheckPages) || {};
+	var WORDS_PAGE = PAGES.words || 'מדיה ויקי:Gadget-wikitextWordCheck-words.json';
+	var ALLOW_PAGE = PAGES.allow || 'מדיה ויקי:Gadget-wikitextWordCheck-allow.json';
 
 	var LEVELS = { problem: 2, review: 1 };
 	var LEVEL_LABELS = { problem: 'בעיה ודאית', review: 'לבדיקה', wording: 'דורש ניסוח', clean: 'נקי' };
@@ -398,13 +401,21 @@
 				}
 			});
 		});
-		// התאמה שכלולה בהתאמה אחרת ("מיני" בתוך "מיניות", "לפנה"ס" בתוך "4000 לפנה"ס") מתמזגת
+		// התאמה שכלולה בהתאמה אחרת ("מיני" בתוך "מיניות", "לפנה"ס" בתוך "4000 לפנה"ס"), או חופפת לה, מתמזגת
 		// בה, כדי שכל מילה תופיע פעם אחת. הרמה - הגבוהה; הנושא - של הרמה הגבוהה, ועדיפות לנושא שנספר.
 		result.sort(function (a, b) { return a.start - b.start || b.end - a.end; });
 		var merged = [];
 		result.forEach(function (m) {
 			var outer = merged[merged.length - 1];
-			if (!outer || m.start >= outer.end || m.end > outer.end) { merged.push(m); return; }
+			if (!outer || m.start >= outer.end) { merged.push(m); return; }
+			if (m.end > outer.end) {
+				// חפיפה חלקית ("חד-מיני" ו"מיניים" ב"חד-מיניים") - מתאחדות למילה אחת, אם
+				// הקוד בטווח המשותף הוא טקסט רגיל (בלי סימון שמשנה את התצוגה).
+				var joined = wikitext.slice(outer.start, m.end);
+				if (/[\[\]{}<>|'&]/.test(joined)) { merged.push(m); return; }
+				outer.end = m.end;
+				outer.text = joined;
+			}
 			m.entries.forEach(function (e) { if (outer.entries.indexOf(e) < 0) outer.entries.push(e); });
 			m.demotedBy.forEach(function (e) { if (outer.demotedBy.indexOf(e) < 0) outer.demotedBy.push(e); });
 			var counts = function (x) { return VERDICT_TOPICS.indexOf(x.topic) >= 0; };
@@ -508,6 +519,9 @@
 		var key = match.entries.map(function (e) { return e.id; }).sort().join(',');
 		if (families[key]) return families[key].group;
 		var best = null;
+		// רשומה "בעיה" בלי נתוני שימוש (צירוף מפורש כמו "מין אוראלי") - X, ולא נבלעת
+		// בקבוצה של מילה כללית שהתמזגה בה ("מין", קבוצה C).
+		if (match.entries.some(function (e) { return !families[e.id] && e.level === 'problem'; })) return 'X';
 		match.entries.forEach(function (e) {
 			var f = families[e.id];
 			if (f && (!best || GROUP_RANK[f.group] > GROUP_RANK[best])) best = f.group;
@@ -582,8 +596,11 @@
 			});
 			var anchorInSentence = mates.some(isAnchor);
 			var pageAnchor = flagged.some(function (o) { return o !== m && o.text !== m.text && isAnchor(o); });
-			var strong = anchorInSentence || (mates.length > 0 && pageAnchor);
-			var weak = mates.length > 0 || pageAnchor;
+			// רשומה עם fixed: true ("דוגמנית", הכרעת חיים 2026-09-28) - הרמה לפי הקבוצה בלבד,
+			// בלי השפעה של מילים אחרות בדף.
+			var fixed = m.entries.every(function (e) { return e.fixed; });
+			var strong = !fixed && (anchorInSentence || (mates.length > 0 && pageAnchor));
+			var weak = !fixed && (mates.length > 0 || pageAnchor);
 			var g = m._group, eff;
 			if (g === 'anchor' || g === 'X') eff = 'problem';
 			else if (g === 'A') eff = strong || weak ? 'problem' : 'high';
