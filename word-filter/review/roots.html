@@ -1,23 +1,12 @@
 <title>סידור המילים</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700&family=Heebo:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700&family=Heebo:wght@400;500;700&family=IBM+Plex+Mono:wght@400&display=swap">
 <style>
 :root {
-	--bg: #f3f4f1;
-	--panel: #ffffff;
-	--ink: #1d2422;
-	--muted: #5f6b67;
-	--line: #d9ddd7;
-	--soft: #e9ece7;
-	--accent: #1f5f57;
-	--accent-soft: #d8e9e5;
-	--anchor: #a3242b; --anchor-soft: #f6dedd;
-	--general: #9a6a00; --general-soft: #f7ebcc;
-	--fixed: #7a4b1f; --fixed-soft: #efe0cf;
-	--wording: #33568a; --wording-soft: #dde6f3;
-	--names: #6b3f8f; --names-soft: #eadff3;
-	--drop: #6d7270; --drop-soft: #e4e6e4;
-	--merge: #1f6f78; --merge-soft: #d6ecee;
+	--bg: #f3f4f1; --panel: #ffffff; --ink: #1d2422; --muted: #5f6b67; --line: #d9ddd7; --soft: #e9ece7;
+	--accent: #1f5f57; --accent-soft: #d8e9e5;
+	--bad: #a3242b; --bad-soft: #f6dedd; --ok: #2f7550; --ok-soft: #dcefe3; --mid: #9a6a00; --mid-soft: #f7ebcc;
+	--grey: #6d7270; --grey-soft: #e4e6e4;
 	--p: #b33a2f; --i: #3f7f5a; --u: #a9a9a0;
 	color-scheme: light;
 }
@@ -25,36 +14,26 @@
 	:root:not([data-theme="light"]) {
 		--bg: #151a19; --panel: #1d2422; --ink: #e8ece9; --muted: #9aa6a1; --line: #323b38; --soft: #26302d;
 		--accent: #6cc3b4; --accent-soft: #1f3a36;
-		--anchor: #ef8a86; --anchor-soft: #3d2324; --general: #e2b64f; --general-soft: #3a3120;
-		--fixed: #d9a574; --fixed-soft: #372a1e; --wording: #8fb0e3; --wording-soft: #212c3d;
-		--names: #c3a0e3; --names-soft: #2e2439; --drop: #a4aaa7; --drop-soft: #2b302e;
-		--merge: #74c4cd; --merge-soft: #1d3538; --p: #ef8a7c; --i: #7cc49a; --u: #6d726f;
+		--bad: #ef8a86; --bad-soft: #3d2324; --ok: #7cc49a; --ok-soft: #1f3528; --mid: #e2b64f; --mid-soft: #3a3120;
+		--grey: #a4aaa7; --grey-soft: #2b302e; --p: #ef8a7c; --i: #7cc49a; --u: #6d726f;
 		color-scheme: dark;
 	}
 }
 :root[data-theme="dark"] {
 	--bg: #151a19; --panel: #1d2422; --ink: #e8ece9; --muted: #9aa6a1; --line: #323b38; --soft: #26302d;
 	--accent: #6cc3b4; --accent-soft: #1f3a36;
-	--anchor: #ef8a86; --anchor-soft: #3d2324; --general: #e2b64f; --general-soft: #3a3120;
-	--fixed: #d9a574; --fixed-soft: #372a1e; --wording: #8fb0e3; --wording-soft: #212c3d;
-	--names: #c3a0e3; --names-soft: #2e2439; --drop: #a4aaa7; --drop-soft: #2b302e;
-	--merge: #74c4cd; --merge-soft: #1d3538; --p: #ef8a7c; --i: #7cc49a; --u: #6d726f;
+	--bad: #ef8a86; --bad-soft: #3d2324; --ok: #7cc49a; --ok-soft: #1f3528; --mid: #e2b64f; --mid-soft: #3a3120;
+	--grey: #a4aaa7; --grey-soft: #2b302e; --p: #ef8a7c; --i: #7cc49a; --u: #6d726f;
 	color-scheme: dark;
 }
 * { box-sizing: border-box; }
-body {
-	background: var(--bg); color: var(--ink); direction: rtl; margin: 0;
-	font: 15px/1.55 "Heebo", "Arial Hebrew", Arial, sans-serif;
-	padding-inline: 16px; padding-block: 20px 60px;
-}
-.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 18px; }
-header h1 { font-family: "Frank Ruhl Libre", "Times New Roman", serif; font-size: 30px; margin: 0; text-wrap: balance; }
-header p { margin: 6px 0 0; color: var(--muted); max-width: 70ch; }
-.legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-.legend div { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-size: 13px; max-width: 320px; }
-.legend b { display: block; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); direction: rtl; margin: 0; font: 15px/1.55 "Heebo", "Arial Hebrew", Arial, sans-serif; padding-inline: 16px; padding-block: 20px 60px; }
+.wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 16px; }
+h1 { font-family: "Frank Ruhl Libre", "Times New Roman", serif; font-size: 30px; margin: 0; }
+.intro { color: var(--muted); margin: 4px 0 0; max-width: 72ch; }
 .status { font-size: 13px; color: var(--muted); }
-.layout { display: grid; grid-template-columns: 250px 1fr; gap: 18px; align-items: start; }
+.layout { display: grid; grid-template-columns: 230px 1fr; gap: 18px; align-items: start; }
 @media (max-width: 820px) { .layout { grid-template-columns: 1fr; } }
 nav { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 6px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 10px); max-height: calc(100vh - 30px); overflow: auto; }
 @media (max-width: 820px) { nav { position: static; max-height: none; display: flex; flex-wrap: wrap; gap: 4px; } }
@@ -63,72 +42,61 @@ nav button { all: unset; box-sizing: border-box; cursor: pointer; display: flex;
 nav button:hover { background: var(--soft); }
 nav button[aria-current="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
 nav button:focus-visible { outline: 2px solid var(--accent); }
-nav .cnt { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12px; white-space: nowrap; }
-nav .cnt.done { color: var(--i); font-weight: 700; }
-main { display: grid; gap: 12px; min-width: 0; }
-.roothead { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: grid; gap: 8px; }
-.roothead h2 { font-family: "Frank Ruhl Libre", serif; margin: 0; font-size: 24px; }
-.roothead .note { color: var(--muted); margin: 0; }
-.roothead .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+nav .cnt { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12px; }
+nav .cnt.done { color: var(--ok); font-weight: 700; }
+main { display: grid; gap: 14px; min-width: 0; }
+.block { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: grid; gap: 10px; }
+.block h2 { font-family: "Frank Ruhl Libre", serif; margin: 0; font-size: 24px; }
+.block h3 { margin: 0; font-size: 17px; }
+.q { display: flex; gap: 10px; align-items: baseline; }
+.q .n { font-family: "Frank Ruhl Libre", serif; font-size: 22px; color: var(--accent); line-height: 1; }
+.hint { color: var(--muted); font-size: 13.5px; margin: 0; }
 textarea, input[type=text] { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 7px; padding: 6px 8px; width: 100%; }
-textarea { min-height: 40px; resize: vertical; }
-.btn { font: inherit; font-size: 13px; cursor: pointer; border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 7px; padding: 5px 10px; }
-.btn:hover { background: var(--soft); }
-.btn.primary { background: var(--accent); color: var(--panel); border-color: var(--accent); }
-.entry { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: grid; gap: 8px; }
-.entry.decided { border-inline-start: 4px solid var(--i); }
-.top { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: baseline; justify-content: space-between; }
-.pat { font-family: "IBM Plex Mono", Consolas, monospace; font-size: 13px; direction: ltr; unicode-bidi: plaintext; overflow-wrap: anywhere; background: var(--soft); padding: 2px 6px; border-radius: 5px; }
-.idtag { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--muted); }
-.chips { display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; }
-.chip { padding: 1px 7px; border-radius: 99px; background: var(--soft); color: var(--muted); white-space: nowrap; }
-.chip.warn { background: var(--general-soft); color: var(--general); }
-.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px 16px; font-size: 13px; }
-.facts .k { color: var(--muted); }
-.bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--soft); margin-top: 3px; max-width: 220px; }
-.bar span { display: block; height: 100%; }
-.num { font-variant-numeric: tabular-nums; }
-.roles { display: flex; flex-wrap: wrap; gap: 6px; }
-.role { font: inherit; font-size: 13px; cursor: pointer; border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 99px; padding: 3px 11px; position: relative; }
-.role:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.role.sugg::after { content: "הצעה"; font-size: 10px; position: absolute; top: -8px; inset-inline-start: 8px; background: var(--panel); color: var(--muted); padding: 0 3px; line-height: 1.2; }
-.role[aria-pressed="true"] { font-weight: 700; }
-.role[data-r=anchor][aria-pressed="true"] { background: var(--anchor-soft); color: var(--anchor); border-color: var(--anchor); }
-.role[data-r=general][aria-pressed="true"] { background: var(--general-soft); color: var(--general); border-color: var(--general); }
-.role[data-r=fixed][aria-pressed="true"] { background: var(--fixed-soft); color: var(--fixed); border-color: var(--fixed); }
-.role[data-r=wording][aria-pressed="true"] { background: var(--wording-soft); color: var(--wording); border-color: var(--wording); }
-.role[data-r=names][aria-pressed="true"] { background: var(--names-soft); color: var(--names); border-color: var(--names); }
-.role[data-r=drop][aria-pressed="true"] { background: var(--drop-soft); color: var(--drop); border-color: var(--drop); }
-.role[data-r=merge][aria-pressed="true"] { background: var(--merge-soft); color: var(--merge); border-color: var(--merge); }
-.why { font-size: 13px; color: var(--muted); }
-.why b { color: var(--ink); font-weight: 500; }
-details { font-size: 13px; }
-summary { cursor: pointer; color: var(--accent); }
-.ex { display: grid; gap: 4px; margin-top: 6px; }
-.ex div { padding: 3px 8px; border-inline-start: 3px solid var(--line); background: var(--bg); border-radius: 0 5px 5px 0; overflow-wrap: anywhere; }
+textarea { min-height: 38px; resize: vertical; }
+.opt { font: inherit; font-size: 13px; cursor: pointer; border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 99px; padding: 2px 10px; white-space: nowrap; }
+.opt:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.opt[aria-pressed="true"].bad { background: var(--bad-soft); color: var(--bad); border-color: var(--bad); font-weight: 700; }
+.opt[aria-pressed="true"].ok { background: var(--ok-soft); color: var(--ok); border-color: var(--ok); font-weight: 700; }
+.opt[aria-pressed="true"].mid { background: var(--mid-soft); color: var(--mid); border-color: var(--mid); font-weight: 700; }
+.opt[aria-pressed="true"].grey { background: var(--grey-soft); color: var(--grey); border-color: var(--grey); font-weight: 700; }
+.opts { display: flex; flex-wrap: wrap; gap: 5px; }
+.tbl { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th { text-align: start; font-weight: 500; color: var(--muted); font-size: 12px; padding: 4px 6px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 6px; border-bottom: 1px solid var(--soft); vertical-align: top; }
+td.num { font-variant-numeric: tabular-nums; text-align: center; color: var(--muted); white-space: nowrap; }
+td.num b { color: var(--ink); font-weight: 500; }
+td.phrase { font-weight: 500; min-width: 140px; }
+tr.decided td.phrase::after { content: " ✓"; color: var(--ok); }
+.more { font: inherit; font-size: 12px; background: none; border: 0; color: var(--accent); cursor: pointer; padding: 0; }
+.ex { display: grid; gap: 3px; margin-top: 4px; font-size: 13px; font-weight: 400; }
+.ex div { padding: 2px 8px; border-inline-start: 3px solid var(--line); background: var(--bg); border-radius: 0 5px 5px 0; overflow-wrap: anywhere; }
 .ex div.p { border-color: var(--p); } .ex div.i { border-color: var(--i); } .ex div.u { border-color: var(--u); }
-.ex mark { background: var(--general-soft); color: inherit; font-weight: 700; padding: 0 1px; border-radius: 3px; }
+.ex mark { background: var(--mid-soft); color: inherit; font-weight: 700; padding: 0 1px; border-radius: 3px; }
 .ex .t { color: var(--muted); font-size: 12px; }
-.ex h4 { margin: 6px 0 0; font-size: 12px; color: var(--muted); font-weight: 500; }
-.mergeto { display: flex; gap: 6px; align-items: center; font-size: 13px; }
-.mergeto select { font: inherit; font-size: 13px; background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 2px 4px; max-width: 100%; }
-.saved { font-size: 12px; color: var(--i); min-height: 1em; }
+.word { border-top: 1px solid var(--soft); padding-top: 10px; display: grid; gap: 6px; }
+.word:first-of-type { border-top: 0; padding-top: 0; }
+.wtop { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; justify-content: space-between; }
+.wname { font-size: 17px; font-weight: 700; }
+.wname small { font-weight: 400; color: var(--muted); font-size: 12px; font-family: "IBM Plex Mono", monospace; }
+.bar { display: inline-flex; height: 8px; width: 120px; border-radius: 4px; overflow: hidden; background: var(--soft); vertical-align: middle; margin-inline-start: 6px; }
+.bar span { display: block; height: 100%; }
+.facts { font-size: 13px; color: var(--muted); }
+.sugg { font-size: 13px; }
+.sugg b { font-weight: 500; }
+.anchors { display: flex; flex-wrap: wrap; gap: 6px; }
+.anc { display: inline-flex; gap: 6px; align-items: center; border: 1px solid var(--line); border-radius: 8px; padding: 3px 4px 3px 8px; font-size: 14px; }
+.anc.off { opacity: .55; text-decoration: line-through; }
+.anc button { font: inherit; font-size: 12px; border: 0; background: var(--soft); color: var(--muted); border-radius: 6px; padding: 1px 6px; cursor: pointer; }
+.pat { font-family: "IBM Plex Mono", Consolas, monospace; font-size: 12px; direction: ltr; unicode-bidi: plaintext; overflow-wrap: anywhere; color: var(--muted); }
 .empty { color: var(--muted); padding: 20px; text-align: center; }
+.done-bar { font-size: 13px; color: var(--muted); }
 </style>
 
 <div class="wrap">
 	<header>
 		<h1>סידור המילים</h1>
-		<p>כל 247 המילים שבסינון, מחולקות לשורשים. לכל מילה בוחרים מה היא עושה. ליד כל מילה מסומנת ההצעה שלי, עם הנתונים: כמה מהמופעים שלה בעייתיים, ובכמה ערכים היא נמצאת. ההחלטות נשמרות כאן בדף, ואני קורא אותן משם.</p>
-		<div class="legend">
-			<div><b style="color:var(--anchor)">בעיה תמיד</b>בעייתית בכל מופע. הערך "בעיה ודאית".</div>
-			<div><b style="color:var(--general)">לבדיקה, לפי ההקשר</b>רמת החשד לפי הנתונים של המילה, ועולה כשיש לידה מילים חשודות.</div>
-			<div><b style="color:var(--fixed)">לבדיקה, קבוע</b>רמת החשד לפי הנתונים בלבד. מילים אחרות לא משפיעות.</div>
-			<div><b style="color:var(--wording)">הערת ניסוח</b>מוצגת לעורך, לא משפיעה על רמת הערך.</div>
-			<div><b style="color:var(--names)">שמות הקודש</b>קטגוריה נפרדת.</div>
-			<div><b style="color:var(--merge)">לאחד</b>כפילות של מילה אחרת.</div>
-			<div><b style="color:var(--drop)">להוריד</b>לא לחפש יותר.</div>
-		</div>
+		<p class="intro">בכל שורש יש שלוש שאלות. אחרי שתענה עליהן, אכתוב את הרשימות מחדש: כפילויות אאחד, ואת התבניות אבנה בעצמי.</p>
 		<p class="status" id="status">טוען…</p>
 	</header>
 	<div class="layout">
@@ -139,16 +107,11 @@ summary { cursor: pointer; color: var(--accent); }
 
 <script>
 (function () {
-	var ROLES = [
-		['anchor', 'בעיה תמיד'], ['general', 'לבדיקה, לפי ההקשר'], ['fixed', 'לבדיקה, קבוע'],
-		['wording', 'הערת ניסוח'], ['names', 'שמות הקודש'], ['merge', 'לאחד'], ['drop', 'להוריד']
-	];
-	var ROLE_LABEL = {}; ROLES.forEach(function (r) { ROLE_LABEL[r[0]] = r[1]; });
-	var LEVEL = { problem: 'בעיה', review: 'לבדיקה' };
-	var GROUP = { anchor: 'עוגן', A: 'קבוצה A (75%+ בעייתי)', B: 'קבוצה B (40-75%)', C: 'קבוצה C (מתחת ל-40%)' };
-	var TOPIC = { modesty: 'צניעות', age: 'גיל העולם', dating: 'תיארוך', faith: 'אמונה', names: 'שמות הקודש', wiki: 'ויקיפדיה' };
-	var data = null, choices = {}, rootNotes = {}, db = null, current = null, readOnly = false;
-	var byId = {};
+	var data = null, db = null, current = null;
+	var choices = {}, phraseChoices = {}, rootNotes = {};
+	var WORD_OPTS = [['general', 'לבדיקה, לפי ההקשר', 'mid'], ['fixed', 'לבדיקה, קבוע', 'mid'], ['anchor', 'בעיה תמיד', 'bad'], ['drop', 'להוריד', 'grey']];
+	var OTHER_OPTS = [['wording', 'הערת ניסוח', 'mid'], ['names', 'שמות הקודש', 'mid'], ['anchor', 'בעיה תמיד', 'bad'], ['general', 'לבדיקה', 'mid'], ['drop', 'להוריד', 'grey']];
+	var LABEL = { anchor: 'בעיה תמיד', general: 'לבדיקה, לפי ההקשר', fixed: 'לבדיקה, קבוע', wording: 'הערת ניסוח', names: 'שמות הקודש', drop: 'להוריד', merge: 'לאחד' };
 
 	function el(tag, attrs, kids) {
 		var e = document.createElement(tag);
@@ -161,190 +124,182 @@ summary { cursor: pointer; color: var(--accent); }
 		(kids || []).forEach(function (c) { if (c != null) e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
 		return e;
 	}
-	function parseRole(r) { return r.indexOf('merge:') === 0 ? { role: 'merge', into: r.slice(6) } : { role: r, into: '' }; }
-	function chosen(id) { return choices[id] || null; }
-	function effective(e) { var c = chosen(e.id); return c ? { role: c.role, into: c.into || '' } : parseRole(e.role); }
+	function hash(s) { var h = 5381; for (var i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0; return h.toString(36); }
+	function pid(rootId, text) { return rootId + '~' + hash(text); }
+	function sugg(e) { return e.role.indexOf('merge:') === 0 ? 'merge' : e.role; }
+	function roleOf(e) { return choices[e.id] ? choices[e.id].role : null; }
+	function isWord(e) { var s = sugg(e); return s === 'general' || s === 'fixed'; }
+	function isModesty(r) { return r.topic === 'modesty'; }
 
-	function rootProgress(r) {
-		var n = 0; r.entries.forEach(function (e) { if (chosen(e.id)) n++; });
-		return n;
+	function progress(r) {
+		var n = 0, t = r.entries.length + r.phrases.length;
+		r.entries.forEach(function (e) { if (choices[e.id]) n++; });
+		r.phrases.forEach(function (p) { if (phraseChoices[pid(r.id, p.text)]) n++; });
+		return [n, t];
 	}
 	function renderNav() {
-		var nav = document.getElementById('nav');
-		nav.textContent = '';
+		var nav = document.getElementById('nav'); nav.textContent = '';
+		var N = 0, T = 0;
 		data.roots.forEach(function (r) {
-			var done = rootProgress(r);
+			var pr = progress(r); N += pr[0]; T += pr[1];
 			nav.appendChild(el('button', { 'aria-current': String(r.id === current), onclick: function () { show(r.id); } }, [
-				el('span', { text: r.label }),
-				el('span', { class: 'cnt' + (done === r.entries.length ? ' done' : ''), text: done + '/' + r.entries.length })
-			]));
+				el('span', { text: r.label }), el('span', { class: 'cnt' + (pr[0] === pr[1] ? ' done' : ''), text: pr[0] + '/' + pr[1] })]));
 		});
-		var total = 0, done = 0;
-		data.roots.forEach(function (r) { total += r.entries.length; done += rootProgress(r); });
-		document.getElementById('status').textContent = 'הוכרעו ' + done + ' מתוך ' + total + ' מילים' +
-			(db ? '' : ' · ההחלטות לא נשמרות בתצוגה הזאת') + (readOnly ? ' · תצוגה לקריאה בלבד' : '') +
-			' · הנתונים מ-' + data.built;
+		document.getElementById('status').textContent = 'סומנו ' + N + ' מתוך ' + T + (db ? '' : ' · הסימונים לא נשמרים בתצוגה הזאת') + ' · הנתונים מ-' + data.built;
 	}
-
-	function examples(list, cls) {
-		return list.map(function (x) {
-			return el('div', { class: cls }, [
-				x.t ? el('span', { class: 't', text: x.t + ': ' }) : null,
-				(x.b || ''), el('mark', { text: x.x }), (x.f || '')
-			]);
-		});
-	}
-
-	function saveChoice(e, role, into, note) {
-		var prev = choices[e.id] || {};
-		var doc = { role: role, into: role === 'merge' ? (into || '') : '', note: note != null ? note : (prev.note || ''), root: current, at: new Date().toISOString() };
-		choices[e.id] = doc;
-		renderNav();
+	function write(coll, id, doc) {
 		if (!db) return Promise.resolve();
-		return db.collection('choices').doc(e.id).set(doc).catch(function (err) {
-			if (err && err.code === 'invalid_argument') { readOnly = true; renderNav(); }
+		return db.collection(coll).doc(id).set(doc).catch(function () {});
+	}
+	function setWord(e, role, note) {
+		var prev = choices[e.id] || {};
+		var doc = { role: role, into: '', note: note != null ? note : (prev.note || ''), root: current, at: new Date().toISOString() };
+		choices[e.id] = doc; renderNav();
+		return write('choices', e.id, doc);
+	}
+	function setPhrase(r, p, choice) {
+		var id = pid(r.id, p.text), cur = phraseChoices[id];
+		if (cur && cur.choice === choice) { delete phraseChoices[id]; renderNav(); return db ? db.collection('phrases').doc(id).delete().catch(function () {}) : Promise.resolve(); }
+		var doc = { root: r.id, text: p.form, key: p.text, choice: choice, at: new Date().toISOString() };
+		phraseChoices[id] = doc; renderNav();
+		return write('phrases', id, doc);
+	}
+	function exLines(list, cls) {
+		return (list || []).map(function (x) {
+			return el('div', { class: cls || '' }, [x.t ? el('span', { class: 't', text: x.t + ': ' }) : null, x.b || '', el('mark', { text: x.x }), x.f || '']);
 		});
 	}
-
-	function entryCard(e, root) {
-		var eff = effective(e), sugg = parseRole(e.role);
-		var card = el('section', { class: 'entry' + (chosen(e.id) ? ' decided' : ''), id: 'e-' + e.id });
-		var chips = [
-			el('span', { class: 'chip', text: 'היום: ' + (LEVEL[e.level] || e.level) }),
-			e.group ? el('span', { class: 'chip', text: GROUP[e.group] }) : el('span', { class: 'chip', text: 'אין מספיק נתונים לקבוצה' }),
-			e.status === 'suggested' ? el('span', { class: 'chip warn', text: 'הצעה (לא פעיל)' }) : null,
-			e.fixed ? el('span', { class: 'chip', text: 'קבוע' }) : null,
-			TOPIC[e.topic] && e.topic !== root.topic ? el('span', { class: 'chip', text: TOPIC[e.topic] }) : null
-		];
-		card.appendChild(el('div', { class: 'top' }, [
-			el('span', { class: 'pat', text: e.pattern }),
-			el('span', { class: 'idtag', text: e.id })
-		]));
-		card.appendChild(el('div', { class: 'chips' }, chips));
-
-		// נתונים
-		var facts = el('div', { class: 'facts' });
-		if (e.lab && (e.lab.p + e.lab.i + e.lab.u)) {
-			var n = e.lab.p + e.lab.i + e.lab.u, pct = e.lab.p + e.lab.i ? Math.round(100 * e.lab.p / (e.lab.p + e.lab.i)) : 0;
-			var bar = el('div', { class: 'bar', role: 'img', 'aria-label': e.lab.p + ' בעייתיים, ' + e.lab.i + ' תמימים, ' + e.lab.u + ' לא ברור' });
-			[['p', e.lab.p], ['i', e.lab.i], ['u', e.lab.u]].forEach(function (s) {
-				if (s[1]) bar.appendChild(el('span', { style: 'width:' + (100 * s[1] / n) + '%;background:var(--' + s[0] + ')' }));
-			});
-			facts.appendChild(el('div', {}, [el('span', { class: 'k', text: 'מופעים מסווגים: ' }),
-				el('span', { class: 'num', text: e.lab.p + ' בעייתיים · ' + e.lab.i + ' תמימים' + (e.lab.u ? ' · ' + e.lab.u + ' לא ברור' : '') + ' (' + pct + '%)' }), bar]));
-		} else {
-			facts.appendChild(el('div', {}, [el('span', { class: 'k', text: 'מופעים מסווגים: ' }), 'אין']));
-		}
-		var t = data.totals;
-		facts.appendChild(el('div', {}, [el('span', { class: 'k', text: 'נמצאת ב: ' }),
-			el('span', { class: 'num', text: e.hits.b + ' חסומים · ' + e.hits.w + ' מ-' + t.w + ' בוויקיפדיה · ' + e.hits.m + ' מ-' + t.m + ' במכלול' })]));
-		if (e.hits.solo) facts.appendChild(el('div', {}, [el('span', { class: 'k', text: 'ערכים חסומים שרק היא תופסת: ' }), el('span', { class: 'num', text: String(e.hits.solo) })]));
-		if (e.with && e.with.length) facts.appendChild(el('div', {}, [el('span', { class: 'k', text: 'נתפסת יחד עם: ' }),
-			e.with.map(function (w) { return w.id + ' (' + w.n + ')'; }).join(' · ')]));
-		if (e.clues && e.clues.length) facts.appendChild(el('div', {}, [el('span', { class: 'k', text: 'מילות הקשר: ' }),
-			e.clues.map(function (c) { return c.id + (c.status === 'active' ? '' : ' (הצעה)'); }).join(' · ')]));
-		card.appendChild(facts);
-
-		if (e.why) card.appendChild(el('div', { class: 'why' }, [el('b', { text: 'ההצעה שלי: ' + ROLE_LABEL[sugg.role] + (sugg.into ? ' עם ' + sugg.into : '') + '. ' }), e.why]));
-		else card.appendChild(el('div', { class: 'why' }, [el('b', { text: 'ההצעה שלי: ' + ROLE_LABEL[sugg.role] + (sugg.into ? ' עם ' + sugg.into : '') })]));
-		if (e.note) card.appendChild(el('div', { class: 'why', text: 'הערה ברשימה: ' + e.note }));
-
-		// בחירה
-		var roles = el('div', { class: 'roles', role: 'group', 'aria-label': 'תפקיד' });
-		ROLES.forEach(function (r) {
-			roles.appendChild(el('button', { class: 'role' + (r[0] === sugg.role ? ' sugg' : ''), 'data-r': r[0], 'aria-pressed': String(eff.role === r[0]),
-				onclick: function () {
-					var into = r[0] === 'merge' ? (eff.into || sugg.into || '') : '';
-					saveChoice(e, r[0], into).then(function () { show(current, e.id); });
-				} }, [r[1]]));
+	function toggleEx(btn, box) {
+		btn.addEventListener('click', function () { box.hidden = !box.hidden; btn.textContent = box.hidden ? 'דוגמאות' : 'להסתיר'; });
+	}
+	function opts(list, active, onpick) {
+		var g = el('div', { class: 'opts', role: 'group' });
+		list.forEach(function (o) {
+			g.appendChild(el('button', { class: 'opt ' + o[2], 'aria-pressed': String(active === o[0]), onclick: function () { onpick(o[0]); } }, [o[1]]));
 		});
-		card.appendChild(roles);
-		if (eff.role === 'merge') {
-			var sel = el('select', { id: 'm-' + e.id, 'aria-label': 'לאחד עם' });
-			sel.appendChild(el('option', { value: '', text: 'בחירה…' }));
-			root.entries.forEach(function (o) { if (o.id !== e.id) { var op = el('option', { value: o.id, text: o.id + '  ' + o.pattern.slice(0, 50) }); if (o.id === eff.into) op.selected = true; sel.appendChild(op); } });
-			sel.addEventListener('change', function () { saveChoice(e, 'merge', sel.value); });
-			card.appendChild(el('div', { class: 'mergeto' }, [el('span', { text: 'לאחד עם:' }), sel]));
-		}
-		var note = el('input', { type: 'text', id: 'n-' + e.id, placeholder: 'הערה (למשל: לתקן את התבנית, להוסיף מילת הקשר…)' });
+		return g;
+	}
+
+	// שאלה 1: צירופים
+	function phraseBlock(r) {
+		var b = el('section', { class: 'block' });
+		b.appendChild(el('div', { class: 'q' }, [el('span', { class: 'n', text: '1' }), el('h3', { text: 'אילו צירופים הם בעיה תמיד?' })]));
+		b.appendChild(el('p', { class: 'hint', text: 'המילה עם המילה שצמודה אליה, כפי שהם מופיעים בערכים. צירוף שתסמן "בעיה תמיד" ייכנס לתבנית של עוגן. "תמים" - הצירוף לא ייתפס בכלל (למשל "מיני סדרה"). לא חייבים לסמן הכול, רק מה שברור לך.' }));
+		if (!r.phrases.length) { b.appendChild(el('p', { class: 'hint', text: 'אין כאן צירופים חוזרים.' })); return b; }
+		var t = el('table'), tb = el('tbody');
+		t.appendChild(el('thead', {}, [el('tr', {}, [el('th', { text: 'צירוף' }), el('th', { text: 'חסומים' }), el('th', { text: 'ויקיפדיה' }), el('th', { text: 'מכלול' }), el('th', { text: 'סווג: בעייתי' }), el('th', { text: 'תמים' }), el('th', { text: 'מה זה' })])]));
+		r.phrases.forEach(function (p) {
+			var c = phraseChoices[pid(r.id, p.text)], box = el('div', { class: 'ex', hidden: '' }, exLines(p.ex, ''));
+			var more = p.ex.length ? el('button', { class: 'more', text: 'דוגמאות' }) : null;
+			if (more) toggleEx(more, box);
+			var tr = el('tr', { class: c ? 'decided' : '' }, [
+				el('td', { class: 'phrase' }, [p.form, ' ', more, box]),
+				el('td', { class: 'num' }, [el('b', { text: String(p.b) })]),
+				el('td', { class: 'num', text: String(p.w) }),
+				el('td', { class: 'num', text: String(p.m) }),
+				el('td', { class: 'num', text: (p.p || p.i) ? String(p.p) : '' }),
+				el('td', { class: 'num', text: (p.p || p.i) ? String(p.i) : '' }),
+				el('td', {}, [opts([['bad', 'בעיה תמיד', 'bad'], ['ok', 'תמים', 'ok']], c ? c.choice : null, function (ch) { setPhrase(r, p, ch).then(function () { show(current); }); })])
+			]);
+			tb.appendChild(tr);
+		});
+		t.appendChild(tb);
+		b.appendChild(el('div', { class: 'tbl' }, [t]));
+		return b;
+	}
+
+	// שאלה 2: המילה לבד
+	function wordBlock(r) {
+		var words = r.entries.filter(isWord);
+		if (!words.length) return null;
+		var b = el('section', { class: 'block' });
+		b.appendChild(el('div', { class: 'q' }, [el('span', { class: 'n', text: '2' }), el('h3', { text: 'ומה עם המילה כשהיא לבד?' })]));
+		b.appendChild(el('p', { class: 'hint', text: 'כשהמילה מופיעה בלי צירוף מפורש. "לפי ההקשר": רמת החשד לפי הנתונים, ועולה כשיש בדף מילים חשודות נוספות. "קבוע": רק לפי הנתונים. הפס: בעייתי (אדום) מול תמים (ירוק) במופעים שסיווגתי.' }));
+		words.forEach(function (e) { b.appendChild(wordRow(e, WORD_OPTS)); });
+		return b;
+	}
+	function wordRow(e, list) {
+		var role = roleOf(e), w = el('div', { class: 'word' });
+		var name = (e.forms && e.forms.length ? e.forms.slice(0, 3).join(' · ') : e.pattern);
+		var facts = [];
+		if (e.lab && (e.lab.p + e.lab.i)) {
+			var n = e.lab.p + e.lab.i + e.lab.u, pct = Math.round(100 * e.lab.p / (e.lab.p + e.lab.i));
+			var bar = el('span', { class: 'bar', role: 'img', 'aria-label': pct + '% בעייתי' });
+			[['p', e.lab.p], ['i', e.lab.i], ['u', e.lab.u]].forEach(function (s) { if (s[1]) bar.appendChild(el('span', { style: 'width:' + (100 * s[1] / n) + '%;background:var(--' + s[0] + ')' })); });
+			facts.push(el('span', { text: pct + '% בעייתי (' + e.lab.p + ' מ-' + (e.lab.p + e.lab.i) + ')' }), bar);
+		} else facts.push(el('span', { text: 'אין מופעים מסווגים' }));
+		facts.push(el('span', { text: ' · ' + e.hits.b + ' חסומים, ' + e.hits.w + ' בוויקיפדיה, ' + e.hits.m + ' במכלול' }));
+		w.appendChild(el('div', { class: 'wtop' }, [el('span', { class: 'wname' }, [name, ' ', el('small', { text: e.id })]), el('span', { class: 'facts' }, facts)]));
+		var s = sugg(e);
+		w.appendChild(el('div', { class: 'sugg' }, [el('b', { text: 'ההצעה שלי: ' + LABEL[s] + '. ' }), e.why || '']));
+		w.appendChild(opts(list, role, function (ch) { setWord(e, ch).then(function () { show(current); }); }));
+		var box = el('div', { class: 'ex', hidden: '' });
+		if (e.lab && (e.lab.ex.p.length || e.lab.ex.i.length)) {
+			exLines(e.lab.ex.p, 'p').concat(exLines(e.lab.ex.i, 'i')).forEach(function (x) { box.appendChild(x); });
+		} else exLines(e.hits.ex.w.concat(e.hits.ex.b), '').forEach(function (x) { box.appendChild(x); });
+		box.appendChild(el('div', { class: 'pat', text: e.pattern }));
+		var note = el('input', { type: 'text', id: 'n-' + e.id, placeholder: 'הערה (לא חובה)' });
 		note.value = (choices[e.id] && choices[e.id].note) || '';
-		var saved = el('div', { class: 'saved' });
-		var timer = null;
-		note.addEventListener('input', function () {
-			clearTimeout(timer);
-			timer = setTimeout(function () {
-				var c = effective(e);
-				saveChoice(e, c.role, c.into, note.value).then(function () { saved.textContent = 'נשמר'; card.classList.add('decided'); setTimeout(function () { saved.textContent = ''; }, 1500); });
-			}, 700);
-		});
-		card.appendChild(note);
-		card.appendChild(saved);
-
-		// דוגמאות
-		var hasLab = e.lab && (e.lab.ex.p.length || e.lab.ex.i.length || e.lab.ex.u.length);
-		var hasHits = e.hits.ex.w.length || e.hits.ex.b.length || e.hits.ex.m.length;
-		if (hasLab || hasHits) {
-			var box = el('div', { class: 'ex' });
-			if (hasLab) {
-				if (e.lab.ex.p.length) { box.appendChild(el('h4', { text: 'בעייתי' })); examples(e.lab.ex.p, 'p').forEach(function (x) { box.appendChild(x); }); }
-				if (e.lab.ex.i.length) { box.appendChild(el('h4', { text: 'תמים' })); examples(e.lab.ex.i, 'i').forEach(function (x) { box.appendChild(x); }); }
-				if (e.lab.ex.u.length) { box.appendChild(el('h4', { text: 'לא ברור' })); examples(e.lab.ex.u, 'u').forEach(function (x) { box.appendChild(x); }); }
-			}
-			if (!hasLab || !(e.lab.p + e.lab.i)) {
-				if (e.hits.ex.w.length) { box.appendChild(el('h4', { text: 'בוויקיפדיה (לא מסווג)' })); examples(e.hits.ex.w, '').forEach(function (x) { box.appendChild(x); }); }
-				if (e.hits.ex.b.length) { box.appendChild(el('h4', { text: 'בערכים חסומים' })); examples(e.hits.ex.b, '').forEach(function (x) { box.appendChild(x); }); }
-				if (e.hits.ex.m.length) { box.appendChild(el('h4', { text: 'במכלול' })); examples(e.hits.ex.m, '').forEach(function (x) { box.appendChild(x); }); }
-			}
-			card.appendChild(el('details', {}, [el('summary', { text: 'דוגמאות' }), box]));
-		}
-		return card;
+		var tm = null;
+		note.addEventListener('input', function () { clearTimeout(tm); tm = setTimeout(function () { setWord(e, roleOf(e) || s, note.value); }, 700); });
+		var more = el('button', { class: 'more', text: 'דוגמאות' }); toggleEx(more, box);
+		w.appendChild(el('div', {}, [more, box]));
+		w.appendChild(note);
+		return w;
 	}
 
-	function show(rootId, focusId) {
+	// שאלה 3: העוגנים הקיימים
+	function anchorBlock(r) {
+		var anc = r.entries.filter(function (e) { return !isWord(e); });
+		if (!anc.length) return null;
+		var b = el('section', { class: 'block' });
+		var modesty = isModesty(r);
+		b.appendChild(el('div', { class: 'q' }, [el('span', { class: 'n', text: modesty ? '3' : '1' }),
+			el('h3', { text: modesty ? 'הצירופים שכבר ברשימה כ"בעיה תמיד" - נכון?' : 'מה עושים עם המילים האלה?' })]));
+		if (modesty) {
+			b.appendChild(el('p', { class: 'hint', text: 'אם זה נכון - לא צריך לעשות כלום. לחיצה על "לא" מעבירה את הצירוף ל"לבדיקה".' }));
+			var list = el('div', { class: 'anchors' });
+			anc.forEach(function (e) {
+				var role = roleOf(e), s = sugg(e), off = role && role !== 'anchor';
+				var nm = e.forms && e.forms.length ? e.forms.slice(0, 2).join(' · ') : e.pattern;
+				var tag = s === 'merge' ? ' (כפילות - אאחד)' : s === 'drop' ? ' (הצעה: להוריד)' : '';
+				list.appendChild(el('span', { class: 'anc' + (off ? ' off' : ''), title: e.pattern + (e.why ? ' - ' + e.why : '') }, [
+					nm + tag,
+					el('button', { onclick: function () { setWord(e, off ? 'anchor' : 'general').then(function () { show(current); }); } }, [off ? 'להחזיר' : 'לא'])
+				]));
+			});
+			b.appendChild(list);
+		} else {
+			anc.forEach(function (e) { b.appendChild(wordRow(e, OTHER_OPTS)); });
+		}
+		return b;
+	}
+
+	function show(rootId) {
 		current = rootId;
 		try { localStorage.setItem('roots-current', rootId); } catch (err) { /* אין אחסון */ }
 		var r = data.roots.filter(function (x) { return x.id === rootId; })[0];
 		var main = document.getElementById('main');
-		var openDetails = {};
-		main.querySelectorAll('section.entry details[open]').forEach(function (d) { openDetails[d.parentNode.id] = true; });
+		var y = window.scrollY, open = {};
+		main.querySelectorAll('.ex:not([hidden])').forEach(function (x, i) { open[i] = true; });
 		main.textContent = '';
-		var head = el('div', { class: 'roothead' }, [
-			el('h2', { text: r.label }),
-			r.note ? el('p', { class: 'note', text: r.note }) : null
-		]);
-		var rn = el('textarea', { id: 'rn-' + r.id, placeholder: 'הערה על השורש כולו (למשל: מילת הקשר חסרה, מילה שלא ברשימה…)' });
-		rn.value = rootNotes[r.id] || '';
+		var head = el('section', { class: 'block' }, [el('h2', { text: r.label }), r.note ? el('p', { class: 'hint', text: r.note }) : null]);
+		var rn = el('textarea', { id: 'rn-' + r.id, placeholder: 'הערה על השורש כולו: מילה שחסרה, צירוף שלא מופיע כאן…' });
+		rn.value = (rootNotes[r.id] && rootNotes[r.id]) || '';
 		var t = null;
-		rn.addEventListener('input', function () {
-			clearTimeout(t);
-			t = setTimeout(function () {
-				rootNotes[r.id] = rn.value;
-				if (db) db.collection('rootnotes').doc(r.id).set({ note: rn.value, at: new Date().toISOString() }).catch(function () {});
-			}, 700);
-		});
+		rn.addEventListener('input', function () { clearTimeout(t); t = setTimeout(function () { rootNotes[r.id] = rn.value; write('rootnotes', r.id, { note: rn.value, at: new Date().toISOString() }); }, 700); });
 		head.appendChild(rn);
-		var left = r.entries.filter(function (e) { return !chosen(e.id); });
-		if (left.length) head.appendChild(el('div', { class: 'row' }, [
-			el('button', { class: 'btn primary', onclick: function () {
-				var chain = Promise.resolve();
-				left.forEach(function (e) { var s = parseRole(e.role); chain = chain.then(function () { return saveChoice(e, s.role, s.into); }); });
-				chain.then(function () { show(current); });
-			} }, ['לאשר את ההצעות ב-' + left.length + ' המילים שלא סומנו']),
-			el('span', { class: 'status', text: 'או לבחור לכל מילה בנפרד' })
-		]));
 		main.appendChild(head);
-		r.entries.forEach(function (e) {
-			var c = entryCard(e, r);
-			if (openDetails[c.id]) { var d = c.querySelector('details'); if (d) d.open = true; }
-			main.appendChild(c);
-		});
+		if (isModesty(r)) main.appendChild(phraseBlock(r));
+		var wb = isModesty(r) ? wordBlock(r) : null; if (wb) main.appendChild(wb);
+		var ab = anchorBlock(r); if (ab) main.appendChild(ab);
+		main.querySelectorAll('.ex').forEach(function (x, i) { if (open[i]) { x.hidden = false; } });
+		window.scrollTo(0, y);
 		renderNav();
-		if (focusId) { var f = document.getElementById('e-' + focusId); if (f) f.scrollIntoView({ block: 'nearest' }); }
 	}
 
 	fetch('roots-data.json').then(function (r) { return r.json(); }).then(function (d) {
 		data = d;
-		data.roots.forEach(function (r) { r.entries.forEach(function (e) { byId[e.id] = e; }); });
 		var saved = null;
 		try { saved = localStorage.getItem('roots-current'); } catch (err) { /* אין אחסון */ }
 		show(data.roots.some(function (r) { return r.id === saved; }) ? saved : data.roots[0].id);
@@ -352,20 +307,20 @@ summary { cursor: pointer; color: var(--accent); }
 			window.claude.use('db').then(function (x) {
 				if (!x) return;
 				db = x;
+				var busy = function () { var a = document.activeElement; return a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA'); };
 				db.collection('choices').onSnapshot(function (snap) {
-					var next = {};
-					snap.docs.forEach(function (doc) { next[doc.id] = doc.data(); });
-					choices = next;
-					var active = document.activeElement;
-					if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')) { renderNav(); return; }
-					show(current);
+					var next = {}; snap.docs.forEach(function (doc) { next[doc.id] = doc.data(); }); choices = next;
+					if (busy()) renderNav(); else show(current);
+				}, function () {});
+				db.collection('phrases').onSnapshot(function (snap) {
+					var next = {}; snap.docs.forEach(function (doc) { next[doc.id] = doc.data(); }); phraseChoices = next;
+					if (busy()) renderNav(); else show(current);
 				}, function () {});
 				db.collection('rootnotes').onSnapshot(function (snap) {
 					snap.docs.forEach(function (doc) { rootNotes[doc.id] = doc.data().note || ''; });
 					var ta = document.getElementById('rn-' + current);
 					if (ta && document.activeElement !== ta) ta.value = rootNotes[current] || '';
 				}, function () {});
-				renderNav();
 			});
 		}
 	}).catch(function () {
