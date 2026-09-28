@@ -359,3 +359,11 @@ test('fixed entry is not raised by other words ("דוגמנית", Chaim 2026-09-
 	const lvl = (t) => engine.contextLevels(t, engine.scan(t, FULL), usage).find((m) => m.entries.some((e) => e.id === 'w0039')).context;
 	assert.deepStrictEqual([lvl('היא דוגמנית ישראלית.').level, lvl('היא דוגמנית וקיימה יחסי מין עם הצלם.').level], ['review', 'review']);
 });
+
+test('spelling variants and exclusions from the GPT study (Chaim approved, 2026-09-28)', () => {
+	const hit = (t, id) => engine.scan(t, FULL).some((m) => m.entries.some((e) => e.id === id));
+	for (const [t, id] of [['ארגון להט״ב', 'w0052'], ['אדם טרנסג׳נדר', 'w0015'], ['יחסי־מין', 'w0013'], ['בן־זוגו', 'w0082'],
+		['הם בילו במועדון לילה', 'w0385'], ['בשנת 3761 לפנה"ס', 'w0432'], ['בשנת 3,761 לפנה"ס', 'w0432'], ['בשנת 4000 לפנה״ס', 'w0197'], ['gay rights', 'w0097']]) assert.ok(hit(t, id), t);
+	for (const [t, id] of [['בשנת 3760 לפנה"ס', 'w0432'], ['ניגן בו הסקסופוניסט', 'w0001'], ['רמת הומוציסטאין', 'w0014'], ['ג׳יימס פין כתב', 'w0219'],
+		['Gaylord Perry', 'w0097'], ['המועדון נסגר בלילה', 'w0385']]) assert.ok(!hit(t, id), t);
+});
