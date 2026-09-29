@@ -917,7 +917,8 @@
 				'<div class="mchl-row-desc"><span class="mchl-badge ' + (r.status === 'done' ? 'mchl-wiki' : r.status === 'replied' ? 'mchl-review' : 'mchl-neutral') + '"' +
 				(r.lastReply ? ' title="' + escapeHtml(r.lastReply) + '"' : '') + '>' + REQ_STATUS[r.status] + (r.doneBy === 'exists' ? ' (קיים במכלול)' : '') +
 				(r.status === 'replied' && r.replyTemplates.length ? ': ' + escapeHtml(r.replyTemplates.join(', ')) : '') + '</span> ' +
-				'<a href="' + editUrl + '" target="_blank" rel="noopener" class="mchl-muted">מענה ↗</a></div>';
+				'<button type="button" class="mchl-link mchl-req-open" data-action="req-open">💬 בקשה ותגובות</button> ' +
+				'<a href="' + editUrl + '" target="_blank" rel="noopener" class="mchl-muted">עריכה בדף ↗</a></div>';
 			var mechHtml = r.mech === 'exists' ? '<span class="mchl-badge mchl-wiki">קיים</span>' :
 				r.mech === 'redirect' ? '<span class="mchl-badge mchl-neutral">הפניה</span>' : '<span class="mchl-muted">אין</span>';
 			var known = row.inDb;
@@ -932,7 +933,7 @@
 				r.wiki && r.mech === 'missing' ? renderCell('import_action', row) : '',
 				known ? renderCell('expand', row) : ''
 			];
-			return '<tr class="mchl-req-row" data-req-title="' + escapeHtml(r.title) + '">' + cells.map(function (c, i) { return '<td data-label="' + th[i] + '">' + c + '</td>'; }).join('') + '</tr>';
+			return '<tr class="mchl-req-row' + (known && wfHasDetails(row) ? ' mchl-expandable' : '') + '" data-req-title="' + escapeHtml(r.title) + '">' + cells.map(function (c, i) { return '<td data-label="' + th[i] + '">' + c + '</td>'; }).join('') + '</tr>';
 		}).join('');
 		$id('mchl-table-target').innerHTML = head + '<div class="mchl-table-wrap"><table><thead><tr>' +
 			th.map(function (h, i) { return '<th' + (i >= 7 ? ' class="mchl-narrow-col"' : '') + '>' + h + '</th>'; }).join('') + '</tr></thead><tbody>' + body + '</tbody></table></div>';
@@ -970,30 +971,50 @@
 
 	// ===== פסקת הבקשה ותגובה - לחיצה על שורה =====
 	function requestRowOf(title) { return (requestsState.rows || []).filter(function (x) { return x.req.title === title; })[0]; }
+	function panelRowOf(tr) {
+		for (var n = tr.nextElementSibling; n && !n.classList.contains('mchl-req-row'); n = n.nextElementSibling) if (n.classList.contains('mchl-req-panel-row')) return n;
+		return null;
+	}
 	function toggleRequestPanel(tr) {
-		var next = tr.nextElementSibling;
-		if (next && next.classList.contains('mchl-req-panel-row')) {
-			next.remove(); tr.classList.remove('mchl-open'); requestsState.openTitle = null; return;
-		}
+		var panel = panelRowOf(tr);
+		if (panel) { panel.remove(); requestsState.openTitle = null; return; }
 		openRequestPanel(tr);
 	}
 	// הפסקה נשלפת לפי מספרה, ונבדק שהכותרת שלה היא עדיין של אותו ערך (הדף משתנה - מספרי הפסקאות זזים).
 	function fetchRequestSection(r) {
-		return mwApiFetch({ action: 'parse', page: REQUESTS_PAGE, section: String(r.section), prop: 'text|wikitext', disableeditsection: '1', disablelimitreport: '1' }).then(function (d) {
-			var parsed = d.parse || {};
-			var first = parseRequests(parsed.wikitext || '')[0];
+		return mwApiFetch({ action: 'parse', page: REQUESTS_PAGE, section: String(r.section), prop: 'wikitext' }).then(function (d) {
+			var wikitext = (d.parse && d.parse.wikitext) || '';
+			var first = parseRequests(wikitext)[0];
 			if (!first || first.title !== r.title) throw new Error('moved');
-			return { html: parsed.text || '', req: first };
+			return { html: threadHtml(wikitext), req: first };
 		});
+	}
+	// הבקשה והתגובות כשרשור פשוט: כל הודעה בשורה, עם הזחה לפי מספר הנקודתיים, הכותב והתאריך.
+	function threadHtml(wikitext) {
+		var msgs = [];
+		wikitext.split('\n').slice(1).forEach(function (line) {
+			if (!line.trim()) return;
+			var m = /^(:*)(.*)$/.exec(line), depth = m[1].length, body = m[2];
+			var who = /\[\[(?:משתמש|מש|User)\s*:\s*([^\]|]+)/.exec(body) || /\[\[מיוחד:תרומות\/([^\]|]+)/.exec(body);
+			var date = sigDate(body);
+			var text = wikiPlain(body.replace(/\{\{\s*(בוצע[^}]*)\}\}/g, '✔ $1').replace(/\{\{\s*א\|[^}]*\}\}/g, '').split(/--\s*\[\[|\[\[(?:משתמש|מש|User)\s*:|\[\[מיוחד:תרומות/)[0]);
+			if (depth === 0 && msgs.length && !who && !date) { msgs[msgs.length - 1].text += ' ' + text; return; }
+			msgs.push({ depth: depth, text: text, who: who ? who[1].trim() : '', date: date });
+		});
+		if (!msgs.length) return '<div class="mchl-muted">אין תוכן בבקשה.</div>';
+		return msgs.map(function (x) {
+			return '<div class="mchl-msg" style="margin-inline-start:' + Math.min(x.depth, 6) * 18 + 'px">' +
+				'<div class="mchl-msg-text">' + (escapeHtml(x.text) || '<span class="mchl-muted">(בלי טקסט)</span>') + '</div>' +
+				'<div class="mchl-msg-meta">' + escapeHtml([x.who, x.date ? x.date.toLocaleString('he-IL', { day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''].filter(Boolean).join(' · ')) + '</div></div>';
+		}).join('');
 	}
 	function openRequestPanel(tr) {
 		var title = tr.getAttribute('data-req-title');
 		var row = requestRowOf(title);
 		if (!row) return;
 		requestsState.openTitle = title;
-		tr.classList.add('mchl-open');
-		var old = tr.nextElementSibling;
-		if (old && old.classList.contains('mchl-req-panel-row')) old.remove();
+		var old = panelRowOf(tr);
+		if (old) old.remove();
 		var panelTr = document.createElement('tr');
 		panelTr.className = 'mchl-req-panel-row';
 		panelTr.innerHTML = '<td colspan="' + tr.children.length + '"><div class="mchl-req-panel"><div class="mchl-req-section mchl-muted">טוען את הבקשה…</div>' +
@@ -1019,6 +1040,7 @@
 	function replyToRequest(btn) {
 		var panelTr = btn.closest('tr.mchl-req-panel-row');
 		var tr = panelTr && panelTr.previousElementSibling;
+		while (tr && !tr.classList.contains('mchl-req-row')) tr = tr.previousElementSibling;
 		var row = tr && requestRowOf(tr.getAttribute('data-req-title'));
 		if (!row) return;
 		var kind = btn.getAttribute('data-kind');
@@ -2718,8 +2740,6 @@
 			var el = e.target.closest('[data-action]');
 			if (!el) {
 				// לחיצה על השורה עצמה (לא על קישור, כפתור או תיבת סימון) פותחת וסוגרת את הפרטים.
-				var reqTr = e.target.closest('#mchl-table-target tr.mchl-req-row');
-				if (reqTr && !e.target.closest('a, button, input, label, select, textarea')) { toggleRequestPanel(reqTr); return; }
 				var tr = e.target.closest('#mchl-table-target tr.mchl-expandable');
 				if (tr && !e.target.closest('a, button, input, label, select, textarea')) {
 					var b = tr.querySelector('[data-action="wf-details"]');
@@ -2746,6 +2766,7 @@
 			else if (action === 'import') importFromDashboard(el);
 			else if (action === 'req-filter') { requestsState.filter = el.getAttribute('data-v'); renderRequests(); }
 			else if (action === 'req-reply') replyToRequest(el);
+			else if (action === 'req-open') toggleRequestPanel(el.closest('tr'));
 			else if (action === 'toggle-side') { uiPrefs.sideHidden = !uiPrefs.sideHidden; saveUiPrefs(); applySidePanel(); }
 			else if (action === 'chip-remove') removeChip(el.getAttribute('data-chip'));
 			else if (action === 'wf-image') {
@@ -2939,12 +2960,12 @@
 		'#mchl-dash .mchl-exists-now{color:#6FBF73;font-weight:700;cursor:help;}' +
 		'#mchl-dash .mchl-req-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px;}' +
 		'#mchl-dash .mchl-req-head a{font-size:13px;text-decoration:none;}' +
-		'#mchl-dash tr.mchl-req-row{cursor:pointer;}' +
-		'#mchl-dash tr.mchl-req-row.mchl-open{background:var(--mchl-ink-700);}' +
 		'#mchl-dash .mchl-req-panel{padding:12px 14px;background:var(--mchl-ink-800);border-radius:8px;}' +
-		'#mchl-dash .mchl-req-section{background:#fff;color:#202122;border-radius:6px;padding:10px 14px;font-size:14px;line-height:1.6;max-height:360px;overflow:auto;}' +
-		'#mchl-dash .mchl-req-section a{color:#36c;}' +
-		'#mchl-dash .mchl-req-section h2{font-size:17px;margin:0 0 6px;border-bottom:1px solid #ddd;color:#202122;}' +
+		'#mchl-dash .mchl-req-section{max-height:360px;overflow:auto;display:flex;flex-direction:column;gap:6px;}' +
+		'#mchl-dash .mchl-msg{background:var(--mchl-ink-700);border-radius:8px;padding:7px 11px;border-inline-start:3px solid var(--mchl-line);}' +
+		'#mchl-dash .mchl-msg-text{font-size:14px;line-height:1.5;}' +
+		'#mchl-dash .mchl-msg-meta{font-size:11.5px;color:var(--mchl-text-3);margin-top:2px;}' +
+		'#mchl-dash .mchl-req-open{font-size:12.5px;}' +
 		'#mchl-dash .mchl-req-reply{margin-top:10px;display:flex;flex-direction:column;gap:8px;}' +
 		'#mchl-dash .mchl-req-reply textarea{width:100%;resize:vertical;font:inherit;}' +
 		'#mchl-dash .mchl-req-reply-btns{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}' +
