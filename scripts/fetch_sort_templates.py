@@ -5,7 +5,8 @@
 היקף: status='מיובא ומתועד', לא ערך מילוני ולא "ערכים לפתיחה" - כפי שמגדירה
 list_pending_sort_template (migrations/draft_add_sort_template_columns.sql).
 שורה "ממתינה" כל עוד sort_template_parsed_rev ריק או שונה מ-rev_id, ולכן הסקריפט
-חוזר על עצמו בבטחה: ריצה שנקטעה ממשיכה בדיוק ממה שנשאר.
+חוזר על עצמו בבטחה: ריצה שנקטעה ממשיכה בדיוק ממה שנשאר. דף נעול לקריאה מסומן
+(mark_sort_template_denied) ולא נבדק שוב במשך 30 יום.
 
 הרצה:
     python fetch_sort_templates.py                          # כל השורות הממתינות
@@ -149,10 +150,12 @@ def main():
     def handle(page_ids, client):
         fetched = fetch_contents(page_ids)
         rows = []
+        denied_ids = []
         for pid in page_ids:
             item = fetched.get(pid)
             if item is DENIED:
                 stats["denied"] += 1
+                denied_ids.append(pid)
             elif item is None:
                 stats["missing"] += 1
             else:
@@ -167,6 +170,13 @@ def main():
                 rows.append(row)
         if rows and len(examples) < 3:
             examples.append(rows[0])
+        if denied_ids and client is not None:
+            # דף נעול לקריאה: מסומן ויוצא מרשימת הממתינים (נבדק שוב אחרי 30 יום)
+            from supabase_client import execute_with_retry
+            execute_with_retry(
+                lambda: client.rpc("mark_sort_template_denied", {"p_ids": denied_ids}).execute(),
+                "mark_sort_template_denied", log_fn=log,
+            )
         if rows and client is not None:
             from supabase_client import execute_with_retry
             written = execute_with_retry(
