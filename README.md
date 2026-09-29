@@ -60,6 +60,13 @@
 - סדר ההקמה בסביבה חדשה: `migration_add_word_filter_results.sql` ← `migration_add_word_filter_suspicion.sql` ← (לניתוח בלבד) `migration_add_word_filter_occurrences.sql`. ההגדרות מתועדות גם ב-`schema.sql`/`views.sql`.
 - **מחליף את `easy_import_has_images` ואת `problematic_words_clean` בדשבורד.** בעמודת התמונות הישנה נמצאו רק 1,046 ערכים "עם תמונות" מתוך 25 אלף, כי כל בקשה ל-API החזירה עד 10 תמונות לכל 50 דפים, בלי המשך. העמודות הישנות עדיין מתמלאות ב-`fetch_easy_import_candidates.py`, אבל כבר לא מוצגות.
 
+## מעקב גרסת מקור: האם ויקיפדיה התקדמה מאז העדכון (2026-09)
+לכל ערך "מיובא ומתועד" (לא מילוני ולא "ערכים לפתיחה", כ-263.6 אלף) נשמר מול איזו גרסת ויקיפדיה הוא עודכן, כדי לדעת אם ויקיפדיה התקדמה מאז. הנתון נלקח מ-`גרסה=` בתבנית `{{מיון ויקיפדיה|דף=…|גרסה=…|תאריך=…}}` בסוף הערך (`0` או חסר = אין גרסה). מטא-דאטה בלבד - הטקסטים נשלפים חי, לא נשמרים.
+- הקמה: `migrations/migration_add_sort_template_columns.sql` (עמודות העשרה ב-`mechalol_pages`/`wikipedia_pages` וזמניות, הרחבת `forward_fill_enrichment_temp` גם למכלול, `recompute_source_state` ו-`report_source_ahead`). **לא להריץ בזמן הריצה השבועית.**
+- פענוח התבנית: `scripts/sort_template.py` (בדיקות: `python -m unittest discover -s scripts/tests`).
+- טעינה: `sort_template_backfill.yml` (ידני, 4 חלקים) מריץ `scripts/fetch_sort_templates.py`; ריצה שנקטעה ממשיכה מהנשארים. מצב מדגם בלי סופרבייס: `python fetch_sort_templates.py --sample 150`.
+- `source_state`: `current` (זהה לגרסה העדכנית בוויקיפדיה) / `ahead` (ויקיפדיה התקדמה) / `no_baseline` (אין גרסה בתבנית) / `unchecked` (הגרסה העדכנית בוויקיפדיה טרם נטענה); NULL מחוץ להיקף. `latest_rev_id` ב-`wikipedia_pages` יטען בשלב נפרד (עדיין לא נבנה), ולכן עד אז כל שורה עם גרסה תהיה `unchecked`.
+
 ## הרצה
 - הרצה ראשונית: `workflow_dispatch` על `initial_run.yml`. אם נעצר באמצע (מגבלת זמן), פשוט להריץ שוב - ההתקדמות נשמרת (ובמצב הזה, הריקון **לא** חוזר על עצמו, כדי לא לאבד את מה שכבר נטען). תומך גם ב-`mode=mechalol_only` למילוי חוזר של טבלה אחת בלבד, בלי לגעת בשנייה.
 - עדכון שוטף (יומי): `nightly_delta.yml`, רץ אוטומטית כל לילה ב-22:00 UTC. לא מרוקן כלום - קורא `recentchanges`/`logevents` משני האתרים (יצירות/מחיקות/שינויי-שם/עריכות) ומעדכן רק את מה שהשתנה, דרך `fetch_wikipedia_delta.py` → `fetch_mechalol_delta.py` → `match.py --scoped`.

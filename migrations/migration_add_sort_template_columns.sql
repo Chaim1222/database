@@ -1,8 +1,7 @@
--- draft_add_sort_template_columns.sql
+-- migration_add_sort_template_columns.sql
 --
--- *** טיוטה - לא הורצה, ולא חלק מסדר ההקמה ב-README. ***
--- (draft_ ולא migration_ בכוונה. אחרי הרצה מוצלחת - לשנות שם ל-
--- migration_add_sort_template_columns.sql ולתעד ב-README.)
+-- הורצה בייצור ב-2026-09-29 (סופרבייס hgsyzaghedqsypisbvev). idempotent - בטוחה להרצה חוזרת.
+-- חייבת לרוץ לפני scripts/fetch_sort_templates.py ולא בזמן ריצה שבועית (החלפת טבלאות).
 --
 -- מטרה: לדעת, לכל ערך מיובא ומתועד במכלול, מול איזו גרסת ויקיפדיה הוא עודכן
 -- לאחרונה (`גרסה=` בתבנית {{מיון ויקיפדיה}}) ואם ויקיפדיה התקדמה מאז.
