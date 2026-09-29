@@ -1344,7 +1344,16 @@
 	var importerPromise = null;
 	function getImporter() {
 		if (!importerPromise) {
-			importerPromise = mw.loader.using(['ext.gadget.mw-import']).then(function () { return new mw.import(); });
+			importerPromise = mw.loader.using(['ext.gadget.mw-import']).then(function () {
+				// mw.import נוצר כשהקובץ הראשי של החבילה רץ. אם הוא עוד לא קיים - להריץ אותו במפורש.
+				if (typeof mw.import !== 'function' && mw.loader.require) {
+					try { mw.loader.require('ext.gadget.mw-import'); } catch (e) { console.warn('mw-import:', e); }
+				}
+				if (typeof mw.import !== 'function') {
+					throw new Error('mw.import לא נטען (מצב המודול: ' + mw.loader.getState('ext.gadget.mw-import') + ', סוג: ' + typeof mw.import + ')');
+				}
+				return new mw.import();
+			});
 			importerPromise.catch(function () { importerPromise = null; });
 		}
 		return importerPromise;
@@ -1363,8 +1372,9 @@
 			var p = importer.importWikitext({ page: title, exist: false, currentPage: title, form: true, bot: bot });
 			if (p && p.catch) p.catch(function (err) { mw.notify(String(err), { type: 'warn' }); done(); });
 			setTimeout(done, 1500);
-		}, function () {
-			mw.notify('לא ניתן לטעון את גאדג\'ט הייבוא (mw-import).', { type: 'error' });
+		}).catch(function (err) {
+			console.error('ייבוא מהדשבורד:', err);
+			mw.notify('לא ניתן לטעון את גאדג\'ט הייבוא: ' + (err && err.message ? err.message : err), { type: 'error' });
 			done();
 		});
 	}
