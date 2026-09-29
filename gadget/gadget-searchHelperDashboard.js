@@ -162,6 +162,13 @@
 	// אותם דרך מסד הנתונים בכלל). ראו EXTRA_TABS, cultureState,
 	// loadCultureSubcats/loadCultureMembers למטה.
 	var EXTRA_TABS = { culture: { label: 'דפים לטיפול - תרבות' }, stats: { label: 'נתונים סטטיסטיים' } };
+	// הטאבים בשתי שורות: קבוצה, ומתחתיה הטאבים שלה.
+	var TAB_GROUPS = [
+		{ key: 'import', label: 'ייבוא', tabs: ['missing', 'missing_redirect', 'rav', 'culture'] },
+		{ key: 'maint', label: 'תחזוקה', tabs: ['tasks', 'deleted', 'undoc'] },
+		{ key: 'stats', label: 'נתונים סטטיסטיים', tabs: ['stats'] }
+	];
+	function groupOfTab(key) { return TAB_GROUPS.filter(function (g) { return g.tabs.indexOf(key) >= 0; })[0] || TAB_GROUPS[0]; }
 	var CATEGORY_MAINTENANCE_CULTURE = 'קטגוריה:דפים לטיפול תרבות';
 	// יחסי בכוונה, לא כתובת מלאה - הגאדג'ט רץ כבר בתוך הדומיין של
 	// המכלול (בניגוד לקובץ dashboard.html העצמאי, שצריך כתובת מלאה +
@@ -190,7 +197,7 @@
 	// (אין רמז בטבלאות הדלתא שלנו) | (לא ב-Map בכלל = טרם נבדק).
 	var deletionHintCache = new Map();
 	var deletionHintInFlight = new Set();
-	var activeTab = 'deleted';
+	var activeTab = 'missing';
 	var currentPage = 0;
 	var pageSize = 50;
 	var totalRows = 0;
@@ -211,6 +218,10 @@
 	var serviceKeyConnected = false;
 
 	function $id(id) { return document.getElementById(id); }
+	// העדפות תצוגה של המשתמש (תפריט האתר, פאנל המסננים, מקטעים מקופלים) - localStorage, עם fallback.
+	var UI_PREFS_KEY = 'mchl-ui-prefs';
+	var uiPrefs = (function () { try { return JSON.parse(localStorage.getItem(UI_PREFS_KEY) || '{}') || {}; } catch (e) { return {}; } }());
+	function saveUiPrefs() { try { localStorage.setItem(UI_PREFS_KEY, JSON.stringify(uiPrefs)); } catch (e) { /* לא נשמר - לא נורא */ } }
 	function mechalolUrl(id) { return 'https://www.hamichlol.org.il/w/index.php?curid=' + id; }
 	function wikipediaUrl(id) { return 'https://he.wikipedia.org/w/index.php?curid=' + id; }
 	function mechalolEditUrl(title) { return 'https://www.hamichlol.org.il/w/index.php?title=' + encodeURIComponent(title.replace(/ /g, '_')) + '&action=edit'; }
@@ -623,18 +634,50 @@
 	function buildTabs() {
 		var nav = $id('mchl-tabs');
 		nav.innerHTML = '';
-		var allKeys = Object.keys(VIEWS).concat(Object.keys(EXTRA_TABS));
-		allKeys.forEach(function (key) {
-			var v = VIEWS[key] || EXTRA_TABS[key];
-			var btn = document.createElement('button');
-			btn.className = 'mchl-tab' + (key === activeTab ? ' mchl-active' : '');
-			btn.id = 'mchl-tab-' + key;
-			btn.type = 'button';
-			var countHtml = VIEWS[key] ? '<span class="mchl-count" id="mchl-tab-count-' + key + '">–</span>' : '';
-			btn.innerHTML = countHtml + escapeHtml(v.label);
-			btn.addEventListener('click', function () { switchTab(key); });
-			nav.appendChild(btn);
+		var groupsRow = document.createElement('div');
+		groupsRow.className = 'mchl-tab-groups';
+		nav.appendChild(groupsRow);
+		TAB_GROUPS.forEach(function (g) {
+			var gb = document.createElement('button');
+			gb.type = 'button';
+			gb.className = 'mchl-tab-group';
+			gb.id = 'mchl-tabgroup-' + g.key;
+			gb.textContent = g.label;
+			gb.addEventListener('click', function () {
+				var last = uiPrefs['lastTab:' + g.key];
+				switchTab(g.tabs.indexOf(last) >= 0 ? last : g.tabs[0]);
+			});
+			groupsRow.appendChild(gb);
+			// הטאבים של הקבוצה - תמיד ב-DOM (המונים שלהם מתעדכנים גם כשהקבוצה סגורה).
+			var sub = document.createElement('div');
+			sub.className = 'mchl-subtabs';
+			sub.id = 'mchl-subtabs-' + g.key;
+			if (g.tabs.length < 2) sub.classList.add('mchl-single');
+			g.tabs.forEach(function (key) {
+				var v = VIEWS[key] || EXTRA_TABS[key];
+				var btn = document.createElement('button');
+				btn.className = 'mchl-tab';
+				btn.id = 'mchl-tab-' + key;
+				btn.type = 'button';
+				var countHtml = VIEWS[key] ? '<span class="mchl-count" id="mchl-tab-count-' + key + '">–</span>' : '';
+				btn.innerHTML = escapeHtml(v.label) + countHtml;
+				btn.addEventListener('click', function () { switchTab(key); });
+				sub.appendChild(btn);
+			});
+			nav.appendChild(sub);
 		});
+		markActiveTab();
+	}
+
+	function markActiveTab() {
+		var g = groupOfTab(activeTab);
+		TAB_GROUPS.forEach(function (x) {
+			$id('mchl-tabgroup-' + x.key).classList.toggle('mchl-active', x === g);
+			$id('mchl-subtabs-' + x.key).classList.toggle('mchl-open', x === g);
+		});
+		document.querySelectorAll('#mchl-dash .mchl-tab').forEach(function (t) { t.classList.toggle('mchl-active', t.id === 'mchl-tab-' + activeTab); });
+		uiPrefs['lastTab:' + g.key] = activeTab;
+		saveUiPrefs();
 	}
 
 	function switchTab(key) {
@@ -642,8 +685,7 @@
 		currentPage = 0;
 		activeFilters = {};
 		selectedRows.clear();
-		document.querySelectorAll('#mchl-dash .mchl-tab').forEach(function (t) { t.classList.remove('mchl-active'); });
-		$id('mchl-tab-' + key).classList.add('mchl-active');
+		markActiveTab();
 		updateSelectionBar();
 		var isStats = key === 'stats';
 		$id('mchl-stats-area').style.display = isStats ? 'block' : 'none';
@@ -893,6 +935,7 @@
 			'<label class="mchl-check">אורך מקסימלי <input type="number" min="0" class="mchl-filter-number" data-side-input="maxlen" placeholder="בתים" value="' + escapeHtml(wfMaxLen) + '"></label>' +
 			'<div class="mchl-hint" style="margin-top:8px;">המספרים ליד האפשרויות לא מושפעים מחיפוש, מערכים חדשים, מהקוד המוסתר ומאורך.</div></div>';
 		$id('mchl-side').innerHTML = html;
+		applySideCollapse();
 		$id('mchl-side').querySelectorAll('input[data-some]').forEach(function (cb) { cb.indeterminate = true; });
 		renderSideCounts();
 	}
@@ -906,6 +949,8 @@
 	}
 
 	function onSideClick(e) {
+		var head = e.target.closest('.mchl-side-h.mchl-collapsible');
+		if (head && !e.target.closest('button, input, label')) { toggleSideSection(head); return; }
 		var b = e.target.closest('[data-side]');
 		if (!b) return;
 		var kind = b.getAttribute('data-side'), v = b.getAttribute('data-v');
@@ -973,6 +1018,42 @@
 		if (skip !== 'topic' && wfTopicChoice.length && wfTopicChoice.indexOf(r.topic) < 0) return false;
 		if (skip !== 'level' && !wfLevelMatches(r, wfLevelChoice)) return false;
 		return true;
+	}
+
+	// מקטעים בפאנל המסננים - לחיצה על הכותרת מקפלת/פותחת (נזכר בין כניסות).
+	function applySideCollapse() {
+		var collapsed = uiPrefs.sideCollapsed || {};
+		document.querySelectorAll('#mchl-side .mchl-side-sec').forEach(function (sec) {
+			var h = sec.querySelector(':scope > .mchl-side-h');
+			if (!h) return;
+			var key = (h.firstChild && h.firstChild.nodeType === 3 ? h.firstChild.nodeValue : h.textContent).trim();
+			sec.setAttribute('data-sec', key);
+			h.classList.add('mchl-collapsible');
+			sec.classList.toggle('mchl-collapsed', !!collapsed[key]);
+		});
+	}
+	function toggleSideSection(h) {
+		var sec = h.closest('.mchl-side-sec');
+		var key = sec && sec.getAttribute('data-sec');
+		if (!key) return;
+		uiPrefs.sideCollapsed = uiPrefs.sideCollapsed || {};
+		uiPrefs.sideCollapsed[key] = !uiPrefs.sideCollapsed[key];
+		if (!uiPrefs.sideCollapsed[key]) delete uiPrefs.sideCollapsed[key];
+		saveUiPrefs();
+		sec.classList.toggle('mchl-collapsed', !!uiPrefs.sideCollapsed[key]);
+	}
+	function applySidePanel() {
+		var hidden = !!uiPrefs.sideHidden;
+		$id('mchl-body').classList.toggle('mchl-side-hidden', hidden);
+		var b = $id('mchl-side-toggle-btn');
+		if (b) { b.textContent = hidden ? '☰ הצגת מסננים' : '☰ הסתרת מסננים'; b.setAttribute('aria-pressed', hidden ? 'false' : 'true'); }
+	}
+	// תפריט הצד של האתר (Vector) - מוסתר כברירת מחדל בדשבורד, כדי שיהיה מקום לטבלה.
+	function applySiteNav() {
+		var hidden = uiPrefs.siteNavHidden !== false;
+		document.body.classList.toggle('mchl-no-site-nav', hidden);
+		var b = $id('mchl-sitenav-btn');
+		if (b) b.textContent = hidden ? '⇤ הצגת תפריט האתר' : '⇥ הסתרת תפריט האתר';
 	}
 
 	function renderSideCounts() {
@@ -2255,6 +2336,8 @@
 			else if (action === 'auth-login') authLogin();
 			else if (action === 'wf-details') toggleContentDetails(el);
 			else if (action === 'import') importFromDashboard(el);
+			else if (action === 'toggle-side') { uiPrefs.sideHidden = !uiPrefs.sideHidden; saveUiPrefs(); applySidePanel(); }
+			else if (action === 'toggle-site-nav') { uiPrefs.siteNavHidden = !(uiPrefs.siteNavHidden !== false); saveUiPrefs(); applySiteNav(); }
 			else if (action === 'chip-remove') removeChip(el.getAttribute('data-chip'));
 			else if (action === 'wf-image') {
 				var detailsRow = el.closest('tr.mchl-wf-details-row');
@@ -2300,12 +2383,15 @@
 	var ADMIN_LEVEL_THRESHOLD = 17;
 	// ===== CSS מוגבל תחת #mchl-dash בלבד =====
 	var CSS = '' +
+		'body.mchl-no-site-nav #mw-panel,body.mchl-no-site-nav .vector-main-menu-container,body.mchl-no-site-nav #mw-navigation #mw-panel{display:none !important;}' +
+		'body.mchl-no-site-nav #content,body.mchl-no-site-nav #footer,body.mchl-no-site-nav #mw-head-base{margin-right:0 !important;margin-left:0 !important;}' +
+		'body.mchl-no-site-nav #left-navigation{margin-right:1em !important;}' +
 		'#mchl-dash{--mchl-ink-900:#0F1B22;--mchl-ink-800:#16262F;--mchl-ink-700:#1E323C;' +
 		'--mchl-wiki:#5C9686;--mchl-wiki-dim:#5C968633;--mchl-mechalol:#C79449;--mchl-mechalol-dim:#C7944933;' +
 		'--mchl-alert:#C1634A;--mchl-alert-dim:#C1634A26;--mchl-text-1:#EDEAE1;--mchl-text-2:#9FADAF;' +
 		'--mchl-text-3:#657679;--mchl-line:rgba(237,234,225,0.10);' +
 		'background:var(--mchl-ink-900);color:var(--mchl-text-1);font-family:Assistant,Arial,sans-serif;' +
-		'font-feature-settings:"tnum" 1;direction:rtl;max-width:1220px;margin:0 auto;padding:32px 24px 80px;}' +
+		'font-feature-settings:"tnum" 1;direction:rtl;max-width:1440px;margin:0 auto;padding:32px 24px 80px;}' +
 		'#mchl-dash *{box-sizing:border-box;}' +
 		'#mchl-dash a{color:inherit;}' +
 		'#mchl-dash header.mchl-top{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:16px;margin-bottom:28px;}' +
@@ -2359,9 +2445,16 @@
 		'#mchl-dash .mchl-stat-card .mchl-l{font-size:12.5px;color:var(--mchl-text-2);margin-top:4px;display:flex;align-items:center;gap:6px;}' +
 		'#mchl-dash .mchl-mini-spinner{width:11px;height:11px;border-radius:50%;border:2px solid var(--mchl-line);border-top-color:var(--mchl-mechalol);animation:mchlSpin .7s linear infinite;display:inline-block;}' +
 		'@keyframes mchlSpin{to{transform:rotate(360deg);}}' +
-		'#mchl-dash .mchl-tabs{display:flex;gap:6px;border-bottom:1px solid var(--mchl-line);margin-bottom:18px;overflow-x:auto;}' +
-		'#mchl-dash .mchl-tab{background:none;border:none;color:var(--mchl-text-2);font-size:14.5px;font-weight:600;padding:10px 4px;cursor:pointer;position:relative;white-space:nowrap;margin-left:22px;}' +
-		'#mchl-dash .mchl-tab .mchl-count{display:inline-block;margin-right:6px;font-size:11.5px;background:var(--mchl-ink-700);color:var(--mchl-text-2);padding:1px 7px;border-radius:20px;}' +
+		'#mchl-dash .mchl-tabs{margin-bottom:18px;}' +
+		'#mchl-dash .mchl-tab-groups{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;}' +
+		'#mchl-dash .mchl-tab-group{background:var(--mchl-ink-800);border:1px solid var(--mchl-line);border-radius:10px;color:var(--mchl-text-2);font:inherit;font-size:15px;font-weight:700;padding:8px 18px;cursor:pointer;}' +
+		'#mchl-dash .mchl-tab-group:hover{color:var(--mchl-text-1);}' +
+		'#mchl-dash .mchl-tab-group.mchl-active{background:var(--mchl-mechalol-dim);border-color:var(--mchl-mechalol);color:var(--mchl-text-1);}' +
+		'#mchl-dash .mchl-subtabs{display:none;gap:6px;flex-wrap:wrap;border-bottom:1px solid var(--mchl-line);}' +
+		'#mchl-dash .mchl-subtabs.mchl-open{display:flex;}' +
+		'#mchl-dash .mchl-subtabs.mchl-single{display:none;}' +
+		'#mchl-dash .mchl-tab{background:none;border:none;color:var(--mchl-text-2);font-size:14px;font-weight:600;padding:9px 4px;cursor:pointer;position:relative;white-space:nowrap;margin-left:20px;}' +
+		'#mchl-dash .mchl-tab .mchl-count{display:inline-block;margin-right:6px;margin-left:0;font-size:11.5px;background:var(--mchl-ink-700);color:var(--mchl-text-2);padding:1px 7px;border-radius:20px;}' +
 		'#mchl-dash .mchl-tab.mchl-active{color:var(--mchl-text-1);}' +
 		'#mchl-dash .mchl-tab.mchl-active .mchl-count{background:var(--mchl-mechalol-dim);color:var(--mchl-mechalol);}' +
 		'#mchl-dash .mchl-tab.mchl-active::after{content:"";position:absolute;bottom:-1px;right:0;left:0;height:2px;background:var(--mchl-mechalol);border-radius:2px;}' +
@@ -2372,6 +2465,18 @@
 		'#mchl-dash select.mchl-filter-select{cursor:pointer;}' +
 		// פריסה: פאנל מסננים בצד + אזור ראשי (טאבי "חסר במכלול")
 		'#mchl-dash .mchl-body.mchl-with-side{display:grid;grid-template-columns:272px minmax(0,1fr);gap:18px;align-items:start;}' +
+		'#mchl-dash .mchl-body.mchl-with-side.mchl-side-hidden{grid-template-columns:minmax(0,1fr);}' +
+		'#mchl-dash .mchl-body.mchl-side-hidden .mchl-side{display:none !important;}' +
+		'#mchl-dash .mchl-side-toggle{display:none;background:var(--mchl-ink-800);border:1px solid var(--mchl-line);border-radius:8px;color:var(--mchl-text-2);font:inherit;font-size:13px;padding:8px 12px;cursor:pointer;white-space:nowrap;}' +
+		'#mchl-dash .mchl-with-side .mchl-side-toggle{display:inline-block;}' +
+		'#mchl-dash .mchl-side-toggle:hover{color:var(--mchl-text-1);}' +
+		'#mchl-dash .mchl-side-h.mchl-collapsible{cursor:pointer;user-select:none;justify-content:flex-start;gap:0;}' +
+		'#mchl-dash .mchl-side-h.mchl-collapsible > .mchl-link{margin-right:auto;}' +
+		'#mchl-dash .mchl-side-h.mchl-collapsible:hover{color:var(--mchl-text-1);}' +
+		'#mchl-dash .mchl-side-h.mchl-collapsible::before{content:"▾";margin-left:6px;color:var(--mchl-text-3);font-size:11px;}' +
+		'#mchl-dash .mchl-side-sec.mchl-collapsed > .mchl-side-h.mchl-collapsible::before{content:"▸";}' +
+		'#mchl-dash .mchl-side-sec.mchl-collapsed > :not(.mchl-side-h:first-child){display:none;}' +
+		'#mchl-dash .mchl-refresh.mchl-quiet{opacity:.8;font-size:13px;}' +
 		'#mchl-dash .mchl-main{min-width:0;}' +
 		'#mchl-dash .mchl-side{background:var(--mchl-ink-800);border:1px solid var(--mchl-line);border-radius:12px;padding:10px 14px;position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto;font-size:13.5px;}' +
 		'#mchl-dash .mchl-side-sec{border-top:1px solid var(--mchl-line);padding:10px 0;}' +
@@ -2525,6 +2630,7 @@
 		'<header class="mchl-top">' +
 		'<div><p class="mchl-eyebrow">מסד הנתונים · השוואת ערכים</p><h1 class="mchl-h1">ויקיפדיה העברית <span>↔</span> <span>המכלול</span></h1></div>' +
 		'<div class="mchl-top-actions"><span class="mchl-sync-note" id="mchl-sync-note">נבדק לאחרונה —</span>' +
+		'<button type="button" class="mchl-refresh mchl-quiet" id="mchl-sitenav-btn" data-action="toggle-site-nav"></button>' +
 		'<button type="button" class="mchl-refresh" id="mchl-admin-toggle-btn" data-action="toggle-admin-panel" style="display:none;">⚙ ניהול</button>' +
 		'<button type="button" class="mchl-refresh" id="mchl-refresh-btn" data-action="refresh"><span class="mchl-dot"></span> רענון</button></div>' +
 		'</header>' +
@@ -2558,6 +2664,7 @@
 		'<aside class="mchl-side" id="mchl-side" style="display:none;"></aside>' +
 		'<div class="mchl-main">' +
 		'<div class="mchl-filter-bar" id="mchl-filter-bar">' +
+		'<button type="button" class="mchl-side-toggle" id="mchl-side-toggle-btn" data-action="toggle-side"></button>' +
 		'<div class="mchl-search-wrap"><input class="mchl-search" id="mchl-search-input" placeholder="חיפוש בכותרת…"></div>' +
 		'<div id="mchl-dynamic-filters" style="display:flex;gap:10px;flex-wrap:wrap;"></div>' +
 		'<button type="button" class="mchl-clear-filters" id="mchl-clear-filters-btn" data-action="clear-filters" style="display:none;">נקה סינון</button>' +
@@ -2618,6 +2725,9 @@
 
 		wireEvents(container);
 		buildTabs();
+		applySiteNav();
+		applySidePanel();
+		if (VIEWS[activeTab] && VIEWS[activeTab].columns.indexOf('wikidata_desc') !== -1) $id('mchl-search-input').placeholder = 'חיפוש בכותרת או בתיאור ויקינתונים…';
 		buildDynamicFilters();
 		$id('mchl-search-input').addEventListener('input', function () {
 			clearTimeout(searchDebounce);
