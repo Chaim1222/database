@@ -1,0 +1,69 @@
+name: פענוח גרסת מקור מתבנית המיון (טעינה)
+
+# מפענח {{מיון ויקיפדיה}} בערכי המכלול המיובאים והמתועדים וכותב את גרסת המקור
+# (`גרסה=`) לעמודות ההעשרה של mechalol_pages. ארבעה חלקים במקביל לפי id.
+# הרצה ידנית בלבד. ריצה שנקטעה חוזרת בבטחה: ממשיכה מהשורות שנשארו ממתינות.
+#
+# קבוצת ה-concurrency זהה לשאר ה-workflows שנוגעים בטבלאות: לא רץ במקביל לדלתא
+# הלילית או לסנכרון השבועי (החלפת הטבלאות), ולכן אין סכנה לכתיבה לטבלה שהוחלפה.
+# מומלץ להריץ ביום, רחוק מ-22:00 UTC, כדי שלא ירחיב את התור של הדלתא.
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_minutes:
+        description: "תקציב זמן לכל חלק (דקות) לפני עצירה מסודרת"
+        default: "150"
+        type: string
+
+concurrency:
+  group: mechalol-wikipedia-db-write
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    permissions:
+      issues: write
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    steps:
+      - name: שחזור קוד
+        uses: actions/checkout@v4
+
+      - name: התקנת פייתון
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: התקנת ספריות
+        run: pip install -r requirements.txt
+
+      - name: בדיקות
+        run: python -m unittest discover -s scripts/tests
+
+      - name: פענוח התבנית
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          USER_NAME: ${{ secrets.USER_NAME }}
+          PASSWORD: ${{ secrets.PASSWORD }}
+        run: python fetch_sort_templates.py --shard ${{ matrix.shard }} --shards 4 --max-minutes ${{ inputs.max_minutes }}
+
+      - name: פתיחת Issue בעת כישלון
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `כשל בפענוח גרסת מקור (חלק ${{ matrix.shard }}) - ${new Date().toISOString().slice(0, 10)}`,
+              body: `פרטי הריצה: ${runUrl}`,
+              labels: ["automation-failure"],
+            });

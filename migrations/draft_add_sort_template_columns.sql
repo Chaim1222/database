@@ -160,6 +160,89 @@ $$;
 revoke all on function recompute_source_state(bigint[]) from public, anon, authenticated;
 grant execute on function recompute_source_state(bigint[]) to service_role;
 
+-- 4ב. פונקציות עזר לסקריפטים. כולן security definer, service_role בלבד.
+-- רשימת השורות הממתינות לפענוח, בדפדוף לפי id ובחלוקה לחלקים (id % p_shards = p_shard).
+create or replace function list_pending_sort_template(
+    p_after bigint default 0,
+    p_limit integer default 2000,
+    p_shard integer default 0,
+    p_shards integer default 1
+)
+returns table (id bigint, title text)
+language sql
+stable
+security definer
+set search_path to 'public'
+as $$
+    select m.id, m.title
+    from mechalol_pages m
+    where m.status = 'מיובא ומתועד'
+      and not m.is_dictionary_entry
+      and not m.needs_attention
+      and (m.sort_template_parsed_rev is null or m.sort_template_parsed_rev is distinct from m.rev_id)
+      and m.id > p_after
+      and m.id % p_shards = p_shard
+    order by m.id
+    limit p_limit;
+$$;
+
+-- כתיבת תוצאות פענוח באצווה. כל איבר: {id, rev_id, rev_ts, rev, title, date}. מעדכן רק
+-- את עמודות המעקב (בלי upsert: כתיבת שורה חלקית ל-mechalol_pages נכשלת על NOT NULL).
+create or replace function set_sort_template_batch(p_rows jsonb)
+returns integer
+language plpgsql
+security definer
+set search_path to 'public'
+as $$
+declare
+    n integer;
+begin
+    update mechalol_pages m
+    set rev_id = r.rev_id,
+        rev_ts = r.rev_ts,
+        sort_template_rev = r.rev,
+        sort_template_title = r.title,
+        sort_template_date = r.date,
+        sort_template_parsed_rev = r.rev_id
+    from jsonb_to_recordset(p_rows) as r(
+        id bigint, rev_id bigint, rev_ts timestamptz, rev bigint, title text, date date
+    )
+    where m.id = r.id;
+    get diagnostics n = row_count;
+    return n;
+end;
+$$;
+
+-- כתיבת הגרסה העדכנית בוויקיפדיה באצווה. כל איבר: {id, rev_id, rev_ts}.
+create or replace function set_wikipedia_revisions_batch(p_rows jsonb)
+returns integer
+language plpgsql
+security definer
+set search_path to 'public'
+as $$
+declare
+    n integer;
+begin
+    update wikipedia_pages w
+    set latest_rev_id = r.rev_id,
+        latest_rev_ts = r.rev_ts
+    from jsonb_to_recordset(p_rows) as r(id bigint, rev_id bigint, rev_ts timestamptz)
+    where w.id = r.id
+      and (w.latest_rev_id is distinct from r.rev_id or w.latest_rev_ts is distinct from r.rev_ts);
+    get diagnostics n = row_count;
+    return n;
+end;
+$$;
+
+revoke all on function list_pending_sort_template(bigint, integer, integer, integer),
+                       set_sort_template_batch(jsonb),
+                       set_wikipedia_revisions_batch(jsonb)
+    from public, anon, authenticated;
+grant execute on function list_pending_sort_template(bigint, integer, integer, integer),
+                          set_sort_template_batch(jsonb),
+                          set_wikipedia_revisions_batch(jsonb)
+    to service_role;
+
 -- 5. דוח: ערכים שוויקיפדיה התקדמה בהם. בלי JOIN (הגאדג'ט שולף את הגרסה העדכנית חי).
 create or replace view report_source_ahead with (security_invoker = true) as
 select m.id,
