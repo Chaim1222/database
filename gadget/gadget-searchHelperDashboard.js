@@ -159,7 +159,8 @@
 				key: 'update_bucket', label: 'עודכן',
 				options: ['בשנה האחרונה', 'לפני שנה עד שנתיים', '2020 עד לפני שנתיים', 'לפני 2020', 'ללא תאריך']
 			}],
-			order: 'sort_template_date.asc.nullslast,id.asc', titleLink: 'edit', freshness: true
+			order: 'sort_template_date.asc.nullslast,id.asc', titleLink: 'edit', freshness: true,
+			group: 'wikiupdate'
 		},
 		// ערכי ויקיפדיה שהוצאו מ"חסר במכלול" רק בגלל כותרת זהה אחרי הסרת
 		// "הרב"/"רבי" - לא התאמה ודאית, דורש אישור אנושי. ה-view היה קיים
@@ -184,6 +185,12 @@
 		{ key: 'maint', label: 'תחזוקה', tabs: ['tasks', 'deleted', 'undoc', 'update'] },
 		{ key: 'stats', label: 'נתונים סטטיסטיים', tabs: ['stats'] }
 	];
+	// טאב עם group (ב-VIEWS) מוצג רק למי שדרגתו לפחות כדרגת הקבוצה. זו בדיקת נראות בצד
+	// הלקוח בלבד, לא הגנה: הנתונים עצמם קריאים ל-anon.
+	function tabAllowed(key) {
+		var v = VIEWS[key];
+		return !(v && v.group && userLevel < (GROUP_LEVELS[v.group] || Infinity));
+	}
 	function groupOfTab(key) { return TAB_GROUPS.filter(function (g) { return g.tabs.indexOf(key) >= 0; })[0] || TAB_GROUPS[0]; }
 	var CATEGORY_MAINTENANCE_CULTURE = 'קטגוריה:דפים לטיפול תרבות';
 	// יחסי בכוונה, לא כתובת מלאה - הגאדג'ט רץ כבר בתוך הדומיין של
@@ -214,6 +221,12 @@
 	var deletionHintCache = new Map();
 	var deletionHintInFlight = new Set();
 	var activeTab = 'missing';
+	// סולם ההרשאות: קבוצה גבוהה יותר רואה גם את מה שנועד לקבוצות נמוכות ממנה.
+	var GROUP_LEVELS = {
+		sysop: 20, bot: 18, aspaklarya2: 16, aspaklaryaEditor: 14,
+		patroller: 12, wikiupdate: 10, wikimport: 8
+	};
+	var userLevel = 0;
 	var currentPage = 0;
 	var pageSize = 50;
 	var totalRows = 0;
@@ -687,7 +700,7 @@
 			gb.textContent = g.label;
 			gb.addEventListener('click', function () {
 				var last = uiPrefs['lastTab:' + g.key];
-				switchTab(g.tabs.indexOf(last) >= 0 ? last : g.tabs[0]);
+				switchTab(g.tabs.indexOf(last) >= 0 && tabAllowed(last) ? last : g.tabs[0]);
 			});
 			groupsRow.appendChild(gb);
 			// הטאבים של הקבוצה - תמיד ב-DOM (המונים שלהם מתעדכנים גם כשהקבוצה סגורה).
@@ -696,6 +709,7 @@
 			sub.id = 'mchl-subtabs-' + g.key;
 			if (g.tabs.length < 2) sub.classList.add('mchl-single');
 			g.tabs.forEach(function (key) {
+				if (!tabAllowed(key)) return;
 				var v = VIEWS[key] || EXTRA_TABS[key];
 				var btn = document.createElement('button');
 				btn.className = 'mchl-tab';
@@ -1708,7 +1722,7 @@
 		STAT_DEFS.forEach(function (d) { if (d.tabCount) coveredTabs[d.tabCount] = true; });
 		Object.keys(VIEWS).forEach(function (key) {
 			var tabCountId = 'mchl-tab-count-' + key;
-			if (coveredTabs[tabCountId]) return;
+			if (coveredTabs[tabCountId] || !tabAllowed(key)) return;
 			var cfg = VIEWS[key];
 			jobs.push(pgCount(cfg.view, cfg.baseFilters, cfg.countColumn).then(function (val) {
 				var el = $id(tabCountId);
@@ -2962,11 +2976,7 @@
 	}
 	
 	   function getLevel(groups) {
-        const levels = {
-          sysop: 20, bot: 18, aspaklarya2: 16, aspaklaryaEditor: 14,
-          patroller: 12, wikiupdate: 10, wikimport: 8
-        };
-        return Math.max(...groups.map(g => levels[g] || 0), 0);
+        return Math.max(...groups.map(g => GROUP_LEVELS[g] || 0), 0);
       }
 
 	// דרגת ההרשאה הנדרשת כדי לראות את פאנל הניהול בכלל (מפתח סרוויס +
@@ -3319,6 +3329,7 @@
 	function init() {
     	var groups = mw.config.get('wgUserGroups') || [];
     	var level = getLevel(groups);
+    	userLevel = level;
 
     	if (level < 8) {
         $('#bodyContent').html('<div style="color: red; font-size: 18px; text-align: center; margin-top: 50px;">אין לך הרשאות לגשת לכלי זה.</div>');
