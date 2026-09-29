@@ -850,9 +850,15 @@
 			reqs = parseRequests(pg.revisions[0].slots.main.content);
 			return lookupTitles(reqs.map(function (r) { return r.title; }));
 		}).then(function (found) {
-			reqs.forEach(function (r) { r.mech = found.mech[r.title] || 'missing'; r.wiki = found.wiki[r.title] || null; });
+			reqs.forEach(function (r) {
+				r.mech = found.mech[r.title] || 'missing';
+				r.wiki = found.wiki[r.title] || null;
+				// ערך שכבר קיים במכלול - הבקשה נחשבת בוצעה, גם בלי {{בוצע}} (חיים, 2026-09-29).
+				if (r.mech === 'exists' && r.status !== 'done') { r.status = 'done'; r.doneBy = 'exists'; }
+			});
 			var ids = reqs.filter(function (r) { return r.wiki; }).map(function (r) { return r.wiki.id; });
 			if (!ids.length) return [];
+			// בדוח יש רק ערכים שחסרים במכלול - ממילא אין טעם לשאול על השאר.
 			return Promise.all(batches(ids, 150).map(function (b) {
 				return pgSelect('report_missing_word_filter', { filterParams: [['id', 'in.(' + b.join(',') + ')']], from: 0, to: b.length - 1 }).then(function (res) { return res.data || []; });
 			})).then(function (parts) { return [].concat.apply([], parts); });
@@ -877,9 +883,9 @@
 	function requestsVisible() {
 		var f = requestsState.filter;
 		return (requestsState.rows || []).filter(function (r) {
-			if (f === 'open') return r.req.status !== 'done' && r.req.mech !== 'exists';
-			if (f === 'importable') return r.req.status !== 'done' && r.req.mech !== 'exists' && r.req.wiki && r.inDb;
-			if (f === 'done') return r.req.status === 'done' || r.req.mech === 'exists';
+			if (f === 'open') return r.req.status !== 'done';
+			if (f === 'importable') return r.req.status !== 'done' && r.req.mech === 'missing' && r.req.wiki && r.inDb;
+			if (f === 'done') return r.req.status === 'done';
 			return true;
 		});
 	}
@@ -888,7 +894,7 @@
 		currentPageRows = rows.filter(function (r) { return r.id; });
 		var all = requestsState.rows || [];
 		var count = function (f) { var keep = requestsState.filter; requestsState.filter = f; var n = requestsVisible().length; requestsState.filter = keep; return n; };
-		var seg = [['open', 'פתוחות'], ['importable', 'אפשר לייבא'], ['done', 'בוצעו / קיימים'], ['all', 'הכול']].map(function (o) {
+		var seg = [['open', 'פתוחות'], ['importable', 'אפשר לייבא'], ['done', 'בוצעו'], ['all', 'הכול']].map(function (o) {
 			return '<button type="button" data-action="req-filter" data-v="' + o[0] + '"' + (requestsState.filter === o[0] ? ' class="mchl-on"' : '') + '>' +
 				escapeHtml(o[1]) + ' <span class="mchl-muted">' + count(o[0]).toLocaleString('he-IL') + '</span></button>';
 		}).join('');
@@ -909,7 +915,7 @@
 			var reqHtml = titleHtml + '<div class="mchl-row-desc">' + escapeHtml(meta) +
 				(r.note ? ' · <span title="' + escapeHtml(r.note) + '">' + escapeHtml(r.note.length > 90 ? r.note.slice(0, 90) + '…' : r.note) + '</span>' : '') + '</div>' +
 				'<div class="mchl-row-desc"><span class="mchl-badge ' + (r.status === 'done' ? 'mchl-wiki' : r.status === 'replied' ? 'mchl-review' : 'mchl-neutral') + '"' +
-				(r.lastReply ? ' title="' + escapeHtml(r.lastReply) + '"' : '') + '>' + REQ_STATUS[r.status] +
+				(r.lastReply ? ' title="' + escapeHtml(r.lastReply) + '"' : '') + '>' + REQ_STATUS[r.status] + (r.doneBy === 'exists' ? ' (קיים במכלול)' : '') +
 				(r.status === 'replied' && r.replyTemplates.length ? ': ' + escapeHtml(r.replyTemplates.join(', ')) : '') + '</span> ' +
 				'<a href="' + editUrl + '" target="_blank" rel="noopener" class="mchl-muted">מענה ↗</a></div>';
 			var mechHtml = r.mech === 'exists' ? '<span class="mchl-badge mchl-wiki">קיים</span>' :
