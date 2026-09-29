@@ -65,7 +65,37 @@
 - הקמה: `migrations/migration_add_sort_template_columns.sql` (עמודות העשרה ב-`mechalol_pages`/`wikipedia_pages` וזמניות, הרחבת `forward_fill_enrichment_temp` גם למכלול, `recompute_source_state` ו-`report_source_ahead`). **לא להריץ בזמן הריצה השבועית.**
 - פענוח התבנית: `scripts/sort_template.py` (בדיקות: `python -m unittest discover -s scripts/tests`).
 - טעינה: `sort_template_backfill.yml` (ידני, 4 חלקים) מריץ `scripts/fetch_sort_templates.py`; ריצה שנקטעה ממשיכה מהנשארים. מצב מדגם בלי סופרבייס: `python fetch_sort_templates.py --sample 150`.
-- `source_state`: `current` (זהה לגרסה העדכנית בוויקיפדיה) / `ahead` (ויקיפדיה התקדמה) / `no_baseline` (אין גרסה בתבנית) / `unchecked` (הגרסה העדכנית בוויקיפדיה טרם נטענה); NULL מחוץ להיקף. `latest_rev_id` ב-`wikipedia_pages` נטען ב-`wikipedia_revisions_load.yml` (ידני) שמריץ `scripts/fetch_wikipedia_revisions.py`: מצב `dump` מוריד בזרימה את `hewiki-latest-stub-meta-current.xml.gz` מ-dumps.wikimedia.org (בלי לשמור קובץ בריפו), משלים את הפער מ-`recentchanges` ומחשב `source_state` בטווחי id (`migration_add_recompute_source_state_range.sql`); מצב `api` הוא fallback איטי יותר. עד הטעינה הראשונה כל שורה עם גרסה היא `unchecked`. עדכון שעתי: `sort_template_hourly.yml` (cron `17 * * * *`, גם ידני) מריץ `scripts/sort_template_hourly.py` - ערכי מכלול בהיקף שנערכו מפוענחים מחדש, ערכים חדשים מפוענחים, והגרסה האחרונה של דפי ויקיפדיה ששונו נטענת ואז `source_state` מחושב מחדש. נקודות ההתקדמות ב-`sort_template_sync_state` (`migration_add_sort_template_sync_state.sql`, נפרדת מ-`sync_watermarks` של הלילית). כשל בשלב אחד לא מקדם את נקודת ההתקדמות שלו; כשל שעתי חוזר מוסיף תגובה ל-Issue פתוח במקום לפתוח חדש. מצב בדיקה בלי סופרבייס: `python sort_template_hourly.py --dry-run --since-minutes 90`. דפים נעולים לקריאה מסומנים ב-`sort_template_denied_at` (`migration_add_sort_template_denied.sql`) ונבדקים שוב אחרי 30 יום.
+- `source_state`: `current` (זהה לגרסה העדכנית בוויקיפדיה) / `ahead` (ויקיפדיה התקדמה) / `no_baseline` (אין גרסה בתבנית) / `unchecked` (הגרסה העדכנית בוויקיפדיה טרם נטענה); NULL מחוץ להיקף. `latest_rev_id` ב-`wikipedia_pages` נטען ב-`wikipedia_revisions_load.yml` (ידני) שמריץ `scripts/fetch_wikipedia_revisions.py`: מצב `dump` מוריד בזרימה את `hewiki-latest-stub-meta-current.xml.gz` מ-dumps.wikimedia.org (בלי לשמור קובץ בריפו), משלים את הפער מ-`recentchanges` ומחשב `source_state` בטווחי id (`migration_add_recompute_source_state_range.sql`); מצב `api` הוא fallback איטי יותר. עד הטעינה הראשונה כל שורה עם גרסה היא `unchecked`. עדכון שעתי: `sort_template_hourly.yml` (cron `17 * * * *`, גם ידני) מריץ `scripts/sort_template_hourly.py` - ערכי מכלול בהיקף שנערכו מפוענחים מחדש, ערכים חדשים מפוענחים, והגרסה האחרונה של דפי ויקיפדיה ששונו נטענת ואז `source_state` מחושב מחדש. נקודות ההתקדמות ב-`sort_template_sync_state` (`migration_add_sort_template_sync_state.sql`, נפרדת מ-`sync_watermarks` של הלילית). כשל בשלב אחד לא מקדם את נקודת ההתקדמות שלו; כשל שעתי חוזר מוסיף תגובה ל-Issue פתוח במקום לפתוח חדש. מצב בדיקה בלי סופרבייס: `python sort_template_hourly.py --dry-run --since-minutes 90`. אחרי ההחלפה השבועית רץ `scripts/recompute_source_state_all.py` (`weekly_full_reconciliation.yml`), כי `forward_fill_enrichment_temp` מעתיקה `source_state` ישן ו-`match.py` על הטבלה הזמנית עשוי לשנות `wikipedia_id` או היקף; ובדלתא הלילית `match.py --scoped` מחשב `source_state` מחדש לשורות שנבדקו. דפים נעולים לקריאה מסומנים ב-`sort_template_denied_at` (`migration_add_sort_template_denied.sql`) ונבדקים שוב אחרי 30 יום; רק שגיאת `accessdenied` מסמנת דף כנעול (`DENIED_ERROR_CODES` ב-`fetch_sort_templates.py`), שגיאה אחרת נכשלת וריצה חוזרת מנסה שוב.
+
+## אחסון בסופרבייס (2026-09)
+הבסיס הגיע ל-510 MB והחריג את הגבול (500 MB); אחרי צמצום: **470.6 מיליון בתים = 448.8 MiB**. שימו לב להבדל בין MB ל-MiB כשמשווים למד בסופרבייס. אין מה לחסוך בלוגים: טבלאות הדלתא והלוג הן כמה מאות KB כל אחת.
+
+| רכיב, כולל אינדקסים | MiB |
+|---|---:|
+| ערכי המכלול (`mechalol_pages`) | 190.7 |
+| ערכי ויקיפדיה (`wikipedia_pages`) | 164.6 |
+| תוצאות סינון המילים (`word_filter_results`) | 52.6 |
+| מופעי המילים (`word_filter_occurrences`) | 25.2 |
+| יתר המסד | 15.7 |
+| **סך הכול** | **448.8** |
+
+שתי הטבלאות הזמניות (`*_temp`) ריקות מחוץ לריצה השבועית. האינדקסים בשתי הטבלאות הראשיות תופסים כ-190 MiB, יותר ממחצית הנפח שלהן.
+
+**מה נעשה** (המיגרציות בייצור): `refresh_word_filter_occurrences` בהכנסה אחת במקום שלוש פקודות `UPDATE` (80 → 25 MiB; שקילות אלגוריתמית אומתה בטביעת אצבע); בנייה מחדש של `mechalol_pages_sort_template_pending_idx` (5.8 MB → 48 KB); הסרת `sort_template_title` (הנפח יתפנה בהחלפה השבועית, כי `DROP COLUMN` לא מקטין את הקובץ).
+
+**מועמדים שנבדקו ועדיין פתוחים:**
+
+| מועמד | חיסכון | מצב |
+|---|---:|---|
+| `wikipedia_pages_normalize_person_title_idx` | 36.1 MiB (ועוד אינדקס תאום בטבלה הזמנית בשיא השבועית) | **הוחלט להשאיר בינתיים.** `EXPLAIN` הראה שרק `recompute_missing_flag_by_titles` (דלתא לילית) משתמשת בו; שלוש הפונקציות האחרות נשענות רק על האינדקס של המכלול. בלעדיו: כ-8 שניות לצ'אנק של 500 כותרות (עד דקה בלילה), בלי שינוי בתוצאות. חלופה: לחפש `title in (N, 'הרב '‖N, 'רבי '‖N)` לפי `title_key` (הבדל קל: רווחים כפולים) |
+| הגנת `IS DISTINCT FROM` ב-`recompute_missing_flag_scoped` ו-`_by_titles` | לא מפנה מקום; מצמצם גרסאות שורה מיותרות | **נמצא, לא בוצע.** שתי הפונקציות מעדכנות כל שורה שנבחרה גם כשהתוצאה לא השתנתה, בניגוד לפונקציה המלאה והשבועית. בפועל כמה אלפי שורות בלילה |
+| אינדקסי המפתח הראשי (38.8 MiB ביחד) | עד כ-15 MiB, **לא נמדד** | `wikipedia_pages_pkey` הוא 20 MB ל-405 אלף מפתחות (אינדקס דחוס ~10-13 MB). למדוד ב-`pgstatindex` (התוסף `pgstattuple` לא מותקן), ואז `REINDEX CONCURRENTLY` בשעות שקטות |
+| `mechalol_pages_status_idx` | 7 MB | 1,084 סריקות בלבד; לא נבדק |
+| `VACUUM FULL` | ~7 MB ב-`wikipedia_pages`, ~10 MB ב-`word_filter_results` | לא לגורף כשהמסד קרוב לגבול (דורש מקום זמני). ב-`word_filter_results` כ-8 עדכונים לכל שורה, והחיסכון לא יחזיק |
+
+**שיא ההחלפה השבועית:** הטבלאות הזמניות מתמלאות והנפח כמעט מוכפל (שתי הראשיות ~355 MiB). הוחלט שכמה דקות של הכפלה אינן בעיה. הפתרון הארוך אם המערכת תמשיך לגדול בחבילה החינמית: סריקת בקרה מלאה מחוץ למסד עם כתיבת הבדלים בלבד ומנגנון התאוששות (לא לבטל את הבקרה השבועית). ההחלטה על תדירותה נשענת על `reconciliation_audit` (ראו סעיף "תיעוד מדיד").
+
+בדיקת נפח: `select pg_size_pretty(pg_database_size(current_database()));`.
 
 ## הרצה
 - הרצה ראשונית: `workflow_dispatch` על `initial_run.yml`. אם נעצר באמצע (מגבלת זמן), פשוט להריץ שוב - ההתקדמות נשמרת (ובמצב הזה, הריקון **לא** חוזר על עצמו, כדי לא לאבד את מה שכבר נטען). תומך גם ב-`mode=mechalol_only` למילוי חוזר של טבלה אחת בלבד, בלי לגעת בשנייה.
