@@ -1341,19 +1341,44 @@
 			'טלוויזיה': 'טלוויזיה', 'ספרות': 'ספרות', 'משחקי מחשב': 'משחקי מחשב' }[row.dictionary] || null;
 	}
 
+	// mw.import יכול להיות דרוס: הקובץ הישן מדיה ויקי:Gadget-mw-import.js (לא רשום כגאדג'ט) מגדיר
+	// mw.import = {openForm, getProperties}, ואם הוא נטען בדף אחרי הגאדג'ט - המחלקה אובדת ("mw.import is
+	// not a constructor"). לכן הקוד של ext.gadget.mw-import נטען כאן לעותק פרטי, בלי לגעת ב-mw.import הגלובלי.
+	function loadImportClass() {
+		return $.ajax({
+			url: mw.util.wikiScript('load'), dataType: 'text', cache: true,
+			data: { modules: 'ext.gadget.mw-import', only: 'scripts', lang: mw.config.get('wgUserLanguage'), skin: mw.config.get('skin') }
+		}).then(function (code) {
+			var pkg = null;
+			var local = Object.create(mw);
+			local.loader = Object.create(mw.loader);
+			local.loader.impl = function (fn) { var a = fn(); pkg = a[1]; };
+			local.loader.implement = function (name, script) { pkg = script; };
+			local.loader.state = function () {};
+			new Function('mw', code)(local);
+			if (!pkg || !pkg.files || !pkg.main) throw new Error('הקוד של mw-import לא נמצא');
+			var cache = {};
+			var req = function (name) {
+				var key = name.replace(/^\.\//, '');
+				if (cache[key]) return cache[key].exports;
+				var file = pkg.files[key];
+				if (typeof file !== 'function') return file;
+				var module = cache[key] = { exports: {} };
+				file(req, module, module.exports);
+				return module.exports;
+			};
+			req(pkg.main);
+			if (typeof local.import !== 'function') throw new Error('mw.import לא נוצר');
+			return local.import;
+		});
+	}
+
 	var importerPromise = null;
 	function getImporter() {
 		if (!importerPromise) {
-			importerPromise = mw.loader.using(['ext.gadget.mw-import']).then(function () {
-				// mw.import נוצר כשהקובץ הראשי של החבילה רץ. אם הוא עוד לא קיים - להריץ אותו במפורש.
-				if (typeof mw.import !== 'function' && mw.loader.require) {
-					try { mw.loader.require('ext.gadget.mw-import'); } catch (e) { console.warn('mw-import:', e); }
-				}
-				if (typeof mw.import !== 'function') {
-					throw new Error('mw.import לא נטען (מצב המודול: ' + mw.loader.getState('ext.gadget.mw-import') + ', סוג: ' + typeof mw.import + ')');
-				}
-				return new mw.import();
-			});
+			importerPromise = mw.loader.using(['mediawiki.api', 'mediawiki.Title', 'mediawiki.ForeignApi', 'mediawiki.util']).then(function () {
+				return typeof mw.import === 'function' ? mw.import : loadImportClass();
+			}).then(function (Import) { return new Import(); });
 			importerPromise.catch(function () { importerPromise = null; });
 		}
 		return importerPromise;
