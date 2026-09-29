@@ -28,6 +28,7 @@ from mechalol_api import api_get_with_retry, log, login
 from sort_template import parse_sort_template
 
 DENIED = object()
+DENIED_ERROR_CODES = {"accessdenied", "readapidenied", "permissiondenied"}
 PAGE_SIZE = 2000
 
 
@@ -57,6 +58,10 @@ def fetch_contents(page_ids):
 
     if "error" in data:
         code = data["error"].get("code")
+        # רק שגיאת הרשאה מסמנת דף כנעול (30 יום); שגיאה אחרת (ratelimited, internal_api_error
+        # וכו') היא תקלה זמנית - נכשלים כדי שהריצה הבאה תנסה שוב, ולא מוציאים את הדף מהבדיקה.
+        if code not in DENIED_ERROR_CODES:
+            raise RuntimeError(f"שגיאת API בשליפת תוכן ({code}): {data['error']}")
         if len(page_ids) == 1:
             log(f"WARNING | דף {page_ids[0]} נדחה ({code}) - מדלגים, ייבדק שוב בריצה הבאה")
             result[page_ids[0]] = DENIED

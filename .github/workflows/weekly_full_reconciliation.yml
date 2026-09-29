@@ -116,6 +116,15 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: python scripts/swap_temp_to_active.py
 
+      # forward_fill מעתיק source_state ישן; ההתאמה על הטבלה הזמנית עשויה
+      # לשנות wikipedia_id/היקף, ולכן מחשבים מחדש על הטבלה שהפכה לפעילה.
+      - name: חישוב מחדש של מצב מקור
+        if: steps.validate.outputs.should_swap == 'true'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python scripts/recompute_source_state_all.py
+
       # רק אחרי החלפה אטומית שבאמת קרתה. בשלב הזה נשמרת ההשוואה
       # עצמה במסד, אבל עדיין לא מתבצע הסיווג מול הממשקים החיים.
       # אם השמירה נכשלת, הצעד נכשל והריקון שאחריו לא ירוץ - כדי לא
