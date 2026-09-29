@@ -30,6 +30,7 @@
 		mechalol_status: 'סטטוס במכלול', candidate_count: 'מספר מועמדים',
 		mechalol_id: 'מזהה מכלול',
 		update_date: 'עודכן לאחרונה', update_compare: 'ויקיפדיה', update_bucket: 'טווח עדכון',
+		update_change: 'שינוי בוויקיפדיה', update_expand: '',
 		sort_template_date: 'עודכן לאחרונה (חודש)', sort_template_rev: 'גרסת הבסיס',
 		verdict: 'רמת תוכן', has_images: 'תמונות', topic: 'נושא', wf_matches: 'מילים', import_action: '', expand: ''
 	};
@@ -154,12 +155,12 @@
 		update: {
 			view: 'report_source_update', label: 'עדכון',
 			columns: ['title', 'sort_template_date', 'update_bucket', 'sort_template_rev', 'wikipedia_id'],
-			displayColumns: ['title', 'update_date', 'update_compare'],
+			displayColumns: ['title', 'update_date', 'update_change', 'update_compare', 'update_expand'],
 			filters: [{
 				key: 'update_bucket', label: 'עודכן',
 				options: ['בשנה האחרונה', 'לפני שנה עד שנתיים', '2020 עד לפני שנתיים', 'לפני 2020', 'ללא תאריך']
 			}],
-			order: 'sort_template_date.asc.nullslast,id.asc', titleLink: 'edit', freshness: true,
+			order: 'sort_template_date.asc.nullslast,id.asc', titleLink: 'edit', freshness: true, liveChange: true,
 			group: 'wikiupdate'
 		},
 		// ערכי ויקיפדיה שהוצאו מ"חסר במכלול" רק בגלל כותרת זהה אחרי הסרת
@@ -1771,6 +1772,7 @@
 			markExistingInMechalol();
 			loadDeletionHintsForCurrentPage();
 			if (cfg.freshness) loadUpdateFreshness();
+			loadUpdateInfoForCurrentPage();
 		}).catch(function (e) {
 			if (myRequestId !== loadRequestId) return;
 			// אם זו שגיאה שנראית כמו חלון העדכון השבועי ועוד לא ניסינו
@@ -1956,6 +1958,123 @@
 		return cols;
 	}
 
+	// ===== טאב "עדכון" - מידע חי מוויקיפדיה לשורות בעמוד =====
+	// לכל שורה: גודל הגרסה ששולבה (sort_template_rev) מול העדכנית, והשוואת sha1. sha1 זהה =
+	// התוכן זהה (שחזור), כלומר ה-`ahead` היה מספרי בלבד. נשלף חי ל-50 השורות שבעמוד, שתי
+	// בקשות, ולא נשמר במסד (המסד קרוב לגבול האחסון).
+	var updateInfo = new Map(); // row.id -> {base:{size,sha1}, latest:{revid,size,sha1,ts,user,comment}} | {error}
+	var updateDiffCache = new Map(); // row.id -> html
+	function wikipediaApi(params) {
+		var qs = new URLSearchParams(Object.assign({ format: 'json', formatversion: '2', origin: '*' }, params));
+		return withRetry(function () {
+			return fetch('https://he.wikipedia.org/w/api.php?' + qs.toString()).then(function (res) {
+				if (!res.ok) throw new Error('HTTP ' + res.status);
+				return res.json();
+			}).then(function (data) {
+				if (data.error) throw new Error(data.error.code || 'שגיאת API');
+				return data;
+			});
+		}, 2);
+	}
+	function updateRowIsSame(row) {
+		var i = updateInfo.get(row.id);
+		return !!(i && i.base && i.latest && i.base.sha1 && i.base.sha1 === i.latest.sha1);
+	}
+	function renderUpdateChange(row) {
+		var i = updateInfo.get(row.id);
+		var ph = 'data-upd-id="' + row.id + '"';
+		if (!i) return '<span class="mchl-skeleton" ' + ph + ' style="display:inline-block;height:12px;width:70%;">&nbsp;</span>';
+		if (i.error || !i.base || !i.latest) return '<span class="mchl-muted" ' + ph + ' title="' + escapeHtml(i.error || 'הגרסה לא נמצאה') + '">—</span>';
+		if (updateRowIsSame(row)) return '<span ' + ph + '><span class="mchl-badge mchl-wiki" title="הגרסה העדכנית זהה בתוכן לגרסה ששולבה (שחזור) - אין מה לשלב">תוכן זהה</span></span>';
+		var delta = i.latest.size - i.base.size;
+		var sign = delta > 0 ? '+' : delta < 0 ? '−' : '±';
+		var text = sign + Math.abs(delta).toLocaleString('he-IL') + ' בתים';
+		var when = i.latest.ts ? new Date(i.latest.ts).toLocaleDateString('he-IL') : '';
+		var note = (when ? when : '') + (i.latest.comment ? ' · ' + i.latest.comment.slice(0, 70) : '');
+		return '<span ' + ph + '><span class="mchl-num-cell' + (Math.abs(delta) < 100 ? ' mchl-muted' : '') + '" title="גודל הגרסה העדכנית פחות גודל הגרסה ששולבה">' + text + '</span>' +
+			(note ? '<div class="mchl-row-desc" title="' + escapeHtml(i.latest.comment || '') + '">' + escapeHtml(note) + '</div>' : '') + '</span>';
+	}
+	function paintUpdateInfo() {
+		if (!VIEWS[activeTab] || !VIEWS[activeTab].liveChange) return;
+		document.querySelectorAll('#mchl-dash [data-upd-id]').forEach(function (el) {
+			var row = currentPageRows.find(function (r) { return String(r.id) === el.getAttribute('data-upd-id'); });
+			if (!row || !updateInfo.has(row.id)) return;
+			var holder = document.createElement('span');
+			holder.innerHTML = renderUpdateChange(row);
+			el.replaceWith(holder.firstChild);
+			var tr = document.querySelector('#mchl-dash [data-upd-id="' + row.id + '"]');
+			if (tr && (tr = tr.closest('tr'))) tr.classList.toggle('mchl-upd-same', updateRowIsSame(row));
+		});
+	}
+	function loadUpdateInfoForCurrentPage() {
+		if (!VIEWS[activeTab] || !VIEWS[activeTab].liveChange) return;
+		var myTab = activeTab;
+		var rows = currentPageRows.filter(function (r) { return !updateInfo.has(r.id); });
+		if (!rows.length) return paintUpdateInfo();
+		var baseIds = rows.map(function (r) { return r.sort_template_rev; }).filter(Boolean);
+		var pageIds = rows.map(function (r) { return r.wikipedia_id; }).filter(Boolean);
+		var baseReq = baseIds.length ? wikipediaApi({ action: 'query', prop: 'revisions', revids: baseIds.join('|'), rvprop: 'ids|size|sha1' }) : Promise.resolve({});
+		var latestReq = pageIds.length ? wikipediaApi({ action: 'query', prop: 'revisions', pageids: pageIds.join('|'), rvprop: 'ids|size|sha1|timestamp|user|comment' }) : Promise.resolve({});
+		return Promise.all([baseReq, latestReq]).then(function (res) {
+			var baseByRev = {}, latestByPage = {};
+			((res[0].query && res[0].query.pages) || []).forEach(function (p) {
+				(p.revisions || []).forEach(function (rv) { baseByRev[rv.revid] = { size: rv.size, sha1: rv.sha1 }; });
+			});
+			((res[1].query && res[1].query.pages) || []).forEach(function (p) {
+				var rv = (p.revisions || [])[0];
+				if (rv) latestByPage[p.pageid] = { revid: rv.revid, size: rv.size, sha1: rv.sha1, ts: rv.timestamp, user: rv.user, comment: rv.comment };
+			});
+			rows.forEach(function (r) {
+				updateInfo.set(r.id, { base: baseByRev[r.sort_template_rev] || null, latest: latestByPage[r.wikipedia_id] || null });
+			});
+		}).catch(function (e) {
+			rows.forEach(function (r) { updateInfo.set(r.id, { error: 'שגיאה בשליפה: ' + (e.message || e) }); });
+		}).then(function () {
+			if (activeTab === myTab) paintUpdateInfo();
+		});
+	}
+	// ניקוי בסיסי של ה-HTML שמחזיר compare (מגיע מוויקיפדיה, אבל לא מזריקים סקריפטים בכל מקרה).
+	function sanitizeDiffHtml(html) {
+		// שורות <tr> חייבות להיות בתוך טבלה, אחרת מפענח ה-HTML זורק אותן.
+		var doc = new DOMParser().parseFromString('<table><tbody>' + html + '</tbody></table>', 'text/html');
+		doc.querySelectorAll('script,style,iframe,object,embed,link,meta').forEach(function (n) { n.remove(); });
+		doc.querySelectorAll('*').forEach(function (n) {
+			Array.prototype.slice.call(n.attributes).forEach(function (a) {
+				if (/^on/i.test(a.name) || (/^(href|src)$/i.test(a.name) && /^\s*javascript:/i.test(a.value))) n.removeAttribute(a.name);
+			});
+			if (n.tagName === 'A') { n.setAttribute('target', '_blank'); n.setAttribute('rel', 'noopener'); }
+		});
+		return doc.querySelector('tbody').innerHTML;
+	}
+	function toggleUpdateDiff(btn) {
+		var id = btn.getAttribute('data-id');
+		var tr = btn.closest('tr');
+		var next = tr.nextElementSibling;
+		if (next && next.classList.contains('mchl-upd-details-row')) {
+			next.remove(); btn.textContent = '▾'; btn.setAttribute('aria-expanded', 'false'); tr.classList.remove('mchl-open'); return;
+		}
+		btn.textContent = '▴'; btn.setAttribute('aria-expanded', 'true'); tr.classList.add('mchl-open');
+		var row = currentPageRows.find(function (r) { return String(r.id) === id; });
+		var detailsTr = document.createElement('tr');
+		detailsTr.className = 'mchl-upd-details-row';
+		detailsTr.innerHTML = '<td colspan="' + tr.children.length + '"><div class="mchl-upd-diff mchl-muted">טוען את השינוי…</div></td>';
+		tr.parentNode.insertBefore(detailsTr, tr.nextSibling);
+		var box = detailsTr.querySelector('.mchl-upd-diff');
+		var show = function (html) {
+			box.classList.remove('mchl-muted');
+			box.innerHTML = '<div class="mchl-row-desc"><a href="' + wikipediaCompareUrl(row.sort_template_rev) + '" target="_blank" rel="noopener">פתח את ההשוואה המלאה בוויקיפדיה</a></div>' + html;
+		};
+		if (updateDiffCache.has(row.id)) return show(updateDiffCache.get(row.id));
+		wikipediaApi({ action: 'compare', fromrev: row.sort_template_rev, torelative: 'cur', prop: 'diff|diffsize' }).then(function (data) {
+			var body = data.compare && data.compare.body;
+			var html = body ? '<table class="diff">' + sanitizeDiffHtml(body) + '</table>' : '<div class="mchl-muted">אין הבדלי טקסט בין הגרסאות.</div>';
+			updateDiffCache.set(row.id, html);
+			show(html);
+		}).catch(function (e) {
+			box.innerHTML = '<span class="mchl-alert">שגיאה בשליפת ההשוואה: ' + escapeHtml(e.message || e) + '</span>';
+		});
+	}
+
 	// ===== טאב "עדכון" - הודעת הסבר וטריות הנתונים =====
 	// הטריות: ההצלחה האחרונה הישנה ביותר מבין שני זרמי העדכון השעתי (מכלול וויקיפדיה),
 	// כי הצלחה של זרם אחד לא מעידה שהרשימה עדכנית. מתוך report_source_update_freshness.
@@ -2004,11 +2123,11 @@
 		}
 		var allOnPageSelected = currentPageRows.every(function (r) { return selectedRows.has(rowKey(r)); });
 		var thead = '<tr><th class="mchl-chk-col"><input type="checkbox" data-action="toggle-page-selection" ' + (allOnPageSelected ? 'checked' : '') + '></th>' +
-			columns.map(function (c) { return '<th' + (c === 'import_action' || c === 'expand' ? ' class="mchl-narrow-col"' : '') + '>' + escapeHtml(c in COLUMN_LABELS ? COLUMN_LABELS[c] : c) + '</th>'; }).join('') + '</tr>';
+			columns.map(function (c) { return '<th' + (c === 'import_action' || c === 'expand' || c === 'update_expand' ? ' class="mchl-narrow-col"' : '') + '>' + escapeHtml(c in COLUMN_LABELS ? COLUMN_LABELS[c] : c) + '</th>'; }).join('') + '</tr>';
 		var tbody = currentPageRows.map(function (r) {
 			var selected = selectedRows.has(rowKey(r));
 			var expandable = columns.indexOf('expand') >= 0 && wfHasDetails(r);
-			return '<tr class="' + (selected ? 'mchl-selected' : '') + (expandable ? ' mchl-expandable' : '') + '">' +
+			return '<tr class="' + (selected ? 'mchl-selected' : '') + (expandable ? ' mchl-expandable' : '') + (updateRowIsSame(r) ? ' mchl-upd-same' : '') + '">' +
 				'<td class="mchl-chk-col" data-label=""><input type="checkbox" data-action="toggle-row-selection" data-row-id="' + escapeHtml(rowIdOf(r)) + '" ' + (selected ? 'checked' : '') + '></td>' +
 				columns.map(function (c) { return '<td data-label="' + escapeHtml(COLUMN_LABELS[c] || c) + '">' + renderCell(c, r) + '</td>'; }).join('') + '</tr>';
 		}).join('');
@@ -2048,6 +2167,8 @@
 			return '<span class="mchl-num-cell" title="חודש העדכון המתועד בתבנית {{מיון ויקיפדיה}} (תאריך=)">' +
 				escapeHtml(updDate.toLocaleDateString('he-IL', { month: 'long', year: 'numeric' })) + '</span>';
 		}
+		if (col === 'update_change') return renderUpdateChange(row);
+		if (col === 'update_expand') return '<button type="button" class="mchl-expand-btn" data-action="update-diff" data-id="' + row.id + '" title="הצג את השינוי כאן, בלי לפתוח את ויקיפדיה" aria-expanded="false">▾</button>';
 		if (col === 'update_compare') {
 			// diff=cur&oldid=<גרסת הבסיס>: ההשוואה בין הגרסה ששולבה לגרסה העדכנית בוויקיפדיה.
 			var cmp = row.sort_template_rev
@@ -2940,6 +3061,7 @@
 			else if (action === 'toggle-admin-panel') toggleAdminPanel();
 			else if (action === 'auth-login') authLogin();
 			else if (action === 'wf-details') toggleContentDetails(el);
+			else if (action === 'update-diff') toggleUpdateDiff(el);
 			else if (action === 'import') importFromDashboard(el);
 			else if (action === 'req-filter') { requestsState.filter = el.getAttribute('data-v'); renderRequests(); }
 			else if (action === 'req-reply') replyToRequest(el);
@@ -3132,6 +3254,18 @@
 		'#mchl-dash .mchl-with-side .mchl-title{display:inline-block;min-width:11em;}' +
 		'#mchl-dash .mchl-row-desc{color:var(--mchl-text-3);font-size:12px;margin-top:2px;}' +
 		'#mchl-dash .mchl-update-note{padding:10px 16px;border-bottom:1px solid var(--mchl-line);}' +
+		'#mchl-dash tr.mchl-upd-same{opacity:.55;}' +
+		'#mchl-dash tr.mchl-upd-details-row td{background:var(--mchl-ink-900);}' +
+		'#mchl-dash .mchl-upd-diff{max-height:420px;overflow:auto;padding:8px 4px;font-size:12.5px;}' +
+		'#mchl-dash .mchl-upd-diff table.diff{width:100%;table-layout:fixed;border-collapse:collapse;}' +
+		'#mchl-dash .mchl-upd-diff td{padding:2px 6px;vertical-align:top;white-space:pre-wrap;word-break:break-word;}' +
+		'#mchl-dash .mchl-upd-diff td.diff-marker{width:1.6em;text-align:center;color:var(--mchl-text-3);}' +
+		'#mchl-dash .mchl-upd-diff td.diff-lineno{color:var(--mchl-text-3);font-weight:600;padding-top:8px;}' +
+		'#mchl-dash .mchl-upd-diff td.diff-context{color:var(--mchl-text-2);}' +
+		'#mchl-dash .mchl-upd-diff td.diff-addedline{background:#5C968622;color:var(--mchl-text-1);}' +
+		'#mchl-dash .mchl-upd-diff td.diff-deletedline{background:#C1634A22;color:var(--mchl-text-1);}' +
+		'#mchl-dash .mchl-upd-diff ins.diffchange{background:#5C968666;text-decoration:none;}' +
+		'#mchl-dash .mchl-upd-diff del.diffchange{background:#C1634A66;text-decoration:none;}' +
 		'#mchl-dash .mchl-exists-now{color:#6FBF73;font-weight:700;cursor:help;}' +
 		'#mchl-dash .mchl-req-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px;}' +
 		'#mchl-dash .mchl-req-head a{font-size:13px;text-decoration:none;}' +
