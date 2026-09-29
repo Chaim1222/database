@@ -130,28 +130,13 @@ def sample_pages(count):
     return ids[:count]
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--shard", type=int, default=0)
-    parser.add_argument("--shards", type=int, default=1)
-    parser.add_argument("--batch", type=int, default=API_BATCH_SIZE_TEMPLATE_CHECK)
-    parser.add_argument("--max-minutes", type=float, default=None)
-    parser.add_argument("--sample", type=int, default=None,
-                        help="בדיקה בלבד: מדגם מהמכלול, בלי סופרבייס ובלי כתיבה")
-    args = parser.parse_args()
-
-    deadline = time.time() + args.max_minutes * 60 if args.max_minutes else None
-    login()
-
-    stats = {"fetched": 0, "with_rev": 0, "no_rev": 0, "no_template": 0,
-             "denied": 0, "missing": 0, "written": 0}
-    examples = []
-
-    def handle(page_ids, client):
-        fetched = fetch_contents(page_ids)
+def process_pages(page_ids, client, stats, examples, batch):
+    """שולף, מפענח וכותב את הדפים (באצוות), ומחשב source_state לשורות שנכתבו."""
+    for page_chunk in chunks(list(page_ids), batch):
+        fetched = fetch_contents(page_chunk)
         rows = []
         denied_ids = []
-        for pid in page_ids:
+        for pid in page_chunk:
             item = fetched.get(pid)
             if item is DENIED:
                 stats["denied"] += 1
@@ -170,15 +155,16 @@ def main():
                 rows.append(row)
         if rows and len(examples) < 3:
             examples.append(rows[0])
-        if denied_ids and client is not None:
+        if client is None:
+            continue
+        from supabase_client import execute_with_retry
+        if denied_ids:
             # דף נעול לקריאה: מסומן ויוצא מרשימת הממתינים (נבדק שוב אחרי 30 יום)
-            from supabase_client import execute_with_retry
             execute_with_retry(
                 lambda: client.rpc("mark_sort_template_denied", {"p_ids": denied_ids}).execute(),
                 "mark_sort_template_denied", log_fn=log,
             )
-        if rows and client is not None:
-            from supabase_client import execute_with_retry
+        if rows:
             written = execute_with_retry(
                 lambda: client.rpc("set_sort_template_batch", {"p_rows": rows}).execute(),
                 "set_sort_template_batch", log_fn=log,
@@ -189,11 +175,31 @@ def main():
                 "recompute_source_state", log_fn=log,
             )
 
+
+def new_stats():
+    return {"fetched": 0, "with_rev": 0, "no_rev": 0, "no_template": 0,
+            "denied": 0, "missing": 0, "written": 0}
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--shard", type=int, default=0)
+    parser.add_argument("--shards", type=int, default=1)
+    parser.add_argument("--batch", type=int, default=API_BATCH_SIZE_TEMPLATE_CHECK)
+    parser.add_argument("--max-minutes", type=float, default=None)
+    parser.add_argument("--sample", type=int, default=None,
+                        help="בדיקה בלבד: מדגם מהמכלול, בלי סופרבייס ובלי כתיבה")
+    args = parser.parse_args()
+
+    deadline = time.time() + args.max_minutes * 60 if args.max_minutes else None
+    login()
+
+    stats = new_stats()
+    examples = []
+
     if args.sample:
         log(f"START | מצב מדגם ({args.sample} דפים), בלי כתיבה")
-        ids = sample_pages(args.sample)
-        for chunk in chunks(ids, args.batch):
-            handle(chunk, None)
+        process_pages(sample_pages(args.sample), None, stats, examples, args.batch)
     else:
         from supabase_client import get_client
         client = get_client()
@@ -201,7 +207,7 @@ def main():
         stop = False
         for page in pending_pages(client, args.shard, args.shards):
             for chunk in chunks([r["id"] for r in page], args.batch):
-                handle(chunk, client)
+                process_pages(chunk, client, stats, examples, args.batch)
                 if deadline and time.time() > deadline:
                     log("עוצר: תקציב הזמן נגמר. ריצה חוזרת תמשיך מהנשארים")
                     stop = True
