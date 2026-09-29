@@ -124,9 +124,14 @@ def load_from_dump(writer, url, path):
     raise RuntimeError(f"הורדת הדמפ נכשלה: {last_error}")
 
 
-def fill_gap(writer, since):
-    """שינויים ב-recentchanges מ-since ואילך: הגרסה האחרונה לכל דף שנערך."""
+def collect_changes(since):
+    """
+    עריכות ויצירות במרחב הראשי מ-since ואילך, מ-recentchanges.
+    מחזיר ({page_id: (rev_id, timestamp)} עם הגרסה האחרונה לכל דף, מספר העריכות שנקראו).
+    מדפיס התקדמות כל 20 בקשות, כדי שלא יהיה "שקט" בפערים גדולים.
+    """
     changes = []
+    requests_made = 0
     params = {
         "action": "query", "list": "recentchanges", "rcnamespace": 0,
         "rctype": "edit|new", "rcprop": "ids|timestamp", "rcdir": "newer",
@@ -134,17 +139,26 @@ def fill_gap(writer, since):
     }
     while True:
         data = wikipedia_get(params)
-        for change in data.get("query", {}).get("recentchanges", []):
+        requests_made += 1
+        batch = data.get("query", {}).get("recentchanges", [])
+        for change in batch:
             changes.append((change["pageid"], change["revid"], change["timestamp"]))
+        if requests_made % 20 == 0 and batch:
+            log(f"recentchanges | {requests_made} בקשות | {len(changes)} עריכות | עד {batch[-1]['timestamp']}")
         if "continue" not in data:
             break
         params.update(data["continue"])
         time.sleep(1)
-    latest = latest_per_page(changes)
+    return latest_per_page(changes), len(changes)
+
+
+def fill_gap(writer, since):
+    """משלים את הפער שאחרי הדמפ: הגרסה האחרונה לכל דף שנערך מאז."""
+    latest, edits = collect_changes(since)
     for page_id, (rev_id, timestamp) in latest.items():
         writer.add(page_id, rev_id, timestamp)
     writer.flush()
-    return len(changes), len(latest)
+    return edits, len(latest)
 
 
 def linked_wikipedia_ids(client):

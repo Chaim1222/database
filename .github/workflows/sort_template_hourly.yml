@@ -1,0 +1,73 @@
+name: עדכון שעתי - מעקב גרסת מקור
+
+# שומר על mechalol_pages.source_state (current / ahead) מעודכן: ערכי מכלול שנערכו מפוענחים מחדש,
+# והגרסה האחרונה של דפי ויקיפדיה ששונו נטענת. נקודות ההתקדמות ב-sort_template_sync_state.
+# ראו scripts/sort_template_hourly.py.
+#
+# אותה קבוצת concurrency כמו שאר ה-workflows שנוגעים בטבלאות: לא רץ בזמן דלתא לילית או סנכרון
+# שבועי (החלפת טבלאות). ריצה שממתינה מאחורי ריצה ארוכה פשוט תרוץ מאוחר יותר; נקודת ההתקדמות
+# מבטיחה שלא מפספסים שינויים. cron של GitHub יכול לאחר.
+
+# התזמון (schedule) מושבת בכוונה עד שריצה ידנית ראשונה תאומת מול הלוג והמסד. להפעלה, להחזיר:
+#   schedule:
+#     - cron: "17 * * * *"
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: mechalol-wikipedia-db-write
+  cancel-in-progress: false
+
+jobs:
+  hourly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      issues: write
+    steps:
+      - name: שחזור קוד
+        uses: actions/checkout@v4
+
+      - name: התקנת פייתון
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: התקנת ספריות
+        run: pip install -r requirements.txt
+
+      - name: עדכון שעתי
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          USER_NAME: ${{ secrets.USER_NAME }}
+          PASSWORD: ${{ secrets.PASSWORD }}
+        run: python sort_template_hourly.py
+
+      # כשל שעתי חוזר לא צריך להציף Issues: אם כבר פתוח Issue כזה, מוסיפים אליו תגובה.
+      - name: דיווח על כשל
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const prefix = 'כשל בעדכון השעתי של מעקב גרסת מקור';
+            const { data: open } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo,
+              state: 'open', labels: 'automation-failure', per_page: 50,
+            });
+            const existing = open.find((i) => i.title.startsWith(prefix));
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: existing.number, body: `כשל נוסף: ${runUrl}`,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner, repo: context.repo.repo,
+                title: `${prefix} - ${new Date().toISOString().slice(0, 10)}`,
+                body: `פרטי הריצה: ${runUrl}\n\nהעדכון ממשיך מנקודת ההתקדמות האחרונה בריצה הבאה (sort_template_sync_state).`,
+                labels: ['automation-failure'],
+              });
+            }
