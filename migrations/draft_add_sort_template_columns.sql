@@ -77,15 +77,16 @@ create index if not exists mechalol_pages_source_state_idx
 create index if not exists mechalol_pages_temp_source_state_idx
     on mechalol_pages_temp (source_state) where source_state = 'ahead';
 
--- שורות בהיקף שטרם פוענחו או שהפענוח שלהן ישן.
+-- שורות בהיקף שטרם פוענחו (parsed_rev ריק) או שהפענוח שלהן ישן (שונה מ-rev_id).
+-- שימו לב: NULL is distinct from NULL הוא false, ולכן הבדיקה המפורשת ל-null.
 create index if not exists mechalol_pages_sort_template_pending_idx
     on mechalol_pages (id)
     where status = 'מיובא ומתועד' and not is_dictionary_entry and not needs_attention
-      and sort_template_parsed_rev is distinct from rev_id;
+      and (sort_template_parsed_rev is null or sort_template_parsed_rev is distinct from rev_id);
 create index if not exists mechalol_pages_temp_sort_template_pending_idx
     on mechalol_pages_temp (id)
     where status = 'מיובא ומתועד' and not is_dictionary_entry and not needs_attention
-      and sort_template_parsed_rev is distinct from rev_id;
+      and (sort_template_parsed_rev is null or sort_template_parsed_rev is distinct from rev_id);
 
 -- 3. forward-fill: מורחבת גם ל-mechalol_pages וגם לעמודות הגרסה בוויקיפדיה.
 create or replace function forward_fill_enrichment_temp()
