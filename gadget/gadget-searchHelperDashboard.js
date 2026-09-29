@@ -201,6 +201,7 @@
 	var currentPage = 0;
 	var pageSize = 50;
 	var totalRows = 0;
+	var countUnknown = false;
 	var totalPages = 1;
 	var currentPageRows = [];
 	var activeFilters = {};
@@ -332,13 +333,39 @@
 				if (!res.ok) return res.text().then(function (t) { throw makePgError(res.status, t); });
 				var cr = res.headers.get('Content-Range') || '';
 				var total = parseInt(cr.split('/')[1], 10);
-				return isNaN(total) ? 0 : total;
+				// ספירה חסרה היא "לא ידוע", לא אפס.
+				if (isNaN(total)) throw new Error('הספירה לא התקבלה מהמסד');
+				return total;
 			});
 		});
 	}
 
 	// שליפת דף עם נתונים + ספירה מדויקת מקבילה - למסכי הטבלה, לייצוא,
 	// ול"בחר את כל התוצאות התואמות".
+	// כל השורות שעונות לסינון, בדפים של 1,000 (סופבייס מחזיר עד 1,000 שורות לבקשה).
+	// סדר יציב (עם שובר שוויון), כדי שדפים לא יחפפו או ידלגו. onProgress(שנטענו, סך הכול).
+	var PG_CHUNK = 1000;
+	function pgSelectAll(view, opts, onProgress) {
+		var rows = [], expected = null;
+		function next() {
+			return pgSelect(view, { filterParams: opts.filterParams, order: opts.order, from: rows.length, to: rows.length + PG_CHUNK - 1 }).then(function (res) {
+				var data = res.data || [];
+				if (res.count != null) expected = res.count;
+				rows = rows.concat(data);
+				if (onProgress) onProgress(rows.length, expected);
+				var more = expected != null ? rows.length < expected : data.length === PG_CHUNK;
+				if (data.length && more) return next();
+				return { data: rows, expected: expected, complete: expected == null || rows.length >= expected };
+			});
+		}
+		return next();
+	}
+	function stableOrder(cfg) {
+		var order = cfg.order || 'title.asc';
+		var tie = cfg.rowId ? 'mechalol_id.asc' : 'id.asc';
+		return order.indexOf(tie.split('.')[0] + '.') >= 0 ? order : order + ',' + tie;
+	}
+
 	function pgSelect(view, opts) {
 		return withRetry(function () {
 			var params = new URLSearchParams();
@@ -351,7 +378,7 @@
 				if (!res.ok) return res.text().then(function (t) { throw makePgError(res.status, t); });
 				var cr = res.headers.get('Content-Range') || '';
 				var total = parseInt(cr.split('/')[1], 10);
-				return res.json().then(function (data) { return { data: data, count: isNaN(total) ? data.length : total }; });
+				return res.json().then(function (data) { return { data: data, count: isNaN(total) ? null : total }; });
 			});
 		});
 	}
@@ -589,25 +616,22 @@
 
 		Promise.all([
 			fetch(SUPABASE_URL + '/rest/v1/wikipedia_renames?' + renamesParams.toString(), { headers: pgHeaders() })
-				.then(function (res) { return res.ok ? res.json() : []; }).catch(function () { return []; }),
+				.then(function (res) { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); }),
 			fetch(SUPABASE_URL + '/rest/v1/wikipedia_deletions?' + deletionsParams.toString(), { headers: pgHeaders() })
-				.then(function (res) { return res.ok ? res.json() : []; }).catch(function () { return []; })
+				.then(function (res) { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
 		]).then(function (results) {
 			var renames = results[0] || [], deletions = results[1] || [];
 			titles.forEach(function (t) { if (!deletionHintCache.has(t)) deletionHintCache.set(t, null); });
-			// כבר ממוין desc מהשרת - ה-set הראשון לכל כותרת הוא הכי חדש.
-			renames.forEach(function (r) {
-				if (!deletionHintCache.get(r.old_title)) {
-					deletionHintCache.set(r.old_title, { type: 'rename', newTitle: r.new_title, at: r.renamed_at });
-				}
-			});
-			deletions.forEach(function (d) {
-				if (!deletionHintCache.get(d.title)) {
-					deletionHintCache.set(d.title, { type: 'deletion', reason: d.reason, at: d.deleted_at });
-				}
-			});
+			// האירוע האחרון (שינוי שם או מחיקה) קובע.
+			var consider = function (title, hint) {
+				var cur = deletionHintCache.get(title);
+				if (!cur || new Date(hint.at) > new Date(cur.at)) deletionHintCache.set(title, hint);
+			};
+			renames.forEach(function (r) { consider(r.old_title, { type: 'rename', newTitle: r.new_title, at: r.renamed_at }); });
+			deletions.forEach(function (d) { consider(d.title, { type: 'deletion', reason: d.reason, at: d.deleted_at }); });
 		}).catch(function () {
-			titles.forEach(function (t) { if (!deletionHintCache.has(t)) deletionHintCache.set(t, null); });
+			// כשל - לא נשמר במטמון כ"אין רמז"; מסומן כשגיאה, וינוסה שוב ברענון.
+			titles.forEach(function (t) { if (!deletionHintCache.has(t)) deletionHintCache.set(t, 'error'); });
 		}).then(function () {
 			titles.forEach(function (t) { deletionHintInFlight.delete(t); });
 			paintDeletionHints();
@@ -621,11 +645,12 @@
 			if (cached === undefined) return;
 			el.classList.remove('mchl-skeleton', 'mchl-muted');
 			if (!cached) { el.textContent = '—'; el.classList.add('mchl-muted'); return; }
+			if (cached === 'error') { el.textContent = '⚠ לא נטען'; el.title = 'שגיאה בטעינת יומני המחיקה ושינוי השם - נסה לרענן'; el.classList.add('mchl-muted'); return; }
 			var dateStr = new Date(cached.at).toLocaleDateString('he-IL');
 			if (cached.type === 'rename') {
 				el.innerHTML = '<span class="mchl-badge mchl-alert">שינוי שם ← "' + escapeHtml(cached.newTitle) + '" (' + dateStr + ')</span>';
 			} else {
-				el.innerHTML = '<span class="mchl-badge mchl-alert">מחיקה בפועל (' + dateStr + ')</span>';
+				el.innerHTML = '<span class="mchl-badge mchl-alert" title="לפי יומן המחיקות בוויקיפדיה; ייתכן שהערך שוחזר מאז">נמחק ביומן (' + dateStr + ')</span>';
 			}
 		});
 	}
@@ -682,6 +707,7 @@
 
 	function switchTab(key) {
 		activeTab = key;
+		loadRequestId++; // תשובות שעוד באוויר מהטאב הקודם - לא יצוירו
 		currentPage = 0;
 		activeFilters = {};
 		selectedRows.clear();
@@ -717,6 +743,10 @@
 			return fetch(MECHALOL_API + '?' + p.toString()).then(function (res) {
 				if (!res.ok) throw new Error('HTTP ' + res.status);
 				return res.json();
+			}).then(function (data) {
+				// MediaWiki מחזירה שגיאות API גם בתשובת 200.
+				if (data && data.error) throw new Error('API: ' + (data.error.code || '') + ' ' + (data.error.info || ''));
+				return data;
 			});
 		});
 	}
@@ -726,6 +756,7 @@
 		var target = $id('mchl-table-target');
 		if (cultureState.subcats) { renderCulturePicker(); return; }
 		target.innerHTML = skeletonRows();
+		var myId = ++loadRequestId;
 		mwApiFetch({
 			action: 'query', generator: 'categorymembers',
 			gcmtitle: CATEGORY_MAINTENANCE_CULTURE, gcmtype: 'subcat', gcmlimit: '50',
@@ -735,6 +766,7 @@
 			cultureState.subcats = pages.map(function (p) {
 				return { title: p.title, count: (p.categoryinfo && p.categoryinfo.pages) || 0 };
 			}).sort(function (a, b) { return a.title.localeCompare(b.title, 'he'); });
+			if (myId !== loadRequestId || activeTab !== 'culture') return;
 			renderCulturePicker();
 		}).catch(function (e) { if (activeTab === 'culture') showError(e); });
 	}
@@ -768,7 +800,9 @@
 			cmtitle: cultureState.selected, cmtype: 'page', cmnamespace: '0', cmlimit: '50'
 		};
 		if (cultureState.continueToken) params.cmcontinue = cultureState.continueToken;
+		var myId = ++loadRequestId, mySubcat = cultureState.selected;
 		mwApiFetch(params).then(function (data) {
+			if (myId !== loadRequestId || activeTab !== 'culture' || cultureState.selected !== mySubcat) { cultureState.loading = false; return; }
 			var members = (data.query && data.query.categorymembers) || [];
 			cultureState.members = cultureState.members.concat(members);
 			cultureState.continueToken = (data.continue && data.continue.cmcontinue) || null;
@@ -873,7 +907,7 @@
 		var side = $id('mchl-side');
 		var cfg = VIEWS[activeTab];
 		if (!side || !cfg || !cfg.easyImport) return;
-		var html = '';
+		var html = '<div class="mchl-side-top"><span>מסננים</span><button type="button" data-action="toggle-side" title="הסתרת המסננים">‹ הסתרה</button></div>';
 		// הגדרות החישוב - נקבעות פעם אחת, ולכן מקופלות.
 		html += '<div class="mchl-side-sec"><div class="mchl-settings-line"><span>רמה ' +
 			(wfMethod === 'ctx' ? '<b>לפי המילה והמשפט</b>' : '<b>לפי המילה בלבד</b>') + ' · ' +
@@ -1045,15 +1079,23 @@
 	function applySidePanel() {
 		var hidden = !!uiPrefs.sideHidden;
 		$id('mchl-body').classList.toggle('mchl-side-hidden', hidden);
-		var b = $id('mchl-side-toggle-btn');
-		if (b) { b.textContent = hidden ? '☰ הצגת מסננים' : '☰ הסתרת מסננים'; b.setAttribute('aria-pressed', hidden ? 'false' : 'true'); }
 	}
 	// תפריט הצד של האתר (Vector) - מוסתר כברירת מחדל בדשבורד, כדי שיהיה מקום לטבלה.
+	// לשונית קטנה בקצה המסך, צמודה לתפריט האתר: "תפריט ›" כשהוא מוסתר, "‹ הסתרה" לידו כשהוא מוצג.
 	function applySiteNav() {
 		var hidden = uiPrefs.siteNavHidden !== false;
 		document.body.classList.toggle('mchl-no-site-nav', hidden);
 		var b = $id('mchl-sitenav-btn');
-		if (b) b.textContent = hidden ? '⇤ הצגת תפריט האתר' : '⇥ הסתרת תפריט האתר';
+		if (!b) {
+			b = document.createElement('button');
+			b.type = 'button';
+			b.id = 'mchl-sitenav-btn';
+			b.className = 'mchl-sitenav-tab';
+			b.addEventListener('click', function () { uiPrefs.siteNavHidden = !(uiPrefs.siteNavHidden !== false); saveUiPrefs(); applySiteNav(); });
+			document.body.appendChild(b);
+		}
+		b.textContent = hidden ? '☰ תפריט האתר' : '✕ הסתרת התפריט';
+		b.title = hidden ? 'הצגת תפריט הצד של האתר' : 'הסתרת תפריט הצד של האתר';
 	}
 
 	function renderSideCounts() {
@@ -1161,11 +1203,11 @@
 		// בדפים של 1,000 שורות - סופבייס מגביל תשובה אחת (max rows).
 		var rows = [];
 		function page(from) {
-			return pgSelect('report_missing_word_filter_summary', { filterParams: [], order: 'n.desc', from: from, to: from + 999 })
+			return pgSelect('report_missing_word_filter_summary', { filterParams: [], order: 'n.desc,redirect.asc,has_images.asc,verdict.asc,verdict_suggested.asc,ctx_verdict.asc,ctx_suspicion.asc,ctx_verdict_suggested.asc,ctx_suspicion_suggested.asc,dictionary.asc,topic.asc', from: from, to: from + 999 })
 				.then(function (res) {
 					var data = res.data || [];
 					rows = rows.concat(data);
-					if (data.length && rows.length < res.count) return page(rows.length);
+					if (data.length && (res.count != null ? rows.length < res.count : data.length === 1000)) return page(rows.length);
 					wfSummary = rows;
 					return wfSummary;
 				});
@@ -1259,6 +1301,10 @@
 
 	function refreshAll() {
 		var btn = $id('mchl-refresh-btn');
+		// רענון מלא: גם הפרטים שנטענו (הקשר, הפניות, רמזי מחיקה) נשלפים מחדש.
+		wfDetailsCache.clear();
+		mechalolRedirectTargetCache.clear();
+		deletionHintCache.clear();
 		btn.classList.add('mchl-spinning');
 		wfSummary = null;
 		if (VIEWS[activeTab] && VIEWS[activeTab].easyImport) renderWfMeter();
@@ -1356,12 +1402,14 @@
 		return pgSelect(cfg.view, { filterParams: buildFilterParams(), order: cfg.order || 'title.asc', from: from, to: to }).then(function (res) {
 			if (myRequestId !== loadRequestId) return;
 			currentPageRows = res.data || [];
-			totalRows = res.count || 0;
+			countUnknown = res.count == null;
+			// ספירה לא ידועה: מאפשרים "הבא" רק אם הדף מלא.
+			totalRows = countUnknown ? from + currentPageRows.length + (currentPageRows.length === pageSize ? 1 : 0) : res.count;
 			totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
 			renderTable();
 			renderPager();
 			var chipsTotal = $id('mchl-chips-total');
-			if (chipsTotal) chipsTotal.textContent = totalRows.toLocaleString('he-IL') + ' ערכים';
+			if (chipsTotal) chipsTotal.textContent = countUnknown ? 'מספר הערכים לא ידוע' : totalRows.toLocaleString('he-IL') + ' ערכים';
 			loadWikidataDescriptionsForCurrentPage();
 			loadRedirectTargetsForCurrentPage();
 			loadDeletionHintsForCurrentPage();
@@ -1874,12 +1922,13 @@
 		pager.style.display = 'flex';
 		var from = totalRows === 0 ? 0 : currentPage * pageSize + 1;
 		var to = Math.min(totalRows, (currentPage + 1) * pageSize);
-		$id('mchl-pager-summary').textContent = 'מציג ' + from.toLocaleString('he-IL') + '–' + to.toLocaleString('he-IL') + ' מתוך ' + totalRows.toLocaleString('he-IL');
-		$id('mchl-pg-label').textContent = 'עמוד ' + (currentPage + 1).toLocaleString('he-IL') + ' מתוך ' + totalPages.toLocaleString('he-IL');
+		if (countUnknown) to = currentPage * pageSize + currentPageRows.length;
+		$id('mchl-pager-summary').textContent = 'מציג ' + from.toLocaleString('he-IL') + '–' + to.toLocaleString('he-IL') + ' מתוך ' + (countUnknown ? '? (הספירה לא התקבלה)' : totalRows.toLocaleString('he-IL'));
+		$id('mchl-pg-label').textContent = 'עמוד ' + (currentPage + 1).toLocaleString('he-IL') + (countUnknown ? '' : ' מתוך ' + totalPages.toLocaleString('he-IL'));
 		$id('mchl-pg-first').disabled = currentPage === 0;
 		$id('mchl-pg-prev').disabled = currentPage === 0;
 		$id('mchl-pg-next').disabled = currentPage >= totalPages - 1;
-		$id('mchl-pg-last').disabled = currentPage >= totalPages - 1;
+		$id('mchl-pg-last').disabled = countUnknown || currentPage >= totalPages - 1;
 	}
 
 	function goPage(p) {
@@ -1894,7 +1943,7 @@
 		var key = rowKey(row);
 		if (checked) selectedRows.set(key, row); else selectedRows.delete(key);
 		updateSelectionBar();
-		renderTable();
+		syncSelectionMarks();
 	}
 	function togglePageSelection(checked) {
 		currentPageRows.forEach(function (r) {
@@ -1902,9 +1951,23 @@
 			if (checked) selectedRows.set(key, r); else selectedRows.delete(key);
 		});
 		updateSelectionBar();
-		renderTable();
+		syncSelectionMarks();
 	}
-	function clearSelection() { selectedRows.clear(); updateSelectionBar(); renderTable(); }
+	function clearSelection() { selectedRows.clear(); updateSelectionBar(); syncSelectionMarks(); }
+	// מעדכן רק את תיבות הסימון וצבע השורות - בלי לצייר את הטבלה מחדש (שהייתה מוחקת טקסט
+	// שהוקלד בשיוך הידני, שורות פרטים פתוחות והודעות).
+	function syncSelectionMarks() {
+		var byId = {};
+		currentPageRows.forEach(function (r) { byId[rowIdOf(r)] = selectedRows.has(rowKey(r)); });
+		document.querySelectorAll('#mchl-table-target input[data-action="toggle-row-selection"]').forEach(function (cb) {
+			var on = !!byId[cb.getAttribute('data-row-id')];
+			cb.checked = on;
+			var tr = cb.closest('tr');
+			if (tr) tr.classList.toggle('mchl-selected', on);
+		});
+		var all = $id('mchl-table-target').querySelector('input[data-action="toggle-page-selection"]');
+		if (all) all.checked = currentPageRows.length > 0 && currentPageRows.every(function (r) { return selectedRows.has(rowKey(r)); });
+	}
 
 	function updateSelectionBar() {
 		var bar = $id('mchl-selection-bar');
@@ -1928,13 +1991,19 @@
 	function selectAllMatching() {
 		var btn = $id('mchl-select-all-matching-btn');
 		var originalText = btn.textContent;
+		var cfg = VIEWS[activeTab];
+		if (!countUnknown && totalRows > 20000 && !confirm('לבחור ' + totalRows.toLocaleString('he-IL') + ' ערכים? הטעינה תיקח כדקה.')) return Promise.resolve();
 		btn.disabled = true;
 		btn.textContent = 'טוען…';
-		var cfg = VIEWS[activeTab];
-		return pgSelect(cfg.view, { filterParams: buildFilterParams(), order: cfg.order || 'title.asc', from: 0, to: Math.min(totalRows, 20000) - 1 }).then(function (res) {
-			(res.data || []).forEach(function (r) { selectedRows.set(rowKey(r), r); });
+		return pgSelectAll(cfg.view, { filterParams: buildFilterParams(), order: stableOrder(cfg) }, function (got, expected) {
+			btn.textContent = 'טוען… ' + got.toLocaleString('he-IL') + (expected != null ? ' מתוך ' + expected.toLocaleString('he-IL') : '');
+		}).then(function (res) {
+			res.data.forEach(function (r) { selectedRows.set(rowKey(r), r); });
+			btn.disabled = false;
+			btn.textContent = originalText;
 			updateSelectionBar();
-			renderTable();
+			syncSelectionMarks();
+			if (!res.complete) alert('נבחרו ' + res.data.length.toLocaleString('he-IL') + ' מתוך ' + res.expected.toLocaleString('he-IL') + ' - חלק מהתוצאות לא נטענו. אפשר לנסות שוב.');
 		}).catch(function (e) {
 			btn.disabled = false;
 			btn.textContent = originalText;
@@ -1966,8 +2035,9 @@
 	function getExportRows() {
 		if (selectedRows.size > 0) return Promise.resolve(Array.from(selectedRows.values()));
 		var cfg = VIEWS[activeTab];
-		return pgSelect(cfg.view, { filterParams: buildFilterParams(), order: cfg.order || 'title.asc', from: 0, to: Math.min(totalRows, 20000) - 1 }).then(function (res) {
-			return res.data || [];
+		return pgSelectAll(cfg.view, { filterParams: buildFilterParams(), order: stableOrder(cfg) }).then(function (res) {
+			if (!res.complete && !confirm('נטענו ' + res.data.length.toLocaleString('he-IL') + ' מתוך ' + res.expected.toLocaleString('he-IL') + ' ערכים. לייצא בכל זאת?')) return null;
+			return res.data;
 		}).catch(function (e) {
 			alert(isTransientMaintenanceError(e)
 				? 'המסד באמצע עדכון תקופתי כרגע - נסה שוב בעוד רגע.'
@@ -2102,6 +2172,8 @@
 	// ilike עם * בסוף בלבד (התחלת-כותרת) - לא *טקסט* - לפי מה שסוכם:
 	// מהיר יותר ומשתמש באינדקס title הקיים, בניגוד לחיפוש-הכל-בכל-מקום.
 	function searchManualMatchSuggestions(query, cell, suggestionsBox) {
+		var mySeq = String((Number(cell.dataset.searchSeq) || 0) + 1);
+		cell.dataset.searchSeq = mySeq;
 		suggestionsBox.style.display = 'block';
 		suggestionsBox.innerHTML = '<div class="mchl-manual-match-suggestion-loading">מחפש…</div>';
 		var params = new URLSearchParams();
@@ -2117,9 +2189,10 @@
 		}).then(function (rows) {
 			// המשתמש כבר המשיך להקליד/ניקה בזמן שהבקשה הזו הייתה באוויר -
 			// לא מציירים תוצאות מיושנות מעל מה שהוא רואה עכשיו.
-			if (suggestionsBox.style.display === 'none') return;
+			if (suggestionsBox.style.display === 'none' || cell.dataset.searchSeq !== mySeq) return;
 			renderManualMatchSuggestions(rows, cell, suggestionsBox);
 		}).catch(function () {
+			if (cell.dataset.searchSeq !== mySeq) return;
 			suggestionsBox.innerHTML = '<div class="mchl-manual-match-suggestion-loading">שגיאה בחיפוש</div>';
 		});
 	}
@@ -2337,7 +2410,6 @@
 			else if (action === 'wf-details') toggleContentDetails(el);
 			else if (action === 'import') importFromDashboard(el);
 			else if (action === 'toggle-side') { uiPrefs.sideHidden = !uiPrefs.sideHidden; saveUiPrefs(); applySidePanel(); }
-			else if (action === 'toggle-site-nav') { uiPrefs.siteNavHidden = !(uiPrefs.siteNavHidden !== false); saveUiPrefs(); applySiteNav(); }
 			else if (action === 'chip-remove') removeChip(el.getAttribute('data-chip'));
 			else if (action === 'wf-image') {
 				var detailsRow = el.closest('tr.mchl-wf-details-row');
@@ -2394,10 +2466,15 @@
 		'font-feature-settings:"tnum" 1;direction:rtl;max-width:1440px;margin:0 auto;padding:32px 24px 80px;}' +
 		'#mchl-dash *{box-sizing:border-box;}' +
 		'#mchl-dash a{color:inherit;}' +
-		'#mchl-dash header.mchl-top{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:16px;margin-bottom:28px;}' +
+		'#mchl-dash header.mchl-top{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px 16px;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--mchl-line);}' +
+		'#mchl-dash .mchl-top-title{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 16px;}' +
+		'#mchl-dash .mchl-h1{font-family:"Frank Ruhl Libre",Georgia,serif;font-weight:700;font-size:26px;line-height:1.2;color:var(--mchl-text-1);margin:0;border:0;padding:0;}' +
+		'#mchl-dash .mchl-h1 .mchl-arrow{color:var(--mchl-text-3);font-size:.8em;}' +
+		'#mchl-dash .mchl-h1 .mchl-mch{color:var(--mchl-mechalol);}' +
+		'.mchl-sitenav-tab{position:fixed;top:140px;right:0;z-index:100;background:#16262F;color:#EDEAE1;border:1px solid rgba(237,234,225,.18);border-right:0;border-radius:8px 0 0 8px;font:600 13px Assistant,Arial,sans-serif;padding:10px 7px;cursor:pointer;writing-mode:vertical-rl;box-shadow:0 2px 8px rgba(0,0,0,.25);}' +
+		'.mchl-sitenav-tab:hover{background:#1E323C;}' +
+		'body:not(.mchl-no-site-nav) .mchl-sitenav-tab{right:11em;}' +
 		'#mchl-dash .mchl-eyebrow{font-size:13px;letter-spacing:.04em;color:var(--mchl-text-2);margin:0 0 6px;}' +
-		'#mchl-dash h1.mchl-h1{font-family:"Frank Ruhl Libre",Georgia,serif;font-weight:700;font-size:clamp(26px,4vw,38px);margin:0;line-height:1.15;}' +
-		'#mchl-dash h1.mchl-h1 span{color:var(--mchl-mechalol);}' +
 		'#mchl-dash .mchl-top-actions{display:flex;align-items:center;gap:12px;}' +
 		'#mchl-dash .mchl-sync-note{font-size:13px;color:var(--mchl-text-2);}' +
 		'#mchl-dash button.mchl-refresh{background:var(--mchl-ink-700);border:1px solid var(--mchl-line);color:var(--mchl-text-1);padding:10px 18px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px;}' +
@@ -2465,11 +2542,14 @@
 		'#mchl-dash select.mchl-filter-select{cursor:pointer;}' +
 		// פריסה: פאנל מסננים בצד + אזור ראשי (טאבי "חסר במכלול")
 		'#mchl-dash .mchl-body.mchl-with-side{display:grid;grid-template-columns:272px minmax(0,1fr);gap:18px;align-items:start;}' +
-		'#mchl-dash .mchl-body.mchl-with-side.mchl-side-hidden{grid-template-columns:minmax(0,1fr);}' +
+		'#mchl-dash .mchl-body.mchl-with-side.mchl-side-hidden{grid-template-columns:34px minmax(0,1fr);}' +
 		'#mchl-dash .mchl-body.mchl-side-hidden .mchl-side{display:none !important;}' +
-		'#mchl-dash .mchl-side-toggle{display:none;background:var(--mchl-ink-800);border:1px solid var(--mchl-line);border-radius:8px;color:var(--mchl-text-2);font:inherit;font-size:13px;padding:8px 12px;cursor:pointer;white-space:nowrap;}' +
-		'#mchl-dash .mchl-with-side .mchl-side-toggle{display:inline-block;}' +
-		'#mchl-dash .mchl-side-toggle:hover{color:var(--mchl-text-1);}' +
+		'#mchl-dash .mchl-side-rail{display:none;}' +
+		'#mchl-dash .mchl-with-side.mchl-side-hidden .mchl-side-rail{display:block;position:sticky;top:12px;background:var(--mchl-ink-800);border:1px solid var(--mchl-line);border-radius:10px;color:var(--mchl-text-2);font:inherit;font-size:13px;font-weight:600;padding:12px 6px;cursor:pointer;writing-mode:vertical-rl;}' +
+		'#mchl-dash .mchl-side-rail:hover{color:var(--mchl-text-1);}' +
+		'#mchl-dash .mchl-side-top{display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:14px;padding:2px 0 8px;}' +
+		'#mchl-dash .mchl-side-top button{background:none;border:0;color:var(--mchl-text-2);font:inherit;font-size:12.5px;font-weight:400;cursor:pointer;}' +
+		'#mchl-dash .mchl-side-top button:hover{color:var(--mchl-text-1);}' +
 		'#mchl-dash .mchl-side-h.mchl-collapsible{cursor:pointer;user-select:none;justify-content:flex-start;gap:0;}' +
 		'#mchl-dash .mchl-side-h.mchl-collapsible > .mchl-link{margin-right:auto;}' +
 		'#mchl-dash .mchl-side-h.mchl-collapsible:hover{color:var(--mchl-text-1);}' +
@@ -2628,9 +2708,9 @@
 
 	var HTML = '' +
 		'<header class="mchl-top">' +
-		'<div><p class="mchl-eyebrow">מסד הנתונים · השוואת ערכים</p><h1 class="mchl-h1">ויקיפדיה העברית <span>↔</span> <span>המכלול</span></h1></div>' +
-		'<div class="mchl-top-actions"><span class="mchl-sync-note" id="mchl-sync-note">נבדק לאחרונה —</span>' +
-		'<button type="button" class="mchl-refresh mchl-quiet" id="mchl-sitenav-btn" data-action="toggle-site-nav"></button>' +
+		'<div class="mchl-top-title"><div class="mchl-h1">ויקיפדיה העברית <span class="mchl-arrow">↔</span> <span class="mchl-mch">המכלול</span></div>' +
+		'<div class="mchl-sync-note" id="mchl-sync-note">נבדק לאחרונה —</div></div>' +
+		'<div class="mchl-top-actions">' +
 		'<button type="button" class="mchl-refresh" id="mchl-admin-toggle-btn" data-action="toggle-admin-panel" style="display:none;">⚙ ניהול</button>' +
 		'<button type="button" class="mchl-refresh" id="mchl-refresh-btn" data-action="refresh"><span class="mchl-dot"></span> רענון</button></div>' +
 		'</header>' +
@@ -2662,9 +2742,9 @@
 		'</div>' +
 		'<div class="mchl-body" id="mchl-body">' +
 		'<aside class="mchl-side" id="mchl-side" style="display:none;"></aside>' +
+		'<button type="button" class="mchl-side-rail" id="mchl-side-rail" data-action="toggle-side" title="הצגת המסננים">☰ מסננים</button>' +
 		'<div class="mchl-main">' +
 		'<div class="mchl-filter-bar" id="mchl-filter-bar">' +
-		'<button type="button" class="mchl-side-toggle" id="mchl-side-toggle-btn" data-action="toggle-side"></button>' +
 		'<div class="mchl-search-wrap"><input class="mchl-search" id="mchl-search-input" placeholder="חיפוש בכותרת…"></div>' +
 		'<div id="mchl-dynamic-filters" style="display:flex;gap:10px;flex-wrap:wrap;"></div>' +
 		'<button type="button" class="mchl-clear-filters" id="mchl-clear-filters-btn" data-action="clear-filters" style="display:none;">נקה סינון</button>' +
