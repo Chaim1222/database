@@ -124,19 +124,32 @@
 		"w0444",
 		"w0445",
 		"w0446",
-		"w0447"
+		"w0447",
+		"w0448"
 	],
 	"families": {
 		"w0001": {
 			"word": "סקס",
 			"group": "B",
-			"rate": 0.72,
-			"problematic": 36,
+			"rate": 0.64,
+			"problematic": 25,
 			"innocent": 14,
 			"unclear": 14,
 			"sources": {
-				"missing": 17,
-				"wiki-random": 47
+				"missing": 16,
+				"wiki-random": 37
+			}
+		},
+		"w0001,w0448": {
+			"word": "סקס",
+			"group": "A",
+			"rate": 1,
+			"problematic": 11,
+			"innocent": 0,
+			"unclear": 0,
+			"sources": {
+				"missing": 1,
+				"wiki-random": 10
 			}
 		},
 		"w0003": {
@@ -573,12 +586,12 @@
 		"w0121": {
 			"word": "טרנס",
 			"group": "C",
-			"rate": 0.29,
-			"problematic": 7,
-			"innocent": 17,
+			"rate": 0.24,
+			"problematic": 8,
+			"innocent": 25,
 			"unclear": 0,
 			"sources": {
-				"missing": 9,
+				"missing": 18,
 				"wiki-random": 15
 			}
 		},
@@ -704,13 +717,13 @@
 		"w0296": {
 			"word": "מין",
 			"group": "C",
-			"rate": 0.11,
-			"problematic": 13,
+			"rate": 0.09,
+			"problematic": 11,
 			"innocent": 106,
 			"unclear": 6,
 			"sources": {
 				"missing": 51,
-				"wiki-random": 74
+				"wiki-random": 72
 			}
 		},
 		"w0300": {
