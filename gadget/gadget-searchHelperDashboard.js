@@ -2100,6 +2100,10 @@
 		var box = detailsTr.querySelector('.mchl-wf-box');
 		var row = currentPageRows.find(function (r) { return String(r.id) === id; });
 		loadContentDetails(id).then(function (d) {
+			// מנהל מחובר - גם הסימונים שלו (✗/✓), כדי להציג אותם ליד כל מילה.
+			return (serviceKeyConnected ? loadWfFeedback(id).catch(function () { return null; }) : Promise.resolve(null))
+				.then(function () { return d; });
+		}).then(function (d) {
 			box.classList.remove('mchl-muted');
 			box.innerHTML = renderContentDetails(d, row);
 		}).catch(function (e) {
@@ -2111,7 +2115,7 @@
 		if (wfDetailsCache.has(id)) return Promise.resolve(wfDetailsCache.get(id));
 		return withRetry(function () {
 			var params = new URLSearchParams();
-			params.set('select', 'matches,matches_total,images,photo_count,scanned_at,rev_id');
+			params.set('select', 'matches,matches_total,images,photo_count,scanned_at,rev_id,lists_version');
 			params.set('wikipedia_id', 'eq.' + id);
 			return fetch(SUPABASE_URL + '/rest/v1/word_filter_results?' + params.toString(), { headers: pgHeaders() })
 				.then(function (res) {
@@ -2123,6 +2127,92 @@
 			if (!d) throw new Error('אין תוצאות סריקה לערך הזה');
 			wfDetailsCache.set(id, d);
 			return d;
+		});
+	}
+
+	// ===== סימון התראות: ✗ התראת שווא / ✓ בעייתי באמת (word_filter_feedback) =====
+	// רק למנהל מחובר (אותה רשימה כמו שיוך ידני - is_manual_match_admin). הסימונים
+	// מצטברים לכל רשומה ברשימות (word_filter_feedback_summary): תבנית שנצברו עליה
+	// 10 סימוני ✗ ומעלה, או 20% מהמופעים, עולה לתיקון; מופע בודד נשאר בבדיקה.
+	// ההתאמה מזוהה בערך לפי שורה + מילה + רשומות (wfMatchKey).
+	var wfFeedbackCache = new Map(); // wikipedia_id -> { match_key: 'false' | 'true' }
+	function wfMatchKey(m) { return m.line + ':' + m.x + ':' + (m.e || []).slice().sort().join(','); }
+	function loadWfFeedback(id) {
+		var params = new URLSearchParams();
+		params.set('select', 'match_key,label');
+		params.set('wikipedia_id', 'eq.' + id);
+		return fetch(SUPABASE_URL + '/rest/v1/word_filter_feedback?' + params.toString(), { headers: authHeaders() })
+			.then(function (res) {
+				if (!res.ok) return res.text().then(function (t) { throw makePgError(res.status, t); });
+				return res.json();
+			}).then(function (rows) {
+				var marks = {};
+				rows.forEach(function (r) { marks[r.match_key] = r.label; });
+				wfFeedbackCache.set(String(id), marks);
+				return marks;
+			});
+	}
+	function wfFeedbackButtons(id, d, m) {
+		if (!serviceKeyConnected) return '';
+		var mark = (wfFeedbackCache.get(String(id)) || {})[wfMatchKey(m)];
+		var i = d.matches.indexOf(m);
+		return ' <span class="mchl-wf-fb">' +
+			'<button type="button" class="mchl-wf-fb-btn' + (mark === 'false' ? ' mchl-on-false' : '') + '" data-action="wf-feedback" data-label="false" data-mi="' + i +
+			'" title="התראת שווא: זו לא המילה, או שימוש תמים">✗</button>' +
+			'<button type="button" class="mchl-wf-fb-btn' + (mark === 'true' ? ' mchl-on-true' : '') + '" data-action="wf-feedback" data-label="true" data-mi="' + i +
+			'" title="בעייתי באמת">✓</button></span>';
+	}
+	function wfFeedback(btn) {
+		var detailsRow = btn.closest('tr.mchl-wf-details-row');
+		var id = detailsRow && detailsRow.previousElementSibling.querySelector('[data-action="wf-details"]').getAttribute('data-id');
+		var d = id && wfDetailsCache.get(id);
+		var m = d && d.matches[parseInt(btn.getAttribute('data-mi'), 10)];
+		if (!m) return;
+		var label = btn.getAttribute('data-label');
+		var key = wfMatchKey(m);
+		var marks = wfFeedbackCache.get(String(id)) || {};
+		var unmark = marks[key] === label; // לחיצה שנייה על אותו סימון מבטלת אותו
+		var row = currentPageRows.find(function (r) { return String(r.id) === id; });
+		var mode = wfMode;
+		var level = m.h ? m[mode] : (wfMethod === 'ctx' && m['c' + mode] != null ? m['c' + mode] : m[mode]);
+		var send = function () {
+			if (unmark) {
+				var q = new URLSearchParams();
+				q.set('wikipedia_id', 'eq.' + id);
+				q.set('match_key', 'eq.' + key);
+				return fetch(SUPABASE_URL + '/rest/v1/word_filter_feedback?' + q.toString(), {
+					method: 'DELETE', headers: authHeaders({ Prefer: 'return=minimal' })
+				});
+			}
+			return fetch(SUPABASE_URL + '/rest/v1/word_filter_feedback?on_conflict=wikipedia_id,match_key,user_id', {
+				method: 'POST',
+				headers: authHeaders({ 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' }),
+				body: JSON.stringify({
+					wikipedia_id: Number(id), title: row ? row.title : null, match_key: key, word: m.x, entries: m.e || [],
+					topic: m.t || null, hidden: m.h || null, label: label, level: level || null,
+					before: m.b || null, after: m.f || null, lists_version: d.lists_version || null
+				})
+			});
+		};
+		var group = btn.parentNode;
+		Array.prototype.forEach.call(group.querySelectorAll('button'), function (b) { b.disabled = true; });
+		send().then(function (res) {
+			if (res.status !== 401) return res;
+			return refreshAuthSession().then(send);
+		}).then(function (res) {
+			if (res.status === 403) throw new Error('החשבון המחובר אינו ברשימת המורשים (manual_match_admins).');
+			if (!res.ok) return res.text().then(function (t) { throw new Error('HTTP ' + res.status + ': ' + t); });
+			if (unmark) delete marks[key]; else marks[key] = label;
+			wfFeedbackCache.set(String(id), marks);
+			Array.prototype.forEach.call(group.querySelectorAll('button'), function (b) {
+				var l = b.getAttribute('data-label');
+				b.classList.toggle('mchl-on-false', l === 'false' && marks[key] === 'false');
+				b.classList.toggle('mchl-on-true', l === 'true' && marks[key] === 'true');
+			});
+		}).catch(function (e) {
+			alert('הסימון נכשל: ' + (e.message || e));
+		}).then(function () {
+			Array.prototype.forEach.call(group.querySelectorAll('button'), function (b) { b.disabled = false; });
 		});
 	}
 
@@ -2154,7 +2244,8 @@
 				html += '<li><span class="mchl-num-cell">שורה ' + m.line + ' · ' + escapeHtml(WF_TOPICS[m.t] || m.t) + '</span> ' +
 					escapeHtml(m.b) + '<mark class="mchl-wf-' + markLevel + '">' + escapeHtml(m.x) + '</mark>' + escapeHtml(m.f) +
 					(notes.length ? ' <span class="mchl-muted">(' + escapeHtml(notes.join('; ')) + ')</span>' : '') +
-					' <span class="mchl-muted mchl-wf-ids" title="רשומות ברשימת המילים">' + escapeHtml((m.e || []).join(',')) + '</span></li>';
+					' <span class="mchl-muted mchl-wf-ids" title="רשומות ברשימת המילים">' + escapeHtml((m.e || []).join(',')) + '</span>' +
+					wfFeedbackButtons(row ? row.id : '', d, m) + '</li>';
 			});
 			html += '</ul></div>';
 		});
@@ -2171,7 +2262,8 @@
 				html += '<li><span class="mchl-num-cell">שורה ' + m.line + ' · ' + escapeHtml(WF_HIDDEN_KINDS[m.h] || m.h) + ' · ' +
 					escapeHtml((WF_LEVELS[level] || {}).label || level) + '</span> <code class="mchl-wf-code">' +
 					escapeHtml(m.b) + '<mark class="mchl-wf-hidden">' + escapeHtml(m.x) + '</mark>' + escapeHtml(m.f) + '</code>' +
-					' <span class="mchl-muted mchl-wf-ids" title="רשומות ברשימת המילים">' + escapeHtml((m.e || []).join(',')) + '</span></li>';
+					' <span class="mchl-muted mchl-wf-ids" title="רשומות ברשימת המילים">' + escapeHtml((m.e || []).join(',')) + '</span>' +
+					wfFeedbackButtons(row ? row.id : '', d, m) + '</li>';
 			});
 			html += '</ul></div>';
 		}
@@ -2769,6 +2861,7 @@
 			else if (action === 'req-open') toggleRequestPanel(el.closest('tr'));
 			else if (action === 'toggle-side') { uiPrefs.sideHidden = !uiPrefs.sideHidden; saveUiPrefs(); applySidePanel(); }
 			else if (action === 'chip-remove') removeChip(el.getAttribute('data-chip'));
+			else if (action === 'wf-feedback') wfFeedback(el);
 			else if (action === 'wf-image') {
 				var detailsRow = el.closest('tr.mchl-wf-details-row');
 				var cached = detailsRow && wfDetailsCache.get(detailsRow.previousElementSibling.querySelector('[data-action="wf-details"]').getAttribute('data-id'));
@@ -3030,6 +3123,11 @@
 		'#mchl-dash .mchl-wf-box mark.mchl-wf-hidden{background:none;color:inherit;outline:1px dashed #E3C15E;}' +
 		'#mchl-dash .mchl-wf-code{font-size:12.5px;direction:rtl;unicode-bidi:plaintext;white-space:pre-wrap;}' +
 		'#mchl-dash .mchl-wf-box a{color:var(--mchl-mechalol);}' +
+		'#mchl-dash .mchl-wf-fb{display:inline-flex;gap:3px;margin-right:6px;vertical-align:middle;}' +
+		'#mchl-dash .mchl-wf-fb-btn{background:none;border:1px solid var(--mchl-line);color:var(--mchl-text-2);border-radius:5px;font-size:11px;line-height:1;padding:2px 5px;cursor:pointer;opacity:.55;}' +
+		'#mchl-dash .mchl-wf-fb-btn:hover{opacity:1;}' +
+		'#mchl-dash .mchl-wf-fb-btn.mchl-on-false{opacity:1;background:#5b2b22;border-color:#E07A62;color:#ffd2c7;}' +
+		'#mchl-dash .mchl-wf-fb-btn.mchl-on-true{opacity:1;background:#27433a;border-color:#6fbf9f;color:#d4f3e6;}' +
 		'#mchl-dash .mchl-wf-thumbs{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;}' +
 		'#mchl-dash .mchl-wf-thumb{padding:0;border:1px solid var(--mchl-line);border-radius:6px;background:var(--mchl-ink-800);cursor:zoom-in;width:120px;height:90px;overflow:hidden;}' +
 		'#mchl-dash .mchl-wf-thumb:hover{border-color:var(--mchl-mechalol);}' +

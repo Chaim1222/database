@@ -178,6 +178,19 @@ select coalesce(mechalol_redirect_exists, false) as redirect, has_images,
 from report_missing_word_filter
 group by 1, 2, 3, 4, 5, 6, 7, 8, 9, 10;
 
+-- 8. סימוני התראות לכל רשומה ברשימות (word_filter_feedback, migration_add_word_filter_feedback.sql).
+create or replace view word_filter_feedback_summary with (security_invoker = true) as
+select e.entry_id,
+    count(*) filter (where f.label = 'false')::int as false_marks,
+    count(*) filter (where f.label = 'true')::int as true_marks,
+    count(distinct f.wikipedia_id)::int as pages,
+    round(count(*) filter (where f.label = 'false')::numeric / count(*), 2) as false_share,
+    (array_agg(distinct f.word) filter (where f.label = 'false'))[1:10] as false_words,
+    max(f.created_at) as last_marked
+from word_filter_feedback f
+cross join lateral unnest(f.entries) as e(entry_id)
+group by e.entry_id;
+
 -- --- הרשאות: קיימות בייצור, מעולם לא תועדו כאן עד 2026-09 ---
 -- מלכוד שהתגלה בפועל: view חדש שנוצר עם create or replace view רגיל
 -- (כמו שלושת הראשונים למעלה, כשהם נוצרו לראשונה) יורש את אותה ברירת
@@ -192,6 +205,7 @@ revoke all on report_undocumented_import from anon, authenticated;
 revoke all on report_missing_from_mechalol from anon, authenticated;
 revoke all on report_rav_prefix_normalization from anon, authenticated;
 revoke all on report_missing_word_filter, report_missing_word_filter_summary from anon, authenticated;
+revoke all on word_filter_feedback_summary from anon, authenticated;
 
 grant select on report_possibly_deleted_source to anon, authenticated;
 grant select on report_tasks_to_handle to anon, authenticated;
@@ -199,3 +213,4 @@ grant select on report_undocumented_import to anon, authenticated;
 grant select on report_missing_from_mechalol to anon, authenticated;
 grant select on report_rav_prefix_normalization to anon, authenticated;
 grant select on report_missing_word_filter, report_missing_word_filter_summary to anon, authenticated;
+grant select on word_filter_feedback_summary to anon, authenticated;

@@ -499,6 +499,28 @@ create table if not exists word_filter_results (
     names_count integer,
     names_count_suggested integer
 );
+
+-- word_filter_feedback - סימוני ✗ (התראת שווא) / ✓ (בעייתי באמת) מהדשבורד, לכל התאמה.
+-- כתיבה: רק מנהל מורשה (is_manual_match_admin). ראו migration_add_word_filter_feedback.sql,
+-- וה-view word_filter_feedback_summary ב-views.sql. תבנית עם 10 סימוני ✗ ומעלה, או 20%, עולה לתיקון.
+create table if not exists word_filter_feedback (
+    id bigint generated always as identity primary key,
+    wikipedia_id bigint not null,
+    title text,
+    match_key text not null,               -- שורה:מילה:רשומות (ממוינות)
+    word text not null,
+    entries text[] not null,
+    topic text,
+    hidden text,                           -- סוג הקוד, אם ההתאמה בקוד המוסתר
+    label text not null check (label in ('false', 'true')),
+    level text,
+    before text,
+    after text,
+    lists_version text,
+    user_id uuid not null default auth.uid(),
+    created_at timestamptz not null default now(),
+    unique (wikipedia_id, match_key, user_id)
+);
 create index if not exists word_filter_results_verdict_idx on word_filter_results (verdict);
 create index if not exists word_filter_results_verdict_suggested_idx on word_filter_results (verdict_suggested);
 alter table word_filter_results enable row level security;
