@@ -29,6 +29,8 @@
 		wikipedia_title: 'ערך בוויקיפדיה', mechalol_title: 'דף מקביל במכלול',
 		mechalol_status: 'סטטוס במכלול', candidate_count: 'מספר מועמדים',
 		mechalol_id: 'מזהה מכלול',
+		update_date: 'עודכן לאחרונה', update_compare: 'ויקיפדיה', update_bucket: 'טווח עדכון',
+		sort_template_date: 'עודכן לאחרונה (חודש)', sort_template_rev: 'גרסת הבסיס',
 		verdict: 'רמת תוכן', has_images: 'תמונות', topic: 'נושא', wf_matches: 'מילים', import_action: '', expand: ''
 	};
 
@@ -145,6 +147,21 @@
 			baseFilters: [['mechalol_redirect_exists', 'is.true']],
 			titleLink: 'edit', wikidata: true, easyImport: true, manualMatch: true
 		},
+		// ערכים שוויקיפדיה התקדמה בהם מאז העדכון האחרון (source_state = 'ahead', ראו
+		// SOURCE_TRACKING_NOTES.md). זה גבול עליון: גם שחזור או עריכה קטנה נספרים, ולכן
+		// כל שורה מקושרת להשוואת גרסאות בוויקיפדיה. הממוין לפי חודש העדכון המתועד
+		// (`תאריך=`), הישנים קודם. שובר שוויון לפי id, כי החודש לא ייחודי והעימוד יקפוץ בלעדיו.
+		update: {
+			view: 'report_source_update', label: 'עדכון',
+			columns: ['title', 'sort_template_date', 'update_bucket', 'sort_template_rev', 'wikipedia_id'],
+			displayColumns: ['title', 'update_date', 'update_compare'],
+			filters: [{
+				key: 'update_bucket', label: 'עודכן',
+				options: ['בשנה האחרונה', 'לפני שנה עד שנתיים', '2020 עד לפני שנתיים', 'לפני 2020', 'ללא תאריך']
+			}],
+			order: 'sort_template_date.asc.nullslast,id.asc', titleLink: 'edit', freshness: true,
+			group: 'wikiupdate'
+		},
 		// ערכי ויקיפדיה שהוצאו מ"חסר במכלול" רק בגלל כותרת זהה אחרי הסרת
 		// "הרב"/"רבי" - לא התאמה ודאית, דורש אישור אנושי. ה-view היה קיים
 		// אבל לא הוצג בגאדג'ט.
@@ -165,9 +182,15 @@
 	// הטאבים בשתי שורות: קבוצה, ומתחתיה הטאבים שלה.
 	var TAB_GROUPS = [
 		{ key: 'import', label: 'ייבוא', tabs: ['missing', 'requests', 'missing_redirect', 'rav', 'culture'] },
-		{ key: 'maint', label: 'תחזוקה', tabs: ['tasks', 'deleted', 'undoc'] },
+		{ key: 'maint', label: 'תחזוקה', tabs: ['tasks', 'deleted', 'undoc', 'update'] },
 		{ key: 'stats', label: 'נתונים סטטיסטיים', tabs: ['stats'] }
 	];
+	// טאב עם group (ב-VIEWS) מוצג רק למי שדרגתו לפחות כדרגת הקבוצה. זו בדיקת נראות בצד
+	// הלקוח בלבד, לא הגנה: הנתונים עצמם קריאים ל-anon.
+	function tabAllowed(key) {
+		var v = VIEWS[key];
+		return !(v && v.group && userLevel < (GROUP_LEVELS[v.group] || Infinity));
+	}
 	function groupOfTab(key) { return TAB_GROUPS.filter(function (g) { return g.tabs.indexOf(key) >= 0; })[0] || TAB_GROUPS[0]; }
 	var CATEGORY_MAINTENANCE_CULTURE = 'קטגוריה:דפים לטיפול תרבות';
 	// יחסי בכוונה, לא כתובת מלאה - הגאדג'ט רץ כבר בתוך הדומיין של
@@ -198,6 +221,12 @@
 	var deletionHintCache = new Map();
 	var deletionHintInFlight = new Set();
 	var activeTab = 'missing';
+	// סולם ההרשאות: קבוצה גבוהה יותר רואה גם את מה שנועד לקבוצות נמוכות ממנה.
+	var GROUP_LEVELS = {
+		sysop: 20, bot: 18, aspaklarya2: 16, aspaklaryaEditor: 14,
+		patroller: 12, wikiupdate: 10, wikimport: 8
+	};
+	var userLevel = 0;
 	var currentPage = 0;
 	var pageSize = 50;
 	var totalRows = 0;
@@ -225,6 +254,7 @@
 	function saveUiPrefs() { try { localStorage.setItem(UI_PREFS_KEY, JSON.stringify(uiPrefs)); } catch (e) { /* לא נשמר - לא נורא */ } }
 	function mechalolUrl(id) { return 'https://www.hamichlol.org.il/w/index.php?curid=' + id; }
 	function wikipediaUrl(id) { return 'https://he.wikipedia.org/w/index.php?curid=' + id; }
+	function wikipediaCompareUrl(oldRev) { return 'https://he.wikipedia.org/w/index.php?diff=cur&oldid=' + encodeURIComponent(oldRev); }
 	function mechalolEditUrl(title) { return 'https://www.hamichlol.org.il/w/index.php?title=' + encodeURIComponent(title.replace(/ /g, '_')) + '&action=edit'; }
 	function rowKey(row) { return activeTab + ':' + rowIdOf(row); }
 	function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]; }); }
@@ -670,7 +700,7 @@
 			gb.textContent = g.label;
 			gb.addEventListener('click', function () {
 				var last = uiPrefs['lastTab:' + g.key];
-				switchTab(g.tabs.indexOf(last) >= 0 ? last : g.tabs[0]);
+				switchTab(g.tabs.indexOf(last) >= 0 && tabAllowed(last) ? last : g.tabs[0]);
 			});
 			groupsRow.appendChild(gb);
 			// הטאבים של הקבוצה - תמיד ב-DOM (המונים שלהם מתעדכנים גם כשהקבוצה סגורה).
@@ -679,6 +709,7 @@
 			sub.id = 'mchl-subtabs-' + g.key;
 			if (g.tabs.length < 2) sub.classList.add('mchl-single');
 			g.tabs.forEach(function (key) {
+				if (!tabAllowed(key)) return;
 				var v = VIEWS[key] || EXTRA_TABS[key];
 				var btn = document.createElement('button');
 				btn.className = 'mchl-tab';
@@ -1691,7 +1722,7 @@
 		STAT_DEFS.forEach(function (d) { if (d.tabCount) coveredTabs[d.tabCount] = true; });
 		Object.keys(VIEWS).forEach(function (key) {
 			var tabCountId = 'mchl-tab-count-' + key;
-			if (coveredTabs[tabCountId]) return;
+			if (coveredTabs[tabCountId] || !tabAllowed(key)) return;
 			var cfg = VIEWS[key];
 			jobs.push(pgCount(cfg.view, cfg.baseFilters, cfg.countColumn).then(function (val) {
 				var el = $id(tabCountId);
@@ -1739,6 +1770,7 @@
 			loadRedirectTargetsForCurrentPage();
 			markExistingInMechalol();
 			loadDeletionHintsForCurrentPage();
+			if (cfg.freshness) loadUpdateFreshness();
 		}).catch(function (e) {
 			if (myRequestId !== loadRequestId) return;
 			// אם זו שגיאה שנראית כמו חלון העדכון השבועי ועוד לא ניסינו
@@ -1924,11 +1956,50 @@
 		return cols;
 	}
 
+	// ===== טאב "עדכון" - הודעת הסבר וטריות הנתונים =====
+	// הטריות: ההצלחה האחרונה הישנה ביותר מבין שני זרמי העדכון השעתי (מכלול וויקיפדיה),
+	// כי הצלחה של זרם אחד לא מעידה שהרשימה עדכנית. מתוך report_source_update_freshness.
+	var updateFresh = null; // null = טרם נטען, 'error' = נכשל, אחרת שורת ה-view
+	var UPDATE_STALE_MINUTES = 180;
+	function freshnessInnerHtml() {
+		if (!updateFresh) return '<span class="mchl-muted">בודק טריות…</span>';
+		if (updateFresh === 'error') return '<span class="mchl-badge mchl-review">לא ניתן לבדוק את טריות הנתונים</span>';
+		if (!updateFresh.last_success_at || updateFresh.streams < 2) return '<span class="mchl-badge mchl-alert">אין נתוני עדכון שעתי לשני האתרים</span>';
+		var minutes = Math.max(0, Math.round((Date.now() - new Date(updateFresh.last_success_at).getTime()) / 60000));
+		var ago = minutes < 60 ? 'לפני ' + minutes + ' דקות' : 'לפני ' + Math.round(minutes / 60) + ' שעות';
+		if (updateFresh.max_failures > 0) return '<span class="mchl-badge mchl-alert">כשל בעדכון השעתי (' + updateFresh.max_failures + ' כשלונות רצופים) · הצלחה אחרונה ' + ago + '</span>';
+		if (minutes > UPDATE_STALE_MINUTES) return '<span class="mchl-badge mchl-alert">העדכון השעתי לא רץ ' + ago + '</span>';
+		return '<span class="mchl-badge mchl-wiki">הנתונים מעודכנים · ' + ago + '</span>';
+	}
+	function updateBannerHtml(cfg) {
+		if (!cfg.freshness) return '';
+		return '<div class="mchl-update-note"><span id="mchl-update-fresh">' + freshnessInnerHtml() + '</span>' +
+			'<div class="mchl-row-desc">ערכים שוויקיפדיה התקדמה בהם מאז העדכון האחרון. זה גבול עליון: גם שחזור או עריכה קטנה נספרים, ולכן כדאי לבדוק בהשוואת הגרסאות אם יש מה לעדכן.</div></div>';
+	}
+	function loadUpdateFreshness() {
+		var myTab = activeTab;
+		return withRetry(function () {
+			var url = SUPABASE_URL + '/rest/v1/report_source_update_freshness?select=*';
+			return fetch(url, { headers: pgHeaders({ Range: '0-0' }) }).then(function (res) {
+				if (!res.ok) throw new Error('HTTP ' + res.status);
+				return res.json();
+			});
+		}).then(function (data) {
+			updateFresh = (data && data[0]) || 'error';
+		}).catch(function () {
+			updateFresh = 'error';
+		}).then(function () {
+			var el = $id('mchl-update-fresh');
+			if (el && activeTab === myTab) el.innerHTML = freshnessInnerHtml();
+		});
+	}
+
 	function renderTable() {
 		var cfg = VIEWS[activeTab];
 		var columns = effectiveColumns(cfg);
+		var banner = updateBannerHtml(cfg);
 		if (currentPageRows.length === 0) {
-			$id('mchl-table-target').innerHTML = '<div class="mchl-state"><div class="mchl-big">אין תוצאות</div>אין שורות התואמות לסינון הנוכחי.</div>';
+			$id('mchl-table-target').innerHTML = banner + '<div class="mchl-state"><div class="mchl-big">אין תוצאות</div>אין שורות התואמות לסינון הנוכחי.</div>';
 			return;
 		}
 		var allOnPageSelected = currentPageRows.every(function (r) { return selectedRows.has(rowKey(r)); });
@@ -1941,7 +2012,7 @@
 				'<td class="mchl-chk-col" data-label=""><input type="checkbox" data-action="toggle-row-selection" data-row-id="' + escapeHtml(rowIdOf(r)) + '" ' + (selected ? 'checked' : '') + '></td>' +
 				columns.map(function (c) { return '<td data-label="' + escapeHtml(COLUMN_LABELS[c] || c) + '">' + renderCell(c, r) + '</td>'; }).join('') + '</tr>';
 		}).join('');
-		$id('mchl-table-target').innerHTML = '<table><thead>' + thead + '</thead><tbody>' + tbody + '</tbody></table>';
+		$id('mchl-table-target').innerHTML = banner + '<table><thead>' + thead + '</thead><tbody>' + tbody + '</tbody></table>';
 		paintExisting();
 	}
 
@@ -1970,6 +2041,20 @@
 		}
 		if (col === 'expand') {
 			return wfHasDetails(row) ? '<button type="button" class="mchl-expand-btn" data-action="wf-details" data-id="' + row.id + '" title="פרטים: המילים במשפט שלהן, הקוד המוסתר והתמונות" aria-expanded="false">▾</button>' : '';
+		}
+		if (col === 'update_date') {
+			if (!row.sort_template_date) return '<span class="mchl-muted">ללא תאריך</span>';
+			var updDate = new Date(row.sort_template_date + 'T00:00:00');
+			return '<span class="mchl-num-cell" title="חודש העדכון המתועד בתבנית {{מיון ויקיפדיה}} (תאריך=)">' +
+				escapeHtml(updDate.toLocaleDateString('he-IL', { month: 'long', year: 'numeric' })) + '</span>';
+		}
+		if (col === 'update_compare') {
+			// diff=cur&oldid=<גרסת הבסיס>: ההשוואה בין הגרסה ששולבה לגרסה העדכנית בוויקיפדיה.
+			var cmp = row.sort_template_rev
+				? '<a class="mchl-export-btn" href="' + wikipediaCompareUrl(row.sort_template_rev) + '" target="_blank" rel="noopener" title="מה השתנה בוויקיפדיה מאז הגרסה ששולבה">השוואת גרסאות</a>'
+				: '<span class="mchl-muted">אין גרסה</span>';
+			var wp = row.wikipedia_id ? ' <span class="mchl-title"><a href="' + wikipediaUrl(row.wikipedia_id) + '" target="_blank" rel="noopener" title="הערך בוויקיפדיה">הערך</a></span>' : '';
+			return cmp + wp;
 		}
 		if (col === 'wikipedia_title') return '<span class="mchl-title"><a href="' + wikipediaUrl(row.wikipedia_id) + '" target="_blank" rel="noopener">' + escapeHtml(val) + '</a></span>';
 		if (col === 'mechalol_title') return '<a href="' + mechalolUrl(row.mechalol_id) + '" target="_blank" rel="noopener">' + escapeHtml(val) + '</a>';
@@ -2891,11 +2976,7 @@
 	}
 	
 	   function getLevel(groups) {
-        const levels = {
-          sysop: 20, bot: 18, aspaklarya2: 16, aspaklaryaEditor: 14,
-          patroller: 12, wikiupdate: 10, wikimport: 8
-        };
-        return Math.max(...groups.map(g => levels[g] || 0), 0);
+        return Math.max(...groups.map(g => GROUP_LEVELS[g] || 0), 0);
       }
 
 	// דרגת ההרשאה הנדרשת כדי לראות את פאנל הניהול בכלל (מפתח סרוויס +
@@ -3050,6 +3131,7 @@
 		'#mchl-dash .mchl-nowrap{white-space:nowrap;}' +
 		'#mchl-dash .mchl-with-side .mchl-title{display:inline-block;min-width:11em;}' +
 		'#mchl-dash .mchl-row-desc{color:var(--mchl-text-3);font-size:12px;margin-top:2px;}' +
+		'#mchl-dash .mchl-update-note{padding:10px 16px;border-bottom:1px solid var(--mchl-line);}' +
 		'#mchl-dash .mchl-exists-now{color:#6FBF73;font-weight:700;cursor:help;}' +
 		'#mchl-dash .mchl-req-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px;}' +
 		'#mchl-dash .mchl-req-head a{font-size:13px;text-decoration:none;}' +
@@ -3247,6 +3329,7 @@
 	function init() {
     	var groups = mw.config.get('wgUserGroups') || [];
     	var level = getLevel(groups);
+    	userLevel = level;
 
     	if (level < 8) {
         $('#bodyContent').html('<div style="color: red; font-size: 18px; text-align: center; margin-top: 50px;">אין לך הרשאות לגשת לכלי זה.</div>');
