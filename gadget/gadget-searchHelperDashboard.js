@@ -757,7 +757,7 @@
 	// כל בקשה = מקטע ברמה 2 שהכותרת שלו קישור לערך. לכל בקשה: מי ביקש ומתי, התגובות (בוצע / תגובה אחרת),
 	// האם הערך כבר קיים במכלול, והנתונים שלנו על הגרסה בוויקיפדיה (רמת תוכן, מילים, תמונות, מילוני) - ומכאן ייבוא.
 	var REQUESTS_PAGE = 'המכלול:בקשת ייבוא ערך';
-	var requestsState = { rows: null, filter: 'open' };
+	var requestsState = { rows: null, filter: 'open', openTitle: null };
 	var HE_MONTHS = { 'בינואר': 0, 'בפברואר': 1, 'במרץ': 2, 'באפריל': 3, 'במאי': 4, 'ביוני': 5, 'ביולי': 6, 'באוגוסט': 7, 'בספטמבר': 8, 'באוקטובר': 9, 'בנובמבר': 10, 'בדצמבר': 11 };
 	var NON_MAIN_NS = /^\s*:?\s*(המכלול|ויקיפדיה|תבנית|קטגוריה|משתמש|קובץ|תמונה|עזרה|פורטל|מדיה ויקי|מודול|שיחה|שיחת [^:]+|מיוחד|מש|שמש|וק)\s*:/;
 
@@ -905,7 +905,7 @@
 			$id('mchl-table-target').innerHTML = head + '<div class="mchl-state"><div class="mchl-big">אין בקשות</div>' + (all.length ? 'אין בקשות שעונות לסינון.' : '') + '</div>';
 			return;
 		}
-		var th = ['הבקשה', 'במכלול', 'נושא', 'רמת תוכן', 'מילים', 'תמונות', '', ''];
+		var th = ['הבקשה', 'נוצר בוויקיפדיה', 'במכלול', 'נושא', 'רמת תוכן', 'מילים', 'תמונות', '', ''];
 		var body = rows.map(function (row) {
 			var r = row.req;
 			var editUrl = mw.util.getUrl(REQUESTS_PAGE, { action: 'edit', section: r.section });
@@ -924,7 +924,7 @@
 			var noData = !r.wiki ? '<span class="mchl-muted" title="לא נמצא ערך בשם הזה בוויקיפדיה">לא בוויקיפדיה</span>' :
 				r.mech !== 'missing' ? '<span class="mchl-muted">—</span>' : '<span class="mchl-muted" title="הערך עוד לא נסרק (נוסף לאחרונה או שהכותרת במכלול שונה)">טרם נסרק</span>';
 			var cells = [
-				reqHtml, mechHtml,
+				reqHtml, '<span data-created-for="' + escapeHtml(r.title) + '">' + createdHtml(row.created_at) + '</span>', mechHtml,
 				known ? renderCell('topic', row) : '<span class="mchl-muted">—</span>',
 				known ? renderCell('verdict', row) : noData,
 				known ? renderCell('wf_matches', row) : '',
@@ -932,10 +932,125 @@
 				r.wiki && r.mech === 'missing' ? renderCell('import_action', row) : '',
 				known ? renderCell('expand', row) : ''
 			];
-			return '<tr' + (known && wfHasDetails(row) ? ' class="mchl-expandable"' : '') + '>' + cells.map(function (c, i) { return '<td data-label="' + th[i] + '">' + c + '</td>'; }).join('') + '</tr>';
+			return '<tr class="mchl-req-row" data-req-title="' + escapeHtml(r.title) + '">' + cells.map(function (c, i) { return '<td data-label="' + th[i] + '">' + c + '</td>'; }).join('') + '</tr>';
 		}).join('');
 		$id('mchl-table-target').innerHTML = head + '<div class="mchl-table-wrap"><table><thead><tr>' +
-			th.map(function (h, i) { return '<th' + (i >= 6 ? ' class="mchl-narrow-col"' : '') + '>' + h + '</th>'; }).join('') + '</tr></thead><tbody>' + body + '</tbody></table></div>';
+			th.map(function (h, i) { return '<th' + (i >= 7 ? ' class="mchl-narrow-col"' : '') + '>' + h + '</th>'; }).join('') + '</tr></thead><tbody>' + body + '</tbody></table></div>';
+		loadMissingCreationDates(rows);
+		if (requestsState.openTitle) {
+			var tr = $id('mchl-table-target').querySelector('tr[data-req-title="' + window.CSS.escape(requestsState.openTitle) + '"]');
+			if (tr) openRequestPanel(tr);
+		}
+	}
+
+	// תאריך היצירה בוויקיפדיה, ותג "טרי" לערך שנוצר בפחות מ-NEW_ARTICLE_CUTOFF_DAYS ימים.
+	function createdHtml(iso) {
+		if (!iso) return '<span class="mchl-muted">—</span>';
+		var d = new Date(iso);
+		var fresh = Date.now() - d.getTime() < NEW_ARTICLE_CUTOFF_DAYS * 864e5;
+		return '<span class="mchl-num-cell">' + d.toLocaleDateString('he-IL') + '</span>' + (fresh ? ' <span class="mchl-badge mchl-review" title="נוצר בוויקיפדיה לפני פחות מ-' + NEW_ARTICLE_CUTOFF_DAYS + ' יום">טרי</span>' : '');
+	}
+	// ערכים שאין לנו במסד (בדרך כלל החדשים ביותר) - תאריך הגרסה הראשונה מוויקיפדיה, אחד-אחד, 4 במקביל.
+	function loadMissingCreationDates(rows) {
+		var todo = rows.filter(function (r) { return r.req.wiki && !r.created_at && !r.createdLoading; });
+		var run = function () {
+			var r = todo.shift();
+			if (!r) return;
+			r.createdLoading = true;
+			var p = new URLSearchParams({ action: 'query', pageids: String(r.req.wiki.id), prop: 'revisions', rvprop: 'timestamp', rvdir: 'newer', rvlimit: '1', format: 'json', formatversion: '2', origin: '*' });
+			fetch('https://he.wikipedia.org/w/api.php?' + p.toString()).then(function (res) { return res.json(); }).then(function (d) {
+				var pg = d.query && d.query.pages && d.query.pages[0];
+				r.created_at = pg && pg.revisions && pg.revisions[0] ? pg.revisions[0].timestamp : null;
+				var el = $id('mchl-table-target').querySelector('[data-created-for="' + window.CSS.escape(r.req.title) + '"]');
+				if (el) el.innerHTML = createdHtml(r.created_at);
+			}).catch(function () { /* נשאר "—" */ }).then(run);
+		};
+		for (var i = 0; i < 4; i++) run();
+	}
+
+	// ===== פסקת הבקשה ותגובה - לחיצה על שורה =====
+	function requestRowOf(title) { return (requestsState.rows || []).filter(function (x) { return x.req.title === title; })[0]; }
+	function toggleRequestPanel(tr) {
+		var next = tr.nextElementSibling;
+		if (next && next.classList.contains('mchl-req-panel-row')) {
+			next.remove(); tr.classList.remove('mchl-open'); requestsState.openTitle = null; return;
+		}
+		openRequestPanel(tr);
+	}
+	// הפסקה נשלפת לפי מספרה, ונבדק שהכותרת שלה היא עדיין של אותו ערך (הדף משתנה - מספרי הפסקאות זזים).
+	function fetchRequestSection(r) {
+		return mwApiFetch({ action: 'parse', page: REQUESTS_PAGE, section: String(r.section), prop: 'text|wikitext', disableeditsection: '1', disablelimitreport: '1' }).then(function (d) {
+			var parsed = d.parse || {};
+			var first = parseRequests(parsed.wikitext || '')[0];
+			if (!first || first.title !== r.title) throw new Error('moved');
+			return { html: parsed.text || '', req: first };
+		});
+	}
+	function openRequestPanel(tr) {
+		var title = tr.getAttribute('data-req-title');
+		var row = requestRowOf(title);
+		if (!row) return;
+		requestsState.openTitle = title;
+		tr.classList.add('mchl-open');
+		var old = tr.nextElementSibling;
+		if (old && old.classList.contains('mchl-req-panel-row')) old.remove();
+		var panelTr = document.createElement('tr');
+		panelTr.className = 'mchl-req-panel-row';
+		panelTr.innerHTML = '<td colspan="' + tr.children.length + '"><div class="mchl-req-panel"><div class="mchl-req-section mchl-muted">טוען את הבקשה…</div>' +
+			'<div class="mchl-req-reply">' +
+			'<textarea class="mchl-search" rows="2" placeholder="תגובה (החתימה תתווסף אוטומטית)"></textarea>' +
+			'<div class="mchl-req-reply-btns">' +
+			'<button type="button" class="mchl-export-btn" data-action="req-reply" data-kind="text">הגב</button>' +
+			'<button type="button" class="mchl-export-btn" data-action="req-reply" data-kind="done">{{בוצע}}</button>' +
+			'<button type="button" class="mchl-export-btn" data-action="req-reply" data-kind="fresh">טרי</button>' +
+			'<span class="mchl-req-reply-msg mchl-muted"></span></div></div></div></td>';
+		tr.parentNode.insertBefore(panelTr, tr.nextSibling);
+		if (requestsState.flash) { panelTr.querySelector('.mchl-req-reply-msg').textContent = requestsState.flash; requestsState.flash = null; }
+		var box = panelTr.querySelector('.mchl-req-section');
+		fetchRequestSection(row.req).then(function (sec) {
+			box.classList.remove('mchl-muted');
+			box.innerHTML = sec.html;
+		}).catch(function (e) {
+			box.innerHTML = e.message === 'moved'
+				? '<span class="mchl-alert">הדף השתנה מאז הטעינה - לחץ "רענון" וחזור לבקשה.</span>'
+				: '<span class="mchl-alert">שגיאה בטעינת הבקשה: ' + escapeHtml(e.message || e) + '</span>';
+		});
+	}
+	function replyToRequest(btn) {
+		var panelTr = btn.closest('tr.mchl-req-panel-row');
+		var tr = panelTr && panelTr.previousElementSibling;
+		var row = tr && requestRowOf(tr.getAttribute('data-req-title'));
+		if (!row) return;
+		var kind = btn.getAttribute('data-kind');
+		var textarea = panelTr.querySelector('textarea');
+		var msg = panelTr.querySelector('.mchl-req-reply-msg');
+		var text = kind === 'done' ? '{{בוצע}}' : kind === 'fresh' ? 'טרי' : textarea.value.trim();
+		if (!text) { msg.textContent = 'כתוב תגובה.'; return; }
+		var buttons = panelTr.querySelectorAll('button[data-action="req-reply"]');
+		buttons.forEach(function (b) { b.disabled = true; });
+		msg.textContent = 'שומר…';
+		var done = function (m, bad) { buttons.forEach(function (b) { b.disabled = false; }); msg.textContent = m; msg.classList.toggle('mchl-alert', !!bad); };
+		// בדיקה מחדש מיד לפני הכתיבה: הפסקה עדיין של אותו ערך?
+		fetchRequestSection(row.req).then(function () {
+			return mw.loader.using('mediawiki.api');
+		}).then(function () {
+			return new mw.Api().postWithToken('csrf', {
+				action: 'edit', title: REQUESTS_PAGE, section: String(row.req.section),
+				appendtext: '\n:' + text + ' ~~~~', summary: '/* ' + row.req.title + ' */ תגובה', nocreate: 1
+			});
+		}).then(function () {
+			textarea.value = '';
+			done('נשמר.');
+			return fetchRequestSection(row.req).then(function (sec) {
+				row.req.status = sec.req.status === 'done' || row.req.mech === 'exists' ? 'done' : sec.req.status;
+				row.req.lastReply = sec.req.lastReply;
+				row.req.replyTemplates = sec.req.replyTemplates;
+				requestsState.flash = 'התגובה נשמרה ✓';
+				renderRequests(); // מצייר מחדש ופותח שוב את הפסקה (openTitle)
+			});
+		}).catch(function (e) {
+			done(e && e.message === 'moved' ? 'הדף השתנה מאז הטעינה - לא נשמר. לחץ "רענון".' : 'שגיאה - לא נשמר: ' + (e && (e.message || e.code) || e), true);
+		});
 	}
 
 	function loadCultureTab() {
@@ -2603,6 +2718,8 @@
 			var el = e.target.closest('[data-action]');
 			if (!el) {
 				// לחיצה על השורה עצמה (לא על קישור, כפתור או תיבת סימון) פותחת וסוגרת את הפרטים.
+				var reqTr = e.target.closest('#mchl-table-target tr.mchl-req-row');
+				if (reqTr && !e.target.closest('a, button, input, label, select, textarea')) { toggleRequestPanel(reqTr); return; }
 				var tr = e.target.closest('#mchl-table-target tr.mchl-expandable');
 				if (tr && !e.target.closest('a, button, input, label, select, textarea')) {
 					var b = tr.querySelector('[data-action="wf-details"]');
@@ -2628,6 +2745,7 @@
 			else if (action === 'wf-details') toggleContentDetails(el);
 			else if (action === 'import') importFromDashboard(el);
 			else if (action === 'req-filter') { requestsState.filter = el.getAttribute('data-v'); renderRequests(); }
+			else if (action === 'req-reply') replyToRequest(el);
 			else if (action === 'toggle-side') { uiPrefs.sideHidden = !uiPrefs.sideHidden; saveUiPrefs(); applySidePanel(); }
 			else if (action === 'chip-remove') removeChip(el.getAttribute('data-chip'));
 			else if (action === 'wf-image') {
@@ -2821,6 +2939,15 @@
 		'#mchl-dash .mchl-exists-now{color:#6FBF73;font-weight:700;cursor:help;}' +
 		'#mchl-dash .mchl-req-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px;}' +
 		'#mchl-dash .mchl-req-head a{font-size:13px;text-decoration:none;}' +
+		'#mchl-dash tr.mchl-req-row{cursor:pointer;}' +
+		'#mchl-dash tr.mchl-req-row.mchl-open{background:var(--mchl-ink-700);}' +
+		'#mchl-dash .mchl-req-panel{padding:12px 14px;background:var(--mchl-ink-800);border-radius:8px;}' +
+		'#mchl-dash .mchl-req-section{background:#fff;color:#202122;border-radius:6px;padding:10px 14px;font-size:14px;line-height:1.6;max-height:360px;overflow:auto;}' +
+		'#mchl-dash .mchl-req-section a{color:#36c;}' +
+		'#mchl-dash .mchl-req-section h2{font-size:17px;margin:0 0 6px;border-bottom:1px solid #ddd;color:#202122;}' +
+		'#mchl-dash .mchl-req-reply{margin-top:10px;display:flex;flex-direction:column;gap:8px;}' +
+		'#mchl-dash .mchl-req-reply textarea{width:100%;resize:vertical;font:inherit;}' +
+		'#mchl-dash .mchl-req-reply-btns{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}' +
 		'#mchl-dash .mchl-topic-cell{color:var(--mchl-text-2);font-size:12.5px;}' +
 		'#mchl-dash .mchl-tag{font-size:11px;border:1px solid var(--mchl-line);border-radius:6px;padding:0 5px;color:var(--mchl-mechalol);white-space:nowrap;}' +
 		'#mchl-dash tr.mchl-expandable{cursor:pointer;}' +
