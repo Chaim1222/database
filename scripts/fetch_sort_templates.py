@@ -28,7 +28,9 @@ from mechalol_api import api_get_with_retry, log, login
 from sort_template import parse_sort_template
 
 DENIED = object()
-DENIED_ERROR_CODES = {"accessdenied", "readapidenied", "permissiondenied"}
+# רק accessdenied (הקוד ש-match.py מטפל בו כדף נעול-לקריאה). readapidenied/permissiondenied
+# עשויים להעיד על הרשאה כללית של הבקשה ולא על הדף.
+DENIED_ERROR_CODES = {"accessdenied"}
 PAGE_SIZE = 2000
 
 

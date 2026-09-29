@@ -899,6 +899,19 @@ def main():
     recompute_elapsed = time.monotonic() - recompute_started
     log(f"שלב 2 הושלם | {recompute_elapsed:.1f} שנ'")
 
+    # שלב 3 | source_state של השורות שנבדקו (רק --scoped, על הטבלה הפעילה): שינוי
+    # wikipedia_id או היקף בהתאמה משנה את ההשוואה מול latest_rev_id, והעדכון השעתי
+    # מטפל רק בעריכות ובממתינים ולא בשינויי התאמה.
+    if only_ids is not None:
+        source_state_ids = sorted(only_ids)
+        for i in range(0, len(source_state_ids), RECOMPUTE_CHUNK_SIZE):
+            chunk = source_state_ids[i:i + RECOMPUTE_CHUNK_SIZE]
+            execute_with_retry(
+                lambda chunk=chunk: client.rpc("recompute_source_state", {"p_ids": chunk}).execute(),
+                "RECOMPUTE_SOURCE_STATE_SCOPED",
+            )
+        log(f"שלב 3 | source_state חושב מחדש ל-{len(source_state_ids):,} שורות מכלול (--scoped)")
+
     elapsed = int(time.monotonic() - started)
     matched_total = manual_matched + exact_matches + normalization_matches + template_matches
 
