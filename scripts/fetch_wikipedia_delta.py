@@ -36,6 +36,7 @@ from delta_api import (
     fetch_new_pages, fetch_delete_log, fetch_move_log,
     fetch_edited_page_ids, fetch_redirect_status,
 )
+import delta_watermark
 from supabase_client import get_client, execute_with_retry
 
 SOURCE = "wikipedia"
@@ -456,6 +457,13 @@ def main():
             "גם לא קריאה). לא כותב changed_ids.json ולא מזיז watermark."
         ),
     )
+    parser.add_argument(
+        "--defer-watermark", action="store_true",
+        help=(
+            "לא מקדם את ה-watermark במסד אלא כותב אותו לקובץ; advance_delta_watermarks.py "
+            "מקדם אותו אחרי שהתאמה (match.py --scoped) הצליחה. ראו delta_watermark.py."
+        ),
+    )
     args = parser.parse_args()
 
     if args.dry_run and not args.since:
@@ -541,14 +549,10 @@ def main():
         log("שגיאה - ה-watermark לא יתעדכן, הריצה הבאה תכסה מחדש את אותו טווח")
         raise
 
-    execute_with_retry(
-        lambda: client.table("sync_watermarks").update(
-            {"last_synced_ts": run_started_at}
-        ).eq("source", SOURCE).execute(),
-        "עדכון watermark",
-        log_fn=log,
-    )
-    log(f"סיום | watermark עודכן ל-{run_started_at}")
+    if args.defer_watermark:
+        delta_watermark.defer(SOURCE, run_started_at)
+    else:
+        delta_watermark.advance(client, SOURCE, run_started_at)
 
 
 if __name__ == "__main__":

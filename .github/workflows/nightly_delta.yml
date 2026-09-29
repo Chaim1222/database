@@ -43,13 +43,13 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python scripts/fetch_mechalol_delta.py
+        run: python scripts/fetch_mechalol_delta.py --defer-watermark
 
       - name: עדכון מצטבר - ויקיפדיה
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python scripts/fetch_wikipedia_delta.py
+        run: python scripts/fetch_wikipedia_delta.py --defer-watermark
 
       # --scoped: בודק רק שורות מכלול שהעדכון המצטבר הזה נגע בהן (ישירות, או
       # דרך wikipedia_id שהצביע לדף שהשתנה) - לא סריקה מלאה. קורא את
@@ -62,6 +62,14 @@ jobs:
           USER_NAME: ${{ secrets.USER_NAME }}
           PASSWORD: ${{ secrets.PASSWORD }}
         run: python scripts/match.py --scoped --login
+
+      # נקודות ההתקדמות מתקדמות רק אחרי שההתאמה הצליחה (--defer-watermark למעלה).
+      # אם match.py נכשל, הצעד הזה לא רץ והלילה הבא אוסף מחדש את אותו טווח.
+      - name: קידום נקודות התקדמות
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python scripts/advance_delta_watermarks.py
 
       - name: פתיחת Issue בעת כישלון
         if: failure()
