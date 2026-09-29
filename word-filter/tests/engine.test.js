@@ -109,9 +109,13 @@ test('case sensitivity follows the source list', () => {
 	assert.deepStrictEqual(texts('the General Assembly'), []);
 });
 
-test('wiki leftovers are checked on visible text only', () => {
-	assert.deepStrictEqual(texts('{{ויקיפדיה}} [[ויקיפדיה:מדיניות|מדיניות]] <!-- ויקיפדיה -->'), []);
-	assert.ok(texts('הערך הועתק מוויקיפדיה').length);
+// שאריות ויקיפדיה - הקוד עצמו, לא המילה (הכרעת חיים 2026-09-29).
+test('wiki leftovers: only the templates and wiki-namespace links, not the words', () => {
+	for (const t of ['{{בעבודה}}\nטקסט', '{{בעבודה מתמשכת|תאריך=2020}}', '[[קטגוריה:ויקיפדיה: ערכים של משתמשים חדשים|א]]',
+		'ראו [[ויקיפדיה:מדיניות|מדיניות]]'])
+		assert.ok(texts(t).length, t);
+	for (const t of ['לחץ בעבודה', 'הערך הועתק מוויקיפדיה', 'בוויקיפדיה האנגלית', '{{ויקיפדיה}}', '<!-- ויקיפדיה -->', '{{בעבודות}}'])
+		assert.deepStrictEqual(texts(t), [], t);
 });
 
 // גיל העולם (הכרעת חיים 2026-09-24): חמור, נספר ברמה. הרשומות עדיין בגדר הצעה.
@@ -373,4 +377,13 @@ test('spelling variants and exclusions from the GPT study (Chaim approved, 2026-
 		['הם בילו במועדון לילה', 'w0385'], ['בשנת 3761 לפנה"ס', 'w0197'], ['בשנת 3,761 לפנה"ס', 'w0197'], ['בשנת 4000 לפנה״ס', 'w0197'], ['gay rights', 'w0097']]) assert.ok(hit(t, id), t);
 	for (const [t, id] of [['בשנת 3760 לפנה"ס', 'w0197'], ['ניגן בו הסקסופוניסט', 'w0001'], ['רמת הומוציסטאין', 'w0014'], ['ג׳יימס פין כתב', 'w0219'],
 		['Gaylord Perry', 'w0097'], ['המועדון נסגר בלילה', 'w0385']]) assert.ok(!hit(t, id), t);
+});
+
+test('k024: minors in the sentence make "מין"/"אונס" a certain problem, not "מקטינה" (Chaim, 2026-09-28)', () => {
+	const usage = require('../lists/usage.json');
+	const clues = engine.compileClues(require('../lists/context.json'));
+	const lvl = (t) => engine.contextLevels(t, engine.scan(t, FULL), usage, clues).find((m) => /מין|אונס/.test(m.text)).context;
+	assert.strictEqual(lvl('תחקיר המייחס לו מין עם קטינות.').level, 'problem');
+	assert.notStrictEqual(lvl('דעות לגבי אונס, המקטינות את הסיכוי.').clues, ['k024']);
+	assert.strictEqual(lvl('זרימת גנים בין אוכלוסיות של אותו המין, ובכך מקטינה את הסיכוי.').level, 'review');
 });
