@@ -1326,6 +1326,49 @@
 			'<button type="button" class="mchl-refresh" data-action="retry" style="margin:16px auto 0;"><span class="mchl-dot"></span> ניסיון נוסף</button></div>';
 	}
 
+	// ===== ייבוא - כמו הכפתורים של הקישורים האדומים (Gadget-redLinksForImport) =====
+	// דרך mw.import של Gadget-mw-import: הקוד מוויקיפדיה עם ההחלפות האוטומטיות, {{וח}} ו-{{מיון ויקיפדיה}},
+	// ונפתח בלשונית חדשה בתצוגה מקדימה - שום דבר לא נשמר בלי לחיצה על "שמירה".
+	// ערך מילוני (עמודת dictionary) - במצב "בוט ייבוא" (mw-import-tionary.js): פתיח, בלי תמונות, {{בוט <סוג>}}.
+	// הסוג לפי תבניות הבוט במכלול (word-filter/analysis/dictionary-rules.md); כשאין התאמה ברורה - ייבוא רגיל.
+	function importBotClass(row) {
+		if (!row.dictionary) return null;
+		var why = row.dictionary_why || '';
+		if (/^תבנית סינגל$/.test(why)) return 'שירים';
+		if (/^תבנית מדינה באירוויזיון$/.test(why)) return 'תרבות ובידור';
+		if (/^תבנית דמות בדיונית$/.test(why)) return null;
+		return { 'ספורט': 'ספורט', 'מוזיקה': 'מוזיקה', 'מוזיקאים': 'מוזיקאים', 'שחקנים': 'שחקנים', 'סרטים': 'סרטים',
+			'טלוויזיה': 'טלוויזיה', 'ספרות': 'ספרות', 'משחקי מחשב': 'משחקי מחשב' }[row.dictionary] || null;
+	}
+
+	var importerPromise = null;
+	function getImporter() {
+		if (!importerPromise) {
+			importerPromise = mw.loader.using(['ext.gadget.mw-import']).then(function () { return new mw.import(); });
+			importerPromise.catch(function () { importerPromise = null; });
+		}
+		return importerPromise;
+	}
+
+	function importFromDashboard(btn) {
+		var title = btn.getAttribute('data-title');
+		var bot = btn.getAttribute('data-bot') || false;
+		if (!title || btn.disabled) return;
+		btn.disabled = true;
+		var label = btn.textContent;
+		btn.textContent = 'טוען...';
+		var done = function () { btn.disabled = false; btn.textContent = label; };
+		getImporter().then(function (importer) {
+			// form: true - importWikitext פותח את טופס העריכה בעצמו ולא מחזיר תוצאה.
+			var p = importer.importWikitext({ page: title, exist: false, currentPage: title, form: true, bot: bot });
+			if (p && p.catch) p.catch(function (err) { mw.notify(String(err), { type: 'warn' }); done(); });
+			setTimeout(done, 1500);
+		}, function () {
+			mw.notify('לא ניתן לטעון את גאדג\'ט הייבוא (mw-import).', { type: 'error' });
+			done();
+		});
+	}
+
 	function effectiveColumns(cfg) {
 		// עמודת השיוך הידני מתווספת רק בטאב "חסר במכלול", ורק כש-
 		// יש חיבור פעיל - לא כל מבקר בטאב הזה אמור לראות אותה בכלל.
@@ -1372,8 +1415,13 @@
 		}
 		if (col === 'wf_matches') return renderWfMatches(row);
 		if (col === 'import_action') {
-			// ייבוא - יחובר בהמשך למערך הייבוא; בינתיים מנוטרל.
-			return '<button type="button" class="mchl-import-btn" disabled title="ייבוא - יחובר בהמשך למערך הייבוא">ייבוא</button>';
+			// "קיים במכלול כהפניה" - הפעולה היא לבדוק את יעד ההפניה, לא לייבא על ההפניה.
+			if (activeTab === 'missing_redirect') return '<button type="button" class="mchl-import-btn" disabled title="קיים במכלול כהפניה - לבדוק את יעד ההפניה">ייבוא</button>';
+			var bot = importBotClass(row);
+			return '<button type="button" class="mchl-import-btn" data-action="import" data-title="' + escapeHtml(row.title) + '"' +
+				(bot ? ' data-bot="' + escapeHtml(bot) + '"' : '') + ' title="' +
+				escapeHtml(bot ? 'ייבוא מילוני (בוט ' + bot + '): פתיח, בלי תמונות - נפתח בלשונית חדשה לתצוגה מקדימה' : 'ייבוא - נפתח בלשונית חדשה לתצוגה מקדימה') + '">' +
+				(bot ? 'ייבוא מילוני' : 'ייבוא') + '</button>';
 		}
 		if (col === 'expand') {
 			return wfHasDetails(row) ? '<button type="button" class="mchl-expand-btn" data-action="wf-details" data-id="' + row.id + '" title="פרטים: המילים במשפט שלהן, הקוד המוסתר והתמונות" aria-expanded="false">▾</button>' : '';
@@ -2145,6 +2193,7 @@
 			else if (action === 'toggle-admin-panel') toggleAdminPanel();
 			else if (action === 'auth-login') authLogin();
 			else if (action === 'wf-details') toggleContentDetails(el);
+			else if (action === 'import') importFromDashboard(el);
 			else if (action === 'chip-remove') removeChip(el.getAttribute('data-chip'));
 			else if (action === 'wf-image') {
 				var detailsRow = el.closest('tr.mchl-wf-details-row');
@@ -2312,6 +2361,8 @@
 		'#mchl-dash .mchl-expand-btn{background:none;border:1px solid var(--mchl-line);border-radius:6px;color:var(--mchl-text-2);cursor:pointer;width:26px;height:24px;line-height:1;}' +
 		'#mchl-dash .mchl-import-btn{background:none;border:1px solid var(--mchl-line);border-radius:6px;color:var(--mchl-text-3);padding:3px 10px;font:inherit;font-size:12.5px;white-space:nowrap;}' +
 		'#mchl-dash .mchl-import-btn:disabled{cursor:not-allowed;opacity:.6;}' +
+		'#mchl-dash .mchl-import-btn:not(:disabled){cursor:pointer;color:var(--mchl-text-1);}' +
+		'#mchl-dash .mchl-import-btn:not(:disabled):hover{border-color:var(--mchl-wiki);}' +
 		'#mchl-dash input.mchl-filter-number{width:150px;}' +
 		'#mchl-dash .mchl-clear-filters{background:none;border:none;color:var(--mchl-text-2);font-size:13px;cursor:pointer;text-decoration:underline;padding:0;}' +
 		'#mchl-dash .mchl-spacer{flex:1;}' +
