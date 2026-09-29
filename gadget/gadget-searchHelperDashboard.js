@@ -1600,6 +1600,7 @@
 			if (chipsTotal) chipsTotal.textContent = countUnknown ? 'מספר הערכים לא ידוע' : totalRows.toLocaleString('he-IL') + ' ערכים';
 			loadWikidataDescriptionsForCurrentPage();
 			loadRedirectTargetsForCurrentPage();
+			markExistingInMechalol();
 			loadDeletionHintsForCurrentPage();
 		}).catch(function (e) {
 			if (myRequestId !== loadRequestId) return;
@@ -1716,6 +1717,34 @@
 		});
 	}
 
+	// ערכים מ"חסר במכלול" שכבר נוצרו במכלול מאז העדכון הלילי (ייבוא שלי או של מישהו אחר) -
+	// נבדק בזמן אמת מול המכלול לכל עמוד, ושוב כשחוזרים ללשונית. וי ירוק וכפתור ייבוא מנוטרל.
+	var existsNow = new Set();
+	function markExistingInMechalol() {
+		if (activeTab !== 'missing' || !currentPageRows.length) return;
+		var titles = currentPageRows.map(function (r) { return r.title; }).filter(Boolean);
+		batches(titles, 50).forEach(function (b) {
+			mwApiFetch({ action: 'query', titles: b.join('|'), prop: 'info' }).then(function (d) {
+				var q = d.query || {}, back = {};
+				(q.normalized || []).forEach(function (n) { back[n.to] = n.from; });
+				(q.pages || []).forEach(function (pg) { if (!pg.missing) existsNow.add(back[pg.title] || pg.title); });
+				paintExisting();
+			}).catch(function () { /* לא נבדק - נשאר כמו שהוא */ });
+		});
+	}
+	function paintExisting() {
+		document.querySelectorAll('#mchl-table-target button.mchl-import-btn[data-title]').forEach(function (btn) {
+			var t = btn.getAttribute('data-title');
+			if (!existsNow.has(t) || btn.hasAttribute('data-exists')) return;
+			btn.setAttribute('data-exists', '1');
+			btn.disabled = true;
+			btn.title = 'כבר קיים במכלול';
+			var link = btn.closest('tr') && btn.closest('tr').querySelector('.mchl-title');
+			if (link) link.insertAdjacentHTML('beforeend', ' <span class="mchl-exists-now" title="כבר קיים במכלול (נוצר מאז העדכון האחרון)">✓</span>');
+		});
+	}
+	document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') markExistingInMechalol(); });
+
 	var importerPromise = null;
 	function getImporter() {
 		if (!importerPromise) {
@@ -1776,6 +1805,7 @@
 				columns.map(function (c) { return '<td data-label="' + escapeHtml(COLUMN_LABELS[c] || c) + '">' + renderCell(c, r) + '</td>'; }).join('') + '</tr>';
 		}).join('');
 		$id('mchl-table-target').innerHTML = '<table><thead>' + thead + '</thead><tbody>' + tbody + '</tbody></table>';
+		paintExisting();
 	}
 
 	function renderCell(col, row) {
@@ -2788,6 +2818,7 @@
 		'#mchl-dash .mchl-nowrap{white-space:nowrap;}' +
 		'#mchl-dash .mchl-with-side .mchl-title{display:inline-block;min-width:11em;}' +
 		'#mchl-dash .mchl-row-desc{color:var(--mchl-text-3);font-size:12px;margin-top:2px;}' +
+		'#mchl-dash .mchl-exists-now{color:#6FBF73;font-weight:700;cursor:help;}' +
 		'#mchl-dash .mchl-req-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px;}' +
 		'#mchl-dash .mchl-req-head a{font-size:13px;text-decoration:none;}' +
 		'#mchl-dash .mchl-topic-cell{color:var(--mchl-text-2);font-size:12.5px;}' +
