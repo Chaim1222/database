@@ -109,9 +109,13 @@ test('case sensitivity follows the source list', () => {
 	assert.deepStrictEqual(texts('the General Assembly'), []);
 });
 
-test('wiki leftovers are checked on visible text only', () => {
-	assert.deepStrictEqual(texts('{{ויקיפדיה}} [[ויקיפדיה:מדיניות|מדיניות]] <!-- ויקיפדיה -->'), []);
-	assert.ok(texts('הערך הועתק מוויקיפדיה').length);
+// שאריות ויקיפדיה - הקוד עצמו, לא המילה (הכרעת חיים 2026-09-29).
+test('wiki leftovers: only the templates and wiki-namespace links, not the words', () => {
+	for (const t of ['{{בעבודה}}\nטקסט', '{{בעבודה מתמשכת|תאריך=2020}}', '[[קטגוריה:ויקיפדיה: ערכים של משתמשים חדשים|א]]',
+		'ראו [[ויקיפדיה:מדיניות|מדיניות]]'])
+		assert.ok(texts(t).length, t);
+	for (const t of ['לחץ בעבודה', 'הערך הועתק מוויקיפדיה', 'בוויקיפדיה האנגלית', '{{ויקיפדיה}}', '<!-- ויקיפדיה -->', '{{בעבודות}}'])
+		assert.deepStrictEqual(texts(t), [], t);
 });
 
 // גיל העולם (הכרעת חיים 2026-09-24): חמור, נספר ברמה. הרשומות עדיין בגדר הצעה.
