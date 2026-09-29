@@ -83,16 +83,17 @@ def fetch_contents(page_ids):
 
 
 def build_row(page_id, fetched):
-    parsed = parse_sort_template(fetched["content"]) or {}
-    date = parsed.get("date")
-    return {
+    """מחזיר (שורה לכתיבה, האם נמצאה תבנית). הכותרת (`דף=`) לא נשמרת - נגזרת מ-wikipedia_id."""
+    parsed = parse_sort_template(fetched["content"])
+    date = parsed["date"] if parsed else None
+    row = {
         "id": page_id,
         "rev_id": fetched["rev_id"],
         "rev_ts": fetched["rev_ts"],
-        "rev": parsed.get("rev"),
-        "title": parsed.get("title"),
+        "rev": parsed["rev"] if parsed else None,
         "date": date.isoformat() if date else None,
     }
+    return row, parsed is not None
 
 
 def pending_pages(client, shard, shards):
@@ -144,9 +145,9 @@ def process_pages(page_ids, client, stats, examples, batch):
             elif item is None:
                 stats["missing"] += 1
             else:
-                row = build_row(pid, item)
+                row, has_template = build_row(pid, item)
                 stats["fetched"] += 1
-                if row["title"] is None and row["rev"] is None and row["date"] is None:
+                if not has_template:
                     stats["no_template"] += 1
                 elif row["rev"] is None:
                     stats["no_rev"] += 1
