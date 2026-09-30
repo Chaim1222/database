@@ -1859,7 +1859,7 @@
 	// mw.import יכול להיות דרוס: הקובץ הישן מדיה ויקי:Gadget-mw-import.js (לא רשום כגאדג'ט) מגדיר
 	// mw.import = {openForm, getProperties}, ואם הוא נטען בדף אחרי הגאדג'ט - המחלקה אובדת ("mw.import is
 	// not a constructor"). לכן הקוד של ext.gadget.mw-import נטען כאן לעותק פרטי, בלי לגעת ב-mw.import הגלובלי.
-	function loadImportClass() {
+	function loadImportPackage() {
 		return $.ajax({
 			url: mw.util.wikiScript('load'), dataType: 'text', cache: true,
 			data: { modules: 'ext.gadget.mw-import', only: 'scripts', lang: mw.config.get('wgUserLanguage'), skin: mw.config.get('skin') }
@@ -1872,6 +1872,27 @@
 			local.loader.state = function () {};
 			new Function('mw', code)(local);
 			if (!pkg || !pkg.files || !pkg.main) throw new Error('הקוד של mw-import לא נמצא');
+			return { pkg: pkg, local: local };
+		});
+	}
+	// רשימת ההחלפות הקבועות של הייבוא ("גיורים"), מתוך חבילת הגאדג'ט. נטענת פעם אחת.
+	var importReplacementsPromise = null;
+	function getImportReplacements() {
+		if (!importReplacementsPromise) {
+			importReplacementsPromise = loadImportPackage().then(function (r) {
+				var files = r.pkg.files;
+				var list = files['mw-import-replacements.json'] || files['./mw-import-replacements.json'];
+				if (typeof list === 'string') list = JSON.parse(list);
+				if (!Array.isArray(list)) throw new Error('רשימת ההחלפות לא נמצאה בחבילה');
+				return list;
+			});
+			importReplacementsPromise.catch(function () { importReplacementsPromise = null; });
+		}
+		return importReplacementsPromise;
+	}
+	function loadImportClass() {
+		return loadImportPackage().then(function (r) {
+			var pkg = r.pkg, local = r.local;
 			var cache = {};
 			var req = function (name) {
 				var key = name.replace(/^\.\//, '');
@@ -2048,7 +2069,7 @@
 	}
 	// <merge3>
 	// מיזוג תלת-כיווני ברמת שורות (base = הגרסה ששולבה, ours = המכלול היום, theirs = ויקיפדיה עכשיו).
-	// שינויים חופפים או צמודים שאינם זהים הופכים להתנגשות עם סימנים בסגנון git.
+	// שינויים חופפים שאינם זהים הופכים להתנגשות עם סימנים בסגנון git.
 	var MERGE_MAX_CELLS = 6000000;
 	function lcsPairs(a, b) {
 		var pre = 0, n = a.length, m = b.length;
@@ -2095,10 +2116,13 @@
 			var start = Math.min(i < ho.length ? ho[i].bs : Infinity, j < ht.length ? ht[j].bs : Infinity);
 			for (; pos < start; pos++) out.push(base[pos]);
 			var co = [], ct = [], ce = start, grew = true;
+			// שינויים חופפים הם באותו אשכול. שני שינויים צמודים שאינם חופפים (שורה 5 אצלנו, שורה 6 אצלם) ממוזגים
+			// בנפרד; רק הוספה בנקודה שבה השני נגמר (או שינוי באותה נקודה) נחשבת חפיפה.
+			var hit = function (h) { return h.bs < ce || (h.bs === ce && (h.be === h.bs || ce === start)); };
 			while (grew) {
 				grew = false;
-				while (i < ho.length && ho[i].bs <= ce) { co.push(ho[i]); ce = Math.max(ce, ho[i].be); i++; grew = true; }
-				while (j < ht.length && ht[j].bs <= ce) { ct.push(ht[j]); ce = Math.max(ce, ht[j].be); j++; grew = true; }
+				while (i < ho.length && hit(ho[i])) { co.push(ho[i]); ce = Math.max(ce, ho[i].be); i++; grew = true; }
+				while (j < ht.length && hit(ht[j])) { ct.push(ht[j]); ce = Math.max(ce, ht[j].be); j++; grew = true; }
 			}
 			var cs = start;
 			if (!ct.length) { out.push.apply(out, range(co, ours, cs, ce)); auto++; }
@@ -2112,6 +2136,21 @@
 		}
 		for (; pos < base.length; pos++) out.push(base[pos]);
 		return { text: out.join('\n'), conflicts: conflicts, auto: auto };
+	}
+	// אותן החלפות אוטומטיות כמו applyReplacements בייבוא (mw-import): regex עם gi, רק אם יש התאמה.
+	function applyImportReplacements(text, replacements) {
+		(replacements || []).forEach(function (r) {
+			var regex = new RegExp(r.from, 'gi');
+			if (regex.test(text)) text = text.replace(regex, r.to);
+		});
+		return text;
+	}
+	// הייבוא מצרף בסוף הערך {{וח}} (או {{וח|דף}}) ואחריה {{מיון ויקיפדיה}}. מפרידים אותם לפני המיזוג
+	// (הבסיס וגרסת ויקיפדיה לא מכילים אותם) ומצרפים בחזרה אחרי, כדי שלא יהפכו להתנגשות עם שינוי בסוף הערך.
+	var IMPORT_TAIL_RE = /(\n[ \t]*\{\{וח(?:\|[^{}]*)?\}\}[ \t]*\n[ \t]*\{\{מיון ויקיפדיה[\s\S]*\}\}\s*)$/;
+	function splitImportTail(text) {
+		var m = IMPORT_TAIL_RE.exec(text);
+		return m ? { body: text.slice(0, m.index), tail: m[1] } : { body: text, tail: '' };
 	}
 	// </merge3>
 
@@ -2166,7 +2205,8 @@
 		var status = res.conflicts
 			? '<span class="mchl-badge mchl-alert">' + res.conflicts + ' התנגשויות לפתרון</span>'
 			: (same ? '<span class="mchl-badge mchl-wiki">אין מה לשלב בטקסט</span>' : '<span class="mchl-badge mchl-wiki">מיזוג נקי</span>');
-		return '<div class="mchl-upd-merge">' + status + ' <span class="mchl-muted">' + res.auto + ' שינויים שמוזגו אוטומטית · ' + (res.conflicts ? 'ההתנגשויות מסומנות בטקסט ב-&lt;&lt;&lt;&lt;&lt;&lt;&lt; … ======= … &gt;&gt;&gt;&gt;&gt;&gt;&gt;' : 'כדאי לעבור על מה שנוסף לפני השמירה (מיזוג נקי אינו מבטיח שהתוכן החדש עומד בסינון)') + '</span> ' +
+		var convNote = res.converted ? '' : ' <span class="mchl-badge mchl-review" title="רשימת ההחלפות של הייבוא לא נטענה, ולכן המיזוג נעשה על טקסט גולמי מוויקיפדיה; צפויות יותר התנגשויות">בלי החלפות הייבוא</span>';
+		return '<div class="mchl-upd-merge">' + status + convNote + ' <span class="mchl-muted">' + res.auto + ' שינויים שמוזגו אוטומטית · ' + (res.conflicts ? 'ההתנגשויות מסומנות בטקסט ב-&lt;&lt;&lt;&lt;&lt;&lt;&lt; … ======= … &gt;&gt;&gt;&gt;&gt;&gt;&gt;' : 'כדאי לעבור על מה שנוסף לפני השמירה (מיזוג נקי אינו מבטיח שהתוכן החדש עומד בסינון)') + '</span> ' +
 			'<button type="button" class="mchl-import-btn" data-action="update-merge-open" data-id="' + row.id + '">פתח בעריכה במכלול</button></div>';
 	}
 	function toggleUpdatePanel(btn) {
@@ -2181,9 +2221,17 @@
 		detailsTr.innerHTML = '<td colspan="' + tr.children.length + '"><div class="mchl-upd-box mchl-muted">טוען את שלוש הגרסאות ומבצע מיזוג…</div></td>';
 		tr.parentNode.insertBefore(detailsTr, tr.nextSibling);
 		var box = detailsTr.querySelector('.mchl-upd-box');
-		var cached = updateMergeCache.get(row.id) ? Promise.resolve(updateMergeCache.get(row.id)) : loadUpdateVersions(row).then(function (v) {
-			var m = merge3(v.base.text, v.ours.text, v.theirs.text);
-			var res = { merged: updateSortTemplate(m.text, v.theirs.revid, new Date()), oursText: v.ours.text, conflicts: m.conflicts, auto: m.auto, latestRev: v.theirs.revid, title: v.ours.title, oursTs: v.ours.ts };
+		var cached = updateMergeCache.get(row.id) ? Promise.resolve(updateMergeCache.get(row.id)) : Promise.all([
+			loadUpdateVersions(row),
+			getImportReplacements().then(function (list) { return list; }, function () { return null; })
+		]).then(function (all) {
+			var v = all[0], list = all[1];
+			// הבסיס וגרסת ויקיפדיה עוברים את אותן החלפות של הייבוא, כדי ששינויי "גיור" לא יהפכו להתנגשויות מדומות.
+			var base = list ? applyImportReplacements(v.base.text, list) : v.base.text;
+			var theirs = list ? applyImportReplacements(v.theirs.text, list) : v.theirs.text;
+			var ours = splitImportTail(v.ours.text);
+			var m = merge3(base, ours.body, theirs);
+			var res = { merged: updateSortTemplate(m.text + ours.tail, v.theirs.revid, new Date()), oursText: v.ours.text, conflicts: m.conflicts, auto: m.auto, latestRev: v.theirs.revid, title: v.ours.title, oursTs: v.ours.ts, converted: !!list, tail: !!ours.tail };
 			updateMergeCache.set(row.id, res);
 			return res;
 		});
