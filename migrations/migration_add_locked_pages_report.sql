@@ -13,7 +13,7 @@
 --
 -- security_invoker = true, כמו שאר ה-views: כפוף ל-RLS של הטבלאות (דורש policy קריאה ל-anon
 -- על mechalol_pages, manual_matches, blacklist_titles, wikipedia_pages - כולן כבר קיימות).
--- להרצה חד-פעמית בעורך ה-SQL של סופבייס (לא הורץ עדיין).
+-- הורץ בסופבייס ב-2026-09-30 (apply_migration: add_locked_pages_report); נבדק גם כ-anon: 1,269 נעולים לקריאה, 2,233 נעולים ליצירה.
 
 create or replace view report_locked_pages with (security_invoker = true) as
 select
