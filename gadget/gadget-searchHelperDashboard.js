@@ -2066,7 +2066,7 @@
 
 	// ===== טאב "עדכון": הקוד ב-gadget-searchHelperDashboard-update.js, נטען כשנפתח הטאב =====
 	// המודול קורא את מה שהדשבורד חושף ב-window.mchlDash, ורושם בו את mchlDash.update.
-	var UPDATE_MODULE_PAGE = 'MediaWiki:Gadget-searchHelperDashboardUpdate.js';
+	var UPDATE_MODULE_PAGE = 'MediaWiki:Gadget-searchHelperDashboard.js/update';
 	var updateMod = null;
 	var updateModPromise = null;
 	function loadUpdateModule() {
