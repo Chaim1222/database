@@ -161,7 +161,9 @@
 				options: ['בשנה האחרונה', 'לפני שנה עד שנתיים', '2020 עד לפני שנתיים', 'לפני 2020', 'ללא תאריך']
 			}],
 			order: 'sort_template_date.asc.nullslast,id.asc', titleLink: 'edit', freshness: true, liveChange: true,
-			group: 'wikiupdate'
+			group: 'wikiupdate',
+			// זמני: מוצג רק למי שמחובר עם משתמש וסיסמה (פאנל הניהול), כמו שיוך כותרות. להסרה: למחוק את השורה.
+			requiresLogin: true
 		},
 		// ערכי ויקיפדיה שהוצאו מ"חסר במכלול" רק בגלל כותרת זהה אחרי הסרת
 		// "הרב"/"רבי" - לא התאמה ודאית, דורש אישור אנושי. ה-view היה קיים
@@ -191,6 +193,7 @@
 	// הלקוח בלבד, לא הגנה: הנתונים עצמם קריאים ל-anon.
 	function tabAllowed(key) {
 		var v = VIEWS[key];
+		if (v && v.requiresLogin && !serviceKeyConnected) return false;
 		return !(v && v.group && userLevel < (GROUP_LEVELS[v.group] || Infinity));
 	}
 	function groupOfTab(key) { return TAB_GROUPS.filter(function (g) { return g.tabs.indexOf(key) >= 0; })[0] || TAB_GROUPS[0]; }
@@ -692,6 +695,13 @@
 	}
 
 	// ===== בניית הממשק =====
+	// מצב ההתחברות קובע אילו לשוניות מוצגות (requiresLogin): בונים את הלשוניות מחדש, ואם הפעילה הוסתרה חוזרים ל"חסר במכלול".
+	function syncAuthTabs() {
+		if (!$id('mchl-tabs')) return;
+		buildTabs();
+		if (!tabAllowed(activeTab)) switchTab('missing');
+		loadStats(); // ממלא מחדש את מוני הלשוניות שנבנו מחדש
+	}
 	function buildTabs() {
 		var nav = $id('mchl-tabs');
 		nav.innerHTML = '';
@@ -699,6 +709,7 @@
 		groupsRow.className = 'mchl-tab-groups';
 		nav.appendChild(groupsRow);
 		TAB_GROUPS.forEach(function (g) {
+			if (!g.tabs.some(tabAllowed)) return; // קבוצה בלי לשוניות מותרות (למשל "עדכון" למי שלא מחובר) לא מוצגת
 			var gb = document.createElement('button');
 			gb.type = 'button';
 			gb.className = 'mchl-tab-group';
@@ -734,8 +745,10 @@
 	function markActiveTab() {
 		var g = groupOfTab(activeTab);
 		TAB_GROUPS.forEach(function (x) {
-			$id('mchl-tabgroup-' + x.key).classList.toggle('mchl-active', x === g);
-			$id('mchl-subtabs-' + x.key).classList.toggle('mchl-open', x === g);
+			var gb = $id('mchl-tabgroup-' + x.key), sub = $id('mchl-subtabs-' + x.key);
+			if (!gb || !sub) return; // קבוצה מוסתרת
+			gb.classList.toggle('mchl-active', x === g);
+			sub.classList.toggle('mchl-open', x === g);
 		});
 		document.querySelectorAll('#mchl-dash .mchl-tab').forEach(function (t) { t.classList.toggle('mchl-active', t.id === 'mchl-tab-' + activeTab); });
 		uiPrefs['lastTab:' + g.key] = activeTab;
@@ -1098,7 +1111,8 @@
 		}).then(function () {
 			return new mw.Api().postWithToken('csrf', {
 				action: 'edit', title: REQUESTS_PAGE, section: String(row.req.section),
-				appendtext: '\n:' + text + ' ~~~~', summary: '/* ' + row.req.title + ' */ תגובה', nocreate: 1
+				// חתימה: ארבע טילדות ברצף בקוד הגאדג'ט (בדף JS במכלול) מומרות לחתימה בשמירה, ולכן מפוצלות בכוונה.
+				appendtext: '\n:' + text + ' ~~' + '~~', summary: '/* ' + row.req.title + ' */ תגובה', nocreate: 1
 			});
 		}).then(function () {
 			textarea.value = '';
@@ -2287,6 +2301,21 @@
 	}
 	// </merge3>
 
+	// <content-check>
+	// התאמות חדשות שהעדכון מכניס: בטקסט המועמד ולא בערך הנוכחי (לפי המילה והסביבה הקרובה שלה, כדי שמה שכבר
+	// קיים ואושר בערך לא יוצג שוב). core = המנוע של word-filter (mw.wikitextWordCheck.core), lists = רשימות מקומפלות.
+	function newContentMatches(core, lists, candidateText, oursText, options) {
+		var key = function (text, m) { var c = core.contextOf(text, m, 25); return m.text + '|' + c.before + '|' + c.after; };
+		var seen = {};
+		core.scan(oursText, lists, options).forEach(function (m) { var k = key(oursText, m); seen[k] = (seen[k] || 0) + 1; });
+		return core.scan(candidateText, lists, options).filter(function (m) {
+			var k = key(candidateText, m);
+			if (seen[k]) { seen[k]--; return false; }
+			return true;
+		});
+	}
+	// </content-check>
+
 	function fetchWikipediaContent(params) {
 		return wikipediaApi(Object.assign({ action: 'query', prop: 'revisions', rvprop: 'ids|content', rvslots: 'main' }, params)).then(function (d) {
 			var pg = (d.query && d.query.pages || [])[0], rv = pg && (pg.revisions || [])[0];
@@ -2309,6 +2338,77 @@
 			});
 		});
 	}
+	// ===== בדיקת תוכן (מנוע סינון המילים) לתוספות של העדכון =====
+	// המנוע נחשף על ידי הגאדג'ט "בדיקת מילים חשודות" כ-mw.wikitextWordCheck (word-filter/Gadget-wikitextWordCheck.js).
+	// נבדק הטקסט האפשרי הרחב ביותר (בהתנגשות: שלנו ואחריו ויקיפדיה) מול הערך הנוכחי, ומוצגות רק התאמות חדשות.
+	// מיקום המנוע, בלי צורך בגאדג'ט: דף סקריפט + שני דפי JSON (כמו "כסקריפט אישי" ב-word-filter/README.md). מגדירים ב-common.js
+	// או כאן: window.mchlWordCheck = { script: 'משתמש:X/wordcheck.js', words: 'משתמש:X/words.json', allow: 'משתמש:X/allow.json' };
+	// (script = תוכן הקובץ word-filter/Gadget-wikitextWordCheck.js; words/allow = lists/words.json ו-lists/allow.json).
+	// אם קיים גאדג'ט בשם wikitextWordCheck, הוא משמש כברירת מחדל.
+	var wordCheckPromise = null;
+	function getWordCheck() {
+		if (!wordCheckPromise) {
+			var cfg = window.mchlWordCheck || {};
+			var ready = function () {
+				if (!mw.wikitextWordCheck) throw new Error('המנוע נטען אבל לא נחשף - צריך את הגרסה העדכנית של Gadget-wikitextWordCheck.js');
+				return mw.wikitextWordCheck;
+			};
+			wordCheckPromise = Promise.resolve(mw.loader.using(['mediawiki.api', 'mediawiki.util'])).then(function () {
+				if (mw.wikitextWordCheck) return mw.wikitextWordCheck;
+				if (cfg.script) {
+					// המנוע קורא את מיקום הרשימות בזמן הטעינה, ולכן מגדירים לפני.
+					if (cfg.words) window.wikitextWordCheckPages = { words: cfg.words, allow: cfg.allow };
+					var url = mw.util.wikiScript('index') + '?title=' + encodeURIComponent(cfg.script) + '&action=raw&ctype=text/javascript';
+					return Promise.resolve(mw.loader.getScript(url)).then(ready);
+				}
+				if (mw.loader.getState('ext.gadget.wikitextWordCheck')) return Promise.resolve(mw.loader.using('ext.gadget.wikitextWordCheck')).then(ready);
+				throw new Error('מנוע הסינון לא מוגדר: אין גאדג\'ט wikitextWordCheck, ולא הוגדר window.mchlWordCheck (דף סקריפט ודפי רשימות)');
+			}).then(function (wc) {
+				return Promise.resolve(wc.loadLists()).then(function (lists) { return { core: wc.core, lists: lists }; });
+			});
+			wordCheckPromise.catch(function () { wordCheckPromise = null; });
+		}
+		return wordCheckPromise;
+	}
+	function updateCandidateText(res) {
+		var choices = res.parts.filter(function (p) { return p.t === 'conflict'; }).map(function () { return 'both'; });
+		return renderParts(res.parts, choices) + res.tail;
+	}
+	function contentCheckHtml(core, candidate, matches) {
+		var level = core.verdict(matches);
+		var counted = function (m) { return core.VERDICT_TOPICS.indexOf(m.topic) >= 0; };
+		var cls = { problem: 'mchl-alert', review: 'mchl-review', wording: 'mchl-neutral', clean: 'mchl-wiki' }[level];
+		var n = function (lv) { return matches.filter(function (m) { return counted(m) && m.level === lv; }).length; };
+		var head = '<span class="mchl-badge ' + cls + '">בדיקת תוכן חדש: ' + escapeHtml(core.LEVEL_LABELS[level]) + '</span>';
+		if (level === 'clean') return head + ' <span class="mchl-muted">לא נמצאו התאמות חדשות</span>';
+		var counts = (n('problem') ? n('problem') + ' בעיה ודאית' : '') + (n('problem') && n('review') ? ' · ' : '') + (n('review') ? n('review') + ' לבדיקה' : '');
+		var order = { problem: 0, review: 1 };
+		var sorted = matches.slice().sort(function (a, b) {
+			return (counted(b) - counted(a)) || ((order[a.level] === undefined ? 2 : order[a.level]) - (order[b.level] === undefined ? 2 : order[b.level])) || a.start - b.start;
+		});
+		var item = function (m) {
+			var c = core.contextOf(candidate, m, 60);
+			return '<li>[' + escapeHtml(core.TOPIC_LABELS[m.topic] || m.topic) + (counted(m) ? ', ' + escapeHtml(core.LEVEL_LABELS[m.level]) : '') + ']: ' +
+				escapeHtml(c.before) + '<mark>' + escapeHtml(c.text) + '</mark>' + escapeHtml(c.after) + '</li>';
+		};
+		return head + (counts ? ' <span class="mchl-muted">' + counts + '</span>' : '') +
+			'<ul class="mchl-upd-content-list">' + sorted.slice(0, 8).map(item).join('') + '</ul>' +
+			(sorted.length > 8 ? '<details><summary class="mchl-muted">עוד ' + (sorted.length - 8) + ' התאמות</summary><ul class="mchl-upd-content-list">' + sorted.slice(8).map(item).join('') + '</ul></details>' : '');
+	}
+	function runUpdateContentCheck(box, res) {
+		var el = box.querySelector('.mchl-upd-content');
+		if (!el) return;
+		el.innerHTML = '<span class="mchl-muted">בודק את התוכן החדש…</span>';
+		getWordCheck().then(function (wc) {
+			var candidate = updateCandidateText(res);
+			var matches = newContentMatches(wc.core, wc.lists, candidate, res.oursFull, { allow: window.wikitextWordCheckAllow || [] });
+			el.innerHTML = contentCheckHtml(wc.core, candidate, matches);
+		}).catch(function (e) {
+			el.innerHTML = '<span class="mchl-badge mchl-review">בדיקת התוכן לא זמינה</span> <span class="mchl-muted">' + escapeHtml(e && e.message ? e.message : e) +
+				' · אפשר להריץ "בדיקת מילים חשודות בקוד" בטופס העריכה</span>';
+		});
+	}
+
 	// תוצאת המיזוג האחרונה לכל ערך: parts, בחירות לכל התנגשות, וזנב הייבוא. תמיד מחושבת מחדש בפתיחת הפאנל.
 	var updateMergeCache = new Map(); // row.id -> {parts, choices, tail, oursBody, baseRev, latestRev, title, oursTs, ...}
 	// wordDiffHtml: מדגיש מילים ששונות בין שתי גרסאות של אותו קטע (רק להצגה בטופס ההתנגשויות).
@@ -2362,6 +2462,7 @@
 				(res.conflicts ? '' : ' · כדאי לעבור על מה שנוסף לפני השמירה (מיזוג נקי אינו מבטיח שהתוכן החדש עומד בסינון)');
 		return '<div class="mchl-upd-merge"><span class="mchl-upd-status">' + updateStatusHtml(res) + '</span>' + convNote + baseNote + ' <span class="mchl-muted">' + detail + '</span> ' +
 			'<button type="button" class="mchl-import-btn" data-action="update-merge-open" data-id="' + row.id + '"' + (unresolvedConflicts(res) ? ' disabled' : '') + '>פתח בעריכה במכלול</button></div>' +
+			'<div class="mchl-upd-content"></div>' +
 			(res.conflicts ? updateConflictsHtml(res) : '');
 	}
 	// מחבר את בחירות ההתנגשויות: בחירה מעדכנת את res.choices, את הסטטוס ואת הכפתור.
@@ -2416,7 +2517,7 @@
 			var ours = splitImportTail(v.ours.text);
 			var m = mergeSeq(base.split('\n'), ours.body.split('\n'), theirs.split('\n'), mergeWords);
 			var res = {
-				parts: m.parts, choices: [], tail: ours.tail, oursBody: ours.body,
+				parts: m.parts, choices: [], tail: ours.tail, oursBody: ours.body, oursFull: v.ours.text,
 				conflicts: m.conflicts, auto: m.auto, kept: m.kept, word: m.word,
 				baseRev: v.baseRev, baseChanged: v.baseRev !== Number(row.sort_template_rev), latestRev: v.theirs.revid,
 				title: v.ours.title, oursTs: v.ours.ts, converted: !!list
@@ -2428,6 +2529,7 @@
 			box.innerHTML = updateMergeHtml(row, r[0]) +
 				'<details class="mchl-upd-diffbox"><summary>מה השתנה בוויקיפדיה: גרסה ' + r[0].baseRev + ' → ' + r[0].latestRev + '</summary><div class="mchl-upd-diff">' + r[1] + '</div></details>';
 			if (r[0].conflicts) wireUpdateConflicts(box, row, r[0]);
+			runUpdateContentCheck(box, r[0]);
 		}).catch(function (e) {
 			updateMergeCache.delete(row.id);
 			box.innerHTML = '<span class="mchl-alert">שגיאה בטעינה או במיזוג: ' + escapeHtml(e.message || e) + '</span>';
@@ -3358,6 +3460,7 @@
 			statusEl.textContent = 'התחברות בוצעה בהצלחה.';
 			statusEl.className = 'mchl-muted mchl-success';
 			updateSelectionBar();
+			syncAuthTabs();
 			// אם כבר נמצאים בטאב עם עמודת שיוך ידני ("חסר במכלול"/"קיים כהפניה") - מרעננים
 			// כדי שעמודת השיוך הידני תופיע בלי לחכות למעבר טאב.
 			if (VIEWS[activeTab] && VIEWS[activeTab].manualMatch) renderTable();
@@ -3369,6 +3472,7 @@
 			statusEl.textContent = 'שגיאת רשת בהתחברות - נסה שוב.';
 			statusEl.className = 'mchl-muted mchl-alert';
 			updateSelectionBar();
+			syncAuthTabs();
 		});
 	}
 
@@ -3391,6 +3495,7 @@
 				try { sessionStorage.removeItem(SESSION_STORAGE_KEY); } catch (e) { /* מתעלמים */ }
 				serviceKeyConnected = false;
 				updateSelectionBar();
+				syncAuthTabs();
 				throw new Error('פג תוקף ההתחברות - יש להתחבר מחדש בפאנל הניהול.');
 			}
 			sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({
@@ -3641,6 +3746,9 @@
 		'#mchl-dash tr.mchl-upd-same{opacity:.55;}' +
 		'#mchl-dash tr.mchl-upd-details-row td{background:var(--mchl-ink-900);}' +
 		'#mchl-dash .mchl-upd-box{padding:10px 8px;}' +
+		'#mchl-dash .mchl-upd-content{margin:6px 0 10px;}' +
+		'#mchl-dash .mchl-upd-content-list{margin:6px 0;padding-right:20px;font-size:12.5px;}' +
+		'#mchl-dash .mchl-upd-content-list mark{background:#D9B44A66;color:inherit;border-radius:2px;}' +
 		'#mchl-dash .mchl-upd-conflict{border:1px solid var(--mchl-line);border-radius:8px;padding:10px;margin:10px 0;}' +
 		'#mchl-dash .mchl-upd-cf-head{font-weight:600;margin-bottom:8px;}' +
 		'#mchl-dash .mchl-upd-cf-cols{display:grid;grid-template-columns:1fr 1fr;gap:10px;}' +

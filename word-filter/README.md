@@ -74,6 +74,8 @@ window.wikitextWordCheckPages = { words: 'משתמש:X/words.json', allow: 'מש
 mw.loader.load('/w/index.php?title=משתמש:X/wordcheck.js&action=raw&ctype=text/javascript');
 ```
 
+**בדיקת תוכן בטאב "עדכון" בדשבורד:** אותו קובץ מנוע ואותם דפי רשימות משמשים גם שם, בלי גאדג'ט. מגדירים ב-`common.js`: `window.mchlWordCheck = { script: 'משתמש:X/wordcheck.js', words: 'משתמש:X/words.json', allow: 'משתמש:X/allow.json' }` (הקובץ חושף את המנוע כ-`mw.wikitextWordCheck`). הדשבורד בודק רק התאמות חדשות שהעדכון מכניס.
+
 הגדרות אישיות (common.js): `window.wikitextWordCheckSuggested = true` - לכלול הצעות שלא אושרו; `window.wikitextWordCheckAllow = ['...']` - ביטויים מותרים נוספים.
 
 ## בדיקה ומדידה

@@ -702,6 +702,9 @@
 		if (typeof module !== 'undefined') module.exports = core;
 		return;
 	}
+	// חשיפה לכלים אחרים באתר (טאב "עדכון" בדשבורד), גם מחוץ לדף עריכה: המנוע וטעינת הרשימות.
+	// loadLists מוגדרת למטה; הצהרות פונקציה מורמות, ולכן אפשר להפנות אליה כאן.
+	mw.wikitextWordCheck = { core: core, loadLists: function () { return loadLists(); } };
 	if (['edit', 'submit'].indexOf(mw.config.get('wgAction')) < 0) return;
 
 	var listsPromise = null;
