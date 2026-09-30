@@ -28,7 +28,7 @@
 		manual_match_action: 'שיוך ידני', deletion_hint: 'רמז',
 		wikipedia_title: 'ערך בוויקיפדיה', mechalol_title: 'דף מקביל במכלול',
 		mechalol_status: 'סטטוס במכלול', candidate_count: 'מספר מועמדים',
-		mechalol_id: 'מזהה מכלול',
+		mechalol_id: 'מזהה מכלול', lock_level: 'סוג נעילה', lock_source: 'איך זוהה', detected_at: 'זוהה בתאריך',
 		update_date: 'עודכן לאחרונה', update_bucket: 'טווח עדכון',
 		update_change: 'שינוי בוויקיפדיה', update_action: '',
 		sort_template_date: 'עודכן לאחרונה (חודש)', sort_template_rev: 'גרסת הבסיס',
@@ -167,6 +167,14 @@
 			// זמני: מוצג רק למי שמחובר עם משתמש וסיסמה (פאנל הניהול), כמו שיוך כותרות. להסרה: למחוק את השורה.
 			requiresLogin: true
 		},
+		// דפים נעולים שהמערכת יודעת עליהם: נעולים לקריאה (בדיקת התבנית נדחתה, או שזוהו בבדיקת החסרים) ונעולים
+		// ליצירה (הרשימה השחורה). ה-view: report_locked_pages (migrations/migration_add_locked_pages_report.sql).
+		locked: {
+			view: 'report_locked_pages', label: 'נעולים',
+			columns: ['title', 'lock_level', 'lock_source', 'wikipedia_id', 'detected_at'],
+			filters: [{ key: 'lock_level', label: 'סוג נעילה', options: ['נעול לקריאה', 'נעול ליצירה'] }],
+			order: 'lock_level.asc,title.asc', titleLink: 'edit'
+		},
 		// ערכי ויקיפדיה שהוצאו מ"חסר במכלול" רק בגלל כותרת זהה אחרי הסרת
 		// "הרב"/"רבי" - לא התאמה ודאית, דורש אישור אנושי. ה-view היה קיים
 		// אבל לא הוצג בגאדג'ט.
@@ -188,7 +196,7 @@
 	var TAB_GROUPS = [
 		{ key: 'import', label: 'ייבוא', tabs: ['missing', 'requests', 'missing_redirect', 'rav', 'culture'] },
 		{ key: 'update', label: 'עדכון', tabs: ['update'] },
-		{ key: 'maint', label: 'תחזוקה', tabs: ['tasks', 'deleted', 'undoc'] },
+		{ key: 'maint', label: 'תחזוקה', tabs: ['tasks', 'deleted', 'undoc', 'locked'] },
 		{ key: 'stats', label: 'נתונים סטטיסטיים', tabs: ['stats'] }
 	];
 	// טאב עם group (ב-VIEWS) מוצג רק למי שדרגתו לפחות כדרגת הקבוצה. זו בדיקת נראות בצד
@@ -2171,6 +2179,8 @@
 		if (col === 'source_type') return '<span class="mchl-badge mchl-neutral">' + escapeHtml(SOURCE_TYPE_LABELS[val] || val) + '</span>';
 		if (col === 'match_type') return '<span class="mchl-badge ' + (val === 'ללא התאמה' ? 'mchl-alert' : 'mchl-wiki') + '">' + escapeHtml(val) + '</span>';
 		if (col === 'status') return '<span class="mchl-badge mchl-neutral">' + escapeHtml(val) + '</span>';
+		if (col === 'lock_level') return '<span class="mchl-badge ' + (val === 'נעול לקריאה' ? 'mchl-alert' : 'mchl-neutral') + '">' + escapeHtml(val) + '</span>';
+		if (col === 'lock_source') return '<span class="mchl-muted">' + escapeHtml(val) + '</span>';
 		if (col === 'task_type') return '<span class="mchl-badge mchl-alert">' + escapeHtml(val) + '</span>';
 		if (col === 'manual_match_action') {
 			// כיוון הפוך מהעמודה הישנה (שהייתה ב"משימות לטיפול"): כאן row
@@ -2213,7 +2223,7 @@
 			if (row.has_images === false) return '<span class="mchl-muted">אין</span>';
 			return '<span class="mchl-muted">—</span>';
 		}
-		if (col === 'checked_at' || col === 'created_at') return val ? '<span class="mchl-num-cell">' + new Date(val).toLocaleDateString('he-IL') + '</span>' : '<span class="mchl-muted">—</span>';
+		if (col === 'checked_at' || col === 'created_at' || col === 'detected_at') return val ? '<span class="mchl-num-cell">' + new Date(val).toLocaleDateString('he-IL') + '</span>' : '<span class="mchl-muted">—</span>';
 		if (col === 'mechalol_redirect_exists') {
 			if (val === true) return '<span class="mchl-badge mchl-neutral">קיים כהפניה</span>';
 			if (val === false) return '<span class="mchl-muted">אין בכלל</span>';
