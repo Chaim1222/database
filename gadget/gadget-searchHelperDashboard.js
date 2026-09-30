@@ -3098,8 +3098,16 @@
 	var ADMIN_LEVEL_THRESHOLD = 17;
 	// ===== העיצוב: gadget-searchHelperDashboard.css, נטען מדף באתר =====
 	var CSS_PAGE = 'משתמש:בוט גאון הירדן/dashboard.css';
-	function loadDashboardCss() {
-		mw.loader.load(mw.util.wikiScript('index') + '?title=' + encodeURIComponent(CSS_PAGE) + '&action=raw&ctype=text/css', 'text/css');
+	// done נקרא כשהעיצוב נטען (או נכשל), כדי שהדשבורד לא יופיע רגע בלי עיצוב.
+	function loadDashboardCss(done) {
+		var link = document.createElement('link');
+		var finish = function () { clearTimeout(timer); done(); };
+		var timer = setTimeout(finish, 4000);
+		link.rel = 'stylesheet';
+		link.onload = finish;
+		link.onerror = finish;
+		link.href = mw.util.wikiScript('index') + '?title=' + encodeURIComponent(CSS_PAGE) + '&action=raw&ctype=text/css';
+		document.head.appendChild(link);
 	}
 
 	var HTML = '' +
@@ -3181,7 +3189,6 @@
         $('#bodyContent').html('<div style="color: red; font-size: 18px; text-align: center; margin-top: 50px;">אין לך הרשאות לגשת לכלי זה.</div>');
         return;
     }
-		loadDashboardCss();
 		var container = document.createElement('div');
 		container.id = 'mchl-dash';
 		container.innerHTML = HTML;
@@ -3189,6 +3196,8 @@
 		if (!contentEl) return;
 		contentEl.innerHTML = '';
 		contentEl.appendChild(container);
+		container.style.visibility = 'hidden';
+		loadDashboardCss(function () { container.style.visibility = ''; });
 
 		// פאנל הניהול (מפתח סרוויס + בעתיד עריכת התאמות ידניות) - הכפתור
 		// שפותח אותו קיים ב-HTML הסטטי עם display:none, ורק כאן, לפי
