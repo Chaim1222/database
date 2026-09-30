@@ -73,14 +73,16 @@
 	var WF_TOPIC_GROUPS = [
 		{ label: 'מיוחדים', items: [['disambig', 'פירושונים'], ['years', 'ערכי שנים ותאריכים'], ['lists', 'רשימות'],
 			['dictionary', 'ערך מילוני'], ['sensitive', 'נושאים בעייתיים']] },
-		{ label: 'אישים', items: [['people_congress', 'חברי קונגרס אמריקאים'], ['people_politics', 'פוליטיקה, ממשל ואצולה'],
-			['people_military', 'צבא וביטחון'], ['people_rabbis', 'רבנים ואישי יהדות'], ['people_clergy', 'אנשי דת אחרים'],
-			['people_science', 'מדע, רפואה ואקדמיה'], ['people_art', 'אמנות חזותית ואדריכלות'], ['people_literature', 'ספרות ועיתונות'],
-			['people_law', 'משפט'], ['people_crime', 'פשע'], ['people_stage', 'קולנוע, במה ובידור'], ['people_business', 'עסקים'],
-			['people_public', 'חינוך ופעילות ציבורית'], ['people_other', 'אחר']] },
-		{ label: 'נושאים', items: [['art', 'יצירות אמנות'], ['geo', 'גאוגרפיה ומקומות'], ['buildings', 'מבנים ואתרים'],
-			['history', 'היסטוריה וצבא'], ['nature', 'טבע ומדע'], ['religion', 'דת ואמונה'], ['orgs', 'ארגונים, מוסדות וחברות'],
-			['tech', 'טכנולוגיה'], ['culture', 'תרבות ובידור (לא מילוני)'], ['society', 'חברה ותרבות'], ['other', 'אחר']] }
+		{ label: 'אישים', items: [['people_science', 'מדע, רפואה ואקדמיה'], ['people_politics', 'פוליטיקה, ממשל ואצולה'], ['people_congress', 'חברי קונגרס אמריקאים'],
+			['people_art', 'אמנות חזותית ואדריכלות'], ['people_literature', 'ספרות ועיתונות'], ['people_stage', 'קולנוע, במה ובידור'],
+			['people_military', 'צבא וביטחון'], ['people_public', 'חינוך ופעילות ציבורית'], ['people_rabbis', 'רבנים ואישי יהדות'],
+			['people_clergy', 'אנשי דת אחרים'], ['people_business', 'עסקים'], ['people_law', 'משפט'], ['people_crime', 'פשע'], ['people_other', 'אחר']] },
+		{ label: 'יצירות ותרבות', items: [['art', 'יצירות אמנות'], ['culture', 'תרבות, ספורט ופרסים']] },
+		{ label: 'מקומות ומבנים', items: [['geo', 'גאוגרפיה ומקומות'], ['buildings', 'מבנים ואתרים']] },
+		{ label: 'היסטוריה וחברה', items: [['history', 'היסטוריה וצבא'], ['politics', 'פוליטיקה, משפט וכלכלה'], ['religion', 'דת ואמונה'],
+			['orgs', 'ארגונים, מוסדות וחברות'], ['society', 'חברה, שפה ואורח חיים']] },
+		{ label: 'מדע וטכנולוגיה', items: [['nature', 'טבע, מדעים ומתמטיקה'], ['medicine', 'רפואה ובריאות'], ['tech', 'טכנולוגיה ותחבורה']] },
+		{ label: 'לא סווג', items: [['other', 'אחר']] }
 	];
 	var WF_TOPIC_LABELS = {};
 	WF_TOPIC_GROUPS.forEach(function (g) {
