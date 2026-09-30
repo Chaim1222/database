@@ -29,8 +29,8 @@
 		wikipedia_title: 'ערך בוויקיפדיה', mechalol_title: 'דף מקביל במכלול',
 		mechalol_status: 'סטטוס במכלול', candidate_count: 'מספר מועמדים',
 		mechalol_id: 'מזהה מכלול',
-		update_date: 'עודכן לאחרונה', update_compare: 'ויקיפדיה', update_bucket: 'טווח עדכון',
-		update_change: 'שינוי בוויקיפדיה', update_expand: '',
+		update_date: 'עודכן לאחרונה', update_bucket: 'טווח עדכון',
+		update_change: 'שינוי בוויקיפדיה', update_action: '',
 		sort_template_date: 'עודכן לאחרונה (חודש)', sort_template_rev: 'גרסת הבסיס',
 		verdict: 'רמת תוכן', has_images: 'תמונות', topic: 'נושא', wf_matches: 'מילים', import_action: '', expand: ''
 	};
@@ -155,7 +155,7 @@
 		update: {
 			view: 'report_source_update', label: 'עדכון',
 			columns: ['title', 'sort_template_date', 'update_bucket', 'sort_template_rev', 'wikipedia_id'],
-			displayColumns: ['title', 'update_date', 'update_change', 'update_compare', 'update_expand'],
+			displayColumns: ['title', 'update_date', 'update_change', 'update_action'],
 			filters: [{
 				key: 'update_bucket', label: 'עודכן',
 				options: ['בשנה האחרונה', 'לפני שנה עד שנתיים', '2020 עד לפני שנתיים', 'לפני 2020', 'ללא תאריך']
@@ -183,7 +183,8 @@
 	// הטאבים בשתי שורות: קבוצה, ומתחתיה הטאבים שלה.
 	var TAB_GROUPS = [
 		{ key: 'import', label: 'ייבוא', tabs: ['missing', 'requests', 'missing_redirect', 'rav', 'culture'] },
-		{ key: 'maint', label: 'תחזוקה', tabs: ['tasks', 'deleted', 'undoc', 'update'] },
+		{ key: 'update', label: 'עדכון', tabs: ['update'] },
+		{ key: 'maint', label: 'תחזוקה', tabs: ['tasks', 'deleted', 'undoc'] },
 		{ key: 'stats', label: 'נתונים סטטיסטיים', tabs: ['stats'] }
 	];
 	// טאב עם group (ב-VIEWS) מוצג רק למי שדרגתו לפחות כדרגת הקבוצה. זו בדיקת נראות בצד
@@ -255,7 +256,6 @@
 	function saveUiPrefs() { try { localStorage.setItem(UI_PREFS_KEY, JSON.stringify(uiPrefs)); } catch (e) { /* לא נשמר - לא נורא */ } }
 	function mechalolUrl(id) { return 'https://www.hamichlol.org.il/w/index.php?curid=' + id; }
 	function wikipediaUrl(id) { return 'https://he.wikipedia.org/w/index.php?curid=' + id; }
-	function wikipediaCompareUrl(oldRev) { return 'https://he.wikipedia.org/w/index.php?diff=cur&oldid=' + encodeURIComponent(oldRev); }
 	function mechalolEditUrl(title) { return 'https://www.hamichlol.org.il/w/index.php?title=' + encodeURIComponent(title.replace(/ /g, '_')) + '&action=edit'; }
 	function rowKey(row) { return activeTab + ':' + rowIdOf(row); }
 	function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]; }); }
@@ -2046,33 +2046,191 @@
 		});
 		return doc.querySelector('tbody').innerHTML;
 	}
-	function toggleUpdateDiff(btn) {
+	// <merge3>
+	// מיזוג תלת-כיווני ברמת שורות (base = הגרסה ששולבה, ours = המכלול היום, theirs = ויקיפדיה עכשיו).
+	// שינויים חופפים או צמודים שאינם זהים הופכים להתנגשות עם סימנים בסגנון git.
+	var MERGE_MAX_CELLS = 6000000;
+	function lcsPairs(a, b) {
+		var pre = 0, n = a.length, m = b.length;
+		while (pre < n && pre < m && a[pre] === b[pre]) pre++;
+		var suf = 0;
+		while (suf < n - pre && suf < m - pre && a[n - 1 - suf] === b[m - 1 - suf]) suf++;
+		var pairs = [], i;
+		for (i = 0; i < pre; i++) pairs.push([i, i]);
+		var an = n - pre - suf, bn = m - pre - suf;
+		if (an > 0 && bn > 0 && an * bn <= MERGE_MAX_CELLS) {
+			var w = bn + 1, t = new Uint32Array((an + 1) * w), x, y;
+			for (x = an - 1; x >= 0; x--) {
+				for (y = bn - 1; y >= 0; y--) {
+					t[x * w + y] = a[pre + x] === b[pre + y] ? t[(x + 1) * w + y + 1] + 1 : Math.max(t[(x + 1) * w + y], t[x * w + y + 1]);
+				}
+			}
+			x = 0; y = 0;
+			while (x < an && y < bn) {
+				if (a[pre + x] === b[pre + y]) { pairs.push([pre + x, pre + y]); x++; y++; }
+				else if (t[(x + 1) * w + y] >= t[x * w + y + 1]) x++;
+				else y++;
+			}
+		}
+		for (i = suf; i > 0; i--) pairs.push([n - i, m - i]);
+		return pairs;
+	}
+	function diffHunks(base, side) {
+		var pairs = lcsPairs(base, side), hunks = [], bi = 0, si = 0;
+		pairs.concat([[base.length, side.length]]).forEach(function (p) {
+			if (p[0] > bi || p[1] > si) hunks.push({ bs: bi, be: p[0], ss: si, se: p[1] });
+			bi = p[0] + 1; si = p[1] + 1;
+		});
+		return hunks;
+	}
+	function merge3(baseText, oursText, theirsText) {
+		var base = baseText.split('\n'), ours = oursText.split('\n'), theirs = theirsText.split('\n');
+		var ho = diffHunks(base, ours), ht = diffHunks(base, theirs);
+		var i = 0, j = 0, pos = 0, out = [], conflicts = 0, auto = 0;
+		var range = function (hunks, side, cs, ce) {
+			var f = hunks[0], l = hunks[hunks.length - 1];
+			return side.slice(f.ss - (f.bs - cs), l.se + (ce - l.be));
+		};
+		while (i < ho.length || j < ht.length) {
+			var start = Math.min(i < ho.length ? ho[i].bs : Infinity, j < ht.length ? ht[j].bs : Infinity);
+			for (; pos < start; pos++) out.push(base[pos]);
+			var co = [], ct = [], ce = start, grew = true;
+			while (grew) {
+				grew = false;
+				while (i < ho.length && ho[i].bs <= ce) { co.push(ho[i]); ce = Math.max(ce, ho[i].be); i++; grew = true; }
+				while (j < ht.length && ht[j].bs <= ce) { ct.push(ht[j]); ce = Math.max(ce, ht[j].be); j++; grew = true; }
+			}
+			var cs = start;
+			if (!ct.length) { out.push.apply(out, range(co, ours, cs, ce)); auto++; }
+			else if (!co.length) { out.push.apply(out, range(ct, theirs, cs, ce)); auto++; }
+			else {
+				var o = range(co, ours, cs, ce), t = range(ct, theirs, cs, ce);
+				if (o.join('\n') === t.join('\n')) { out.push.apply(out, o); auto++; }
+				else { out.push('<<<<<<< המכלול'); out.push.apply(out, o); out.push('======='); out.push.apply(out, t); out.push('>>>>>>> ויקיפדיה'); conflicts++; }
+			}
+			pos = ce;
+		}
+		for (; pos < base.length; pos++) out.push(base[pos]);
+		return { text: out.join('\n'), conflicts: conflicts, auto: auto };
+	}
+	// </merge3>
+
+	var HE_MONTH_NAMES = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
+	// מעדכן בתבנית {{מיון ויקיפדיה}} האחרונה (בסוף הערך) את גרסה= ואת תאריך= (חודש ושנה); מוסיף פרמטר שחסר.
+	function updateSortTemplate(text, revId, now) {
+		var starts = [], re = /\{\{\s*מיון\s+ויקיפדיה\s*\|/g, m;
+		while ((m = re.exec(text))) starts.push(m.index + m[0].length);
+		for (var k = starts.length - 1; k >= 0; k--) {
+			var depth = 1, i = starts[k], end = -1;
+			for (; i < text.length - 1; ) {
+				var pair = text.substr(i, 2);
+				if (pair === '{{') { depth++; i += 2; }
+				else if (pair === '}}') { depth--; if (depth === 0) { end = i; break; } i += 2; }
+				else i++;
+			}
+			if (end < 0) continue;
+			var body = text.slice(starts[k], end);
+			var setParam = function (b, name, value) {
+				var rx = new RegExp('(^|\\|)(\\s*' + name + '\\s*=)[^|]*');
+				return rx.test(b) ? b.replace(rx, function (all, pre, key) { return pre + key + value; }) : b + '|' + name + '=' + value;
+			};
+			body = setParam(body, 'גרסה', revId);
+			body = setParam(body, 'תאריך', HE_MONTH_NAMES[now.getMonth()] + ' ' + now.getFullYear());
+			return text.slice(0, starts[k]) + body + text.slice(end);
+		}
+		return text;
+	}
+
+	function fetchWikipediaContent(params) {
+		return wikipediaApi(Object.assign({ action: 'query', prop: 'revisions', rvprop: 'ids|content', rvslots: 'main' }, params)).then(function (d) {
+			var pg = (d.query && d.query.pages || [])[0], rv = pg && (pg.revisions || [])[0];
+			if (!rv) throw new Error('הגרסה לא נמצאה בוויקיפדיה');
+			return { revid: rv.revid, text: (rv.slots && rv.slots.main && rv.slots.main.content) || '' };
+		});
+	}
+	// שלוש הגרסאות: בסיס וויקיפדיה עכשיו (ויקיפדיה), והערך הנוכחי במכלול. נשלף חי, לא נשמר.
+	function loadUpdateVersions(row) {
+		return Promise.all([
+			fetchWikipediaContent({ revids: row.sort_template_rev }),
+			fetchWikipediaContent({ pageids: row.wikipedia_id }),
+			mwApiFetch({ action: 'query', prop: 'revisions', pageids: row.id, rvprop: 'ids|content|timestamp', rvslots: 'main' })
+		]).then(function (r) {
+			var pg = (r[2].query && r[2].query.pages || [])[0], rv = pg && (pg.revisions || [])[0];
+			if (!rv) throw new Error('הערך לא נמצא במכלול');
+			return { base: r[0], theirs: r[1], ours: { text: (rv.slots && rv.slots.main && rv.slots.main.content) || '', ts: rv.timestamp, title: pg.title } };
+		});
+	}
+	var updateMergeCache = new Map(); // row.id -> {merged, conflicts, auto, latestRev, title, oursTs}
+	function updateMergeHtml(row, res) {
+		var same = res.merged === res.oursText;
+		var status = res.conflicts
+			? '<span class="mchl-badge mchl-alert">' + res.conflicts + ' התנגשויות לפתרון</span>'
+			: (same ? '<span class="mchl-badge mchl-wiki">אין מה לשלב בטקסט</span>' : '<span class="mchl-badge mchl-wiki">מיזוג נקי</span>');
+		return '<div class="mchl-upd-merge">' + status + ' <span class="mchl-muted">' + res.auto + ' שינויים שמוזגו אוטומטית · ' + (res.conflicts ? 'ההתנגשויות מסומנות בטקסט ב-&lt;&lt;&lt;&lt;&lt;&lt;&lt; … ======= … &gt;&gt;&gt;&gt;&gt;&gt;&gt;' : 'כדאי לעבור על מה שנוסף לפני השמירה (מיזוג נקי אינו מבטיח שהתוכן החדש עומד בסינון)') + '</span> ' +
+			'<button type="button" class="mchl-import-btn" data-action="update-merge-open" data-id="' + row.id + '">פתח בעריכה במכלול</button></div>';
+	}
+	function toggleUpdatePanel(btn) {
 		var id = btn.getAttribute('data-id');
 		var tr = btn.closest('tr');
 		var next = tr.nextElementSibling;
-		if (next && next.classList.contains('mchl-upd-details-row')) {
-			next.remove(); btn.textContent = '▾'; btn.setAttribute('aria-expanded', 'false'); tr.classList.remove('mchl-open'); return;
-		}
-		btn.textContent = '▴'; btn.setAttribute('aria-expanded', 'true'); tr.classList.add('mchl-open');
+		if (next && next.classList.contains('mchl-upd-details-row')) { next.remove(); tr.classList.remove('mchl-open'); return; }
+		tr.classList.add('mchl-open');
 		var row = currentPageRows.find(function (r) { return String(r.id) === id; });
 		var detailsTr = document.createElement('tr');
 		detailsTr.className = 'mchl-upd-details-row';
-		detailsTr.innerHTML = '<td colspan="' + tr.children.length + '"><div class="mchl-upd-diff mchl-muted">טוען את השינוי…</div></td>';
+		detailsTr.innerHTML = '<td colspan="' + tr.children.length + '"><div class="mchl-upd-box mchl-muted">טוען את שלוש הגרסאות ומבצע מיזוג…</div></td>';
 		tr.parentNode.insertBefore(detailsTr, tr.nextSibling);
-		var box = detailsTr.querySelector('.mchl-upd-diff');
-		var show = function (html) {
-			box.classList.remove('mchl-muted');
-			box.innerHTML = '<div class="mchl-row-desc"><a href="' + wikipediaCompareUrl(row.sort_template_rev) + '" target="_blank" rel="noopener">פתח את ההשוואה המלאה בוויקיפדיה</a></div>' + html;
-		};
-		if (updateDiffCache.has(row.id)) return show(updateDiffCache.get(row.id));
-		wikipediaApi({ action: 'compare', fromrev: row.sort_template_rev, torelative: 'cur', prop: 'diff|diffsize' }).then(function (data) {
+		var box = detailsTr.querySelector('.mchl-upd-box');
+		var cached = updateMergeCache.get(row.id) ? Promise.resolve(updateMergeCache.get(row.id)) : loadUpdateVersions(row).then(function (v) {
+			var m = merge3(v.base.text, v.ours.text, v.theirs.text);
+			var res = { merged: updateSortTemplate(m.text, v.theirs.revid, new Date()), oursText: v.ours.text, conflicts: m.conflicts, auto: m.auto, latestRev: v.theirs.revid, title: v.ours.title, oursTs: v.ours.ts };
+			updateMergeCache.set(row.id, res);
+			return res;
+		});
+		var diffReq = updateDiffCache.has(row.id) ? Promise.resolve(updateDiffCache.get(row.id)) : wikipediaApi({ action: 'compare', fromrev: row.sort_template_rev, torelative: 'cur', prop: 'diff|diffsize' }).then(function (data) {
 			var body = data.compare && data.compare.body;
 			var html = body ? '<table class="diff">' + sanitizeDiffHtml(body) + '</table>' : '<div class="mchl-muted">אין הבדלי טקסט בין הגרסאות.</div>';
 			updateDiffCache.set(row.id, html);
-			show(html);
+			return html;
+		}).catch(function () { return '<div class="mchl-muted">לא ניתן לשלוף את ההשוואה.</div>'; });
+		Promise.all([cached, diffReq]).then(function (r) {
+			box.classList.remove('mchl-muted');
+			box.innerHTML = updateMergeHtml(row, r[0]) +
+				'<details class="mchl-upd-diffbox"><summary>מה השתנה בוויקיפדיה מאז הגרסה ששולבה</summary><div class="mchl-upd-diff">' + r[1] + '</div></details>';
 		}).catch(function (e) {
-			box.innerHTML = '<span class="mchl-alert">שגיאה בשליפת ההשוואה: ' + escapeHtml(e.message || e) + '</span>';
+			box.innerHTML = '<span class="mchl-alert">שגיאה בטעינה או במיזוג: ' + escapeHtml(e.message || e) + '</span>';
 		});
+	}
+	// פותח את טופס העריכה של הערך במכלול עם הטקסט הממוזג, מוכן לבדיקה ולשמירה (לא נשמר בלי לחיצה על "שמירה").
+	function openUpdateMerge(btn) {
+		var row = currentPageRows.find(function (r) { return String(r.id) === btn.getAttribute('data-id'); });
+		var res = row && updateMergeCache.get(row.id);
+		if (!res) return;
+		btn.disabled = true;
+		mwApiFetch({ action: 'query', meta: 'tokens', type: 'csrf' }).then(function (d) {
+			var token = (d.query && d.query.tokens && d.query.tokens.csrftoken) || '+\\';
+			var fields = {
+				wpTextbox1: res.merged,
+				wpSummary: 'עדכון מוויקיפדיה, גרסה ' + res.latestRev,
+				wpEditToken: token, wpUnicodeCheck: 'ℳ𝒲♥𝓊𝓃𝒾𝒸ℴ𝒹ℯ', wpUltimateParam: '1',
+				wpStarttime: new Date().toISOString().replace(/\D/g, '').slice(0, 14),
+				wpEdittime: (res.oursTs || '').replace(/\D/g, '').slice(0, 14),
+				wpDiff: '1', wpSection: '', wpAutoSummary: 'd41d8cd98f00b204e9800998ecf8427e', model: 'wikitext', format: 'text/x-wiki'
+			};
+			var form = document.createElement('form');
+			form.method = 'post'; form.target = '_blank'; form.acceptCharset = 'UTF-8';
+			form.action = mw.config.get('wgScript') ? mw.config.get('wgScript') + '?title=' + encodeURIComponent(res.title.replace(/ /g, '_')) + '&action=submit' : mechalolEditUrl(res.title).replace('action=edit', 'action=submit');
+			Object.keys(fields).forEach(function (k) {
+				var input = document.createElement('input');
+				input.type = 'hidden'; input.name = k; input.value = fields[k];
+				form.appendChild(input);
+			});
+			document.body.appendChild(form);
+			form.submit();
+			form.remove();
+		}).catch(function (e) {
+			mw.notify('לא ניתן לפתוח את טופס העריכה: ' + (e.message || e), { type: 'error' });
+		}).then(function () { btn.disabled = false; });
 	}
 
 	// ===== טאב "עדכון" - הודעת הסבר וטריות הנתונים =====
@@ -2093,7 +2251,7 @@
 	function updateBannerHtml(cfg) {
 		if (!cfg.freshness) return '';
 		return '<div class="mchl-update-note"><span id="mchl-update-fresh">' + freshnessInnerHtml() + '</span>' +
-			'<div class="mchl-row-desc">ערכים שוויקיפדיה התקדמה בהם מאז העדכון האחרון. זה גבול עליון: גם שחזור או עריכה קטנה נספרים, ולכן כדאי לבדוק בהשוואת הגרסאות אם יש מה לעדכן.</div></div>';
+			'<div class="mchl-row-desc">ערכים שוויקיפדיה התקדמה בהם מאז העדכון האחרון. זה גבול עליון: גם שחזור או עריכה קטנה נספרים (שחזור מסומן "תוכן זהה"). "עדכן" מבצע מיזוג עם הערך במכלול ופותח את טופס העריכה, בלי לשמור.</div></div>';
 	}
 	function loadUpdateFreshness() {
 		var myTab = activeTab;
@@ -2123,7 +2281,7 @@
 		}
 		var allOnPageSelected = currentPageRows.every(function (r) { return selectedRows.has(rowKey(r)); });
 		var thead = '<tr><th class="mchl-chk-col"><input type="checkbox" data-action="toggle-page-selection" ' + (allOnPageSelected ? 'checked' : '') + '></th>' +
-			columns.map(function (c) { return '<th' + (c === 'import_action' || c === 'expand' || c === 'update_expand' ? ' class="mchl-narrow-col"' : '') + '>' + escapeHtml(c in COLUMN_LABELS ? COLUMN_LABELS[c] : c) + '</th>'; }).join('') + '</tr>';
+			columns.map(function (c) { return '<th' + (c === 'import_action' || c === 'expand' || c === 'update_action' ? ' class="mchl-narrow-col"' : '') + '>' + escapeHtml(c in COLUMN_LABELS ? COLUMN_LABELS[c] : c) + '</th>'; }).join('') + '</tr>';
 		var tbody = currentPageRows.map(function (r) {
 			var selected = selectedRows.has(rowKey(r));
 			var expandable = columns.indexOf('expand') >= 0 && wfHasDetails(r);
@@ -2168,15 +2326,7 @@
 				escapeHtml(updDate.toLocaleDateString('he-IL', { month: 'long', year: 'numeric' })) + '</span>';
 		}
 		if (col === 'update_change') return renderUpdateChange(row);
-		if (col === 'update_expand') return '<button type="button" class="mchl-expand-btn" data-action="update-diff" data-id="' + row.id + '" title="הצג את השינוי כאן, בלי לפתוח את ויקיפדיה" aria-expanded="false">▾</button>';
-		if (col === 'update_compare') {
-			// diff=cur&oldid=<גרסת הבסיס>: ההשוואה בין הגרסה ששולבה לגרסה העדכנית בוויקיפדיה.
-			var cmp = row.sort_template_rev
-				? '<a class="mchl-export-btn" href="' + wikipediaCompareUrl(row.sort_template_rev) + '" target="_blank" rel="noopener" title="מה השתנה בוויקיפדיה מאז הגרסה ששולבה">השוואת גרסאות</a>'
-				: '<span class="mchl-muted">אין גרסה</span>';
-			var wp = row.wikipedia_id ? ' <span class="mchl-title"><a href="' + wikipediaUrl(row.wikipedia_id) + '" target="_blank" rel="noopener" title="הערך בוויקיפדיה">הערך</a></span>' : '';
-			return cmp + wp;
-		}
+		if (col === 'update_action') return '<button type="button" class="mchl-import-btn" data-action="update-open" data-id="' + row.id + '" title="השוואה ומיזוג של מה שהתחדש בוויקיפדיה, ופתיחת טופס העריכה במכלול">עדכן</button>';
 		if (col === 'wikipedia_title') return '<span class="mchl-title"><a href="' + wikipediaUrl(row.wikipedia_id) + '" target="_blank" rel="noopener">' + escapeHtml(val) + '</a></span>';
 		if (col === 'mechalol_title') return '<a href="' + mechalolUrl(row.mechalol_id) + '" target="_blank" rel="noopener">' + escapeHtml(val) + '</a>';
 		if (col === 'mechalol_status') return '<span class="mchl-badge mchl-neutral">' + escapeHtml(val) + '</span>';
@@ -3061,7 +3211,8 @@
 			else if (action === 'toggle-admin-panel') toggleAdminPanel();
 			else if (action === 'auth-login') authLogin();
 			else if (action === 'wf-details') toggleContentDetails(el);
-			else if (action === 'update-diff') toggleUpdateDiff(el);
+			else if (action === 'update-open') toggleUpdatePanel(el);
+			else if (action === 'update-merge-open') openUpdateMerge(el);
 			else if (action === 'import') importFromDashboard(el);
 			else if (action === 'req-filter') { requestsState.filter = el.getAttribute('data-v'); renderRequests(); }
 			else if (action === 'req-reply') replyToRequest(el);
@@ -3256,6 +3407,9 @@
 		'#mchl-dash .mchl-update-note{padding:10px 16px;border-bottom:1px solid var(--mchl-line);}' +
 		'#mchl-dash tr.mchl-upd-same{opacity:.55;}' +
 		'#mchl-dash tr.mchl-upd-details-row td{background:var(--mchl-ink-900);}' +
+		'#mchl-dash .mchl-upd-box{padding:10px 8px;}' +
+		'#mchl-dash .mchl-upd-merge{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:10px;}' +
+		'#mchl-dash .mchl-upd-diffbox summary{cursor:pointer;color:var(--mchl-text-2);font-size:12.5px;}' +
 		'#mchl-dash .mchl-upd-diff{max-height:420px;overflow:auto;padding:8px 4px;font-size:12.5px;}' +
 		'#mchl-dash .mchl-upd-diff table.diff{width:100%;table-layout:fixed;border-collapse:collapse;}' +
 		'#mchl-dash .mchl-upd-diff td{padding:2px 6px;vertical-align:top;white-space:pre-wrap;word-break:break-word;}' +
