@@ -2328,15 +2328,28 @@
 	// ===== בדיקת תוכן (מנוע סינון המילים) לתוספות של העדכון =====
 	// המנוע נחשף על ידי הגאדג'ט "בדיקת מילים חשודות" כ-mw.wikitextWordCheck (word-filter/Gadget-wikitextWordCheck.js).
 	// נבדק הטקסט האפשרי הרחב ביותר (בהתנגשות: שלנו ואחריו ויקיפדיה) מול הערך הנוכחי, ומוצגות רק התאמות חדשות.
+	// מיקום המנוע, בלי צורך בגאדג'ט: דף סקריפט + שני דפי JSON (כמו "כסקריפט אישי" ב-word-filter/README.md). מגדירים ב-common.js
+	// או כאן: window.mchlWordCheck = { script: 'משתמש:X/wordcheck.js', words: 'משתמש:X/words.json', allow: 'משתמש:X/allow.json' };
+	// (script = תוכן הקובץ word-filter/Gadget-wikitextWordCheck.js; words/allow = lists/words.json ו-lists/allow.json).
+	// אם קיים גאדג'ט בשם wikitextWordCheck, הוא משמש כברירת מחדל.
 	var wordCheckPromise = null;
 	function getWordCheck() {
 		if (!wordCheckPromise) {
-			wordCheckPromise = Promise.resolve(mw.loader.using(['mediawiki.api'])).then(function () {
+			var cfg = window.mchlWordCheck || {};
+			var ready = function () {
+				if (!mw.wikitextWordCheck) throw new Error('המנוע נטען אבל לא נחשף - צריך את הגרסה העדכנית של Gadget-wikitextWordCheck.js');
+				return mw.wikitextWordCheck;
+			};
+			wordCheckPromise = Promise.resolve(mw.loader.using(['mediawiki.api', 'mediawiki.util'])).then(function () {
 				if (mw.wikitextWordCheck) return mw.wikitextWordCheck;
-				return Promise.resolve(mw.loader.using('ext.gadget.wikitextWordCheck')).then(function () {
-					if (!mw.wikitextWordCheck) throw new Error('המנוע לא נחשף - צריך את הגרסה העדכנית של גאדג\'ט בדיקת המילים החשודות');
-					return mw.wikitextWordCheck;
-				});
+				if (cfg.script) {
+					// המנוע קורא את מיקום הרשימות בזמן הטעינה, ולכן מגדירים לפני.
+					if (cfg.words) window.wikitextWordCheckPages = { words: cfg.words, allow: cfg.allow };
+					var url = mw.util.wikiScript('index') + '?title=' + encodeURIComponent(cfg.script) + '&action=raw&ctype=text/javascript';
+					return Promise.resolve(mw.loader.getScript(url)).then(ready);
+				}
+				if (mw.loader.getState('ext.gadget.wikitextWordCheck')) return Promise.resolve(mw.loader.using('ext.gadget.wikitextWordCheck')).then(ready);
+				throw new Error('מנוע הסינון לא מוגדר: אין גאדג\'ט wikitextWordCheck, ולא הוגדר window.mchlWordCheck (דף סקריפט ודפי רשימות)');
 			}).then(function (wc) {
 				return Promise.resolve(wc.loadLists()).then(function (lists) { return { core: wc.core, lists: lists }; });
 			});
