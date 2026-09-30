@@ -204,8 +204,8 @@
 	// התקנת מדיה-ויקי, לא קבוע-קשיח.
 	var MECHALOL_API = mw.config.get('wgScriptPath') + '/api.php';
 	var STAT_DEFS = [
-		{ key: 'wiki', table: 'wikipedia_pages', statId: 'mchl-stat-wiki-total', spinId: 'mchl-spin-wiki', warnId: 'mchl-warn-wiki', warnMsg: 'לא ניתן לקרוא את wikipedia_pages — יש לבדוק RLS/הרשאות.' },
-		{ key: 'mechalol', table: 'mechalol_pages', statId: 'mchl-stat-mechalol-total', spinId: 'mchl-spin-mechalol', warnId: 'mchl-warn-mechalol', warnMsg: 'לא ניתן לקרוא את mechalol_pages — יש לבדוק RLS/הרשאות.' },
+		{ key: 'wiki', table: 'wikipedia_pages', estimated: true, statId: 'mchl-stat-wiki-total', spinId: 'mchl-spin-wiki', warnId: 'mchl-warn-wiki', warnMsg: 'לא ניתן לקרוא את wikipedia_pages — יש לבדוק RLS/הרשאות.' },
+		{ key: 'mechalol', table: 'mechalol_pages', estimated: true, statId: 'mchl-stat-mechalol-total', spinId: 'mchl-spin-mechalol', warnId: 'mchl-warn-mechalol', warnMsg: 'לא ניתן לקרוא את mechalol_pages — יש לבדוק RLS/הרשאות.' },
 		{ key: 'tasks', table: 'report_tasks_to_handle', statId: 'mchl-stat-tasks', spinId: 'mchl-spin-tasks', warnId: 'mchl-warn-tasks', warnMsg: 'לא ניתן לקרוא את report_tasks_to_handle.', tabCount: 'mchl-tab-count-tasks' },
 		{ key: 'deleted', table: 'report_possibly_deleted_source', statId: 'mchl-stat-deleted', spinId: 'mchl-spin-deleted', warnId: 'mchl-warn-deleted', warnMsg: 'לא ניתן לקרוא את report_possibly_deleted_source.', tabCount: 'mchl-tab-count-deleted' },
 		{ key: 'undoc', table: 'report_undocumented_import', statId: 'mchl-stat-undoc', spinId: 'mchl-spin-undoc', warnId: 'mchl-warn-undoc', warnMsg: 'לא ניתן לקרוא את report_undocumented_import.', tabCount: 'mchl-tab-count-undoc' },
@@ -271,7 +271,8 @@
 		function attempt() {
 			i++;
 			return fn().catch(function (e) {
-				if (i < attempts) return sleep(RETRY_DELAY_MS * i).then(attempt);
+				// timeout של השרת (57014): ניסיון חוזר רק מכפיל את העומס על אותו מסד איטי, ולכן לא מנסים שוב.
+				if (i < attempts && !(e && e.code === '57014')) return sleep(RETRY_DELAY_MS * i).then(attempt);
 				throw e;
 			});
 		}
@@ -357,13 +358,14 @@
 
 	// ספירה בלבד (ל-STAT_DEFS ולמונה ה"תואמים") - שולף שורה אחת בלבד
 	// ומסתמך על כותרת Content-Range לספירה, כדי לא למשוך נתונים מיותרים.
-	function pgCount(table, rawFilterParams, countColumn) {
+	// estimated: הערכה מהמתכנן (Prefer: count=estimated) במקום ספירה מדויקת - לטבלאות הגדולות, שם ספירה מדויקת לוקחת שניות.
+	function pgCount(table, rawFilterParams, countColumn, estimated) {
 		return withRetry(function () {
 			var params = new URLSearchParams();
 			params.set('select', countColumn || 'id');
 			if (rawFilterParams) rawFilterParams.forEach(function (pair) { params.append(pair[0], pair[1]); });
 			var url = SUPABASE_URL + '/rest/v1/' + table + '?' + params.toString();
-			return fetch(url, { headers: pgHeaders({ Range: '0-0', Prefer: 'count=exact' }) }).then(function (res) {
+			return fetch(url, { headers: pgHeaders({ Range: '0-0', Prefer: estimated ? 'count=estimated' : 'count=exact' }) }).then(function (res) {
 				if (!res.ok) return res.text().then(function (t) { throw makePgError(res.status, t); });
 				var cr = res.headers.get('Content-Range') || '';
 				var total = parseInt(cr.split('/')[1], 10);
@@ -1718,15 +1720,30 @@
 		});
 	}
 
+	// מריץ פונקציות שמחזירות הבטחות, לכל היותר limit במקביל (המסד קטן, וכ-13 ספירות בבת אחת חורגות מ-15 השניות של anon).
+	// מחזיר תוצאות לפי הסדר; פונקציה שנכשלה נותנת null.
+	var STATS_CONCURRENCY = 3;
+	function runLimited(fns, limit) {
+		var results = new Array(fns.length), next = 0;
+		function worker() {
+			if (next >= fns.length) return Promise.resolve();
+			var idx = next++;
+			return Promise.resolve().then(fns[idx]).then(function (r) { results[idx] = r; }, function () { results[idx] = null; }).then(worker);
+		}
+		var workers = [];
+		for (var w = 0; w < Math.min(limit, fns.length); w++) workers.push(worker());
+		return Promise.all(workers).then(function () { return results; });
+	}
+
 	function loadStats() {
 		STAT_DEFS.forEach(function (d) {
 			$id(d.spinId).style.display = 'inline-block';
 			$id(d.warnId).style.display = 'none';
 		});
 		var statValues = {};
-		var jobs = STAT_DEFS.map(function (d) {
+		var jobs = STAT_DEFS.map(function (d) { return function () {
 			var viewCfg = d.viewKey ? VIEWS[d.viewKey] : null;
-			return pgCount(d.table, viewCfg ? viewCfg.baseFilters : null).then(function (val) {
+			return pgCount(d.table, viewCfg ? viewCfg.baseFilters : null, undefined, d.estimated).then(function (val) {
 				statValues[d.key] = val;
 				$id(d.statId).textContent = val.toLocaleString('he-IL');
 				if (d.tabCount) $id(d.tabCount).textContent = val.toLocaleString('he-IL');
@@ -1740,7 +1757,7 @@
 			}).finally(function () {
 				$id(d.spinId).style.display = 'none';
 			});
-		});
+		}; });
 		// מוני טאבים ל-views שאין להם כרטיס סטטיסטיקה משלהם.
 		var coveredTabs = {};
 		STAT_DEFS.forEach(function (d) { if (d.tabCount) coveredTabs[d.tabCount] = true; });
@@ -1748,17 +1765,19 @@
 			var tabCountId = 'mchl-tab-count-' + key;
 			if (coveredTabs[tabCountId] || !tabAllowed(key)) return;
 			var cfg = VIEWS[key];
-			jobs.push(pgCount(cfg.view, cfg.baseFilters, cfg.countColumn).then(function (val) {
-				var el = $id(tabCountId);
-				if (el) el.textContent = val.toLocaleString('he-IL');
-			}).catch(function () { /* המונה נשאר "–" */ }));
+			jobs.push(function () {
+				return pgCount(cfg.view, cfg.baseFilters, cfg.countColumn).then(function (val) {
+					var el = $id(tabCountId);
+					if (el) el.textContent = val.toLocaleString('he-IL');
+				}).catch(function () { /* המונה נשאר "–" */ });
+			});
 		});
 		// "תואמים" = דפי מכלול עם קישור לוויקיפדיה, *פחות* אלה שגם מופיעים
 		// במשימות לטיפול (למשל "חסרה תבנית מיון" - מקושרים אבל עדיין משימה),
 		// אחרת הם נספרים פעמיים בפס.
-		var matchedJob = pgCount('mechalol_pages', [['wikipedia_id', 'not.is.null']]).catch(function () { return null; });
-		var tasksLinkedJob = pgCount('report_tasks_to_handle', [['wikipedia_id', 'not.is.null']]).catch(function () { return null; });
-		return Promise.all([matchedJob, tasksLinkedJob].concat(jobs)).then(function (results) {
+		var matchedJob = function () { return pgCount('mechalol_pages', [['wikipedia_id', 'not.is.null']], undefined, true).catch(function () { return null; }); };
+		var tasksLinkedJob = function () { return pgCount('report_tasks_to_handle', [['wikipedia_id', 'not.is.null']]).catch(function () { return null; }); };
+		return runLimited([matchedJob, tasksLinkedJob].concat(jobs), STATS_CONCURRENCY).then(function (results) {
 			var matched = (results[0] != null && results[1] != null) ? results[0] - results[1] : null;
 			var tasks = statValues.tasks, missing = statValues.missing;
 			if (matched != null && tasks != null && missing != null) {
@@ -1804,7 +1823,7 @@
 			// חלון ה-swap עצמו קצר מאוד (lock_timeout של כמה שניות לכל
 			// היותר) - סביר שהניסיון הזה יצליח בשקט, בלי שהמשתמש בכלל
 			// יבחין שהיה עיכוב.
-			if (!isAutoRetry && isTransientMaintenanceError(e)) {
+			if (!isAutoRetry && isTransientMaintenanceError(e) && e.code !== '57014') {
 				sleep(4000).then(function () {
 					if (myRequestId === loadRequestId) loadActiveView(true);
 				});
