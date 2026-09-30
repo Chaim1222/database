@@ -1,5 +1,5 @@
 // טאב "עדכון" של דשבורד ניהול הייבוא: מידע חי מוויקיפדיה, מיזוג תלת-כיווני עם הערך במכלול, טופס פתרון התנגשויות
-// ובדיקת תוכן. נטען מ-gadget-searchHelperDashboard.js כשנפתח הטאב (MediaWiki:Gadget-searchHelperDashboard.js/update),
+// ובדיקת תוכן. נטען מ-gadget-searchHelperDashboard.js כשנפתח הטאב (משתמש:בוט גאון הירדן/dashboard.js/update.js),
 // וקורא את הפונקציות והמצב של הדשבורד מ-window.mchlDash. הבדיקות (tests/merge3.test.js) שולפות מכאן את האזורים המסומנים merge3 ו-content-check,
 // ולכן הם חייבים להישאר פונקציות טהורות.
 (function () {

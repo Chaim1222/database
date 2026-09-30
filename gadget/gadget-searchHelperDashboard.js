@@ -2066,7 +2066,7 @@
 
 	// ===== טאב "עדכון": הקוד ב-gadget-searchHelperDashboard-update.js, נטען כשנפתח הטאב =====
 	// המודול קורא את מה שהדשבורד חושף ב-window.mchlDash, ורושם בו את mchlDash.update.
-	var UPDATE_MODULE_PAGE = 'MediaWiki:Gadget-searchHelperDashboard.js/update';
+	var UPDATE_MODULE_PAGE = 'משתמש:בוט גאון הירדן/dashboard.js/update.js';
 	var updateMod = null;
 	var updateModPromise = null;
 	function loadUpdateModule() {
@@ -3097,7 +3097,7 @@
 	// האמיתית (אם/כשתיבנה) חייבת לבוא מהמסד עצמו, לא מכאן.
 	var ADMIN_LEVEL_THRESHOLD = 17;
 	// ===== העיצוב: gadget-searchHelperDashboard.css, נטען מדף באתר =====
-	var CSS_PAGE = 'MediaWiki:Gadget-searchHelperDashboard.css';
+	var CSS_PAGE = 'משתמש:בוט גאון הירדן/dashboard.css';
 	function loadDashboardCss() {
 		mw.loader.load(mw.util.wikiScript('index') + '?title=' + encodeURIComponent(CSS_PAGE) + '&action=raw&ctype=text/css', 'text/css');
 	}
