@@ -450,11 +450,11 @@
 	// תוצאת המיזוג האחרונה לכל ערך: parts, בחירות לכל התנגשות, וזנב הייבוא. תמיד מחושבת מחדש בפתיחת הפאנל.
 	var updateMergeCache = new Map(); // row.id -> {parts, choices, tail, oursBody, baseRev, latestRev, title, oursTs, ...}
 	// wordDiffHtml: מדגיש מילים ששונות בין שתי גרסאות של אותו קטע (רק להצגה בטופס ההתנגשויות).
-	function wordDiffHtml(aText, bText) {
+	function wordDiffHtml(aText, bText, aTag, bTag) {
 		var a = tokenize(aText), b = tokenize(bText), inA = {}, inB = {};
 		lcsPairs(a, b).forEach(function (pr) { inA[pr[0]] = true; inB[pr[1]] = true; });
-		var render = function (t, keep) { return t.map(function (w, k) { return keep[k] || /^\s+$/.test(w) ? escapeHtml(w) : '<mark>' + escapeHtml(w) + '</mark>'; }).join(''); };
-		return [render(a, inA), render(b, inB)];
+		var render = function (t, keep, tag) { return t.map(function (w, k) { return keep[k] || /^\s+$/.test(w) ? escapeHtml(w) : '<' + tag + (tag === 'mark' ? '' : ' class="diffchange"') + '>' + escapeHtml(w) + '</' + tag + '>'; }).join(''); };
+		return [render(a, inA, aTag || 'mark'), render(b, inB, bTag || 'mark')];
 	}
 	function unresolvedConflicts(res) {
 		var n = 0, k = 0;
@@ -477,46 +477,67 @@
 		if (res.conflicts) return '<span class="mchl-badge mchl-wiki">כל ההתנגשויות נפתרו</span>';
 		return noChange ? '<span class="mchl-badge mchl-neutral">אין שינוי בטקסט</span>' : '<span class="mchl-badge mchl-wiki">מיזוג נקי</span>';
 	}
-	// תצוגת המיזוג: הטקסט הסופי עם סימון לכל שינוי לפי המקור שלו (ויקיפדיה / מכלול / שניהם / שולב אוטומטית / התנגשות).
-	var VIEW_LABELS = { theirs: 'מוויקיפדיה', ours: 'שינוי מקומי נשמר', both: 'זהה בשני הצדדים', merged: 'שולב אוטומטית', conflict: 'התנגשות', manual: 'עריכה ידנית' };
-	function viewLine(kind, mark, html, label) {
-		return '<div class="mchl-mv-line mchl-mv-' + kind + '"><span class="mchl-mv-mark">' + mark + '</span><span class="mchl-mv-text">' + (html === '' ? '&nbsp;' : html) + '</span>' +
-			(label ? '<span class="mchl-mv-tag">' + label + '</span>' : '') + '</div>';
-	}
-	function viewChange(kind, oldLines, newLines, label, removedLabel) {
-		var d = oldLines.length && newLines.length ? wordDiffHtml(oldLines.join('\n'), newLines.join('\n')) : [escapeHtml(oldLines.join('\n')), escapeHtml(newLines.join('\n'))];
-		var o = oldLines.length ? d[0].split('\n') : [], n = newLines.length ? d[1].split('\n') : [];
-		var out = o.map(function (h, k) { return viewLine('del', '−', h, k === 0 && !n.length ? removedLabel : ''); });
-		return out.concat(n.map(function (h, k) { return viewLine(kind, '+', h, k === 0 ? label : ''); })).join('');
+	// תצוגת המיזוג: השוואה סטנדרטית (כמו "הבדלים בין גרסאות"): המכלול היום מול הטקסט אחרי המיזוג,
+	// וכל שינוי מסומן לפי המקור שלו (ויקיפדיה / שולב אוטומטית / התנגשות / בחירת העורך).
+	var VIEW_SRC = { theirs: 'מוויקיפדיה', merged: 'שולב אוטומטית', conflict: 'התנגשות - טרם הוכרעה', chosen: 'בחירת העורך' };
+	// מחזיר שורות השוואה: {ctx, l, r, src} או {gap}. l = שורות המכלול, r = שורות אחרי המיזוג.
+	function viewBlocks(res) {
+		var out = [];
+		(res.view || []).forEach(function (e) {
+			if (e.k === 'same' || e.k === 'ours' || e.k === 'both') { out.push({ ctx: true, v: e.k === 'same' ? e.v : e.v }); return; }
+			if (e.k === 'theirs') { out.push({ l: e.old, r: e.v, src: 'theirs' }); return; }
+			if (e.k === 'merged') { out.push({ l: e.ours, r: e.v, src: 'merged' }); return; }
+			var c = res.choices[e.i], r;
+			if (c === 'ours') r = e.ours;
+			else if (c === 'theirs') r = e.theirs;
+			else if (c === 'both') r = e.ours.concat(e.theirs);
+			else if (c && typeof c === 'object' && !c.pending) r = c.text === '' ? [] : c.text.split('\n');
+			if (r) out.push({ l: e.ours, r: r, src: 'chosen', ctxIf: true });
+			else out.push({ l: e.ours, r: e.theirs, src: 'conflict', base: e.base || e.old, n: e.i + 1 });
+		});
+		return out;
 	}
 	function mergeViewHtml(res) {
-		var EDGE = 3;
-		var plain = function (l) { return viewLine('same', '', escapeHtml(l)); };
-		return (res.view || []).map(function (e) {
-			if (e.k === 'same') {
-				if (e.v.length <= EDGE * 2 + 1) return e.v.map(plain).join('');
-				return e.v.slice(0, EDGE).map(plain).join('') + '<div class="mchl-mv-gap">⋯ ' + (e.v.length - EDGE * 2) + ' שורות ללא שינוי ⋯</div>' + e.v.slice(-EDGE).map(plain).join('');
+		var CTX = 2, blocks = viewBlocks(res), rows = [], ln = 1, rn = 1, i;
+		var cell = function (cls, mark, html, src) { return '<td class="diff-marker">' + mark + '</td><td class="' + cls + '">' + (src ? '<span class="mchl-src mchl-src-' + src + '">' + VIEW_SRC[src] + '</span> ' : '') + (html === '' || html === undefined ? '&nbsp;' : html) + '</td>'; };
+		var empty = '<td class="diff-marker"></td><td class="diff-empty"></td>';
+		var sameHtml = function (b) { return b.l.join('\n') === b.r.join('\n'); };
+		var lines = [];
+		blocks.forEach(function (b) {
+			if (b.ctx) { b.v.forEach(function (t) { lines.push({ t: 'c', text: t, ln: ln++, rn: rn++ }); }); return; }
+			if (sameHtml(b)) { b.l.forEach(function (t) { lines.push({ t: 'c', text: t, ln: ln++, rn: rn++ }); }); return; }
+			var n = Math.max(b.l.length, b.r.length);
+			if (b.src === 'conflict') lines.push({ t: 'h', text: 'התנגשות ' + b.n + ' - הגרסה בבסיס: ' + (b.base.join(' ⏎ ') || '(ריק)') });
+			for (var k = 0; k < n; k++) {
+				var lt = b.l[k], rt = b.r[k], d = lt !== undefined && rt !== undefined ? wordDiffHtml(lt, rt, 'del', 'ins') : [escapeHtml(lt || ''), escapeHtml(rt || '')];
+				lines.push({ t: 'd', l: lt !== undefined ? d[0] : undefined, r: rt !== undefined ? d[1] : undefined, src: b.src, first: k === 0, ln: ln, rn: rn });
+				if (lt !== undefined) ln++;
+				if (rt !== undefined) rn++;
 			}
-			if (e.k === 'merged') return viewChange('merged', e.old, e.v, e.v.length ? VIEW_LABELS.merged : '', 'מחיקה מקומית נשמרה');
-			if (e.k === 'conflict') {
-				var c = res.choices[e.i];
-				if (c === 'ours') return viewChange('ours', e.old, e.ours, 'נבחר: המכלול', 'נבחר: המכלול');
-				if (c === 'theirs') return viewChange('theirs', e.old, e.theirs, 'נבחר: ויקיפדיה', 'נבחר: ויקיפדיה');
-				if (c === 'both') return viewChange('both', e.old, e.ours.concat(e.theirs), 'נבחרו שניהם', '');
-				if (c && typeof c === 'object' && !c.pending) return viewChange('merged', e.old, c.text === '' ? [] : c.text.split('\n'), VIEW_LABELS.manual, VIEW_LABELS.manual);
-				return '<div class="mchl-mv-conflict"><div class="mchl-mv-chead">התנגשות ' + (e.i + 1) + ' - טרם הוכרעה (הבחירה בטפסים למטה)</div>' +
-					e.old.map(function (l) { return viewLine('del', '−', escapeHtml(l), ''); }).join('') +
-					e.ours.map(function (l, k) { return viewLine('ours', '+', escapeHtml(l), k === 0 ? 'מכלול' : ''); }).join('') +
-					e.theirs.map(function (l, k) { return viewLine('theirs', '+', escapeHtml(l), k === 0 ? 'ויקיפדיה' : ''); }).join('') + '</div>';
-			}
-			return viewChange(e.k, e.old, e.v, VIEW_LABELS[e.k], e.k === 'theirs' ? 'נמחק בוויקיפדיה' : 'נמחק במכלול');
-		}).join('');
+		});
+		// מציגים רק הקשר סביב שינויים (כמו ויקי), עם כותרת "שורה N:" בכל קטע.
+		var show = lines.map(function () { return false; });
+		lines.forEach(function (x, k) { if (x.t !== 'c') for (var q = Math.max(0, k - CTX); q <= Math.min(lines.length - 1, k + CTX); q++) show[q] = true; });
+		var prev = -2;
+		for (i = 0; i < lines.length; i++) {
+			if (!show[i]) continue;
+			var x = lines[i];
+			if (i !== prev + 1) rows.push('<tr><td colspan="2" class="diff-lineno">שורה ' + (x.ln || '') + ':</td><td colspan="2" class="diff-lineno">שורה ' + (x.rn || '') + ':</td></tr>');
+			prev = i;
+			if (x.t === 'h') rows.push('<tr><td colspan="4" class="mchl-mv-chead">' + escapeHtml(x.text) + '</td></tr>');
+			else if (x.t === 'c') rows.push('<tr>' + cell('diff-context', '', escapeHtml(x.text)) + cell('diff-context', '', escapeHtml(x.text)) + '</tr>');
+			else rows.push('<tr class="mchl-mv-' + x.src + '">' + (x.l !== undefined ? cell('diff-deletedline', '−', x.l) : empty) +
+				(x.r !== undefined ? cell('diff-addedline mchl-mvc-' + x.src, '+', x.r, x.first ? x.src : '') : empty) + '</tr>');
+		}
+		return rows.length ? '<table class="diff mchl-mv-table"><colgroup><col class="diff-marker"><col class="diff-content"><col class="diff-marker"><col class="diff-content"></colgroup>' +
+			'<thead><tr><th colspan="2">המכלול היום</th><th colspan="2">אחרי המיזוג (מה שייפתח בעריכה)</th></tr></thead>' + rows.join('') + '</table>'
+			: '<div class="mchl-muted">אין הבדל בטקסט: יעודכנו רק גרסה ותאריך בתבנית.</div>';
 	}
 	function mergeViewBoxHtml(res) {
-		var legend = ['theirs', 'ours', 'both', 'merged', 'conflict'].map(function (k) { return '<span class="mchl-mv-chip mchl-mv-' + k + '">' + VIEW_LABELS[k] + '</span>'; }).join('') +
-			'<span class="mchl-mv-chip mchl-mv-del">שורה שהוסרה</span>';
-		return '<details class="mchl-upd-viewbox" open><summary>התוצאה הממוזגת: מה הגיע מכל גרסה</summary><div class="mchl-mv-legend">' + legend + '</div>' +
-			'<div class="mchl-upd-view">' + mergeViewHtml(res) + '</div></details>';
+		var legend = ['theirs', 'merged', 'conflict', 'chosen'].map(function (k) { return '<span class="mchl-src mchl-src-' + k + '">' + VIEW_SRC[k] + '</span>'; }).join(' ');
+		return '<details class="mchl-upd-viewbox" open><summary>מה ישתנה בערך במכלול: לפני ואחרי המיזוג</summary><div class="mchl-mv-legend">' + legend +
+			' <span class="mchl-muted">שינויים מקומיים שנשמרו אינם מופיעים כי הם כבר בטקסט של המכלול</span></div>' +
+			'<div class="mchl-upd-view mchl-upd-diff">' + mergeViewHtml(res) + '</div></details>';
 	}
 	function updateConflictsHtml(res) {
 		var k = 0, total = res.conflicts;
