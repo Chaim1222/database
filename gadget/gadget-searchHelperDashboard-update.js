@@ -212,8 +212,34 @@
 		});
 		return out.join('\n');
 	}
+	// קטגוריה פשוטה בשורה נפרדת בלבד; תחביר מקונן נשאר להכרעה רגילה.
+	function parseMergeCategory(lines) {
+		if (lines.length !== 1) return null;
+		var m = /^([ \t]*\[\[(?:קטגוריה|Category):)([^\[\]{}|<>\n]+)(?:\|([^\[\]{}|<>\n]*))?(\]\][ \t]*)$/i.exec(lines[0]);
+		return m ? { prefix: m[1], name: m[2], key: m[3], suffix: m[4] } : null;
+	}
 	function merge3(baseText, oursText, theirsText) {
-		var r = mergeSeq(baseText.split('\n'), oursText.split('\n'), theirsText.split('\n'), mergeWords);
+		var deleted = 0, categories = 0;
+		var r = mergeSeq(baseText.split('\n'), oursText.split('\n'), theirsText.split('\n'), function (base, ours, theirs) {
+			// מדיניות עדכון: קטע שנמחק כולו במכלול לא מוחזר עקב עריכה בוויקיפדיה.
+			// הוספות עצמאיות מחוץ לטווח המחיקה מטופלות בנפרד על ידי mergeSeq.
+			if (base.length && !ours.length) { deleted++; return []; }
+			var b = parseMergeCategory(base), o = parseMergeCategory(ours), t = parseMergeCategory(theirs);
+			if (b && o && t) {
+				// שם ומפתח מיון הם שדות נפרדים. שינוי מתחרה באותו שדה דורש הכרעה.
+				if ((o.name !== t.name && o.name !== b.name && t.name !== b.name) ||
+					(o.key !== t.key && o.key !== b.key && t.key !== b.key)) return null;
+				var name = o.name === b.name ? t.name : o.name;
+				var key = o.key === b.key ? t.key : o.key;
+				categories++;
+				return [o.prefix + name + (key === undefined ? '' : '|' + key) + o.suffix];
+			}
+			return mergeWords(base, ours, theirs);
+		});
+		// mergeSeq סופר פתרונות callback כמיזוגי מילים; מתקנים לפי סוג הפתרון.
+		r.word -= deleted + categories;
+		r.auto -= deleted;
+		r.kept += deleted;
 		r.text = renderParts(r.parts, null);
 		return r;
 	}
@@ -522,7 +548,7 @@
 			var base = list ? applyImportReplacements(v.base.text, list) : v.base.text;
 			var theirs = list ? applyImportReplacements(v.theirs.text, list) : v.theirs.text;
 			var ours = splitImportTail(v.ours.text);
-			var m = mergeSeq(base.split('\n'), ours.body.split('\n'), theirs.split('\n'), mergeWords);
+			var m = merge3(base, ours.body, theirs);
 			var res = {
 				parts: m.parts, choices: [], tail: ours.tail, oursBody: ours.body, oursFull: v.ours.text,
 				conflicts: m.conflicts, auto: m.auto, kept: m.kept, word: m.word,

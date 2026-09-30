@@ -21,6 +21,70 @@ const wordLists = engine.compileLists(
 
 const L = (...lines) => lines.join('\n');
 
+test('ווהלין: הנתונים האמיתיים מתמזגים ללא החזרת הקטע שנמחק', () => {
+  const input = require('./wolyn-merge-inputs.json');
+  const ours = splitImportTail(input.ours);
+  const r = merge3(input.base, ours.body, input.theirs);
+  assert.strictEqual(r.conflicts, 0);
+  assert.ok(!r.text.includes('==קישורים חיצוניים=='));
+  assert.ok(!r.text.includes('wolyn.org.il'));
+  assert.ok(r.text.includes('[[קטגוריה:מכוני מחקר בישראל|ווהלין]]'));
+  assert.ok(r.text.includes('[[מכון מחקר]]'));
+  assert.ok(r.text.includes('{{בקרת זהויות}}'));
+  for (const line of input.theirs.split('\n')) {
+    if (/^\[\[קטגוריה:/.test(line) && !input.base.includes(line)) assert.ok(r.text.includes(line), line);
+    if (/^\[\[(?:קובץ|תמונה):/.test(line)) assert.ok(r.text.includes(line), line);
+  }
+  assert.strictEqual(r.word, 0);
+  const final = updateSortTemplate(r.text + ours.tail, 43166683, new Date(2026, 8, 30));
+  assert.ok(final.includes('{{וח}}'));
+  assert.strictEqual(parseSortTemplateRev(final), 43166683);
+});
+
+test('קטגוריה: שינוי שם ומפתח מיון בשני הצדדים משתלבים', () => {
+  const base = '[[קטגוריה:ישן]]';
+  const ours = '[[קטגוריה:חדש]]', theirs = '[[קטגוריה:ישן|ווהלין]]';
+  for (const sides of [[ours, theirs], [theirs, ours]]) {
+    const r = merge3(base, ...sides);
+    assert.strictEqual(r.conflicts, 0);
+    assert.strictEqual(r.text, '[[קטגוריה:חדש|ווהלין]]');
+    assert.strictEqual(r.auto, 1);
+    assert.strictEqual(r.word, 0);
+  }
+});
+
+test('קטגוריה: שמות שונים או מפתחות שונים דורשים הכרעה', () => {
+  assert.strictEqual(merge3('[[קטגוריה:ישן]]', '[[קטגוריה:מקומי]]', '[[קטגוריה:חדש]]').conflicts, 1);
+  assert.strictEqual(merge3('[[קטגוריה:שם|א]]', '[[קטגוריה:שם|ב]]', '[[קטגוריה:שם|ג]]').conflicts, 1);
+});
+
+test('קטגוריה: מפתח ריק ומפתח חסר הם מצבים שונים', () => {
+  assert.strictEqual(merge3('[[קטגוריה:ישן|א]]', '[[קטגוריה:חדש|א]]', '[[קטגוריה:ישן|]]').text, '[[קטגוריה:חדש|]]');
+  assert.strictEqual(merge3('[[קטגוריה:ישן|א]]', '[[קטגוריה:חדש|א]]', '[[קטגוריה:ישן]]').text, '[[קטגוריה:חדש]]');
+});
+
+test('קטגוריה: לא משלבים שמות מתחרים באמצעות מיזוג מילים', () => {
+  assert.strictEqual(merge3('[[קטגוריה:מכוני מחקר בישראל]]', '[[קטגוריה:מרכזי מחקר בישראל]]', '[[קטגוריה:מכוני מחקר בעולם]]').conflicts, 1);
+});
+
+test('מחיקה מקומית אינה מוחקת עדכונים מחוץ לטווח שלה', () => {
+  const r = merge3(L('א', 'ישן', 'ג', 'ד'), L('א', 'ג', 'ד'), L('לפני', 'א', 'מעודכן', 'ג', 'ד חדש'));
+  assert.strictEqual(r.conflicts, 0);
+  assert.strictEqual(r.text, L('לפני', 'א', 'ג', 'ד חדש'));
+});
+
+test('מחיקה בוויקיפדיה מול עריכה מקומית עדיין דורשת הכרעה', () => {
+  assert.strictEqual(merge3(L('א', 'ישן', 'ג'), L('א', 'מקומי', 'ג'), L('א', 'ג')).conflicts, 1);
+});
+
+test('מחיקה מקומית חלקית עם עריכה חופפת רחבה אינה נבלעת', () => {
+  assert.strictEqual(merge3(L('א', 'ב', 'ג', 'ד'), L('א', 'ג', 'ד'), L('א', 'חדש', 'ד')).conflicts, 1);
+});
+
+test('הטופס מפעיל את אותו מנוע שנבדק', () => {
+  assert.ok(src.includes('var m = merge3(base, ours.body, theirs);'));
+});
+
 test('שינויים שלא חופפים ממוזגים אוטומטית משני הצדדים', () => {
   const base = L('א', 'ב', 'ג', 'ד', 'ה', 'ו');
   const ours = L('א', 'ב מכלול', 'ג', 'ד', 'ה', 'ו');
@@ -240,9 +304,13 @@ test('הבחירות בטופס ההתנגשויות מייצרות טקסט נ�
   assert.ok(marks.test(renderParts(r.parts, null)));
 });
 
-test('מחיקה אצלנו מול עריכה בוויקיפדיה של אותה שורה היא התנגשות', () => {
+test('מדיניות עדכון: מחיקה אצלנו נשמרת גם מול עריכה בוויקיפדיה', () => {
   const r = merge3(L('א', 'פסקה', 'ג'), L('א', 'ג'), L('א', 'פסקה מעודכנת', 'ג'));
-  assert.strictEqual(r.conflicts, 1);
+  assert.strictEqual(r.conflicts, 0);
+  assert.strictEqual(r.text, L('א', 'ג'));
+  assert.strictEqual(r.kept, 1);
+  assert.strictEqual(r.auto, 0);
+  assert.strictEqual(r.word, 0);
 });
 
 test('tokenize: מילים ורווחים נשמרים, ריק הוא ללא אסימונים', () => {
