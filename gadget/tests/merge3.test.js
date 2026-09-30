@@ -8,6 +8,16 @@ const src = fs.readFileSync(path.join(__dirname, '..', 'gadget-searchHelperDashb
 const merge = src.slice(src.indexOf('// <merge3>'), src.indexOf('// </merge3>'));
 const { merge3, mergeSeq, mergeWords, renderParts, tokenize, lcsPairs, updateSortTemplate, applyImportReplacements, splitImportTail, parseSortTemplateRev, revisionText } = new Function(merge + '\nreturn { merge3, mergeSeq, mergeWords, renderParts, tokenize, lcsPairs, updateSortTemplate, applyImportReplacements, splitImportTail, parseSortTemplateRev, revisionText };')();
 
+const contentSrc = src.slice(src.indexOf('// <content-check>'), src.indexOf('// </content-check>'));
+const { newContentMatches } = new Function(contentSrc + '\nreturn { newContentMatches };')();
+const engine = require(path.join(__dirname, '..', '..', 'word-filter', 'Gadget-wikitextWordCheck.js'));
+const listsDir = path.join(__dirname, '..', '..', 'word-filter', 'lists');
+const wordLists = engine.compileLists(
+  JSON.parse(fs.readFileSync(path.join(listsDir, 'words.json'), 'utf8')),
+  JSON.parse(fs.readFileSync(path.join(listsDir, 'allow.json'), 'utf8')),
+  { suggested: false }
+);
+
 const L = (...lines) => lines.join('\n');
 
 test('שינויים שלא חופפים ממוזגים אוטומטית משני הצדדים', () => {
@@ -241,4 +251,26 @@ test('tokenize: מילים ורווחים נשמרים, ריק הוא ללא א�
 
 test('אין ארבע טילדות ברצף בקוד הגאדג\'ט (בשמירה במכלול הן מומרות לחתימה)', () => {
   assert.ok(!/~{4}/.test(src), 'נמצאו ארבע טילדות ברצף: לפצל, למשל \' ~~\' + \'~~\'');
+});
+
+test('בדיקת תוכן: מילה בעייתית שהעדכון מכניס מזוהה כחדשה', () => {
+  const ours = L('פתיח נקי', 'פסקה שנייה');
+  const candidate = L('פתיח נקי', 'פסקה שנייה', 'עסק בסרסור במשך שנים');
+  const m = newContentMatches(engine, wordLists, candidate, ours, {});
+  assert.strictEqual(m.length, 1);
+  assert.strictEqual(m[0].text.includes('סרסור'), true);
+  assert.strictEqual(engine.verdict(m), 'problem');
+});
+
+test('בדיקת תוכן: מה שכבר קיים בערך הנוכחי אינו מוצג שוב', () => {
+  const ours = L('פתיח נקי', 'עסק בסרסור במשך שנים');
+  const candidate = L('פתיח נקי חדש', 'עסק בסרסור במשך שנים', 'סוף');
+  assert.strictEqual(newContentMatches(engine, wordLists, candidate, ours, {}).length, 0);
+});
+
+test('בדיקת תוכן: מופע נוסף של אותה מילה בסביבה אחרת נספר כחדש, ותוכן נקי אינו מוצג', () => {
+  const ours = L('עסק בסרסור במשך שנים');
+  const candidate = L('עסק בסרסור במשך שנים', 'ובהמשך נחשד שוב בסרסור נוסף');
+  assert.strictEqual(newContentMatches(engine, wordLists, candidate, ours, {}).length, 1);
+  assert.strictEqual(newContentMatches(engine, wordLists, L('טקסט נקי לגמרי'), L('טקסט נקי'), {}).length, 0);
 });
