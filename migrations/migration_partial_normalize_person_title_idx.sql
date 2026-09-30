@@ -40,12 +40,13 @@ create index if not exists mechalol_pages_temp_normalize_person_title_rav_idx
     where normalize_person_title(title) <> title;
 
 -- 2. הפונקציות. הגדרות מלאות (create or replace מחליף גם את SET; ההרשאות נשמרות).
--- מבנה: קבוצות של ids בהצטרפויות (d = התאמה ישירה, n = התאמה מנורמלת), ו-update יחיד.
--- זה במקום exists(...) בתוך case/where: בבדיקה מקומית (400K שורות) השכתוב הישיר של
--- ה-exists בשני תנאים הפך ל-SubPlan עם סריקה מלאה של mechalol_pages לכל שורה
--- (יותר מ-10 דקות מול 13 שניות בגרסה הישנה). ההצטרפויות נותנות hash/אינדקס.
--- הסמנטיקה זהה למקור: is_missing = לא (ישירה או מנורמלת); הסיבה: ישירה -> NULL,
--- אחרת מנורמלת -> 'rav_prefix_normalization', אחרת NULL.
+-- מבנה: איחוד של כל ההתאמות (kind 1 = ישירה: wikipedia_id/כותרת זהה; kind 2 = מנורמלת),
+-- min(kind) לכל id, ו-update יחיד עם left join. הסמנטיקה זהה למקור: ישירה גוברת
+-- (is_missing=false, הסיבה NULL); אחרת מנורמלת (is_missing=false, 'rav_prefix_normalization');
+-- אחרת חסר. למה לא exists(...)/in(select) כמו המקור: בבדיקה מקומית (400K שורות) שתי
+-- הגרסאות הישירות נכשלו בביצועים - exists בשני תנאים הפך ל-SubPlan עם סריקה מלאה לכל
+-- שורה, ו-in(select) מ-CTE נשבר כי המתכנן העריך 756 מיליון שורות (השוואת ביטויים בלי
+-- סטטיסטיקה = ברירת מחדל 0.5%) ולא בנה hash. הצורה כאן לא תלויה בהערכות כאלה.
 
 create or replace function recompute_missing_flag()
 returns void
@@ -55,33 +56,30 @@ as $$
     with s as (
         select w.id, w.title from wikipedia_pages w
     ),
-    d as (
-        select s.id from s join mechalol_pages m on m.wikipedia_id = s.id
-        union
-        select s.id from s join mechalol_pages m on m.title = s.title
-    ),
-    n as (
-        select s.id from s join mechalol_pages m
-          on m.title = normalize_person_title(s.title) and normalize_person_title(m.title) = m.title
-        union
-        select s.id from s join mechalol_pages m
-          on normalize_person_title(m.title) <> m.title
-         and normalize_person_title(m.title) = normalize_person_title(s.title)
-    ),
-    v as (
-        select s.id,
-               not (s.id in (select id from d) or s.id in (select id from n)) as miss,
-               case when s.id in (select id from d) then null
-                    when s.id in (select id from n) then 'rav_prefix_normalization' end as reason
-        from s
+    hits as (
+        select id, min(kind) as k
+        from (
+            select s.id, 1 as kind from s join mechalol_pages m on m.wikipedia_id = s.id
+            union all
+            select s.id, 1 from s join mechalol_pages m on m.title = s.title
+            union all
+            select s.id, 2 from s join mechalol_pages m
+              on m.title = normalize_person_title(s.title) and normalize_person_title(m.title) = m.title
+            union all
+            select s.id, 2 from s join mechalol_pages m
+              on normalize_person_title(m.title) <> m.title
+             and normalize_person_title(m.title) = normalize_person_title(s.title)
+        ) u
+        group by id
     )
     update wikipedia_pages w
-    set is_missing = v.miss,
-        missing_override_reason = v.reason
-    from v
-    where w.id = v.id
-  and (w.is_missing is distinct from v.miss
-       or w.missing_override_reason is distinct from v.reason);
+    set is_missing = (h.k is null),
+        missing_override_reason = case h.k when 2 then 'rav_prefix_normalization' end
+    from s
+    left join hits h on h.id = s.id
+    where w.id = s.id
+      and (w.is_missing is distinct from (h.k is null)
+           or w.missing_override_reason is distinct from case h.k when 2 then 'rav_prefix_normalization' end);
 $$;
 
 create or replace function recompute_missing_flag_scoped(ids bigint[])
@@ -93,31 +91,28 @@ as $$
         select w.id, w.title from wikipedia_pages w
         where w.id = any(ids)
     ),
-    d as (
-        select s.id from s join mechalol_pages m on m.wikipedia_id = s.id
-        union
-        select s.id from s join mechalol_pages m on m.title = s.title
-    ),
-    n as (
-        select s.id from s join mechalol_pages m
-          on m.title = normalize_person_title(s.title) and normalize_person_title(m.title) = m.title
-        union
-        select s.id from s join mechalol_pages m
-          on normalize_person_title(m.title) <> m.title
-         and normalize_person_title(m.title) = normalize_person_title(s.title)
-    ),
-    v as (
-        select s.id,
-               not (s.id in (select id from d) or s.id in (select id from n)) as miss,
-               case when s.id in (select id from d) then null
-                    when s.id in (select id from n) then 'rav_prefix_normalization' end as reason
-        from s
+    hits as (
+        select id, min(kind) as k
+        from (
+            select s.id, 1 as kind from s join mechalol_pages m on m.wikipedia_id = s.id
+            union all
+            select s.id, 1 from s join mechalol_pages m on m.title = s.title
+            union all
+            select s.id, 2 from s join mechalol_pages m
+              on m.title = normalize_person_title(s.title) and normalize_person_title(m.title) = m.title
+            union all
+            select s.id, 2 from s join mechalol_pages m
+              on normalize_person_title(m.title) <> m.title
+             and normalize_person_title(m.title) = normalize_person_title(s.title)
+        ) u
+        group by id
     )
     update wikipedia_pages w
-    set is_missing = v.miss,
-        missing_override_reason = v.reason
-    from v
-    where w.id = v.id;
+    set is_missing = (h.k is null),
+        missing_override_reason = case h.k when 2 then 'rav_prefix_normalization' end
+    from s
+    left join hits h on h.id = s.id
+    where w.id = s.id;
 $$;
 
 create or replace function recompute_missing_flag_by_titles(titles text[])
@@ -130,31 +125,28 @@ as $$
         where w.title = any(titles)
            or normalize_person_title(w.title) = any(array(select normalize_person_title(t) from unnest(titles) as t))
     ),
-    d as (
-        select s.id from s join mechalol_pages m on m.wikipedia_id = s.id
-        union
-        select s.id from s join mechalol_pages m on m.title = s.title
-    ),
-    n as (
-        select s.id from s join mechalol_pages m
-          on m.title = normalize_person_title(s.title) and normalize_person_title(m.title) = m.title
-        union
-        select s.id from s join mechalol_pages m
-          on normalize_person_title(m.title) <> m.title
-         and normalize_person_title(m.title) = normalize_person_title(s.title)
-    ),
-    v as (
-        select s.id,
-               not (s.id in (select id from d) or s.id in (select id from n)) as miss,
-               case when s.id in (select id from d) then null
-                    when s.id in (select id from n) then 'rav_prefix_normalization' end as reason
-        from s
+    hits as (
+        select id, min(kind) as k
+        from (
+            select s.id, 1 as kind from s join mechalol_pages m on m.wikipedia_id = s.id
+            union all
+            select s.id, 1 from s join mechalol_pages m on m.title = s.title
+            union all
+            select s.id, 2 from s join mechalol_pages m
+              on m.title = normalize_person_title(s.title) and normalize_person_title(m.title) = m.title
+            union all
+            select s.id, 2 from s join mechalol_pages m
+              on normalize_person_title(m.title) <> m.title
+             and normalize_person_title(m.title) = normalize_person_title(s.title)
+        ) u
+        group by id
     )
     update wikipedia_pages w
-    set is_missing = v.miss,
-        missing_override_reason = v.reason
-    from v
-    where w.id = v.id;
+    set is_missing = (h.k is null),
+        missing_override_reason = case h.k when 2 then 'rav_prefix_normalization' end
+    from s
+    left join hits h on h.id = s.id
+    where w.id = s.id;
 $$;
 
 create or replace function recompute_missing_flag_temp()
@@ -165,33 +157,30 @@ as $$
     with s as (
         select w.id, w.title from wikipedia_pages_temp w
     ),
-    d as (
-        select s.id from s join mechalol_pages_temp m on m.wikipedia_id = s.id
-        union
-        select s.id from s join mechalol_pages_temp m on m.title = s.title
-    ),
-    n as (
-        select s.id from s join mechalol_pages_temp m
-          on m.title = normalize_person_title(s.title) and normalize_person_title(m.title) = m.title
-        union
-        select s.id from s join mechalol_pages_temp m
-          on normalize_person_title(m.title) <> m.title
-         and normalize_person_title(m.title) = normalize_person_title(s.title)
-    ),
-    v as (
-        select s.id,
-               not (s.id in (select id from d) or s.id in (select id from n)) as miss,
-               case when s.id in (select id from d) then null
-                    when s.id in (select id from n) then 'rav_prefix_normalization' end as reason
-        from s
+    hits as (
+        select id, min(kind) as k
+        from (
+            select s.id, 1 as kind from s join mechalol_pages_temp m on m.wikipedia_id = s.id
+            union all
+            select s.id, 1 from s join mechalol_pages_temp m on m.title = s.title
+            union all
+            select s.id, 2 from s join mechalol_pages_temp m
+              on m.title = normalize_person_title(s.title) and normalize_person_title(m.title) = m.title
+            union all
+            select s.id, 2 from s join mechalol_pages_temp m
+              on normalize_person_title(m.title) <> m.title
+             and normalize_person_title(m.title) = normalize_person_title(s.title)
+        ) u
+        group by id
     )
     update wikipedia_pages_temp w
-    set is_missing = v.miss,
-        missing_override_reason = v.reason
-    from v
-    where w.id = v.id
-  and (w.is_missing is distinct from v.miss
-       or w.missing_override_reason is distinct from v.reason);
+    set is_missing = (h.k is null),
+        missing_override_reason = case h.k when 2 then 'rav_prefix_normalization' end
+    from s
+    left join hits h on h.id = s.id
+    where w.id = s.id
+      and (w.is_missing is distinct from (h.k is null)
+           or w.missing_override_reason is distinct from case h.k when 2 then 'rav_prefix_normalization' end);
 $$;
 
 -- 3. הדוח: אותה הצטרפות, בשני חלקים זרים (השורות של m מתפצלות לפי
