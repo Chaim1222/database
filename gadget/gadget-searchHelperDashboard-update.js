@@ -527,16 +527,16 @@
 			if (x.t === 'h') rows.push('<tr><td colspan="4" class="mchl-mv-chead">' + escapeHtml(x.text) + '</td></tr>');
 			else if (x.t === 'c') rows.push('<tr>' + cell('diff-context', '', escapeHtml(x.text)) + cell('diff-context', '', escapeHtml(x.text)) + '</tr>');
 			else rows.push('<tr class="mchl-mv-' + x.src + '">' + (x.l !== undefined ? cell('diff-deletedline', '−', x.l) : empty) +
-				(x.r !== undefined ? cell('diff-addedline mchl-mvc-' + x.src, '+', x.r, x.first ? x.src : '') : empty) + '</tr>');
+				(x.r !== undefined ? cell('diff-addedline mchl-mvc-' + x.src, '+', x.r, x.first && x.src !== 'theirs' ? x.src : '') : empty) + '</tr>');
 		}
 		return rows.length ? '<table class="diff mchl-mv-table"><colgroup><col class="diff-marker"><col class="diff-content"><col class="diff-marker"><col class="diff-content"></colgroup>' +
 			'<thead><tr><th colspan="2">המכלול היום</th><th colspan="2">אחרי המיזוג (מה שייפתח בעריכה)</th></tr></thead>' + rows.join('') + '</table>'
 			: '<div class="mchl-muted">אין הבדל בטקסט: יעודכנו רק גרסה ותאריך בתבנית.</div>';
 	}
 	function mergeViewBoxHtml(res) {
-		var legend = ['theirs', 'merged', 'conflict', 'chosen'].map(function (k) { return '<span class="mchl-src mchl-src-' + k + '">' + VIEW_SRC[k] + '</span>'; }).join(' ');
+		var legend = ['merged', 'conflict', 'chosen'].map(function (k) { return '<span class="mchl-src mchl-src-' + k + '">' + VIEW_SRC[k] + '</span>'; }).join(' ');
 		return '<details class="mchl-upd-viewbox" open><summary>מה ישתנה בערך במכלול: לפני ואחרי המיזוג</summary><div class="mchl-mv-legend">' + legend +
-			' <span class="mchl-muted">שינויים מקומיים שנשמרו אינם מופיעים כי הם כבר בטקסט של המכלול</span></div>' +
+			' <span class="mchl-muted">תוכן חדש מוויקיפדיה מוצג כשינוי רגיל; שינויים מקומיים שנשמרו אינם מופיעים כי הם כבר בטקסט של המכלול</span></div>' +
 			'<div class="mchl-upd-view mchl-upd-diff">' + mergeViewHtml(res) + '</div></details>';
 	}
 	function updateConflictsHtml(res) {

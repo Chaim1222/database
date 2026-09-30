@@ -313,7 +313,6 @@ body:not(.mchl-no-site-nav) .mchl-sitenav-tab{right:11em;}
 #mchl-dash .mchl-upd-view td.mchl-mvc-conflict{background:#D9B44A2E;}
 #mchl-dash .mchl-mv-chead{background:#D9B44A33;font-weight:600;padding:3px 8px;}
 #mchl-dash .mchl-src{display:inline-block;padding:0 7px;border-radius:9px;font-size:11px;border:1px solid;}
-#mchl-dash .mchl-src-theirs{border-color:#5C9686;background:#5C968633;}
 #mchl-dash .mchl-src-merged{border-color:#9A7BB8;background:#9A7BB833;}
 #mchl-dash .mchl-src-conflict{border-color:#D9B44A;background:#D9B44A33;}
 #mchl-dash .mchl-src-chosen{border-color:#5B8DB8;background:#5B8DB833;}
