@@ -161,7 +161,9 @@
 				options: ['בשנה האחרונה', 'לפני שנה עד שנתיים', '2020 עד לפני שנתיים', 'לפני 2020', 'ללא תאריך']
 			}],
 			order: 'sort_template_date.asc.nullslast,id.asc', titleLink: 'edit', freshness: true, liveChange: true,
-			group: 'wikiupdate'
+			group: 'wikiupdate',
+			// זמני: מוצג רק למי שמחובר עם משתמש וסיסמה (פאנל הניהול), כמו שיוך כותרות. להסרה: למחוק את השורה.
+			requiresLogin: true
 		},
 		// ערכי ויקיפדיה שהוצאו מ"חסר במכלול" רק בגלל כותרת זהה אחרי הסרת
 		// "הרב"/"רבי" - לא התאמה ודאית, דורש אישור אנושי. ה-view היה קיים
@@ -191,6 +193,7 @@
 	// הלקוח בלבד, לא הגנה: הנתונים עצמם קריאים ל-anon.
 	function tabAllowed(key) {
 		var v = VIEWS[key];
+		if (v && v.requiresLogin && !serviceKeyConnected) return false;
 		return !(v && v.group && userLevel < (GROUP_LEVELS[v.group] || Infinity));
 	}
 	function groupOfTab(key) { return TAB_GROUPS.filter(function (g) { return g.tabs.indexOf(key) >= 0; })[0] || TAB_GROUPS[0]; }
@@ -692,6 +695,13 @@
 	}
 
 	// ===== בניית הממשק =====
+	// מצב ההתחברות קובע אילו לשוניות מוצגות (requiresLogin): בונים את הלשוניות מחדש, ואם הפעילה הוסתרה חוזרים ל"חסר במכלול".
+	function syncAuthTabs() {
+		if (!$id('mchl-tabs')) return;
+		buildTabs();
+		if (!tabAllowed(activeTab)) switchTab('missing');
+		loadStats(); // ממלא מחדש את מוני הלשוניות שנבנו מחדש
+	}
 	function buildTabs() {
 		var nav = $id('mchl-tabs');
 		nav.innerHTML = '';
@@ -699,6 +709,7 @@
 		groupsRow.className = 'mchl-tab-groups';
 		nav.appendChild(groupsRow);
 		TAB_GROUPS.forEach(function (g) {
+			if (!g.tabs.some(tabAllowed)) return; // קבוצה בלי לשוניות מותרות (למשל "עדכון" למי שלא מחובר) לא מוצגת
 			var gb = document.createElement('button');
 			gb.type = 'button';
 			gb.className = 'mchl-tab-group';
@@ -734,8 +745,10 @@
 	function markActiveTab() {
 		var g = groupOfTab(activeTab);
 		TAB_GROUPS.forEach(function (x) {
-			$id('mchl-tabgroup-' + x.key).classList.toggle('mchl-active', x === g);
-			$id('mchl-subtabs-' + x.key).classList.toggle('mchl-open', x === g);
+			var gb = $id('mchl-tabgroup-' + x.key), sub = $id('mchl-subtabs-' + x.key);
+			if (!gb || !sub) return; // קבוצה מוסתרת
+			gb.classList.toggle('mchl-active', x === g);
+			sub.classList.toggle('mchl-open', x === g);
 		});
 		document.querySelectorAll('#mchl-dash .mchl-tab').forEach(function (t) { t.classList.toggle('mchl-active', t.id === 'mchl-tab-' + activeTab); });
 		uiPrefs['lastTab:' + g.key] = activeTab;
@@ -3447,6 +3460,7 @@
 			statusEl.textContent = 'התחברות בוצעה בהצלחה.';
 			statusEl.className = 'mchl-muted mchl-success';
 			updateSelectionBar();
+			syncAuthTabs();
 			// אם כבר נמצאים בטאב עם עמודת שיוך ידני ("חסר במכלול"/"קיים כהפניה") - מרעננים
 			// כדי שעמודת השיוך הידני תופיע בלי לחכות למעבר טאב.
 			if (VIEWS[activeTab] && VIEWS[activeTab].manualMatch) renderTable();
@@ -3458,6 +3472,7 @@
 			statusEl.textContent = 'שגיאת רשת בהתחברות - נסה שוב.';
 			statusEl.className = 'mchl-muted mchl-alert';
 			updateSelectionBar();
+			syncAuthTabs();
 		});
 	}
 
@@ -3480,6 +3495,7 @@
 				try { sessionStorage.removeItem(SESSION_STORAGE_KEY); } catch (e) { /* מתעלמים */ }
 				serviceKeyConnected = false;
 				updateSelectionBar();
+				syncAuthTabs();
 				throw new Error('פג תוקף ההתחברות - יש להתחבר מחדש בפאנל הניהול.');
 			}
 			sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({
