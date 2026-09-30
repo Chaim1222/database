@@ -702,7 +702,8 @@
 		if (!$id('mchl-tabs')) return;
 		buildTabs();
 		if (!tabAllowed(activeTab)) switchTab('missing');
-		loadStats(); // ממלא מחדש את מוני הלשוניות שנבנו מחדש
+		countsLoaded = {};
+		loadStats(); // ממלא מחדש את מוני הלשונית הפעילה; השאר מוצגים מהשמור
 	}
 	function buildTabs() {
 		var nav = $id('mchl-tabs');
@@ -741,6 +742,8 @@
 			});
 			nav.appendChild(sub);
 		});
+		// הערכים האחרונים השמורים מוצגים מיד (אחרי שהלשוניות מחוברות ל-DOM), עד שהספירה החיה חוזרת.
+		Object.keys(VIEWS).forEach(function (k) { paintCachedCount('mchl-tab-count-' + k); });
 		markActiveTab();
 	}
 
@@ -764,6 +767,7 @@
 		activeFilters = {};
 		selectedRows.clear();
 		markActiveTab();
+		loadGroupCounts(groupOfTab(key)); // ספירות הקבוצה נטענות כשהיא נפתחת (פעם אחת בכל מחזור רענון)
 		updateSelectionBar();
 		var isStats = key === 'stats';
 		$id('mchl-stats-area').style.display = isStats ? 'block' : 'none';
@@ -1689,6 +1693,7 @@
 		deletionHintCache.clear();
 		btn.classList.add('mchl-spinning');
 		wfSummary = null;
+		countsLoaded = {}; // רענון סופר מחדש רק את הקבוצה הפעילה
 		if (VIEWS[activeTab] && VIEWS[activeTab].easyImport) renderWfMeter();
 		return Promise.all([loadStats(), loadCurrentTab(), fetchLastSyncTime().catch(function () { return undefined; })]).then(function (results) {
 			btn.classList.remove('mchl-spinning');
@@ -1735,18 +1740,53 @@
 		return Promise.all(workers).then(function () { return results; });
 	}
 
-	function loadStats() {
-		STAT_DEFS.forEach(function (d) {
+	// ===== ספירות: רק לקבוצה הפעילה, והערך האחרון השמור מוצג עד הרענון =====
+	// פתיחת הדשבורד לא סופרת עוד את כל הלשוניות: ספירות של קבוצה נטענות כשהיא נפתחת (switchTab), ורענון סופר רק את הפעילה.
+	// הערך האחרון נשמר ב-localStorage (בדפדפן של כל משתמש) ומוצג מיד, מעומעם ועם זמן העדכון, עד שהספירה החיה חוזרת.
+	var COUNTS_CACHE_KEY = 'mchl-counts-cache';
+	var countsLoaded = {}; // group key -> true אחרי שנטענו הספירות שלה במחזור הנוכחי
+	function readCountCache() { try { return JSON.parse(localStorage.getItem(COUNTS_CACHE_KEY) || '{}') || {}; } catch (e) { return {}; } }
+	function writeCountCache(id, val) {
+		try { var c = readCountCache(); c[id] = { v: val, t: Date.now() }; localStorage.setItem(COUNTS_CACHE_KEY, JSON.stringify(c)); } catch (e) { /* לא נשמר - לא נורא */ }
+	}
+	function setCountBadge(id, val) {
+		var el = $id(id);
+		if (!el) return;
+		el.textContent = val.toLocaleString('he-IL');
+		el.classList.remove('mchl-count-stale');
+		el.removeAttribute('title');
+		writeCountCache(id, val);
+	}
+	function paintCachedCount(id) {
+		var el = $id(id), c = readCountCache()[id];
+		if (!el || !c || typeof c.v !== 'number') return;
+		el.textContent = c.v.toLocaleString('he-IL');
+		el.classList.add('mchl-count-stale');
+		el.title = 'נכון ל-' + new Date(c.t).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) + ' - יתרענן כשהקבוצה נפתחת';
+	}
+
+	function loadStats() { return loadGroupCounts(groupOfTab(activeTab)); }
+
+	function loadGroupCounts(g) {
+		if (countsLoaded[g.key]) return Promise.resolve();
+		countsLoaded[g.key] = true;
+		var isStats = g.key === 'stats';
+		var tabIds = g.tabs.map(function (k) { return 'mchl-tab-count-' + k; });
+		// כרטיסי הסטטיסטיקה: כולם בקבוצת "נתונים סטטיסטיים"; בשאר הקבוצות רק מה שמוצג כמונה של לשונית שלהן.
+		var defs = STAT_DEFS.filter(function (d) { return isStats || (d.tabCount && tabIds.indexOf(d.tabCount) >= 0); });
+		defs.forEach(function (d) {
 			$id(d.spinId).style.display = 'inline-block';
 			$id(d.warnId).style.display = 'none';
 		});
 		var statValues = {};
-		var jobs = STAT_DEFS.map(function (d) { return function () {
+		var jobs = defs.map(function (d) { return function () {
 			var viewCfg = d.viewKey ? VIEWS[d.viewKey] : null;
 			return pgCount(d.table, viewCfg ? viewCfg.baseFilters : null, undefined, d.estimated).then(function (val) {
 				statValues[d.key] = val;
-				$id(d.statId).textContent = val.toLocaleString('he-IL');
-				if (d.tabCount) $id(d.tabCount).textContent = val.toLocaleString('he-IL');
+				// ספירה משוערת (מהמתכנן) מסומנת ב-~ ובתיאור.
+				$id(d.statId).textContent = (d.estimated ? '~' : '') + val.toLocaleString('he-IL');
+				$id(d.statId).title = d.estimated ? 'ספירה משוערת' : '';
+				if (d.tabCount) setCountBadge(d.tabCount, val);
 			}).catch(function (e) {
 				statValues[d.key] = null;
 				var w = $id(d.warnId);
@@ -1758,26 +1798,30 @@
 				$id(d.spinId).style.display = 'none';
 			});
 		}; });
-		// מוני טאבים ל-views שאין להם כרטיס סטטיסטיקה משלהם.
+		// מוני לשוניות של ה-views שאין להם כרטיס סטטיסטיקה משלהם (רק של הקבוצה הזו).
 		var coveredTabs = {};
-		STAT_DEFS.forEach(function (d) { if (d.tabCount) coveredTabs[d.tabCount] = true; });
-		Object.keys(VIEWS).forEach(function (key) {
+		defs.forEach(function (d) { if (d.tabCount) coveredTabs[d.tabCount] = true; });
+		g.tabs.forEach(function (key) {
 			var tabCountId = 'mchl-tab-count-' + key;
-			if (coveredTabs[tabCountId] || !tabAllowed(key)) return;
+			if (!VIEWS[key] || coveredTabs[tabCountId] || !tabAllowed(key)) return;
 			var cfg = VIEWS[key];
 			jobs.push(function () {
 				return pgCount(cfg.view, cfg.baseFilters, cfg.countColumn).then(function (val) {
-					var el = $id(tabCountId);
-					if (el) el.textContent = val.toLocaleString('he-IL');
-				}).catch(function () { /* המונה נשאר "–" */ });
+					setCountBadge(tabCountId, val);
+				}).catch(function () { /* המונה נשאר כמו שהיה */ });
 			});
 		});
-		// "תואמים" = דפי מכלול עם קישור לוויקיפדיה, *פחות* אלה שגם מופיעים
-		// במשימות לטיפול (למשל "חסרה תבנית מיון" - מקושרים אבל עדיין משימה),
-		// אחרת הם נספרים פעמיים בפס.
-		var matchedJob = function () { return pgCount('mechalol_pages', [['wikipedia_id', 'not.is.null']], undefined, true).catch(function () { return null; }); };
-		var tasksLinkedJob = function () { return pgCount('report_tasks_to_handle', [['wikipedia_id', 'not.is.null']]).catch(function () { return null; }); };
-		return runLimited([matchedJob, tasksLinkedJob].concat(jobs), STATS_CONCURRENCY).then(function (results) {
+		var fns = jobs;
+		if (isStats) {
+			// "תואמים" = דפי מכלול עם קישור לוויקיפדיה, *פחות* אלה שגם מופיעים
+			// במשימות לטיפול (למשל "חסרה תבנית מיון" - מקושרים אבל עדיין משימה),
+			// אחרת הם נספרים פעמיים בפס.
+			var matchedJob = function () { return pgCount('mechalol_pages', [['wikipedia_id', 'not.is.null']], undefined, true).catch(function () { return null; }); };
+			var tasksLinkedJob = function () { return pgCount('report_tasks_to_handle', [['wikipedia_id', 'not.is.null']]).catch(function () { return null; }); };
+			fns = [matchedJob, tasksLinkedJob].concat(jobs);
+		}
+		return runLimited(fns, STATS_CONCURRENCY).then(function (results) {
+			if (!isStats) return;
 			var matched = (results[0] != null && results[1] != null) ? results[0] - results[1] : null;
 			var tasks = statValues.tasks, missing = statValues.missing;
 			if (matched != null && tasks != null && missing != null) {
@@ -3762,6 +3806,7 @@
 		'#mchl-dash .mchl-with-side .mchl-title{display:inline-block;min-width:11em;}' +
 		'#mchl-dash .mchl-row-desc{color:var(--mchl-text-3);font-size:12px;margin-top:2px;}' +
 		'#mchl-dash .mchl-update-note{padding:10px 16px;border-bottom:1px solid var(--mchl-line);}' +
+		'#mchl-dash .mchl-count.mchl-count-stale{opacity:.55;}' +
 		'#mchl-dash tr.mchl-upd-same{opacity:.55;}' +
 		'#mchl-dash tr.mchl-upd-details-row td{background:var(--mchl-ink-900);}' +
 		'#mchl-dash .mchl-upd-box{padding:10px 8px;}' +
