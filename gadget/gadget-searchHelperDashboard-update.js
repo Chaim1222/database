@@ -146,6 +146,9 @@
 	function mergeSeq(base, ours, theirs, onConflict, strict) {
 		var ho = diffHunks(base, ours), ht = diffHunks(base, theirs);
 		var i = 0, j = 0, pos = 0, parts = [], cur = [], conflicts = 0, auto = 0, kept = 0, word = 0;
+		var view = []; // תצוגת מקור: מה הגיע מאיזו גרסה (לשורות בלבד; לא נבנה במיזוג מילים)
+		var rec = function (e) { if (!strict) view.push(e); };
+		var same = function (to) { if (!strict && to > pos) rec({ k: 'same', v: base.slice(pos, to) }); };
 		var flush = function () { if (cur.length) { parts.push({ t: 'text', v: cur }); cur = []; } };
 		var range = function (hunks, side, cs, ce) {
 			var f = hunks[0], l = hunks[hunks.length - 1];
@@ -172,23 +175,25 @@
 				while (i < ho.length && overlaps(ho[i])) { add(ho[i], true); i++; grew = true; }
 				while (j < ht.length && overlaps(ht[j])) { add(ht[j], false); j++; grew = true; }
 			}
+			same(cs);
 			for (; pos < cs; pos++) cur.push(base[pos]);
-			if (!ct.length) { cur.push.apply(cur, range(co, ours, cs, ce)); kept++; }
-			else if (!co.length) { cur.push.apply(cur, range(ct, theirs, cs, ce)); auto++; }
+			if (!ct.length) { var ro = range(co, ours, cs, ce); cur.push.apply(cur, ro); kept++; rec({ k: 'ours', old: base.slice(cs, ce), v: ro }); }
+			else if (!co.length) { var rt = range(ct, theirs, cs, ce); cur.push.apply(cur, rt); auto++; rec({ k: 'theirs', old: base.slice(cs, ce), v: rt }); }
 			else {
 				var o = range(co, ours, cs, ce), t = range(ct, theirs, cs, ce);
-				if (o.join('\n') === t.join('\n')) { cur.push.apply(cur, o); auto++; }
+				if (o.join('\n') === t.join('\n')) { cur.push.apply(cur, o); auto++; rec({ k: 'both', old: base.slice(cs, ce), v: o }); }
 				else {
 					var resolved = onConflict ? onConflict(base.slice(cs, ce), o, t) : null;
-					if (resolved) { cur.push.apply(cur, resolved); auto++; word++; }
-					else { flush(); parts.push({ t: 'conflict', base: base.slice(cs, ce), ours: o, theirs: t }); conflicts++; }
+					if (resolved) { cur.push.apply(cur, resolved); auto++; word++; rec({ k: 'merged', old: base.slice(cs, ce), v: resolved, ours: o, theirs: t }); }
+						else { flush(); parts.push({ t: 'conflict', base: base.slice(cs, ce), ours: o, theirs: t }); rec({ k: 'conflict', i: conflicts, old: base.slice(cs, ce), ours: o, theirs: t }); conflicts++; }
 				}
 			}
 			pos = Math.max(pos, ce);
 		}
+		same(base.length);
 		for (; pos < base.length; pos++) cur.push(base[pos]);
 		flush();
-		return { parts: parts, conflicts: conflicts, auto: auto, kept: kept, word: word };
+		return { parts: parts, view: view, conflicts: conflicts, auto: auto, kept: kept, word: word };
 	}
 	// התנגשות ברמת שורות נבדקת שוב ברמת מילים: אם שני הצדדים שינו מילים שונות באותה פסקה, זה ממוזג אוטומטית.
 	function mergeWords(baseLines, oursLines, theirsLines) {
@@ -472,6 +477,47 @@
 		if (res.conflicts) return '<span class="mchl-badge mchl-wiki">כל ההתנגשויות נפתרו</span>';
 		return noChange ? '<span class="mchl-badge mchl-neutral">אין שינוי בטקסט</span>' : '<span class="mchl-badge mchl-wiki">מיזוג נקי</span>';
 	}
+	// תצוגת המיזוג: הטקסט הסופי עם סימון לכל שינוי לפי המקור שלו (ויקיפדיה / מכלול / שניהם / שולב אוטומטית / התנגשות).
+	var VIEW_LABELS = { theirs: 'מוויקיפדיה', ours: 'שינוי מקומי נשמר', both: 'זהה בשני הצדדים', merged: 'שולב אוטומטית', conflict: 'התנגשות', manual: 'עריכה ידנית' };
+	function viewLine(kind, mark, html, label) {
+		return '<div class="mchl-mv-line mchl-mv-' + kind + '"><span class="mchl-mv-mark">' + mark + '</span><span class="mchl-mv-text">' + (html === '' ? '&nbsp;' : html) + '</span>' +
+			(label ? '<span class="mchl-mv-tag">' + label + '</span>' : '') + '</div>';
+	}
+	function viewChange(kind, oldLines, newLines, label, removedLabel) {
+		var d = oldLines.length && newLines.length ? wordDiffHtml(oldLines.join('\n'), newLines.join('\n')) : [escapeHtml(oldLines.join('\n')), escapeHtml(newLines.join('\n'))];
+		var o = oldLines.length ? d[0].split('\n') : [], n = newLines.length ? d[1].split('\n') : [];
+		var out = o.map(function (h, k) { return viewLine('del', '−', h, k === 0 && !n.length ? removedLabel : ''); });
+		return out.concat(n.map(function (h, k) { return viewLine(kind, '+', h, k === 0 ? label : ''); })).join('');
+	}
+	function mergeViewHtml(res) {
+		var EDGE = 3;
+		var plain = function (l) { return viewLine('same', '', escapeHtml(l)); };
+		return (res.view || []).map(function (e) {
+			if (e.k === 'same') {
+				if (e.v.length <= EDGE * 2 + 1) return e.v.map(plain).join('');
+				return e.v.slice(0, EDGE).map(plain).join('') + '<div class="mchl-mv-gap">⋯ ' + (e.v.length - EDGE * 2) + ' שורות ללא שינוי ⋯</div>' + e.v.slice(-EDGE).map(plain).join('');
+			}
+			if (e.k === 'merged') return viewChange('merged', e.old, e.v, e.v.length ? VIEW_LABELS.merged : '', 'מחיקה מקומית נשמרה');
+			if (e.k === 'conflict') {
+				var c = res.choices[e.i];
+				if (c === 'ours') return viewChange('ours', e.old, e.ours, 'נבחר: המכלול', 'נבחר: המכלול');
+				if (c === 'theirs') return viewChange('theirs', e.old, e.theirs, 'נבחר: ויקיפדיה', 'נבחר: ויקיפדיה');
+				if (c === 'both') return viewChange('both', e.old, e.ours.concat(e.theirs), 'נבחרו שניהם', '');
+				if (c && typeof c === 'object' && !c.pending) return viewChange('merged', e.old, c.text === '' ? [] : c.text.split('\n'), VIEW_LABELS.manual, VIEW_LABELS.manual);
+				return '<div class="mchl-mv-conflict"><div class="mchl-mv-chead">התנגשות ' + (e.i + 1) + ' - טרם הוכרעה (הבחירה בטפסים למטה)</div>' +
+					e.old.map(function (l) { return viewLine('del', '−', escapeHtml(l), ''); }).join('') +
+					e.ours.map(function (l, k) { return viewLine('ours', '+', escapeHtml(l), k === 0 ? 'מכלול' : ''); }).join('') +
+					e.theirs.map(function (l, k) { return viewLine('theirs', '+', escapeHtml(l), k === 0 ? 'ויקיפדיה' : ''); }).join('') + '</div>';
+			}
+			return viewChange(e.k, e.old, e.v, VIEW_LABELS[e.k], e.k === 'theirs' ? 'נמחק בוויקיפדיה' : 'נמחק במכלול');
+		}).join('');
+	}
+	function mergeViewBoxHtml(res) {
+		var legend = ['theirs', 'ours', 'both', 'merged', 'conflict'].map(function (k) { return '<span class="mchl-mv-chip mchl-mv-' + k + '">' + VIEW_LABELS[k] + '</span>'; }).join('') +
+			'<span class="mchl-mv-chip mchl-mv-del">שורה שהוסרה</span>';
+		return '<details class="mchl-upd-viewbox" open><summary>התוצאה הממוזגת: מה הגיע מכל גרסה</summary><div class="mchl-mv-legend">' + legend + '</div>' +
+			'<div class="mchl-upd-view">' + mergeViewHtml(res) + '</div></details>';
+	}
 	function updateConflictsHtml(res) {
 		var k = 0, total = res.conflicts;
 		return '<div class="mchl-upd-conflicts">' + res.parts.filter(function (p) { return p.t === 'conflict'; }).map(function (p) {
@@ -495,7 +541,7 @@
 				(res.conflicts ? '' : ' · כדאי לעבור על מה שנוסף לפני השמירה (מיזוג נקי אינו מבטיח שהתוכן החדש עומד בסינון)');
 		return '<div class="mchl-upd-merge"><span class="mchl-upd-status">' + updateStatusHtml(res) + '</span>' + convNote + baseNote + ' <span class="mchl-muted">' + detail + '</span> ' +
 			'<button type="button" class="mchl-import-btn" data-action="update-merge-open" data-id="' + row.id + '"' + (unresolvedConflicts(res) ? ' disabled' : '') + '>פתח בעריכה במכלול</button></div>' +
-			'<div class="mchl-upd-content"></div>' +
+			'<div class="mchl-upd-content"></div>' + mergeViewBoxHtml(res) +
 			(res.conflicts ? updateConflictsHtml(res) : '');
 	}
 	// מחבר את בחירות ההתנגשויות: בחירה מעדכנת את res.choices, את הסטטוס ואת הכפתור.
@@ -503,6 +549,7 @@
 		var refresh = function () {
 			box.querySelector('.mchl-upd-status').innerHTML = updateStatusHtml(res);
 			box.querySelector('[data-action="update-merge-open"]').disabled = unresolvedConflicts(res) > 0;
+			box.querySelector('.mchl-upd-view').innerHTML = mergeViewHtml(res);
 		};
 		box.querySelectorAll('input[data-cf]').forEach(function (r) {
 			r.addEventListener('change', function () {
@@ -550,7 +597,7 @@
 			var ours = splitImportTail(v.ours.text);
 			var m = merge3(base, ours.body, theirs);
 			var res = {
-				parts: m.parts, choices: [], tail: ours.tail, oursBody: ours.body, oursFull: v.ours.text,
+				parts: m.parts, view: m.view, choices: [], tail: ours.tail, oursBody: ours.body, oursFull: v.ours.text,
 				conflicts: m.conflicts, auto: m.auto, kept: m.kept, word: m.word,
 				baseRev: v.baseRev, baseChanged: v.baseRev !== Number(row.sort_template_rev), latestRev: v.theirs.revid,
 				title: v.ours.title, oursTs: v.ours.ts, converted: !!list

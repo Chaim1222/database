@@ -343,3 +343,21 @@ test('בדיקת תוכן: מופע נוסף של אותה מילה בסביבה
   assert.strictEqual(newContentMatches(engine, wordLists, candidate, ours, {}).length, 1);
   assert.strictEqual(newContentMatches(engine, wordLists, L('טקסט נקי לגמרי'), L('טקסט נקי'), {}).length, 0);
 });
+
+test('תצוגת מקור: view מכסה את כל הטקסט הממוזג ומסמן את מקור כל שינוי', () => {
+  const base = 'a\nb\nc\nd\ne\nf\ng';
+  const ours = 'a\nb\nC-ours\nd\ne\nf\ng\nlocal-add';
+  const theirs = 'a\nb\nc\nd\ne\nF-wiki\ng';
+  const r = merge3(base, ours, theirs);
+  const text = r.view.map(e => (e.k === 'same' ? e.v : e.v || []).join('\n')).filter(x => x !== '').join('\n');
+  assert.strictEqual(text, r.text);
+  assert.deepStrictEqual(r.view.map(e => e.k), ['same', 'ours', 'same', 'theirs', 'same', 'ours']);
+  assert.deepStrictEqual(r.view[1].old, ['c']);
+});
+test('תצוגת מקור: התנגשות מסומנת עם האינדקס שלה', () => {
+  const r = merge3('x\ny\nz', 'x\nY1\nz', 'x\nY2\nz');
+  const c = r.view.filter(e => e.k === 'conflict');
+  assert.strictEqual(c.length, 1);
+  assert.strictEqual(c[0].i, 0);
+  assert.deepStrictEqual([c[0].ours, c[0].theirs], [['Y1'], ['Y2']]);
+});
