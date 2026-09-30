@@ -1258,7 +1258,7 @@
 	var wfRedirectChoice = ''; // '' / 'absent' / 'unchecked' (רק בטאב "חסר במכלול")
 	var wfMaxLen = '';
 	var wfSettingsOpen = false;
-	var wfTopicOpen = { 0: true, 1: false, 2: true }; // אילו קבוצות נושא פתוחות
+	var wfTopicOpen = { 0: false, 1: false, 2: false }; // אילו קבוצות נושא פתוחות
 	var WF_LEVEL_OPTIONS = {
 		ctx: [['clean', 'נקי', '#5C9686'], ['clean_wording', 'נקי או דורש ניסוח', null], ['wording', 'דורש ניסוח', '#7C8C99'],
 			['review_low', 'חשד נמוך', '#A8A860'], ['review_medium', 'חשד בינוני', '#D9B44A'], ['review_high', 'חשד גבוה', '#D98B3A'],
