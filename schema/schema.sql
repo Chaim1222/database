@@ -210,7 +210,8 @@ create index if not exists idx_wikipedia_is_missing on wikipedia_pages(is_missin
 -- של recompute_missing_flag/_scoped, שמשווים לפי normalize_person_title
 -- על שתי הטבלאות בכל ריצה.
 create index if not exists idx_wikipedia_pages_title on wikipedia_pages(title);
-create index if not exists idx_wikipedia_norm_person_title on wikipedia_pages(normalize_person_title(title));
+-- (idx_wikipedia_norm_person_title הוסר ב-migration_drop_wikipedia_normalize_person_title_idx.sql:
+-- רק recompute_missing_flag_by_titles נשענה עליו, 36 MB.)
 create index if not exists idx_mechalol_norm_person_title on mechalol_pages(normalize_person_title(title));
 
 -- הערה: idx_mechalol_pages_wikipedia_id (בייצור) הוא כפילות מלאה של
