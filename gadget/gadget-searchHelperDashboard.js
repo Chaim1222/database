@@ -1660,6 +1660,7 @@
 		var btn = $id('mchl-refresh-btn');
 		// רענון מלא: גם הפרטים שנטענו (הקשר, הפניות, רמזי מחיקה) נשלפים מחדש.
 		wfDetailsCache.clear();
+		updateInfo.clear(); updateDiffCache.clear(); updateMergeCache.clear();
 		mechalolRedirectTargetCache.clear();
 		deletionHintCache.clear();
 		btn.classList.add('mchl-spinning');
@@ -2030,20 +2031,25 @@
 	function loadUpdateInfoForCurrentPage() {
 		if (!VIEWS[activeTab] || !VIEWS[activeTab].liveChange) return;
 		var myTab = activeTab;
-		var rows = currentPageRows.filter(function (r) { return !updateInfo.has(r.id); });
+		var rows = currentPageRows.filter(function (r) { var i = updateInfo.get(r.id); return !i || i.error; }); // שגיאות לא נשמרות: מנסים שוב
 		if (!rows.length) return paintUpdateInfo();
 		var baseIds = rows.map(function (r) { return r.sort_template_rev; }).filter(Boolean);
 		var pageIds = rows.map(function (r) { return r.wikipedia_id; }).filter(Boolean);
-		var baseReq = baseIds.length ? wikipediaApi({ action: 'query', prop: 'revisions', revids: baseIds.join('|'), rvprop: 'ids|size|sha1' }) : Promise.resolve({});
-		var latestReq = pageIds.length ? wikipediaApi({ action: 'query', prop: 'revisions', pageids: pageIds.join('|'), rvprop: 'ids|size|sha1|timestamp|user|comment' }) : Promise.resolve({});
-		return Promise.all([baseReq, latestReq]).then(function (res) {
+		// מגבלת ה-API היא 50 מזהים בבקשה, בלי קשר לגודל העמוד (50/100/250 שורות).
+		var baseReqs = batches(baseIds, 50).map(function (b) { return wikipediaApi({ action: 'query', prop: 'revisions', revids: b.join('|'), rvprop: 'ids|size|sha1' }); });
+		var latestReqs = batches(pageIds, 50).map(function (b) { return wikipediaApi({ action: 'query', prop: 'revisions', pageids: b.join('|'), rvprop: 'ids|size|sha1|timestamp|user|comment' }); });
+		return Promise.all([Promise.all(baseReqs), Promise.all(latestReqs)]).then(function (res) {
 			var baseByRev = {}, latestByPage = {};
-			((res[0].query && res[0].query.pages) || []).forEach(function (p) {
-				(p.revisions || []).forEach(function (rv) { baseByRev[rv.revid] = { size: rv.size, sha1: rv.sha1 }; });
+			res[0].forEach(function (d) {
+				((d.query && d.query.pages) || []).forEach(function (p) {
+					(p.revisions || []).forEach(function (rv) { baseByRev[rv.revid] = { size: rv.size, sha1: rv.sha1 }; });
+				});
 			});
-			((res[1].query && res[1].query.pages) || []).forEach(function (p) {
-				var rv = (p.revisions || [])[0];
-				if (rv) latestByPage[p.pageid] = { revid: rv.revid, size: rv.size, sha1: rv.sha1, ts: rv.timestamp, user: rv.user, comment: rv.comment };
+			res[1].forEach(function (d) {
+				((d.query && d.query.pages) || []).forEach(function (p) {
+					var rv = (p.revisions || [])[0];
+					if (rv) latestByPage[p.pageid] = { revid: rv.revid, size: rv.size, sha1: rv.sha1, ts: rv.timestamp, user: rv.user, comment: rv.comment };
+				});
 			});
 			rows.forEach(function (r) {
 				updateInfo.set(r.id, { base: baseByRev[r.sort_template_rev] || null, latest: latestByPage[r.wikipedia_id] || null });
@@ -2107,7 +2113,7 @@
 	function merge3(baseText, oursText, theirsText) {
 		var base = baseText.split('\n'), ours = oursText.split('\n'), theirs = theirsText.split('\n');
 		var ho = diffHunks(base, ours), ht = diffHunks(base, theirs);
-		var i = 0, j = 0, pos = 0, out = [], conflicts = 0, auto = 0;
+		var i = 0, j = 0, pos = 0, out = [], conflicts = 0, auto = 0, kept = 0;
 		var range = function (hunks, side, cs, ce) {
 			var f = hunks[0], l = hunks[hunks.length - 1];
 			return side.slice(f.ss - (f.bs - cs), l.se + (ce - l.be));
@@ -2125,7 +2131,7 @@
 				while (j < ht.length && hit(ht[j])) { ct.push(ht[j]); ce = Math.max(ce, ht[j].be); j++; grew = true; }
 			}
 			var cs = start;
-			if (!ct.length) { out.push.apply(out, range(co, ours, cs, ce)); auto++; }
+			if (!ct.length) { out.push.apply(out, range(co, ours, cs, ce)); kept++; }
 			else if (!co.length) { out.push.apply(out, range(ct, theirs, cs, ce)); auto++; }
 			else {
 				var o = range(co, ours, cs, ce), t = range(ct, theirs, cs, ce);
@@ -2135,7 +2141,7 @@
 			pos = ce;
 		}
 		for (; pos < base.length; pos++) out.push(base[pos]);
-		return { text: out.join('\n'), conflicts: conflicts, auto: auto };
+		return { text: out.join('\n'), conflicts: conflicts, auto: auto, kept: kept };
 	}
 	// אותן החלפות אוטומטיות כמו applyReplacements בייבוא (mw-import): regex עם gi, רק אם יש התאמה.
 	function applyImportReplacements(text, replacements) {
@@ -2152,62 +2158,127 @@
 		var m = IMPORT_TAIL_RE.exec(text);
 		return m ? { body: text.slice(0, m.index), tail: m[1] } : { body: text, tail: '' };
 	}
-	// </merge3>
-
 	var HE_MONTH_NAMES = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
-	// מעדכן בתבנית {{מיון ויקיפדיה}} האחרונה (בסוף הערך) את גרסה= ואת תאריך= (חודש ושנה); מוסיף פרמטר שחסר.
-	function updateSortTemplate(text, revId, now) {
-		var starts = [], re = /\{\{\s*מיון\s+ויקיפדיה\s*\|/g, m;
-		while ((m = re.exec(text))) starts.push(m.index + m[0].length);
+	// הערות HTML, nowiki ו-pre מוחלפים ברווחים (באותו אורך): תבנית שבתוכם אינה פעילה.
+	function maskWikitext(text) {
+		return text.replace(/<!--[\s\S]*?(?:-->|$)|<nowiki>[\s\S]*?(?:<\/nowiki>|$)|<pre[\s\S]*?(?:<\/pre>|$)/gi, function (m) { return m.replace(/[^\n]/g, ' '); });
+	}
+	// התבנית {{מיון ויקיפדיה}} הפעילה האחרונה: אינדקסים של הגוף ושל הפרמטרים ברמה העליונה בלבד (לא בתוך {{…}} או [[…]]).
+	function findSortTemplate(text) {
+		var masked = maskWikitext(text), re = /\{\{\s*מיון\s+ויקיפדיה\s*\|/g, m, starts = [];
+		while ((m = re.exec(masked))) starts.push(m.index + m[0].length);
 		for (var k = starts.length - 1; k >= 0; k--) {
 			var depth = 1, i = starts[k], end = -1;
-			for (; i < text.length - 1; ) {
-				var pair = text.substr(i, 2);
+			while (i < masked.length - 1) {
+				var pair = masked.substr(i, 2);
 				if (pair === '{{') { depth++; i += 2; }
 				else if (pair === '}}') { depth--; if (depth === 0) { end = i; break; } i += 2; }
 				else i++;
 			}
 			if (end < 0) continue;
-			var body = text.slice(starts[k], end);
-			var setParam = function (b, name, value) {
-				var rx = new RegExp('(^|\\|)(\\s*' + name + '\\s*=)[^|]*');
-				return rx.test(b) ? b.replace(rx, function (all, pre, key) { return pre + key + value; }) : b + '|' + name + '=' + value;
+			var ranges = [], ps = starts[k], curly = 0, square = 0;
+			for (i = starts[k]; i < end; i++) {
+				var two = masked.substr(i, 2);
+				if (two === '{{') { curly++; i++; }
+				else if (two === '}}') { curly--; i++; }
+				else if (two === '[[') { square++; i++; }
+				else if (two === ']]') { square--; i++; }
+				else if (masked[i] === '|' && curly === 0 && square === 0) { ranges.push([ps, i]); ps = i + 1; }
+			}
+			ranges.push([ps, end]);
+			return {
+				start: starts[k], end: end,
+				params: ranges.map(function (r) {
+					var eq = -1, c = 0, sq = 0;
+					for (var x = r[0]; x < r[1]; x++) {
+						var t2 = masked.substr(x, 2);
+						if (t2 === '{{') { c++; x++; } else if (t2 === '}}') { c--; x++; } else if (t2 === '[[') { sq++; x++; } else if (t2 === ']]') { sq--; x++; }
+						else if (masked[x] === '=' && c === 0 && sq === 0) { eq = x; break; }
+					}
+					return eq < 0 ? { name: '', valueStart: r[0], valueEnd: r[1] } : { name: text.slice(r[0], eq).trim(), valueStart: eq + 1, valueEnd: r[1] };
+				})
 			};
-			body = setParam(body, 'גרסה', revId);
-			body = setParam(body, 'תאריך', HE_MONTH_NAMES[now.getMonth()] + ' ' + now.getFullYear());
-			return text.slice(0, starts[k]) + body + text.slice(end);
 		}
+		return null;
+	}
+	// גרסת הבסיס (גרסה=) מהתבנית הפעילה בתוכן הנוכחי של הערך; null אם אין או שאינה מספר חיובי.
+	function parseSortTemplateRev(text) {
+		var t = findSortTemplate(text);
+		var p = t && t.params.filter(function (x) { return x.name === 'גרסה'; })[0];
+		var v = p ? text.slice(p.valueStart, p.valueEnd).trim() : '';
+		return /^[1-9]\d*$/.test(v) ? Number(v) : null;
+	}
+	// מעדכן בתבנית הפעילה את גרסה= ואת תאריך= (חודש ושנה), ורק פרמטרים ברמה העליונה שלה; מוסיף פרמטר שחסר.
+	function updateSortTemplate(text, revId, now) {
+		var t = findSortTemplate(text);
+		if (!t) return text;
+		var values = { 'גרסה': String(revId), 'תאריך': HE_MONTH_NAMES[now.getMonth()] + ' ' + now.getFullYear() };
+		var edits = [], missing = '';
+		Object.keys(values).forEach(function (name) {
+			var p = t.params.filter(function (x) { return x.name === name; })[0];
+			if (!p) { missing += '|' + name + '=' + values[name]; return; }
+			var old = text.slice(p.valueStart, p.valueEnd);
+			edits.push([p.valueStart, p.valueEnd, /^\s*/.exec(old)[0] + values[name] + /\s*$/.exec(old)[0]]);
+		});
+		if (missing) edits.push([t.end, t.end, missing]);
+		edits.sort(function (a, b) { return b[0] - a[0]; });
+		edits.forEach(function (e) { text = text.slice(0, e[0]) + e[2] + text.slice(e[1]); });
 		return text;
 	}
+	// טקסט גרסה מתשובת API. תוכן חסר או מוסתר הוא כשל קריאה ועוצר את הפעולה; תוכן ריק אמיתי ('') תקין.
+	function revisionText(rv) {
+		var slot = rv && rv.slots && rv.slots.main;
+		if (!slot || slot.texthidden || rv.texthidden || rv.suppressed || typeof slot.content !== 'string') throw new Error('תוכן הגרסה חסר או מוסתר (לא נקרא)');
+		return slot.content;
+	}
+	// </merge3>
 
 	function fetchWikipediaContent(params) {
 		return wikipediaApi(Object.assign({ action: 'query', prop: 'revisions', rvprop: 'ids|content', rvslots: 'main' }, params)).then(function (d) {
 			var pg = (d.query && d.query.pages || [])[0], rv = pg && (pg.revisions || [])[0];
 			if (!rv) throw new Error('הגרסה לא נמצאה בוויקיפדיה');
-			return { revid: rv.revid, text: (rv.slots && rv.slots.main && rv.slots.main.content) || '' };
+			return { revid: rv.revid, pageid: pg.pageid, text: revisionText(rv) };
 		});
 	}
-	// שלוש הגרסאות: בסיס וויקיפדיה עכשיו (ויקיפדיה), והערך הנוכחי במכלול. נשלף חי, לא נשמר.
+	// שלוש הגרסאות, חי ולא נשמר. גרסת הבסיס נקראת מהתבנית בתוכן הנוכחי של הערך במכלול (לא מהמסד, שעלול להיות ישן),
+	// ומאומת שהיא שייכת לדף הוויקיפדיה המקושר.
 	function loadUpdateVersions(row) {
-		return Promise.all([
-			fetchWikipediaContent({ revids: row.sort_template_rev }),
-			fetchWikipediaContent({ pageids: row.wikipedia_id }),
-			mwApiFetch({ action: 'query', prop: 'revisions', pageids: row.id, rvprop: 'ids|content|timestamp', rvslots: 'main' })
-		]).then(function (r) {
-			var pg = (r[2].query && r[2].query.pages || [])[0], rv = pg && (pg.revisions || [])[0];
+		return mwApiFetch({ action: 'query', prop: 'revisions', pageids: row.id, rvprop: 'ids|content|timestamp', rvslots: 'main' }).then(function (d) {
+			var pg = (d.query && d.query.pages || [])[0], rv = pg && (pg.revisions || [])[0];
 			if (!rv) throw new Error('הערך לא נמצא במכלול');
-			return { base: r[0], theirs: r[1], ours: { text: (rv.slots && rv.slots.main && rv.slots.main.content) || '', ts: rv.timestamp, title: pg.title } };
+			var oursText = revisionText(rv);
+			var baseRev = parseSortTemplateRev(oursText);
+			if (!baseRev) throw new Error('בתבנית {{מיון ויקיפדיה}} של הערך אין גרסת בסיס (גרסה=)');
+			return Promise.all([fetchWikipediaContent({ revids: baseRev }), fetchWikipediaContent({ pageids: row.wikipedia_id })]).then(function (r) {
+				if (Number(r[0].pageid) !== Number(row.wikipedia_id)) throw new Error('גרסת הבסיס בתבנית (' + baseRev + ') שייכת לדף אחר בוויקיפדיה, לא לערך המקושר');
+				return { base: r[0], theirs: r[1], ours: { text: oursText, ts: rv.timestamp, title: pg.title }, baseRev: baseRev };
+			});
 		});
 	}
-	var updateMergeCache = new Map(); // row.id -> {merged, conflicts, auto, latestRev, title, oursTs}
+	// תוצאת המיזוג האחרונה לכל ערך, רק להעברה לכפתור "פתח בעריכה". תמיד מחושבת מחדש בפתיחת הפאנל.
+	var updateMergeCache = new Map(); // row.id -> {merged, conflicts, auto, kept, baseRev, latestRev, title, oursTs}
 	function updateMergeHtml(row, res) {
-		var same = res.merged === res.oursText;
 		var status = res.conflicts
 			? '<span class="mchl-badge mchl-alert">' + res.conflicts + ' התנגשויות לפתרון</span>'
-			: (same ? '<span class="mchl-badge mchl-wiki">אין מה לשלב בטקסט</span>' : '<span class="mchl-badge mchl-wiki">מיזוג נקי</span>');
+			: (res.noChange ? '<span class="mchl-badge mchl-neutral">אין שינוי בטקסט</span>' : '<span class="mchl-badge mchl-wiki">מיזוג נקי</span>');
 		var convNote = res.converted ? '' : ' <span class="mchl-badge mchl-review" title="רשימת ההחלפות של הייבוא לא נטענה, ולכן המיזוג נעשה על טקסט גולמי מוויקיפדיה; צפויות יותר התנגשויות">בלי החלפות הייבוא</span>';
-		return '<div class="mchl-upd-merge">' + status + convNote + ' <span class="mchl-muted">' + res.auto + ' שינויים שמוזגו אוטומטית · ' + (res.conflicts ? 'ההתנגשויות מסומנות בטקסט ב-&lt;&lt;&lt;&lt;&lt;&lt;&lt; … ======= … &gt;&gt;&gt;&gt;&gt;&gt;&gt;' : 'כדאי לעבור על מה שנוסף לפני השמירה (מיזוג נקי אינו מבטיח שהתוכן החדש עומד בסינון)') + '</span> ' +
+		var baseNote = res.baseChanged ? ' <span class="mchl-badge mchl-review" title="הערך עודכן מאז הסריקה האחרונה; המיזוג משתמש בגרסה שבתבנית הנוכחית">גרסת הבסיס בתבנית ' + res.baseRev + '</span>' : '';
+		var detail = res.noChange && !res.conflicts
+			? 'יעודכנו רק גרסה ותאריך בתבנית {{מיון ויקיפדיה}}'
+			: res.auto + ' שינויים מוויקיפדיה שולבו · ' + res.kept + ' שינויים מקומיים נשמרו' +
+				(res.conflicts ? ' · ההתנגשויות מסומנות בטקסט ב-&lt;&lt;&lt;&lt;&lt;&lt;&lt; … ======= … &gt;&gt;&gt;&gt;&gt;&gt;&gt;' : ' · כדאי לעבור על מה שנוסף לפני השמירה (מיזוג נקי אינו מבטיח שהתוכן החדש עומד בסינון)');
+		return '<div class="mchl-upd-merge">' + status + convNote + baseNote + ' <span class="mchl-muted">' + detail + '</span> ' +
 			'<button type="button" class="mchl-import-btn" data-action="update-merge-open" data-id="' + row.id + '">פתח בעריכה במכלול</button></div>';
+	}
+	function updateDiffHtml(res) {
+		var key = res.baseRev + ':' + res.latestRev; // הגרסאות אינן משתנות, ולכן בטוח לשמור
+		if (updateDiffCache.has(key)) return Promise.resolve(updateDiffCache.get(key));
+		return wikipediaApi({ action: 'compare', fromrev: res.baseRev, torev: res.latestRev, prop: 'diff|diffsize' }).then(function (data) {
+			var body = data.compare && data.compare.body;
+			var html = body ? '<table class="diff">' + sanitizeDiffHtml(body) + '</table>' : '<div class="mchl-muted">אין הבדלי טקסט בין הגרסאות.</div>';
+			updateDiffCache.set(key, html);
+			return html;
+		}).catch(function () { return '<div class="mchl-muted">לא ניתן לשלוף את ההשוואה.</div>'; });
 	}
 	function toggleUpdatePanel(btn) {
 		var id = btn.getAttribute('data-id');
@@ -2221,7 +2292,7 @@
 		detailsTr.innerHTML = '<td colspan="' + tr.children.length + '"><div class="mchl-upd-box mchl-muted">טוען את שלוש הגרסאות ומבצע מיזוג…</div></td>';
 		tr.parentNode.insertBefore(detailsTr, tr.nextSibling);
 		var box = detailsTr.querySelector('.mchl-upd-box');
-		var cached = updateMergeCache.get(row.id) ? Promise.resolve(updateMergeCache.get(row.id)) : Promise.all([
+		Promise.all([
 			loadUpdateVersions(row),
 			getImportReplacements().then(function (list) { return list; }, function () { return null; })
 		]).then(function (all) {
@@ -2231,24 +2302,24 @@
 			var theirs = list ? applyImportReplacements(v.theirs.text, list) : v.theirs.text;
 			var ours = splitImportTail(v.ours.text);
 			var m = merge3(base, ours.body, theirs);
-			var res = { merged: updateSortTemplate(m.text + ours.tail, v.theirs.revid, new Date()), oursText: v.ours.text, conflicts: m.conflicts, auto: m.auto, latestRev: v.theirs.revid, title: v.ours.title, oursTs: v.ours.ts, converted: !!list, tail: !!ours.tail };
+			var res = {
+				merged: updateSortTemplate(m.text + ours.tail, v.theirs.revid, new Date()),
+				noChange: m.text === ours.body, conflicts: m.conflicts, auto: m.auto, kept: m.kept,
+				baseRev: v.baseRev, baseChanged: v.baseRev !== Number(row.sort_template_rev), latestRev: v.theirs.revid,
+				title: v.ours.title, oursTs: v.ours.ts, converted: !!list
+			};
 			updateMergeCache.set(row.id, res);
-			return res;
-		});
-		var diffReq = updateDiffCache.has(row.id) ? Promise.resolve(updateDiffCache.get(row.id)) : wikipediaApi({ action: 'compare', fromrev: row.sort_template_rev, torelative: 'cur', prop: 'diff|diffsize' }).then(function (data) {
-			var body = data.compare && data.compare.body;
-			var html = body ? '<table class="diff">' + sanitizeDiffHtml(body) + '</table>' : '<div class="mchl-muted">אין הבדלי טקסט בין הגרסאות.</div>';
-			updateDiffCache.set(row.id, html);
-			return html;
-		}).catch(function () { return '<div class="mchl-muted">לא ניתן לשלוף את ההשוואה.</div>'; });
-		Promise.all([cached, diffReq]).then(function (r) {
+			return updateDiffHtml(res).then(function (diff) { return [res, diff]; });
+		}).then(function (r) {
 			box.classList.remove('mchl-muted');
 			box.innerHTML = updateMergeHtml(row, r[0]) +
-				'<details class="mchl-upd-diffbox"><summary>מה השתנה בוויקיפדיה מאז הגרסה ששולבה</summary><div class="mchl-upd-diff">' + r[1] + '</div></details>';
+				'<details class="mchl-upd-diffbox"><summary>מה השתנה בוויקיפדיה: גרסה ' + r[0].baseRev + ' → ' + r[0].latestRev + '</summary><div class="mchl-upd-diff">' + r[1] + '</div></details>';
 		}).catch(function (e) {
+			updateMergeCache.delete(row.id);
 			box.innerHTML = '<span class="mchl-alert">שגיאה בטעינה או במיזוג: ' + escapeHtml(e.message || e) + '</span>';
 		});
 	}
+
 	// פותח את טופס העריכה של הערך במכלול עם הטקסט הממוזג, מוכן לבדיקה ולשמירה (לא נשמר בלי לחיצה על "שמירה").
 	function openUpdateMerge(btn) {
 		var row = currentPageRows.find(function (r) { return String(r.id) === btn.getAttribute('data-id'); });

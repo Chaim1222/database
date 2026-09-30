@@ -6,8 +6,7 @@ const path = require('path');
 
 const src = fs.readFileSync(path.join(__dirname, '..', 'gadget-searchHelperDashboard.js'), 'utf8');
 const merge = src.slice(src.indexOf('// <merge3>'), src.indexOf('// </merge3>'));
-const tpl = src.slice(src.indexOf('var HE_MONTH_NAMES'), src.indexOf('function fetchWikipediaContent'));
-const { merge3, lcsPairs, updateSortTemplate, applyImportReplacements, splitImportTail } = new Function(merge + '\n' + tpl + '\nreturn { merge3, lcsPairs, updateSortTemplate, applyImportReplacements, splitImportTail };')();
+const { merge3, lcsPairs, updateSortTemplate, applyImportReplacements, splitImportTail, parseSortTemplateRev, revisionText } = new Function(merge + '\nreturn { merge3, lcsPairs, updateSortTemplate, applyImportReplacements, splitImportTail, parseSortTemplateRev, revisionText };')();
 
 const L = (...lines) => lines.join('\n');
 
@@ -131,4 +130,48 @@ test('הוספות שונות באותה נקודה הן התנגשות, זהו�
   const base = L('א', 'ג');
   assert.strictEqual(merge3(base, L('א', 'ב1', 'ג'), L('א', 'ב2', 'ג')).conflicts, 1);
   assert.strictEqual(merge3(base, L('א', 'ב', 'ג'), L('א', 'ב', 'ג')).conflicts, 0);
+});
+
+test('תבנית מיון בתוך הערת HTML אינה פעילה: מתעדכנת התבנית הפעילה', () => {
+  const now = new Date(2026, 8, 30);
+  const text = 'גוף\n{{מיון ויקיפדיה|דף=אבג|גרסה=100}}\n<!-- {{מיון ויקיפדיה|דף=ישן|גרסה=1}} -->';
+  assert.strictEqual(parseSortTemplateRev(text), 100);
+  const out = updateSortTemplate(text, 999, now);
+  assert.ok(out.includes('גרסה=999'));
+  assert.ok(out.includes('<!-- {{מיון ויקיפדיה|דף=ישן|גרסה=1}} -->'));
+});
+
+test('ערך פרמטר עם תבנית מקוננת לא נשבר, ורק פרמטרים ברמה העליונה מתעדכנים', () => {
+  const now = new Date(2026, 8, 30);
+  const text = '{{מיון ויקיפדיה|דף={{תבנית|גרסה=7}}|גרסה=100|פריט=Q1}}';
+  assert.strictEqual(parseSortTemplateRev(text), 100);
+  assert.strictEqual(updateSortTemplate(text, 555, now), '{{מיון ויקיפדיה|דף={{תבנית|גרסה=7}}|גרסה=555|פריט=Q1|תאריך=ספטמבר 2026}}');
+  // גרסה= רק בתוך תבנית מקוננת: אין גרסה ברמה העליונה
+  assert.strictEqual(parseSortTemplateRev('{{מיון ויקיפדיה|דף={{x|גרסה=7}}}}'), null);
+});
+
+test('גרסת בסיס: 0, ריק ולא מספרי הם "אין גרסה"; רווחי הפרמטר נשמרים בעדכון', () => {
+  assert.strictEqual(parseSortTemplateRev('{{מיון ויקיפדיה|דף=x|גרסה=0}}'), null);
+  assert.strictEqual(parseSortTemplateRev('{{מיון ויקיפדיה|דף=x|גרסה=}}'), null);
+  assert.strictEqual(parseSortTemplateRev('{{מיון ויקיפדיה|דף=x|גרסה=abc}}'), null);
+  assert.strictEqual(parseSortTemplateRev('בלי תבנית'), null);
+  const out = updateSortTemplate('{{מיון ויקיפדיה\n|דף=x\n|גרסה= 5 \n|תאריך=מרץ 2015\n}}', 9, new Date(2026, 8, 30));
+  assert.strictEqual(out, '{{מיון ויקיפדיה\n|דף=x\n|גרסה= 9 \n|תאריך=ספטמבר 2026\n}}');
+});
+
+test('תוכן חסר או מוסתר עוצר, תוכן ריק אמיתי תקין', () => {
+  assert.throws(() => revisionText({ slots: { main: {} } }), /חסר או מוסתר/);
+  assert.throws(() => revisionText({ slots: { main: { content: 'x', texthidden: true } } }), /חסר או מוסתר/);
+  assert.throws(() => revisionText({ suppressed: true, slots: { main: { content: 'x' } } }), /חסר או מוסתר/);
+  assert.throws(() => revisionText({}), /חסר או מוסתר/);
+  assert.strictEqual(revisionText({ slots: { main: { content: '' } } }), '');
+  assert.strictEqual(revisionText({ slots: { main: { content: 'טקסט' } } }), 'טקסט');
+});
+
+test('ספירות: שינויים מוויקיפדיה מול שינויים מקומיים שנשמרו', () => {
+  const base = L('א', 'ב', 'ג', 'ד', 'ה', 'ו');
+  const r = merge3(base, L('א מקומי', 'ב', 'ג', 'ד', 'ה', 'ו מקומי'), L('א', 'ב', 'ג חדש', 'ד', 'ה', 'ו'));
+  assert.strictEqual(r.conflicts, 0);
+  assert.strictEqual(r.auto, 1);
+  assert.strictEqual(r.kept, 2);
 });
