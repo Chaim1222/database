@@ -173,7 +173,10 @@
 			view: 'report_locked_pages', label: 'נעולים',
 			columns: ['title', 'lock_level', 'lock_source', 'wikipedia_id', 'detected_at'],
 			filters: [{ key: 'lock_level', label: 'סוג נעילה', options: ['נעול לקריאה', 'נעול ליצירה'] }],
-			order: 'lock_level.asc,title.asc', titleLink: 'edit'
+			order: 'lock_level.asc,title.asc', titleLink: 'edit',
+			// נעולים לקריאה - פתוח לכולם; נעולים ליצירה (הרשימה השחורה) - רק למי שמחובר עם משתמש וסיסמה (פאנל הניהול).
+			// בצד הלקוח בלבד, כמו requiresLogin: הנתונים עצמם קריאים ל-anon.
+			loginOnly: { key: 'lock_level', values: ['נעול ליצירה'] }
 		},
 		// ערכי ויקיפדיה שהוצאו מ"חסר במכלול" רק בגלל כותרת זהה אחרי הסרת
 		// "הרב"/"רבי" - לא התאמה ודאית, דורש אישור אנושי. ה-view היה קיים
@@ -429,12 +432,26 @@
 		});
 	}
 
+	// ערכים שמוצגים רק למי שמחובר (loginOnly ב-VIEWS): למי שלא מחובר מוחרגים מהשאילתה, מהמונה ומהמסנן.
+	function baseFiltersOf(cfg) {
+		var out = (cfg.baseFilters || []).slice();
+		if (cfg.loginOnly && !serviceKeyConnected) {
+			out.push([cfg.loginOnly.key, 'not.in.(' + cfg.loginOnly.values.map(function (v) { return '"' + v + '"'; }).join(',') + ')']);
+		}
+		return out;
+	}
+	function allowedFilterOptions(cfg, f) {
+		var lo = cfg.loginOnly;
+		if (!lo || lo.key !== f.key || serviceKeyConnected) return f.options;
+		return f.options.filter(function (o) { return lo.values.indexOf(o) < 0; });
+	}
+
 	// בונה את רשימת פרמטרי הסינון (כזוגות [שם, ערך], כדי לתמוך במפתחות
 	// חוזרים כמו 'or') מתוך activeFilters + חיפוש חופשי, בדיוק כמו
 	// buildQuery() בגרסת ה-HTML המקורית.
 	function buildFilterParams() {
 		var cfg = VIEWS[activeTab];
-		var out = (cfg.baseFilters || []).slice();
+		var out = baseFiltersOf(cfg);
 		var search = ($id('mchl-search-input').value || '').trim();
 		if (search) {
 			var searchColumn = cfg.searchColumn || 'title';
@@ -714,6 +731,8 @@
 		if (!tabAllowed(activeTab)) switchTab('missing');
 		countsLoaded = {};
 		loadStats(); // ממלא מחדש את מוני הלשונית הפעילה; השאר מוצגים מהשמור
+		// טאב עם ערכים למחוברים בלבד: המסנן והרשימה משתנים עם ההתחברות/ההתנתקות.
+		if (VIEWS[activeTab] && VIEWS[activeTab].loginOnly) { buildDynamicFilters(); currentPage = 0; loadActiveView(); }
 	}
 	function buildTabs() {
 		var nav = $id('mchl-tabs');
@@ -1233,11 +1252,15 @@
 		host.innerHTML = '';
 		var cfg = VIEWS[activeTab];
 		cfg.filters.forEach(function (f) {
+			var options = allowedFilterOptions(cfg, f);
+			// ערך שנבחר ואינו מותר עוד (יציאה מהחשבון) - מנוקה; ואם נשארה אפשרות אחת, אין מה לסנן.
+			if (activeFilters[f.key] && options.indexOf(activeFilters[f.key]) < 0) delete activeFilters[f.key];
+			if (options.length < 2 && cfg.loginOnly && cfg.loginOnly.key === f.key) return;
 			var sel = document.createElement('select');
 			sel.className = 'mchl-filter-select';
 			sel.id = 'mchl-filter-' + f.key;
 			var opts = '<option value="">' + escapeHtml(f.label) + ' — הכול</option>';
-			f.options.forEach(function (o) {
+			options.forEach(function (o) {
 				var label = f.display ? f.display[o] : o;
 				opts += '<option value="' + escapeHtml(o) + '">' + escapeHtml(label) + '</option>';
 			});
@@ -1791,7 +1814,7 @@
 		var statValues = {};
 		var jobs = defs.map(function (d) { return function () {
 			var viewCfg = d.viewKey ? VIEWS[d.viewKey] : null;
-			return pgCount(d.table, viewCfg ? viewCfg.baseFilters : null, undefined, d.estimated).then(function (val) {
+			return pgCount(d.table, viewCfg ? baseFiltersOf(viewCfg) : null, undefined, d.estimated).then(function (val) {
 				statValues[d.key] = val;
 				// ספירה משוערת (מהמתכנן) מסומנת ב-~ ובתיאור.
 				$id(d.statId).textContent = (d.estimated ? '~' : '') + val.toLocaleString('he-IL');
@@ -1816,7 +1839,7 @@
 			if (!VIEWS[key] || coveredTabs[tabCountId] || !tabAllowed(key)) return;
 			var cfg = VIEWS[key];
 			jobs.push(function () {
-				return pgCount(cfg.view, cfg.baseFilters, cfg.countColumn).then(function (val) {
+				return pgCount(cfg.view, baseFiltersOf(cfg), cfg.countColumn).then(function (val) {
 					setCountBadge(tabCountId, val);
 				}).catch(function () { /* המונה נשאר כמו שהיה */ });
 			});
