@@ -4,7 +4,8 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 
-const src = fs.readFileSync(path.join(__dirname, '..', 'gadget-searchHelperDashboard.js'), 'utf8');
+const mainSrc = fs.readFileSync(path.join(__dirname, '..', 'gadget-searchHelperDashboard.js'), 'utf8');
+const src = fs.readFileSync(path.join(__dirname, '..', 'gadget-searchHelperDashboard-update.js'), 'utf8');
 const merge = src.slice(src.indexOf('// <merge3>'), src.indexOf('// </merge3>'));
 const { merge3, mergeSeq, mergeWords, renderParts, tokenize, lcsPairs, updateSortTemplate, applyImportReplacements, splitImportTail, parseSortTemplateRev, revisionText } = new Function(merge + '\nreturn { merge3, mergeSeq, mergeWords, renderParts, tokenize, lcsPairs, updateSortTemplate, applyImportReplacements, splitImportTail, parseSortTemplateRev, revisionText };')();
 
@@ -250,7 +251,7 @@ test('tokenize: מילים ורווחים נשמרים, ריק הוא ללא א�
 });
 
 test('אין ארבע טילדות ברצף בקוד הגאדג\'ט (בשמירה במכלול הן מומרות לחתימה)', () => {
-  assert.ok(!/~{4}/.test(src), 'נמצאו ארבע טילדות ברצף: לפצל, למשל \' ~~\' + \'~~\'');
+  assert.ok(!/~{4}/.test(mainSrc) && !/~{4}/.test(src), 'נמצאו ארבע טילדות ברצף: לפצל, למשל \' ~~\' + \'~~\'');
 });
 
 test('בדיקת תוכן: מילה בעייתית שהעדכון מכניס מזוהה כחדשה', () => {
