@@ -558,8 +558,7 @@
 	}
 
 	// שלב 2: id בפועל ב-mechalol_pages עבור כותרות היעד שנפתרו בשלב 1 -
-	// PostgREST רגיל (anon), title=in.(...) - אצווה אחת, לא צריך לפצל
-	// לפי 50 כמו ה-API של מדיה-ויקי (אין מגבלת כותרות דומה כאן).
+	// PostgREST רגיל (anon), title=in.(...) - באצוות של PG_IN_BATCH בגלל אורך הכתובת (ראו PG_IN_BATCH).
 	function resolveMechalolIdsForRedirectTargets() {
 		var targets = [];
 		mechalolRedirectTargetCache.forEach(function (v) {
@@ -567,18 +566,20 @@
 		});
 		targets = Array.from(new Set(targets));
 		if (targets.length === 0) return Promise.resolve();
-		var params = new URLSearchParams();
-		params.set('select', 'id,title');
-		params.set('title', 'in.(' + targets.map(function (t) { return '"' + t.replace(/"/g, '\\"') + '"'; }).join(',') + ')');
-		return fetch(SUPABASE_URL + '/rest/v1/mechalol_pages?' + params.toString(), { headers: pgHeaders() })
-			.then(function (res) { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
-			.then(function (rows) {
-				var byTitle = {};
-				(rows || []).forEach(function (r) { byTitle[r.title] = r.id; });
-				mechalolRedirectTargetCache.forEach(function (v) {
-					if (v && v.targetTitle && byTitle[v.targetTitle] !== undefined) v.mechalolId = byTitle[v.targetTitle];
-				});
-			}).catch(function () { /* משאירים mechalolId=null - עדיין יש הצעת-טקסט בלי id */ });
+		return Promise.all(batches(targets, PG_IN_BATCH).map(function (batch) {
+			var params = new URLSearchParams();
+			params.set('select', 'id,title');
+			params.set('title', 'in.(' + batch.map(function (t) { return '"' + t.replace(/"/g, '\\"') + '"'; }).join(',') + ')');
+			return fetch(SUPABASE_URL + '/rest/v1/mechalol_pages?' + params.toString(), { headers: pgHeaders() })
+				.then(function (res) { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
+				.then(function (rows) {
+					var byTitle = {};
+					(rows || []).forEach(function (r) { byTitle[r.title] = r.id; });
+					mechalolRedirectTargetCache.forEach(function (v) {
+						if (v && v.targetTitle && byTitle[v.targetTitle] !== undefined) v.mechalolId = byTitle[v.targetTitle];
+					});
+				}).catch(function () { /* אצווה שנכשלה: משאירים mechalolId=null - עדיין יש הצעת-טקסט בלי id */ });
+		}));
 	}
 
 	// מעדכן ישירות תאים שכבר מצוירים (כמו paintWikidataDescriptions) -
@@ -633,6 +634,10 @@
 
 	function resolveDeletionHints(titles) {
 		titles.forEach(function (t) { deletionHintInFlight.add(t); });
+		// כל אצווה נכשלת ומסומנת לחוד, כך שכשל באחת לא מסמן "לא נטען" את כל העמוד.
+		return Promise.all(batches(titles, PG_IN_BATCH).map(resolveDeletionHintsBatch));
+	}
+	function resolveDeletionHintsBatch(titles) {
 		var inList = 'in.(' + titles.map(function (t) { return '"' + t.replace(/"/g, '\\"') + '"'; }).join(',') + ')';
 
 		var renamesParams = new URLSearchParams();
@@ -645,7 +650,7 @@
 		deletionsParams.set('title', inList);
 		deletionsParams.set('order', 'deleted_at.desc');
 
-		Promise.all([
+		return Promise.all([
 			fetch(SUPABASE_URL + '/rest/v1/wikipedia_renames?' + renamesParams.toString(), { headers: pgHeaders() })
 				.then(function (res) { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); }),
 			fetch(SUPABASE_URL + '/rest/v1/wikipedia_deletions?' + deletionsParams.toString(), { headers: pgHeaders() })
@@ -837,6 +842,9 @@
 		});
 	}
 
+	// כתובות PostgREST עם כותרות בעברית ארוכות מאוד אחרי קידוד (~130 תווים לכותרת), ושרתים ופרוקסי מגבילים אורך כתובת
+	// (לרוב 8-16KB), ולכן in.(...) של כותרות מפוצל לאצוות קטנות. (ב-API של מדיה-ויקי המגבלה היא 50 בבקשה.)
+	var PG_IN_BATCH = 20;
 	function batches(arr, n) { var out = []; for (var i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n)); return out; }
 	// קיום במכלול: missing / exists / redirect. וקיום בוויקיפדיה: מזהה וכותרת (אחרי הפניה).
 	function lookupTitles(titles) {
