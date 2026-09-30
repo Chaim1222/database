@@ -120,9 +120,30 @@ test('שינויים בשורות סמוכות שאינם חופפים ממוז�
   assert.strictEqual(r.text, L('א', 'ב מכלול', 'ג ויקי', 'ד'));
 });
 
-test('הוספה צמודה לשינוי של הצד השני נשארת התנגשות (זהירות)', () => {
+test('הוספה צמודה לשינוי של הצד השני (אחריו או לפניו) ממוזגת אוטומטית', () => {
   const base = L('א', 'ב', 'ג');
-  const r = merge3(base, L('א', 'ב מכלול', 'ג'), L('א', 'ב', 'חדש', 'ג'));
+  // הוספה אחרי שורה ששונתה
+  const r1 = merge3(base, L('א', 'ב מכלול', 'ג'), L('א', 'ב', 'חדש', 'ג'));
+  assert.strictEqual(r1.conflicts, 0);
+  assert.strictEqual(r1.text, L('א', 'ב מכלול', 'חדש', 'ג'));
+  // הוספה לפני שורה ששונתה
+  const r2 = merge3(base, L('א', 'חדש', 'ב', 'ג'), L('א', 'ב ויקי', 'ג'));
+  assert.strictEqual(r2.conflicts, 0);
+  assert.strictEqual(r2.text, L('א', 'חדש', 'ב ויקי', 'ג'));
+});
+
+test('תיבת מידע: ויקיפדיה קישרה ערך ושורה חדשה נוספה אצלנו מיד אחריו', () => {
+  const base = L('| תמונה = x.svg', '| מפתח = לזלי למפורט', '| רישיון = [[LPPL]]');
+  const ours = L('| תמונה = x.svg', '| מפתח = לזלי למפורט', '| גרסה אחרונה = November 2024', '| רישיון = [[LPPL]]');
+  const theirs = L('| תמונה = x.svg', '| מפתח = [[לזלי למפורט]]', '| רישיון = [[LPPL]]');
+  const r = merge3(base, ours, theirs);
+  assert.strictEqual(r.conflicts, 0);
+  assert.strictEqual(r.text, L('| תמונה = x.svg', '| מפתח = [[לזלי למפורט]]', '| גרסה אחרונה = November 2024', '| רישיון = [[LPPL]]'));
+});
+
+test('הוספה בתוך טווח ששונה בצד השני היא התנגשות', () => {
+  const base = L('א', 'ב', 'ג', 'ד');
+  const r = merge3(base, L('א', 'X', 'ד'), L('א', 'ב', 'Y', 'ג', 'ד'));
   assert.strictEqual(r.conflicts, 1);
 });
 

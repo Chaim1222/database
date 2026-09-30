@@ -2121,7 +2121,8 @@
 	function tokenize(str) { return str ? str.split(/(\s+)/).filter(function (x) { return x !== ''; }) : []; }
 	// מיזוג רצפים כלליים (שורות או מילים). מחזיר parts: {t:'text', v:[...]} ו-{t:'conflict', base, ours, theirs}.
 	// onConflict(base, ours, theirs) יכול להחזיר פתרון (מערך) להתנגשות, או null.
-	function mergeSeq(base, ours, theirs, onConflict) {
+	// strict: כל נגיעה נחשבת חפיפה (מיזוג מילים); אחרת (מיזוג שורות) שינויים צמודים שאינם חופפים ממוזגים בנפרד.
+	function mergeSeq(base, ours, theirs, onConflict, strict) {
 		var ho = diffHunks(base, ours), ht = diffHunks(base, theirs);
 		var i = 0, j = 0, pos = 0, parts = [], cur = [], conflicts = 0, auto = 0, kept = 0, word = 0;
 		var flush = function () { if (cur.length) { parts.push({ t: 'text', v: cur }); cur = []; } };
@@ -2130,18 +2131,27 @@
 			return side.slice(f.ss - (f.bs - cs), l.se + (ce - l.be));
 		};
 		while (i < ho.length || j < ht.length) {
-			var start = Math.min(i < ho.length ? ho[i].bs : Infinity, j < ht.length ? ht[j].bs : Infinity);
-			for (; pos < start; pos++) cur.push(base[pos]);
-			var co = [], ct = [], ce = start, grew = true;
-			// שינויים חופפים הם באותו אשכול. שני שינויים צמודים שאינם חופפים (שורה 5 אצלנו, שורה 6 אצלם) ממוזגים
-			// בנפרד; רק הוספה בנקודה שבה השני נגמר (או שינוי באותה נקודה) נחשבת חפיפה.
-			var hit = function (h) { return h.bs < ce || (h.bs === ce && (h.be === h.bs || ce === start)); };
-			while (grew) {
+			// זורעים את האשכול בשינוי שמתחיל ראשון; בשוויון, הוספה (טווח ריק) לפני שינוי של טווח.
+			var fromO = i >= ho.length ? false : j >= ht.length ? true
+				: ho[i].bs !== ht[j].bs ? ho[i].bs < ht[j].bs
+				: (ho[i].be === ho[i].bs) || (ht[j].be !== ht[j].bs);
+			var seed = fromO ? ho[i++] : ht[j++];
+			var co = [], ct = [], cs = seed.bs, ce = seed.be, emptyAt = {};
+			var add = function (h, mine) { (mine ? co : ct).push(h); ce = Math.max(ce, h.be); if (h.be === h.bs) emptyAt[h.bs] = true; };
+			add(seed, fromO);
+			// חפיפה אמיתית: טווחים שחותכים זה את זה, הוספה בתוך טווח ששונה, או שתי הוספות באותה נקודה.
+			// הוספה או שינוי שצמודים לקצה של שינוי אחר (בשורה הבאה או הקודמת) הם בלתי תלויים.
+			var overlaps = function (h) {
+				if (strict) return h.bs < ce || (h.bs === ce && (h.be === h.bs || ce === cs));
+				if (h.be > h.bs) return h.bs < ce && h.be > cs;
+				return (h.bs > cs && h.bs < ce) || emptyAt[h.bs] === true;
+			};
+			for (var grew = true; grew; ) {
 				grew = false;
-				while (i < ho.length && hit(ho[i])) { co.push(ho[i]); ce = Math.max(ce, ho[i].be); i++; grew = true; }
-				while (j < ht.length && hit(ht[j])) { ct.push(ht[j]); ce = Math.max(ce, ht[j].be); j++; grew = true; }
+				while (i < ho.length && overlaps(ho[i])) { add(ho[i], true); i++; grew = true; }
+				while (j < ht.length && overlaps(ht[j])) { add(ht[j], false); j++; grew = true; }
 			}
-			var cs = start;
+			for (; pos < cs; pos++) cur.push(base[pos]);
 			if (!ct.length) { cur.push.apply(cur, range(co, ours, cs, ce)); kept++; }
 			else if (!co.length) { cur.push.apply(cur, range(ct, theirs, cs, ce)); auto++; }
 			else {
@@ -2153,7 +2163,7 @@
 					else { flush(); parts.push({ t: 'conflict', base: base.slice(cs, ce), ours: o, theirs: t }); conflicts++; }
 				}
 			}
-			pos = ce;
+			pos = Math.max(pos, ce);
 		}
 		for (; pos < base.length; pos++) cur.push(base[pos]);
 		flush();
@@ -2161,7 +2171,7 @@
 	}
 	// התנגשות ברמת שורות נבדקת שוב ברמת מילים: אם שני הצדדים שינו מילים שונות באותה פסקה, זה ממוזג אוטומטית.
 	function mergeWords(baseLines, oursLines, theirsLines) {
-		var r = mergeSeq(tokenize(baseLines.join('\n')), tokenize(oursLines.join('\n')), tokenize(theirsLines.join('\n')), null);
+		var r = mergeSeq(tokenize(baseLines.join('\n')), tokenize(oursLines.join('\n')), tokenize(theirsLines.join('\n')), null, true);
 		if (r.conflicts) return null;
 		var text = r.parts.map(function (p) { return p.v.join(''); }).join('');
 		return text === '' ? [] : text.split('\n');
