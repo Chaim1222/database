@@ -6,7 +6,7 @@ const path = require('path');
 
 const src = fs.readFileSync(path.join(__dirname, '..', 'gadget-searchHelperDashboard.js'), 'utf8');
 const merge = src.slice(src.indexOf('// <merge3>'), src.indexOf('// </merge3>'));
-const { merge3, lcsPairs, updateSortTemplate, applyImportReplacements, splitImportTail, parseSortTemplateRev, revisionText } = new Function(merge + '\nreturn { merge3, lcsPairs, updateSortTemplate, applyImportReplacements, splitImportTail, parseSortTemplateRev, revisionText };')();
+const { merge3, mergeSeq, mergeWords, renderParts, tokenize, lcsPairs, updateSortTemplate, applyImportReplacements, splitImportTail, parseSortTemplateRev, revisionText } = new Function(merge + '\nreturn { merge3, mergeSeq, mergeWords, renderParts, tokenize, lcsPairs, updateSortTemplate, applyImportReplacements, splitImportTail, parseSortTemplateRev, revisionText };')();
 
 const L = (...lines) => lines.join('\n');
 
@@ -120,9 +120,30 @@ test('שינויים בשורות סמוכות שאינם חופפים ממוז�
   assert.strictEqual(r.text, L('א', 'ב מכלול', 'ג ויקי', 'ד'));
 });
 
-test('הוספה צמודה לשינוי של הצד השני נשארת התנגשות (זהירות)', () => {
+test('הוספה צמודה לשינוי של הצד השני (אחריו או לפניו) ממוזגת אוטומטית', () => {
   const base = L('א', 'ב', 'ג');
-  const r = merge3(base, L('א', 'ב מכלול', 'ג'), L('א', 'ב', 'חדש', 'ג'));
+  // הוספה אחרי שורה ששונתה
+  const r1 = merge3(base, L('א', 'ב מכלול', 'ג'), L('א', 'ב', 'חדש', 'ג'));
+  assert.strictEqual(r1.conflicts, 0);
+  assert.strictEqual(r1.text, L('א', 'ב מכלול', 'חדש', 'ג'));
+  // הוספה לפני שורה ששונתה
+  const r2 = merge3(base, L('א', 'חדש', 'ב', 'ג'), L('א', 'ב ויקי', 'ג'));
+  assert.strictEqual(r2.conflicts, 0);
+  assert.strictEqual(r2.text, L('א', 'חדש', 'ב ויקי', 'ג'));
+});
+
+test('תיבת מידע: ויקיפדיה קישרה ערך ושורה חדשה נוספה אצלנו מיד אחריו', () => {
+  const base = L('| תמונה = x.svg', '| מפתח = לזלי למפורט', '| רישיון = [[LPPL]]');
+  const ours = L('| תמונה = x.svg', '| מפתח = לזלי למפורט', '| גרסה אחרונה = November 2024', '| רישיון = [[LPPL]]');
+  const theirs = L('| תמונה = x.svg', '| מפתח = [[לזלי למפורט]]', '| רישיון = [[LPPL]]');
+  const r = merge3(base, ours, theirs);
+  assert.strictEqual(r.conflicts, 0);
+  assert.strictEqual(r.text, L('| תמונה = x.svg', '| מפתח = [[לזלי למפורט]]', '| גרסה אחרונה = November 2024', '| רישיון = [[LPPL]]'));
+});
+
+test('הוספה בתוך טווח ששונה בצד השני היא התנגשות', () => {
+  const base = L('א', 'ב', 'ג', 'ד');
+  const r = merge3(base, L('א', 'X', 'ד'), L('א', 'ב', 'Y', 'ג', 'ד'));
   assert.strictEqual(r.conflicts, 1);
 });
 
@@ -174,4 +195,46 @@ test('ספירות: שינויים מוויקיפדיה מול שינויים מ
   assert.strictEqual(r.conflicts, 0);
   assert.strictEqual(r.auto, 1);
   assert.strictEqual(r.kept, 2);
+});
+
+test('התנגשות ברמת שורות נפתרת ברמת מילים כששני הצדדים שינו מילים שונות באותה פסקה', () => {
+  const base = L('א', 'גובה 238.55 מטרים והשלמה ב-2016 ושמו אבן', 'ג');
+  const ours = L('א', 'גובה 238.55 מטרים והשלמה ב-2016 ושמו אבן הפינה', 'ג');       // המכלול הוסיף מילים בסוף
+  const theirs = L('א', 'גובה 307.5 מטרים והשלמה ב-2016 ושמו אבן', 'ג');            // ויקיפדיה עדכנה מספר
+  const r = merge3(base, ours, theirs);
+  assert.strictEqual(r.conflicts, 0);
+  assert.strictEqual(r.word, 1);
+  assert.strictEqual(r.text, L('א', 'גובה 307.5 מטרים והשלמה ב-2016 ושמו אבן הפינה', 'ג'));
+});
+
+test('אותה מילה שונה משני הצדדים נשארת התנגשות, עם parts מובנים (בלי סימנים)', () => {
+  const r = mergeSeq(['א', 'גובה 10 מטר', 'ג'], ['א', 'גובה 20 מטר', 'ג'], ['א', 'גובה 30 מטר', 'ג'], mergeWords);
+  assert.strictEqual(r.conflicts, 1);
+  const c = r.parts.find(p => p.t === 'conflict');
+  assert.deepStrictEqual(c.base, ['גובה 10 מטר']);
+  assert.deepStrictEqual(c.ours, ['גובה 20 מטר']);
+  assert.deepStrictEqual(c.theirs, ['גובה 30 מטר']);
+});
+
+test('הבחירות בטופס ההתנגשויות מייצרות טקסט נקי, בלי סימני התנגשות', () => {
+  const r = mergeSeq(['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ז'], ['א', 'ב1', 'ג', 'ד', 'ה', 'ו1', 'ז'], ['א', 'ב2', 'ג', 'ד', 'ה', 'ו2', 'ז'], mergeWords);
+  assert.strictEqual(r.conflicts, 2);
+  const marks = /<<<<<<<|=======|>>>>>>>/;
+  assert.strictEqual(renderParts(r.parts, ['ours', 'theirs']), L('א', 'ב1', 'ג', 'ד', 'ה', 'ו2', 'ז'));
+  assert.strictEqual(renderParts(r.parts, ['theirs', 'both']), L('א', 'ב2', 'ג', 'ד', 'ה', 'ו1', 'ו2', 'ז'));
+  assert.strictEqual(renderParts(r.parts, [{ text: 'ידני' }, 'ours']), L('א', 'ידני', 'ג', 'ד', 'ה', 'ו1', 'ז'));
+  assert.ok(!marks.test(renderParts(r.parts, ['ours', { text: '' }])));
+  assert.strictEqual(renderParts(r.parts, ['ours', { text: '' }]), L('א', 'ב1', 'ג', 'ד', 'ה', 'ז'));
+  // בלי בחירה: סימנים (רק לבדיקות, ה-UI לא מאפשר פתיחה כך)
+  assert.ok(marks.test(renderParts(r.parts, null)));
+});
+
+test('מחיקה אצלנו מול עריכה בוויקיפדיה של אותה שורה היא התנגשות', () => {
+  const r = merge3(L('א', 'פסקה', 'ג'), L('א', 'ג'), L('א', 'פסקה מעודכנת', 'ג'));
+  assert.strictEqual(r.conflicts, 1);
+});
+
+test('tokenize: מילים ורווחים נשמרים, ריק הוא ללא אסימונים', () => {
+  assert.deepStrictEqual(tokenize('א  ב\nג'), ['א', '  ', 'ב', '\n', 'ג']);
+  assert.deepStrictEqual(tokenize(''), []);
 });
