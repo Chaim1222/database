@@ -1098,7 +1098,8 @@
 		}).then(function () {
 			return new mw.Api().postWithToken('csrf', {
 				action: 'edit', title: REQUESTS_PAGE, section: String(row.req.section),
-				appendtext: '\n:' + text + ' ~~~~', summary: '/* ' + row.req.title + ' */ תגובה', nocreate: 1
+				// חתימה: ארבע טילדות ברצף בקוד הגאדג'ט (בדף JS במכלול) מומרות לחתימה בשמירה, ולכן מפוצלות בכוונה.
+				appendtext: '\n:' + text + ' ~~' + '~~', summary: '/* ' + row.req.title + ' */ תגובה', nocreate: 1
 			});
 		}).then(function () {
 			textarea.value = '';
