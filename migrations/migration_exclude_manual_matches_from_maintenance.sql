@@ -1,7 +1,7 @@
 -- migration_exclude_manual_matches_from_maintenance.sql
 --
 -- שיוך ידני (manual_matches) = העורך כבר טיפל בערך, ולכן הוא יוצא מ"ללא תבנית מיון". גם ממשימות
--- הגרסה (report_rev_tasks ב-migration_add_rev_task.sql; match.py מנקה rev_task לשורה עם שיוך ידני).
+-- הגרסה (report_rev_tasks ב-migration_rev_link_check_v2.sql מסתיר אותן).
 -- "נעולים" **לא** משתנה: שיוך ידני אינו מוציא דף מהרשימה שלו (הכרעת חיים, 1.10).
 -- ללא שינוי בנפח; idempotent; לא בזמן ההחלפה השבועית. (schema/views.sql לא מעודכן עד שהמיגרציה תורץ.)
 

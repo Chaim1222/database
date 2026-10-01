@@ -8,9 +8,6 @@ normalization_checked, אין should_reexamine - כל אלה התייתרו לג
 עם המעבר לריקון-ומילוי-מחדש.
 
 סדר ההתאמה:
-0א. גרסה (rev_match.py): לערך מתועד עם `גרסה=` תקינה, ה-API אומר לאיזה דף הגרסה שייכת. כשאין
-   התאמת כותרת, הקישור הוא לדף הגרסה; ההחלטה נשמרת ב-rev_task (העברת שם / הפך להפניה / גרסה
-   שגויה / נמחק לפי גרסה) - ראו rev_match.py.
 0. manual_matches (טבלה נפרדת, לא מתרוקנת - שרדה בזכות מפתח page_id
    קבוע, לא id פנימי) - למקרים שהאוטומציה לא יכולה לפתור לבד (למשל
    כותרת שונה + דף נעול-לקריאה, ולכן גם תבנית המיון לא ניתנת לבדיקה).
@@ -42,7 +39,6 @@ from config import (
     MATCH_TYPE_NO_MATCH,
 )
 from normalize import hygiene, normalize_title
-import rev_match
 from supabase_client import get_client, execute_with_retry as _execute_with_retry
 from mechalol_api import log, api_get_with_retry, login as mechalol_login
 from table_names import table_name, rpc_name
@@ -51,9 +47,6 @@ from table_names import table_name, rpc_name
 # גודל צ'אנק לקריאות recompute_missing_flag_scoped/_by_titles - שומר
 # כל קריאה קצרה (מתחת ל-statement_timeout) גם בלילה עמוס.
 RECOMPUTE_CHUNK_SIZE = 500
-
-# בקשות revids במקביל (ויקיפדיה מגבילה קצב; ריצה שבועית של ~262 אלף גרסאות = ~5,300 בקשות)
-REV_RESOLVE_WORKERS = 4
 
 
 def execute_with_retry(operation, description):
@@ -379,7 +372,7 @@ def compute_scoped_ids(client, mechalol_changed_ids, wikipedia_changed_ids):
     return scoped
 
 
-def compute_stale_ids(client, include_rev_tasks=True):
+def compute_stale_ids(client):
     """
     מחזיר את קבוצת ה-id-ים ב-mechalol_pages של כל "המלאי התקוע" -
     שורות שסומנו בעבר כבעייתיות ולא נגעה בהן שום דלתא מאז, ולכן
@@ -471,28 +464,6 @@ def compute_stale_ids(client, include_rev_tasks=True):
         stale.update(row["id"] for row in rows)
         last_id = rows[-1]["id"]
 
-    # קבוצה 4: ערכים עם משימת גרסה (rev_task). עורך שתיקן את הגרסה בתבנית או את הכותרת לא נוגע
-    # בשום דלתא שמכניסה את השורה לסקופ, ובלי זה המשימה הייתה נשארת עד הריצה השבועית.
-    last_id = 0
-    while include_rev_tasks:
-        result = execute_with_retry(
-            lambda last_id=last_id: (
-                client.table(table_name("mechalol_pages"))
-                .select("id")
-                .not_.is_("rev_task", "null")
-                .gt("id", last_id)
-                .order("id")
-                .limit(BATCH_SIZE)
-                .execute()
-            ),
-            f"STALE rev_task after_id={last_id}",
-        )
-        rows = result.data or []
-        if not rows:
-            break
-        stale.update(row["id"] for row in rows)
-        last_id = rows[-1]["id"]
-
     return stale
 
 
@@ -548,13 +519,6 @@ def main():
         ),
     )
     parser.add_argument(
-        "--skip-rev-check", action="store_true",
-        help=(
-            "מדלג על ההתאמה לפי גרסה (rev_match.py): בלי קריאות revids לוויקיפדיה, ו-rev_task "
-            "נשאר כפי שהיה. שימושי כשה-API של ויקיפדיה לא זמין; ההתאמה לפי כותרת ולפי תבנית נשארת."
-        ),
-    )
-    parser.add_argument(
         "--login", action="store_true",
         help=(
             "מתחבר לחשבון הבוט במכלול (USER_NAME/PASSWORD) לפני שלב 4 "
@@ -588,19 +552,6 @@ def main():
     manual_matches = load_manual_matches(client)
     log(f"שלב 0 הושלם | כותרות={len(wikipedia_map):,} | התאמות_ידניות={len(manual_matches):,}")
 
-    rev_check = not args.skip_rev_check
-    max_rev = 0
-    if rev_check:
-        from fetch_wikipedia_revisions import wikipedia_get
-        try:
-            max_rev = rev_match.fetch_max_rev(wikipedia_get)
-            log(f"שלב 0 | הגרסה האחרונה בוויקיפדיה: {max_rev:,}")
-        except Exception as exc:  # noqa: BLE001
-            # ה-API של ויקיפדיה לא זמין: ממשיכים בלי התאמה לפי גרסה (כמו --skip-rev-check), ו-rev_task
-            # נשאר כפי שהיה (בשבועי: מועתק מהשבוע הקודם ב-forward_fill).
-            log(f"WARNING | שלב 0 | הגרסה האחרונה בוויקיפדיה לא נשלפה ({exc}) - מדלגים על ההתאמה לפי גרסה")
-            rev_check = False
-
     only_ids = None
     wikipedia_changed = None
     if args.scoped:
@@ -621,7 +572,7 @@ def main():
             # נגעה בהן, כדי לבדוק אם הבעיה כבר נפתרה (הדף חזר/שויך ידנית/
             # תבנית תוקנה). אפס קריאות רשת - הכול מול המצב שכבר במסד. ראו
             # compute_stale_ids לפירוט הקבוצות.
-            stale_ids = compute_stale_ids(client, include_rev_tasks=not args.skip_rev_check)
+            stale_ids = compute_stale_ids(client)
             only_ids |= stale_ids
             log(
                 f"שלב 0 | מצומצם ל-{len(only_ids):,} שורות מכלול (--scoped) | "
@@ -650,31 +601,12 @@ def main():
     # ב---scoped (ראו שלב 2).
     scoped_titles = set()
     template_check_deferred = 0
-    rev_matches = 0
-    rev_tasks = {}
-    rev_batches_failed = 0
 
     log("שלב 1 | מתאים כותרות מכלול...")
 
     for batch_number, batch in enumerate(iter_mechalol_rows(client, only_ids=only_ids), 1):
         updates = []
         pending = []  # [(row, title)] - דורש בדיקת תבנית מיון
-
-        # התאמה לפי גרסה (rev_match.py): לאיזה דף שייכת כל גרסה בתבנית. כשל ב-API לא מפיל את
-        # הריצה - האצווה נמשכת בהתאמה לפי כותרת ו-rev_task שלה נשאר כפי שהיה.
-        decisions = {}
-        deferred_rev = {}
-        resolved_revs = {}
-        batch_rev_ok = rev_check
-        if rev_check:
-            revs = [r["sort_template_rev"] for r in batch
-                    if rev_match.in_scope(r) and rev_match.valid_rev(r.get("sort_template_rev"))]
-            try:
-                resolved_revs = rev_match.resolve_many(wikipedia_get, revs, REV_RESOLVE_WORKERS)
-            except Exception as exc:  # noqa: BLE001
-                log(f"WARNING | revids | האצווה נכשלה ({exc}) - ממשיכים בלי התאמה לפי גרסה לאצווה הזו")
-                batch_rev_ok = False
-                rev_batches_failed += 1
 
         for row in batch:
             total += 1
@@ -712,36 +644,6 @@ def main():
                 updates.append(updated)
                 manual_matched += 1
                 continue
-
-            # 0א. גרסה. title_link: מה שהתאמת הכותרת (שלבים 1-2, בלי רשת) מוצאת; ההחלטה בודקת
-            # אם הגרסה מסכימה. כשאין התאמת כותרת והגרסה שייכת לדף חי - הקישור לדף הגרסה.
-            if batch_rev_ok:
-                title_link = wikipedia_map.get(hygiene(title))
-                if title_link is None:
-                    normalized, applied = normalize_title(title)
-                    if applied:
-                        title_link = wikipedia_map.get(hygiene(normalized))
-                decision = rev_match.decide(
-                    row, resolved_revs.get(row.get("sort_template_rev")), title_link, max_rev,
-                    wikipedia_existing_ids.__contains__,
-                )
-                decisions[row["id"]] = decision
-                if decision.needs_evidence:
-                    # אין התאמת כותרת והגרסה שייכת לדף חי: קודם בודקים מה בדיקת התבנית אומרת (שלב 3),
-                    # ורק אז מחליטים (אחרי שלב 3, להלן). אם התבנית מקשרת לדף אחר - גרסה שגויה.
-                    deferred_rev[row["id"]] = (row, resolved_revs.get(row.get("sort_template_rev")))
-                if decision.task:
-                    rev_tasks[decision.task] = rev_tasks.get(decision.task, 0) + 1
-                if decision.link_id is not None:
-                    updated = dict(row)
-                    updated["wikipedia_id"] = decision.link_id
-                    updated["match_type"] = get_match_type(row)
-                    updated["maybe_deleted_from_wikipedia"] = False
-                    updated["template_referenced_title"] = None
-                    updated["template_check_access_denied_at"] = None
-                    updates.append(updated)
-                    rev_matches += 1
-                    continue
 
             # 1. היגיינת טקסט (כולל התאמה מדויקת - אם הכותרת נקייה, hygiene(title)==title)
             key = hygiene(title)
@@ -821,9 +723,6 @@ def main():
                     updated = dict(row)
                     updated["template_check_access_denied_at"] = datetime.now(timezone.utc).isoformat()
                     updates.append(updated)
-                    # התבנית לא ניתנת לקריאה (נעילה): גרסה חסרה אינה "גרסה שגויה" (rev_match.in_scope)
-                    if not rev_match.valid_rev(row.get("sort_template_rev")):
-                        decisions[row["id"]] = rev_match.NO_DECISION
                     access_denied_skipped += 1
                     continue
 
@@ -902,41 +801,6 @@ def main():
 
                 updates.append(updated)
 
-        if deferred_rev:
-            # השלמת ההחלטה אחרי בדיקת התבנית. העדות = הקישור שבשורה המעודכנת (מהתבנית; קישור קיים
-            # כשהבדיקה נדחתה; None כשאין).
-            by_id = {u["id"]: u for u in updates}
-            for rid, (drow, dresolved) in deferred_rev.items():
-                u = by_id.get(rid)
-                if u is None:
-                    u = dict(drow)
-                    updates.append(u)
-                    by_id[rid] = u
-                final = rev_match.decide(
-                    drow, dresolved, None, max_rev, wikipedia_existing_ids.__contains__,
-                    evidence_link_id=u.get("wikipedia_id"),
-                )
-                decisions[rid] = final
-                if final.task:
-                    rev_tasks[final.task] = rev_tasks.get(final.task, 0) + 1
-                if final.link_id is not None and u.get("wikipedia_id") != final.link_id:
-                    u["wikipedia_id"] = final.link_id
-                    u["match_type"] = get_match_type(drow)
-                    u["maybe_deleted_from_wikipedia"] = False
-                    u["template_referenced_title"] = None
-                    u["template_check_access_denied_at"] = None
-                    rev_matches += 1
-
-        if updates and batch_rev_ok:
-            # עמודות המשימה נכתבות רק אם קיימות בטבלה (migration_add_rev_task.sql); שורה בלי החלטה
-            # (שאינה בהיקף, התאמה ידנית) מנוקה.
-            for u in updates:
-                if "rev_task" in u:
-                    d = decisions.get(u["id"], rev_match.NO_DECISION)
-                    u["rev_task"] = d.task
-                    u["rev_page_id"] = d.page_id if d.task else None
-                    u["rev_page_title"] = d.page_title if d.task else None
-
         if updates:
             for u in updates:
                 if u.get("wikipedia_id"):
@@ -959,7 +823,7 @@ def main():
             f"תבנית={template_matches:,} | ללא_התאמה={unmatched:,} | "
             f"בעיית_שם_בתבנית={template_name_problem:,} | "
             f"נדחה_ללא_הכרעה={access_denied_skipped:,} | "
-            f"ידני_לא_נמצא={manual_unresolved:,} | לפי_גרסה={rev_matches:,}"
+            f"ידני_לא_נמצא={manual_unresolved:,}"
         )
 
     # שלב 2 | חישוב מחדש של wikipedia_pages.is_missing.
@@ -1060,8 +924,6 @@ def main():
         f"נדחה_ללא_הכרעה={access_denied_skipped:,} | ידני_לא_נמצא={manual_unresolved:,}"
         + (f" | נדחה_ללא_בדיקת_תבנית={template_check_deferred:,}" if args.skip_template_check else "")
     )
-    if rev_check:
-        log(f"גרסה | קישורים לפי גרסה={rev_matches:,} | משימות={rev_tasks} | אצוות שנכשלו={rev_batches_failed}")
     log(f"זמן ריצה | {elapsed // 60} דק' {elapsed % 60} שנ'")
     log("=" * 80)
 
