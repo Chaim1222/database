@@ -35,6 +35,7 @@ grant select on rev_link_check to anon, authenticated;
 grant select, insert, update, delete on rev_link_check to service_role;
 
 -- הדוח: מה הקישור היום מול מה שהגרסה אומרת. linked_title = הערך שההתאמה לפי שם קישרה אליו.
+-- ערכים שכבר מופיעים ב-report_tasks_to_handle מוסתרים (כבר יש להם משימה); נשארים רק החדשים.
 create or replace view report_rev_link_mismatch with (security_invoker = true) as
 select c.mechalol_id as id,
        m.title,
@@ -56,7 +57,8 @@ select c.mechalol_id as id,
        c.checked_at
 from rev_link_check c
 join mechalol_pages m on m.id = c.mechalol_id
-left join wikipedia_pages w on w.id = c.linked_wikipedia_id;
+left join wikipedia_pages w on w.id = c.linked_wikipedia_id
+where not exists (select 1 from report_tasks_to_handle t where t.id = c.mechalol_id);
 
 revoke all on report_rev_link_mismatch from anon, authenticated;
 grant select on report_rev_link_mismatch to anon, authenticated, service_role;
