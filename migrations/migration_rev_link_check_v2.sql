@@ -9,13 +9,21 @@
 --   (החלפת הטבלאות השבועית משנה שמות), והטבלה לא נוגעת בטבלאות הערכים ולא מושפעת מההחלפה.
 --
 -- report_rev_tasks: שיוך ידני (manual_matches) = טופל, ולכן מוסתר. rev_task ב-view כדי שהגאדג'ט יסנן לפיו.
--- ללא שינוי בנפח משמעותי; לא בזמן ההחלפה השבועית. idempotent (מוחקת את הטבלה הישנה ויוצרת מחדש).
+-- הטבלה הישנה (עם עמודת status) לא נמחקת: שמה משתנה ל-rev_link_check_snapshot_20261001 (318 שורות, ~30KB),
+-- למחיקה ידנית אחרי שהסריקה החדשה רצה. ללא שינוי בנפח משמעותי; לא בזמן ההחלפה השבועית. idempotent.
 
-drop view if exists report_rev_link_mismatch;
-drop view if exists report_rev_tasks;
-drop table if exists rev_link_check;
+-- בלי DROP (הכלי שמריץ בייצור נתקע על פקודות הרס): הדוח והטבלה הישנים נשארים בשם חדש.
+alter view if exists report_rev_link_mismatch rename to report_rev_link_mismatch_snapshot_20261001;
 
-create table rev_link_check (
+do $$
+begin
+    if exists (select 1 from information_schema.columns
+               where table_schema = 'public' and table_name = 'rev_link_check' and column_name = 'status') then
+        alter table rev_link_check rename to rev_link_check_snapshot_20261001;
+    end if;
+end $$;
+
+create table if not exists rev_link_check (
     mechalol_id         bigint primary key,
     rev_task            text not null check (rev_task in ('rename', 'redirect', 'bad_rev', 'deleted_by_rev')),
     rev_id              bigint,
@@ -25,10 +33,16 @@ create table rev_link_check (
     checked_at          timestamptz not null default now()
 );
 
-create index rev_link_check_task_idx on rev_link_check (rev_task, mechalol_id);
+create index if not exists rev_link_check_task_idx on rev_link_check (rev_task, mechalol_id);
 
 alter table rev_link_check enable row level security;
-create policy "קריאה ציבורית" on rev_link_check for select to anon, authenticated using (true);
+do $$
+begin
+    if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'rev_link_check'
+                   and policyname = 'קריאה ציבורית') then
+        create policy "קריאה ציבורית" on rev_link_check for select to anon, authenticated using (true);
+    end if;
+end $$;
 
 revoke all on rev_link_check from anon, authenticated;
 grant select on rev_link_check to anon, authenticated;
