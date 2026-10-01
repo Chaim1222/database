@@ -8,6 +8,10 @@ on:
       limit:
         description: "מספר ערכים מקסימלי (0 = הכל)"
         default: "0"
+      wikidata_first:
+        description: "קודם להריץ את fetch_wikidata_descriptions.py (לשורות שטרם נבדקו מול ויקינתונים)"
+        type: boolean
+        default: false
       dry_run:
         description: "הדפסה בלבד, בלי שמירה למסד"
         type: boolean
@@ -28,6 +32,13 @@ jobs:
 
       - name: התקנת ספריות
         run: pip install -r requirements.txt
+
+      - name: שליפת תיאורי ויקינתונים לשורות שטרם נבדקו
+        if: ${{ inputs.wikidata_first }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python scripts/fetch_wikidata_descriptions.py
 
       - name: חילוץ הגדרות מהפתיח
         env:
