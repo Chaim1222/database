@@ -28,6 +28,20 @@ from supabase_client import get_client, execute_with_retry
 
 SUFFIX = " (מתוך הפתיח)"
 MAX_WORDS = 10
+MIN_WORDS = 2
+MIN_WORDS_BEFORE_COMMA = 3
+CLAUSE_BREAK = re.compile(r",|\s[–—-]\s")
+# מילים שפותחות פסוקית נלווית - ההגדרה נחתכת לפניהן
+RELATIVE_STARTERS = {
+    "אשר", "שבו", "שבה", "שבהם", "שבהן", "שהוא", "שהיא", "שהם", "שהן", "שהיה",
+    "שהייתה", "שהיו", "שלפיה", "שלפיו", "שלפיהם", "בה", "בו", "בהם", "בהן",
+    "שמטרתו", "שמטרתה", "שבמסגרתו", "שבמסגרתה", "שבמהלכו", "שבמהלכה",
+}
+# מילים שפותחות ביטוי חדש - מותר לחתוך לפניהן כשההגדרה ארוכה מדי
+PHRASE_STARTERS = RELATIVE_STARTERS | {
+    "של", "מאת", "על", "עם", "בשנת", "בשנים", "במאה", "ב־", "וכן", "כגון",
+    "לפי", "בין", "או", "וגם", "ובו", "ובה", "אך",
+}
 EXTRACT_CHUNK_SIZE = 20  # מגבלת exlimit כשמבקשים רק את הפתיח
 MAX_API_RETRIES = 6
 
@@ -78,19 +92,48 @@ def extract_definition(extract):
     # סוף המשפט הראשון: נקודה (לפני רווח/סוף) / נקודה-פסיק / נקודתיים
     rest = re.split(r"\.(?=\s|$)|[;:]", rest, maxsplit=1)[0]
 
-    words = rest.strip(" ,-–—").split()
-    if len(words) < 2:
-        return None
-    words = words[:MAX_WORDS]
-    while words and (words[-1].rstrip(",") in DANGLING or len(words[-1].rstrip(",")) == 1):
-        words.pop()
-    if len(words) < 2:
+    words = _cut_at_natural_boundary(rest.strip(" ,-–—"))
+    if words is None:
         return None
     definition = " ".join(words).rstrip(" ,-–—")
-    # אם נחתכנו באמצע ציטוט/מרכאות פתוחות - מוותרים על המרכאה התלויה
+    # מרכאה פתוחה אחרי החיתוך - מוותרים עליה
     if definition.count('"') % 2 == 1:
         definition = definition.replace('"', "")
     return definition or None
+
+
+def _cut_at_natural_boundary(text):
+    """
+    חותך את ההגדרה בגבול טבעי בלבד, כדי שלא תיגמר באמצע ביטוי:
+    1. הפסיק/המקף הראשון שלפניו לפחות שלוש מילים;
+    2. לפני מילת פתיחה של פסוקית (אשר, שבו, בה...) ממילה שלישית ואילך;
+    3. אם עדיין ארוך מ-MAX_WORDS - בגבול הטבעי האחרון שבתוך החלון
+       (לפני של/מאת/על/עם/בשנת...). אין גבול כזה -> None (מדלגים).
+    מחזיר רשימת מילים, או None אם אין הגדרה תקינה.
+    """
+    for m in CLAUSE_BREAK.finditer(text):
+        if len(text[:m.start()].split()) >= MIN_WORDS_BEFORE_COMMA:
+            text = text[:m.start()]
+            break
+    words = text.split()
+    for i in range(MIN_WORDS, len(words)):
+        if words[i] in RELATIVE_STARTERS:
+            words = words[:i]
+            break
+    if len(words) > MAX_WORDS:
+        cut = None
+        for i in range(MAX_WORDS, MIN_WORDS - 1, -1):
+            if words[i] in PHRASE_STARTERS:
+                cut = i
+                break
+        if cut is None:
+            return None
+        words = words[:cut]
+    while words and (words[-1] in DANGLING or len(words[-1]) == 1):
+        words.pop()
+    if len(words) < MIN_WORDS:
+        return None
+    return words
 
 
 def load_candidate_rows(limit):
