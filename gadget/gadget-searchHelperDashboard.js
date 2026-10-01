@@ -270,6 +270,14 @@
 	var UI_PREFS_KEY = 'mchl-ui-prefs';
 	var uiPrefs = (function () { try { return JSON.parse(localStorage.getItem(UI_PREFS_KEY) || '{}') || {}; } catch (e) { return {}; } }());
 	function saveUiPrefs() { try { localStorage.setItem(UI_PREFS_KEY, JSON.stringify(uiPrefs)); } catch (e) { /* לא נשמר - לא נורא */ } }
+	// עיצוב כהה (ברירת מחדל) או בהיר - נשמר בדפדפן, ומוחל על #mchl-dash.
+	function applyTheme() { var d = $id('mchl-dash'); if (d) d.classList.toggle('mchl-light', uiPrefs.theme === 'light'); }
+	function setTheme(theme) {
+		uiPrefs.theme = theme === 'light' ? 'light' : 'dark';
+		saveUiPrefs();
+		applyTheme();
+		document.querySelectorAll('#mchl-side .mchl-theme-toggle button').forEach(function (b) { b.classList.toggle('mchl-on', b.getAttribute('data-v') === uiPrefs.theme); });
+	}
 	function mechalolUrl(id) { return 'https://www.hamichlol.org.il/w/index.php?curid=' + id; }
 	function wikipediaUrl(id) { return 'https://he.wikipedia.org/w/index.php?curid=' + id; }
 	function mechalolEditUrl(title) { return 'https://www.hamichlol.org.il/w/index.php?title=' + encodeURIComponent(title.replace(/ /g, '_')) + '&action=edit'; }
@@ -1385,6 +1393,10 @@
 		html += '<label class="mchl-check"><input type="checkbox" data-side-check="new"' + (wfExcludeNew ? ' checked' : '') + '> בלי ערכים חדשים (' + NEW_ARTICLE_CUTOFF_DAYS + ' יום)</label>' +
 			'<label class="mchl-check">אורך מקסימלי <input type="number" min="0" class="mchl-filter-number" data-side-input="maxlen" placeholder="בתים" value="' + escapeHtml(wfMaxLen) + '"></label>' +
 			'<div class="mchl-hint" style="margin-top:8px;">המספרים ליד האפשרויות לא מושפעים מחיפוש, מערכים חדשים, מהקוד המוסתר ומאורך.</div></div>';
+		var theme = uiPrefs.theme === 'light' ? 'light' : 'dark';
+		html += '<div class="mchl-side-sec"><div class="mchl-side-h">עיצוב</div><div class="mchl-theme-toggle">' +
+			'<button type="button" data-action="set-theme" data-v="dark"' + (theme === 'dark' ? ' class="mchl-on"' : '') + '>כהה</button>' +
+			'<button type="button" data-action="set-theme" data-v="light"' + (theme === 'light' ? ' class="mchl-on"' : '') + '>בהיר</button></div></div>';
 		$id('mchl-side').innerHTML = html;
 		applySideCollapse();
 		$id('mchl-side').querySelectorAll('input[data-some]').forEach(function (cb) { cb.indeterminate = true; });
@@ -3090,6 +3102,7 @@
 			else if (action === 'req-filter') { requestsState.filter = el.getAttribute('data-v'); renderRequests(); }
 			else if (action === 'req-reply') replyToRequest(el);
 			else if (action === 'req-open') toggleRequestPanel(el.closest('tr'));
+			else if (action === 'set-theme') setTheme(el.getAttribute('data-v'));
 			else if (action === 'toggle-side') { uiPrefs.sideHidden = !uiPrefs.sideHidden; saveUiPrefs(); applySidePanel(); }
 			else if (action === 'chip-remove') removeChip(el.getAttribute('data-chip'));
 			else if (action === 'wf-feedback') wfFeedback(el);
@@ -3231,6 +3244,7 @@
 		if (!contentEl) return;
 		contentEl.innerHTML = '';
 		contentEl.appendChild(container);
+		applyTheme();
 		container.style.visibility = 'hidden';
 		loadDashboardCss(function () { container.style.visibility = ''; });
 
