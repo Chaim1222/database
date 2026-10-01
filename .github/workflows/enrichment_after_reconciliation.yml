@@ -54,6 +54,14 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: python scripts/fetch_wikidata_descriptions.py
 
+      # משלים הגדרה מהפתיח לערכים שוויקינתונים לא סיפק להם תיאור
+      # ("" או NULL - אין פריט מקושר). נוגע רק בשורות בלי תיאור, ריצה חוזרת בטוחה.
+      - name: השלמת הגדרות מהפתיח
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python scripts/fetch_lead_descriptions.py
+
       - name: פתיחת Issue בעת כישלון
         if: failure()
         uses: actions/github-script@v7

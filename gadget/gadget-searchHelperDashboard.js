@@ -28,7 +28,7 @@
 		manual_match_action: 'שיוך ידני', deletion_hint: 'רמז',
 		wikipedia_title: 'ערך בוויקיפדיה', mechalol_title: 'דף מקביל במכלול',
 		mechalol_status: 'סטטוס במכלול', candidate_count: 'מספר מועמדים',
-		mechalol_id: 'מזהה מכלול',
+		mechalol_id: 'מזהה מכלול', lock_level: 'סוג נעילה', lock_source: 'איך זוהה', detected_at: 'זוהה בתאריך',
 		update_date: 'עודכן לאחרונה', update_bucket: 'טווח עדכון',
 		update_change: 'שינוי בוויקיפדיה', update_action: '',
 		sort_template_date: 'עודכן לאחרונה (חודש)', sort_template_rev: 'גרסת הבסיס',
@@ -73,14 +73,16 @@
 	var WF_TOPIC_GROUPS = [
 		{ label: 'מיוחדים', items: [['disambig', 'פירושונים'], ['years', 'ערכי שנים ותאריכים'], ['lists', 'רשימות'],
 			['dictionary', 'ערך מילוני'], ['sensitive', 'נושאים בעייתיים']] },
-		{ label: 'אישים', items: [['people_congress', 'חברי קונגרס אמריקאים'], ['people_politics', 'פוליטיקה, ממשל ואצולה'],
-			['people_military', 'צבא וביטחון'], ['people_rabbis', 'רבנים ואישי יהדות'], ['people_clergy', 'אנשי דת אחרים'],
-			['people_science', 'מדע, רפואה ואקדמיה'], ['people_art', 'אמנות חזותית ואדריכלות'], ['people_literature', 'ספרות ועיתונות'],
-			['people_law', 'משפט'], ['people_crime', 'פשע'], ['people_stage', 'קולנוע, במה ובידור'], ['people_business', 'עסקים'],
-			['people_public', 'חינוך ופעילות ציבורית'], ['people_other', 'אחר']] },
-		{ label: 'נושאים', items: [['art', 'יצירות אמנות'], ['geo', 'גאוגרפיה ומקומות'], ['buildings', 'מבנים ואתרים'],
-			['history', 'היסטוריה וצבא'], ['nature', 'טבע ומדע'], ['religion', 'דת ואמונה'], ['orgs', 'ארגונים, מוסדות וחברות'],
-			['tech', 'טכנולוגיה'], ['culture', 'תרבות ובידור (לא מילוני)'], ['society', 'חברה ותרבות'], ['other', 'אחר']] }
+		{ label: 'אישים', items: [['people_science', 'מדע, רפואה ואקדמיה'], ['people_politics', 'פוליטיקה, ממשל ואצולה'], ['people_congress', 'חברי קונגרס אמריקאים'],
+			['people_art', 'אמנות חזותית ואדריכלות'], ['people_literature', 'ספרות ועיתונות'], ['people_stage', 'קולנוע, במה ובידור'],
+			['people_military', 'צבא וביטחון'], ['people_public', 'חינוך ופעילות ציבורית'], ['people_rabbis', 'רבנים ואישי יהדות'],
+			['people_clergy', 'אנשי דת אחרים'], ['people_business', 'עסקים'], ['people_law', 'משפט'], ['people_crime', 'פשע'], ['people_other', 'אחר']] },
+		{ label: 'יצירות ותרבות', items: [['art', 'יצירות אמנות'], ['culture', 'תרבות, ספורט ופרסים']] },
+		{ label: 'מקומות ומבנים', items: [['geo', 'גאוגרפיה ומקומות'], ['buildings', 'מבנים ואתרים']] },
+		{ label: 'היסטוריה וחברה', items: [['history', 'היסטוריה וצבא'], ['politics', 'פוליטיקה, משפט וכלכלה'], ['religion', 'דת ואמונה'],
+			['orgs', 'ארגונים, מוסדות וחברות'], ['society', 'חברה, שפה ואורח חיים']] },
+		{ label: 'מדע וטכנולוגיה', items: [['nature', 'טבע, מדעים ומתמטיקה'], ['medicine', 'רפואה ובריאות'], ['tech', 'טכנולוגיה ותחבורה']] },
+		{ label: 'לא סווג', items: [['other', 'אחר']] }
 	];
 	var WF_TOPIC_LABELS = {};
 	WF_TOPIC_GROUPS.forEach(function (g) {
@@ -167,6 +169,17 @@
 			// זמני: מוצג רק למי שמחובר עם משתמש וסיסמה (פאנל הניהול), כמו שיוך כותרות. להסרה: למחוק את השורה.
 			requiresLogin: true
 		},
+		// דפים נעולים שהמערכת יודעת עליהם: נעולים לקריאה (בדיקת התבנית נדחתה, או שזוהו בבדיקת החסרים) ונעולים
+		// ליצירה (הרשימה השחורה). ה-view: report_locked_pages (migrations/migration_add_locked_pages_report.sql).
+		locked: {
+			view: 'report_locked_pages', label: 'נעולים',
+			columns: ['title', 'lock_level', 'lock_source', 'wikipedia_id', 'detected_at'],
+			filters: [{ key: 'lock_level', label: 'סוג נעילה', options: ['נעול לקריאה', 'נעול ליצירה'] }],
+			order: 'lock_level.asc,title.asc', titleLink: 'edit',
+			// נעולים לקריאה - פתוח לכולם; נעולים ליצירה (הרשימה השחורה) - רק למי שמחובר עם משתמש וסיסמה (פאנל הניהול).
+			// בצד הלקוח בלבד, כמו requiresLogin: הנתונים עצמם קריאים ל-anon.
+			loginOnly: { key: 'lock_level', values: ['נעול ליצירה'] }
+		},
 		// ערכי ויקיפדיה שהוצאו מ"חסר במכלול" רק בגלל כותרת זהה אחרי הסרת
 		// "הרב"/"רבי" - לא התאמה ודאית, דורש אישור אנושי. ה-view היה קיים
 		// אבל לא הוצג בגאדג'ט.
@@ -188,7 +201,7 @@
 	var TAB_GROUPS = [
 		{ key: 'import', label: 'ייבוא', tabs: ['missing', 'requests', 'missing_redirect', 'rav', 'culture'] },
 		{ key: 'update', label: 'עדכון', tabs: ['update'] },
-		{ key: 'maint', label: 'תחזוקה', tabs: ['tasks', 'deleted', 'undoc'] },
+		{ key: 'maint', label: 'תחזוקה', tabs: ['tasks', 'deleted', 'undoc', 'locked'] },
 		{ key: 'stats', label: 'נתונים סטטיסטיים', tabs: ['stats'] }
 	];
 	// טאב עם group (ב-VIEWS) מוצג רק למי שדרגתו לפחות כדרגת הקבוצה. זו בדיקת נראות בצד
@@ -259,6 +272,14 @@
 	var UI_PREFS_KEY = 'mchl-ui-prefs';
 	var uiPrefs = (function () { try { return JSON.parse(localStorage.getItem(UI_PREFS_KEY) || '{}') || {}; } catch (e) { return {}; } }());
 	function saveUiPrefs() { try { localStorage.setItem(UI_PREFS_KEY, JSON.stringify(uiPrefs)); } catch (e) { /* לא נשמר - לא נורא */ } }
+	// עיצוב כהה (ברירת מחדל) או בהיר - נשמר בדפדפן, ומוחל על #mchl-dash.
+	function applyTheme() { var d = $id('mchl-dash'); if (d) d.classList.toggle('mchl-light', uiPrefs.theme === 'light'); }
+	function setTheme(theme) {
+		uiPrefs.theme = theme === 'light' ? 'light' : 'dark';
+		saveUiPrefs();
+		applyTheme();
+		document.querySelectorAll('#mchl-side .mchl-theme-toggle button').forEach(function (b) { b.classList.toggle('mchl-on', b.getAttribute('data-v') === uiPrefs.theme); });
+	}
 	function mechalolUrl(id) { return 'https://www.hamichlol.org.il/w/index.php?curid=' + id; }
 	function wikipediaUrl(id) { return 'https://he.wikipedia.org/w/index.php?curid=' + id; }
 	function mechalolEditUrl(title) { return 'https://www.hamichlol.org.il/w/index.php?title=' + encodeURIComponent(title.replace(/ /g, '_')) + '&action=edit'; }
@@ -421,12 +442,26 @@
 		});
 	}
 
+	// ערכים שמוצגים רק למי שמחובר (loginOnly ב-VIEWS): למי שלא מחובר מוחרגים מהשאילתה, מהמונה ומהמסנן.
+	function baseFiltersOf(cfg) {
+		var out = (cfg.baseFilters || []).slice();
+		if (cfg.loginOnly && !serviceKeyConnected) {
+			out.push([cfg.loginOnly.key, 'not.in.(' + cfg.loginOnly.values.map(function (v) { return '"' + v + '"'; }).join(',') + ')']);
+		}
+		return out;
+	}
+	function allowedFilterOptions(cfg, f) {
+		var lo = cfg.loginOnly;
+		if (!lo || lo.key !== f.key || serviceKeyConnected) return f.options;
+		return f.options.filter(function (o) { return lo.values.indexOf(o) < 0; });
+	}
+
 	// בונה את רשימת פרמטרי הסינון (כזוגות [שם, ערך], כדי לתמוך במפתחות
 	// חוזרים כמו 'or') מתוך activeFilters + חיפוש חופשי, בדיוק כמו
 	// buildQuery() בגרסת ה-HTML המקורית.
 	function buildFilterParams() {
 		var cfg = VIEWS[activeTab];
-		var out = (cfg.baseFilters || []).slice();
+		var out = baseFiltersOf(cfg);
 		var search = ($id('mchl-search-input').value || '').trim();
 		if (search) {
 			var searchColumn = cfg.searchColumn || 'title';
@@ -706,6 +741,8 @@
 		if (!tabAllowed(activeTab)) switchTab('missing');
 		countsLoaded = {};
 		loadStats(); // ממלא מחדש את מוני הלשונית הפעילה; השאר מוצגים מהשמור
+		// טאב עם ערכים למחוברים בלבד: המסנן והרשימה משתנים עם ההתחברות/ההתנתקות.
+		if (VIEWS[activeTab] && VIEWS[activeTab].loginOnly) { buildDynamicFilters(); currentPage = 0; loadActiveView(); }
 	}
 	function buildTabs() {
 		var nav = $id('mchl-tabs');
@@ -1225,11 +1262,15 @@
 		host.innerHTML = '';
 		var cfg = VIEWS[activeTab];
 		cfg.filters.forEach(function (f) {
+			var options = allowedFilterOptions(cfg, f);
+			// ערך שנבחר ואינו מותר עוד (יציאה מהחשבון) - מנוקה; ואם נשארה אפשרות אחת, אין מה לסנן.
+			if (activeFilters[f.key] && options.indexOf(activeFilters[f.key]) < 0) delete activeFilters[f.key];
+			if (options.length < 2 && cfg.loginOnly && cfg.loginOnly.key === f.key) return;
 			var sel = document.createElement('select');
 			sel.className = 'mchl-filter-select';
 			sel.id = 'mchl-filter-' + f.key;
 			var opts = '<option value="">' + escapeHtml(f.label) + ' — הכול</option>';
-			f.options.forEach(function (o) {
+			options.forEach(function (o) {
 				var label = f.display ? f.display[o] : o;
 				opts += '<option value="' + escapeHtml(o) + '">' + escapeHtml(label) + '</option>';
 			});
@@ -1354,6 +1395,10 @@
 		html += '<label class="mchl-check"><input type="checkbox" data-side-check="new"' + (wfExcludeNew ? ' checked' : '') + '> בלי ערכים חדשים (' + NEW_ARTICLE_CUTOFF_DAYS + ' יום)</label>' +
 			'<label class="mchl-check">אורך מקסימלי <input type="number" min="0" class="mchl-filter-number" data-side-input="maxlen" placeholder="בתים" value="' + escapeHtml(wfMaxLen) + '"></label>' +
 			'<div class="mchl-hint" style="margin-top:8px;">המספרים ליד האפשרויות לא מושפעים מחיפוש, מערכים חדשים, מהקוד המוסתר ומאורך.</div></div>';
+		var theme = uiPrefs.theme === 'light' ? 'light' : 'dark';
+		html += '<div class="mchl-side-sec"><div class="mchl-side-h">עיצוב</div><div class="mchl-theme-toggle">' +
+			'<button type="button" data-action="set-theme" data-v="dark"' + (theme === 'dark' ? ' class="mchl-on"' : '') + '>כהה</button>' +
+			'<button type="button" data-action="set-theme" data-v="light"' + (theme === 'light' ? ' class="mchl-on"' : '') + '>בהיר</button></div></div>';
 		$id('mchl-side').innerHTML = html;
 		applySideCollapse();
 		$id('mchl-side').querySelectorAll('input[data-some]').forEach(function (cb) { cb.indeterminate = true; });
@@ -1783,7 +1828,7 @@
 		var statValues = {};
 		var jobs = defs.map(function (d) { return function () {
 			var viewCfg = d.viewKey ? VIEWS[d.viewKey] : null;
-			return pgCount(d.table, viewCfg ? viewCfg.baseFilters : null, undefined, d.estimated).then(function (val) {
+			return pgCount(d.table, viewCfg ? baseFiltersOf(viewCfg) : null, undefined, d.estimated).then(function (val) {
 				statValues[d.key] = val;
 				// ספירה משוערת (מהמתכנן) מסומנת ב-~ ובתיאור.
 				$id(d.statId).textContent = (d.estimated ? '~' : '') + val.toLocaleString('he-IL');
@@ -1808,7 +1853,7 @@
 			if (!VIEWS[key] || coveredTabs[tabCountId] || !tabAllowed(key)) return;
 			var cfg = VIEWS[key];
 			jobs.push(function () {
-				return pgCount(cfg.view, cfg.baseFilters, cfg.countColumn).then(function (val) {
+				return pgCount(cfg.view, baseFiltersOf(cfg), cfg.countColumn).then(function (val) {
 					setCountBadge(tabCountId, val);
 				}).catch(function () { /* המונה נשאר כמו שהיה */ });
 			});
@@ -2171,6 +2216,8 @@
 		if (col === 'source_type') return '<span class="mchl-badge mchl-neutral">' + escapeHtml(SOURCE_TYPE_LABELS[val] || val) + '</span>';
 		if (col === 'match_type') return '<span class="mchl-badge ' + (val === 'ללא התאמה' ? 'mchl-alert' : 'mchl-wiki') + '">' + escapeHtml(val) + '</span>';
 		if (col === 'status') return '<span class="mchl-badge mchl-neutral">' + escapeHtml(val) + '</span>';
+		if (col === 'lock_level') return '<span class="mchl-badge ' + (val === 'נעול לקריאה' ? 'mchl-alert' : 'mchl-neutral') + '">' + escapeHtml(val) + '</span>';
+		if (col === 'lock_source') return '<span class="mchl-muted">' + escapeHtml(val) + '</span>';
 		if (col === 'task_type') return '<span class="mchl-badge mchl-alert">' + escapeHtml(val) + '</span>';
 		if (col === 'manual_match_action') {
 			// כיוון הפוך מהעמודה הישנה (שהייתה ב"משימות לטיפול"): כאן row
@@ -2213,7 +2260,7 @@
 			if (row.has_images === false) return '<span class="mchl-muted">אין</span>';
 			return '<span class="mchl-muted">—</span>';
 		}
-		if (col === 'checked_at' || col === 'created_at') return val ? '<span class="mchl-num-cell">' + new Date(val).toLocaleDateString('he-IL') + '</span>' : '<span class="mchl-muted">—</span>';
+		if (col === 'checked_at' || col === 'created_at' || col === 'detected_at') return val ? '<span class="mchl-num-cell">' + new Date(val).toLocaleDateString('he-IL') + '</span>' : '<span class="mchl-muted">—</span>';
 		if (col === 'mechalol_redirect_exists') {
 			if (val === true) return '<span class="mchl-badge mchl-neutral">קיים כהפניה</span>';
 			if (val === false) return '<span class="mchl-muted">אין בכלל</span>';
@@ -3057,6 +3104,7 @@
 			else if (action === 'req-filter') { requestsState.filter = el.getAttribute('data-v'); renderRequests(); }
 			else if (action === 'req-reply') replyToRequest(el);
 			else if (action === 'req-open') toggleRequestPanel(el.closest('tr'));
+			else if (action === 'set-theme') setTheme(el.getAttribute('data-v'));
 			else if (action === 'toggle-side') { uiPrefs.sideHidden = !uiPrefs.sideHidden; saveUiPrefs(); applySidePanel(); }
 			else if (action === 'chip-remove') removeChip(el.getAttribute('data-chip'));
 			else if (action === 'wf-feedback') wfFeedback(el);
@@ -3198,6 +3246,7 @@
 		if (!contentEl) return;
 		contentEl.innerHTML = '';
 		contentEl.appendChild(container);
+		applyTheme();
 		container.style.visibility = 'hidden';
 		loadDashboardCss(function () { container.style.visibility = ''; });
 

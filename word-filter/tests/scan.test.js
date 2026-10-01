@@ -65,6 +65,13 @@ test('resultRow: topic from the title, the infobox and the categories', () => {
 	assert.strictEqual(row('מרקורי', '{{פירושונים}}\n* מרקורי (אל)'), 'disambig');
 	assert.strictEqual(row('Falling Down', '{{סינגל\n|שם=א}}'), 'dictionary');
 	assert.strictEqual(row('ג', 'מדינאי.\n[[קטגוריה:חברי בית הנבחרים של ארצות הברית]]\n[[קטגוריה:אמריקאים שנולדו ב-1900]]'), 'people_congress');
+	const R = (t, cats, ib) => row(t, (ib ? '{{' + ib + '}}\n' : '') + cats.map((c) => '[[קטגוריה:' + c + ']]').join('\n'));
+	assert.strictEqual(R('הבמה', ['אתרי אינטרנט בישראל', 'תרבות בישראל']), 'orgs'); // לא טכנולוגיה
+	assert.strictEqual(R('החלפת ברך', ['טכנולוגיה רפואית', 'ניתוחי אורתופדיה']), 'medicine');
+	assert.strictEqual(R('קייזשפצלה', ['המטבח הגרמני', 'מאכלי גבינה']), 'society'); // "מטבח" אינו "טבח"
+	assert.strictEqual(R('טקס פרסי אוליבייה 2012', ['טקסי פרס אוליבייה', '2012 בממלכה המאוחדת']), 'culture'); // "המאוחדת" אינה "דת"
+	assert.strictEqual(R('אבהיי אשטקר', ['פיזיקאים הודים']), 'people_science'); // עיסוק בלי קטגוריית לידה
+	assert.strictEqual(R('דייוויד יאנג (פוליטיקאי)', ['חברי בית הנבחרים של ארצות הברית מאיווה', 'אמריקאים ילידי איווה']), 'people_congress');
 	assert.strictEqual(row('ד', 'ציור.\n[[קטגוריה:ציורי עירום]]'), 'sensitive');
 	assert.strictEqual(row('ה', '{{עיר\n|שם=ה}}'), 'geo');
 });

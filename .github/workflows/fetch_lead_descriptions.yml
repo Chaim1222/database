@@ -1,0 +1,52 @@
+name: תיאורים מהפתיח לערכים חסרים
+
+# הרצה ידנית בלבד. משלים wikidata_desc (עם הסיומת "(מתוך הפתיח)") לערכים
+# חסרים במכלול שאין להם תיאור בוויקינתונים - ראו scripts/fetch_lead_descriptions.py.
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "מספר ערכים מקסימלי (0 = הכל)"
+        default: "0"
+      wikidata_first:
+        description: "קודם להריץ את fetch_wikidata_descriptions.py (לשורות שטרם נבדקו מול ויקינתונים)"
+        type: boolean
+        default: false
+      dry_run:
+        description: "הדפסה בלבד, בלי שמירה למסד"
+        type: boolean
+        default: false
+
+jobs:
+  fetch_lead_descriptions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: שחזור קוד
+        uses: actions/checkout@v4
+
+      - name: התקנת פייתון
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: התקנת ספריות
+        run: pip install -r requirements.txt
+
+      - name: שליפת תיאורי ויקינתונים לשורות שטרם נבדקו
+        if: ${{ inputs.wikidata_first }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python scripts/fetch_wikidata_descriptions.py
+
+      - name: חילוץ הגדרות מהפתיח
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          LIMIT: ${{ inputs.limit }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          args="--limit ${LIMIT:-0}"
+          if [ "$DRY_RUN" = "true" ]; then args="$args --dry-run"; fi
+          python scripts/fetch_lead_descriptions.py $args
