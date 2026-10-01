@@ -36,7 +36,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { engine, readJson, apiGet, LISTS_DIR } = require('./lib');
 const { dictionaryOf } = require('../dictionary');
-const { topicOf } = require('../topics');
+const { topicOf, topicWithDescription } = require('../topics');
 
 const TABLE = 'word_filter_results';
 const REPORT = 'report_missing_from_mechalol';
@@ -121,8 +121,9 @@ function supabase() {
 		}
 	}
 	return {
-		missing: () => selectAll(REPORT, 'id,title', 'id'),
-		existing: () => selectAll(TABLE, 'wikipedia_id,rev_id,lists_version', 'wikipedia_id'),
+		missing: () => selectAll(REPORT, 'id,title,wikidata_desc', 'id'),
+		existing: () => selectAll(TABLE, 'wikipedia_id,rev_id,lists_version,topic', 'wikipedia_id'),
+		setTopic: (id, topic) => request('PATCH', `${TABLE}?wikipedia_id=eq.${id}`, { topic }, { Prefer: 'return=minimal' }),
 		upsert: (rows) => request('POST', `${TABLE}?on_conflict=wikipedia_id`, rows,
 			{ Prefer: 'resolution=merge-duplicates,return=minimal' }),
 		remove: (ids) => request('DELETE', `${TABLE}?wikipedia_id=in.(${ids.join(',')})`, null, { Prefer: 'return=minimal' }),
@@ -288,7 +289,7 @@ function wellFormed(value) {
 	return value;
 }
 
-function resultRow(page, lists, version) {
+function resultRow(page, lists, version, desc) {
 	const rev = page.revisions && page.revisions[0];
 	const text = rev ? rev.slots.main.content : '';
 	const images = imagesOf(page, text);
@@ -306,7 +307,8 @@ function resultRow(page, lists, version) {
 		images: images.photos.slice(0, MAX_IMAGES),
 		dictionary: dictionary ? dictionary.cls : null,
 		dictionary_why: dictionary ? dictionary.why : null,
-		topic: topicOf(text, page.title),
+		// 'other' מקבל נושא לפי התיאור הקצר (ויקינתונים / "מתוך הפתיח"); "דף פירושונים" בתיאור גובר תמיד.
+		topic: topicWithDescription(topicOf(text, page.title), desc),
 		lists_version: version,
 		scanned_at: new Date().toISOString(),
 	});
@@ -348,6 +350,7 @@ async function main() {
 
 	const out = args.out ? fs.createWriteStream(args.out) : null;
 	const stats = { scanned: 0, skipped: 0, gone: 0, problem: 0, review: 0, wording: 0, clean: 0, images: 0 };
+	const descOf = new Map(targets.map((t) => [t.id, t.wikidata_desc]));
 	let pending = [];
 	// אצווה שנדחתה (שגיאת 4xx - שורה פגומה) לא עוצרת את כל הסריקה: שולחים את
 	// השורות אחת-אחת, מדלגים על הפגומה ורושמים אותה. בסוף הריצה - קוד יציאה 1,
@@ -385,6 +388,16 @@ async function main() {
 				return !old || old.rev_id !== p.lastrevid || old.lists_version !== version;
 			}).map((p) => p.pageid);
 			stats.skipped += ids.length - todo.length;
+			// דף שלא השתנה, אבל התיאור שלו (שנוסף אחרי הסריקה) משנה את הנושא: מעדכנים רק את הנושא.
+			if (db) {
+				const todoSet = new Set(todo);
+				for (const id of ids) {
+					const old = existing.get(id);
+					if (!old || todoSet.has(id)) continue;
+					const topic = topicWithDescription(old.topic, descOf.get(id));
+					if (topic !== old.topic) { await db.setTopic(id, topic); stats.topicOnly = (stats.topicOnly || 0) + 1; }
+				}
+			}
 		}
 		if (!todo.length) continue;
 		const pages = await queryPages({
@@ -393,7 +406,7 @@ async function main() {
 		});
 		for (const page of pages) {
 			if (page.missing || !page.revisions) { stats.gone++; continue; }
-			const row = resultRow(page, lists, version);
+			const row = resultRow(page, lists, version, descOf.get(page.pageid));
 			stats.scanned++;
 			stats[row.verdict_suggested]++;
 			const ck = 'ctx:' + row.ctx_verdict_suggested + (row.ctx_suspicion_suggested ? ':' + row.ctx_suspicion_suggested : '');
