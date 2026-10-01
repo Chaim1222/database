@@ -171,6 +171,12 @@ def scan(client, wikipedia_get, dry_run, deadline):
                 else:
                     stats[finding["status"]] += 1
                     findings.append(finding)
+                    log(
+                        f"ממצא | {finding['status']} | מכלול {row['id']} \"{row['title']}\" | "
+                        f"גרסה {finding['rev_id']} | מקושר {finding['linked_wikipedia_id']} | "
+                        f"הגרסה שייכת ל-{finding['rev_page_id']} \"{finding['rev_page_title']}\" | "
+                        f"שם_תואם={finding['name_equiv']}"
+                    )
 
         if not dry_run:
             if findings:
