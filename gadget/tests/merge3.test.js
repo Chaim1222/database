@@ -361,3 +361,21 @@ test('תצוגת מקור: התנגשות מסומנת עם האינדקס של�
   assert.strictEqual(c[0].i, 0);
   assert.deepStrictEqual([c[0].ours, c[0].theirs], [['Y1'], ['Y2']]);
 });
+
+test('תצוגת מקור: הטקסט הסופי מ-view זהה ל-renderParts לכל הבחירות', () => {
+  const cases = [
+    ['a\nb\nc\nd', 'a\nB1\nc\nd\nx', 'a\nB2\nc\nD\ny'],
+    ['a\nb\nc', 'a\nc', 'a\nb edited\nc'],
+    ['1\n2\n3\n4\n5\n6', '1\n2 l\n3\n4\n5', '1\n2 w\n3\n4\n5\n6 w']
+  ];
+  for (const [b, o, t] of cases) {
+    const r = merge3(b, o, t);
+    for (const choice of ['ours', 'theirs', 'both']) {
+      const choices = r.parts.filter(p => p.t === 'conflict').map(() => choice);
+      const fromView = r.view.flatMap(e => e.k === 'conflict'
+        ? (choice === 'ours' ? e.ours : choice === 'theirs' ? e.theirs : e.ours.concat(e.theirs))
+        : e.v).join('\n');
+      assert.strictEqual(fromView, renderParts(r.parts, choices));
+    }
+  }
+});
