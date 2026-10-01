@@ -536,3 +536,22 @@ grant select on word_filter_results to anon, authenticated;
 --   word_filter_occurrences    - המופעים: is_anchor, with_anchor, with_other, page_anchor, suspicion.
 --   word_filter_label_sample   - מדגם של 1,800 מופעים (60 מילים × 30) לסיווג ידני.
 --   word_filter_labels         - הסיווג (p/i/u) לפי (frank, rn). עותק: word-filter/analysis/missing-labels.json.
+
+-- טבלת עבודה לבדיקת הגרסאות (2026-10-01): ערכים עם משימת גרסה. נכתבת ב-scripts/rev_link_scan.py (פעם בחודש),
+-- בלי מפתח זר (החלפת הטבלאות השבועית משנה שמות) ולכן לא מושפעת ממנה. ההגדרה המלאה:
+-- migration_rev_link_check_v2.sql; הדוח report_rev_tasks ב-views.sql.
+create table if not exists rev_link_check (
+    mechalol_id         bigint primary key,
+    rev_task            text not null check (rev_task in ('rename', 'redirect', 'bad_rev', 'deleted_by_rev')),
+    rev_id              bigint,
+    linked_wikipedia_id bigint,
+    rev_page_id         bigint,
+    rev_page_title      text,
+    checked_at          timestamptz not null default now()
+);
+create index if not exists rev_link_check_task_idx on rev_link_check (rev_task, mechalol_id);
+alter table rev_link_check enable row level security;
+create policy "קריאה ציבורית" on rev_link_check for select to anon, authenticated using (true);
+revoke all on rev_link_check from anon, authenticated;
+grant select on rev_link_check to anon, authenticated;
+grant select, insert, update, delete on rev_link_check to service_role;

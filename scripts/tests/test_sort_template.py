@@ -29,6 +29,11 @@ class ParseSortTemplateTests(unittest.TestCase):
         self.assertIsNone(result["rev"])
         self.assertEqual(result["title"], "רבי יוסי")
 
+    def test_rev_one_means_no_rev(self):
+        # גרסה 1 היא של העמוד הראשי בוויקיפדיה: ערך מחדל, לא גרסה אמיתית
+        self.assertIsNone(parse_sort_template("{{מיון ויקיפדיה|דף=א|גרסה=1}}")["rev"])
+        self.assertEqual(parse_sort_template("{{מיון ויקיפדיה|דף=א|גרסה=2}}")["rev"], 2)
+
     def test_missing_rev_param(self):
         result = parse_sort_template("{{מיון ויקיפדיה|דף=F|תאריך=פברואר 2020}}")
         self.assertIsNone(result["rev"])

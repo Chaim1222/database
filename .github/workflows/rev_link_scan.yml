@@ -1,0 +1,80 @@
+name: בדיקת קישורים מול גרסת המקור (חודשית)
+
+# מריץ scripts/rev_link_scan.py: לכל ערך מתועד עם `גרסה=` שואל את ה-API לאיזה דף הגרסה שייכת, ומעדכן את
+# טבלת העבודה rev_link_check (ארבעת טאבי הגרסה בדשבורד). לא נוגע בקישורים ובטבלאות הערכים.
+# סריקה מלאה ~40 דקות. חייבת לרוץ אחרי migrations/migration_rev_link_check_v2.sql.
+# ידני: dry_run (ברירת מחדל) מדפיס שורה לכל ממצא בלי לכתוב; recheck בודק רק מה שכבר בטבלה (דקה).
+# קבוצת ה-concurrency זהה לשאר ה-workflows שכותבים למסד, כדי לא לרוץ בזמן החלפת הטבלאות.
+# מחוץ לשבת בערב (הסנכרון השבועי) ולרבע אחרי חצות (הדלתא הלילית): ב-5 לחודש, 03:37 UTC.
+
+on:
+  schedule:
+    - cron: "37 3 5 * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "בלי כתיבה למסד: שורה לכל ממצא בלוג"
+        default: true
+        type: boolean
+      recheck:
+        description: "רק הערכים שכבר בטבלה (מסיר מה שתוקן)"
+        default: false
+        type: boolean
+      max_minutes:
+        description: "תקציב זמן (דקות)"
+        default: "150"
+        type: string
+
+concurrency:
+  group: mechalol-wikipedia-db-write
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    permissions:
+      issues: write
+    steps:
+      - name: שחזור קוד
+        uses: actions/checkout@v4
+
+      - name: התקנת פייתון
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: התקנת ספריות
+        run: pip install -r requirements.txt
+
+      - name: בדיקות
+        run: python -m unittest discover -s scripts/tests
+
+      - name: בדיקת הקישורים
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          # הרצה מתוזמנת: כתיבה מלאה. ידנית: לפי הבחירה (dry_run כברירת מחדל).
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
+          RECHECK: ${{ github.event_name == 'workflow_dispatch' && inputs.recheck && 'true' || 'false' }}
+          MAX_MINUTES: ${{ inputs.max_minutes || '150' }}
+        run: |
+          args="--max-minutes $MAX_MINUTES"
+          if [ "$DRY_RUN" = "true" ]; then args="$args --dry-run"; fi
+          if [ "$RECHECK" = "true" ]; then args="$args --recheck"; fi
+          python rev_link_scan.py $args
+
+      - name: פתיחת Issue בעת כישלון
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `כשל בבדיקת קישורים מול גרסת המקור - ${new Date().toISOString().slice(0, 10)}`,
+              body: `פרטי הריצה: ${runUrl}`,
+              labels: ["automation-failure"],
+            });
