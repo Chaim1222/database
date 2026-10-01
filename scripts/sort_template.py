@@ -91,12 +91,12 @@ def clean_title(raw):
 
 
 def parse_rev(raw):
-    """מספר גרסה חיובי, או None (ריק, 0, או לא מספרי)."""
+    """מספר גרסה תקין, או None (ריק, 0, 1 או לא מספרי). גרסה 1 היא של העמוד הראשי (הכרעת חיים, 2026-10-01)."""
     value = (raw or "").strip()
     if not re.fullmatch(r"\d+", value):
         return None
     number = int(value)
-    return number if number > 0 else None
+    return number if number > 1 else None
 
 
 def parse_month(raw):

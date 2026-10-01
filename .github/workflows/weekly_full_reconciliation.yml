@@ -43,7 +43,7 @@ concurrency:
 jobs:
   full_reconciliation:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     permissions:
       issues: write
     # הפלט should_swap מגיע מצעד "שער אימות" למטה - "true" אם ניתן
@@ -92,6 +92,14 @@ jobs:
           TARGET_TABLE_SUFFIX: "_temp"
         run: python scripts/fetch_mechalol.py
 
+      # לפני ההתאמה: match.py מתאים לפי גרסה (rev_match.py) ולכן צריך את sort_template_rev, שמועתק
+      # מהטבלה הפעילה. ההעתקה בלתי-תלויה בתוצאות ההתאמה (לפי id בלבד).
+      - name: העברת העשרה קדימה
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python scripts/forward_fill_enrichment.py
+
       - name: התאמה מלאה על הטבלה הזמנית
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -100,12 +108,6 @@ jobs:
           PASSWORD: ${{ secrets.PASSWORD }}
           TARGET_TABLE_SUFFIX: "_temp"
         run: python scripts/match.py --login
-
-      - name: העברת העשרה קדימה
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python scripts/forward_fill_enrichment.py
 
       - name: מדידת גודל מסד - שיא לפני ההחלפה
         continue-on-error: true
