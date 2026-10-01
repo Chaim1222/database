@@ -8,6 +8,11 @@ name: בדיקת קישורים מול גרסת המקור
 # קבוצת ה-concurrency זהה לשאר ה-workflows שכותבים למסד, כדי לא לרוץ בזמן החלפת הטבלאות.
 
 on:
+  # זמני: workflow_dispatch זמין רק לקובץ שקיים בענף הראשי, ולכן הריצה מהענף הזה נעשית בדחיפה
+  # (תמיד dry-run). להסיר את הבלוק הזה לפני המיזוג.
+  push:
+    branches: [claude/eager-albattani-ph0x6u]
+    paths: [".github/workflows/rev_link_check.yml", "scripts/check_rev_links.py"]
   workflow_dispatch:
     inputs:
       dry_run:
@@ -49,7 +54,13 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python check_rev_links.py --max-minutes ${{ inputs.max_minutes }} ${{ inputs.dry_run && '--dry-run' || '' }}
+          # כתיבה רק בהרצה ידנית עם dry_run=false; בכל מקרה אחר (כולל push) - dry-run
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == false && 'false' || 'true' }}
+          MAX_MINUTES: ${{ inputs.max_minutes || '150' }}
+        run: |
+          args="--max-minutes $MAX_MINUTES"
+          if [ "$DRY_RUN" = "true" ]; then args="$args --dry-run"; fi
+          python check_rev_links.py $args
 
       - name: פתיחת Issue בעת כישלון
         if: failure()
