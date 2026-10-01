@@ -65,7 +65,8 @@ def fake_wikipedia_get(params):
 
 class MatchRevTest(unittest.TestCase):
     def run_match(self, rows, wikipedia_map, extra_args=(), template=None, manual=None):
-        # template: {id: None | (wikipedia_id, value) | ("unresolved", value)}; ברירת מחדל: אין תבנית
+        # template: {id: None | (wikipedia_id, value) | ("unresolved", value)}; id שחסר בו = הבדיקה נדחתה (נעילה).
+        # ברירת מחדל (None): לכל השורות נבדק ואין תבנית.
         client = FakeClient()
         existing = set(wikipedia_map.values()) | {555, 180218}
         argv = ["match.py", *extra_args]
@@ -75,7 +76,9 @@ class MatchRevTest(unittest.TestCase):
              mock.patch.object(match, "iter_mechalol_rows", return_value=iter([rows])), \
              mock.patch.object(match, "execute_with_retry", side_effect=lambda op, desc: op()), \
              mock.patch.object(match, "resolve_pending_via_template",
-                               side_effect=lambda pending, wmap: {r["id"]: (template or {}).get(r["id"]) for r, _ in pending}), \
+                               side_effect=lambda pending, wmap: {
+                                   r["id"]: (template or {}).get(r["id"]) for r, _ in pending
+                                   if template is None or r["id"] in template}), \
              mock.patch.object(fetch_wikipedia_revisions, "wikipedia_get", side_effect=fake_wikipedia_get), \
              mock.patch.object(sys, "argv", argv):
             match.main()
@@ -115,6 +118,17 @@ class MatchRevTest(unittest.TestCase):
         written = self.run_match([mrow(2, "הטבח במסיבת הטבע ליד רעים", 200)], {"x": 1},
                                  extra_args=("--skip-template-check",))
         self.assertEqual((written[2]["rev_task"], written[2]["wikipedia_id"]), ("rename", 555))
+
+    def test_locked_template_row_without_revision_is_not_bad_rev(self):
+        # נעול לקריאה: אין גרסה כי התבנית לא ניתנת לקריאה - שייך ל"נעולים", לא ל"גרסה שגויה"
+        rows = [mrow(1, "נעול", None, sort_template_denied_at="2026-09-30T00:00:00Z")]
+        written = self.run_match(rows, {"נעול": 7})
+        self.assertIsNone(written[1]["rev_task"])
+
+    def test_template_denied_during_match_is_not_bad_rev(self):
+        rows = [mrow(1, "חדש נעול", None)]
+        written = self.run_match(rows, {"אחר": 7}, template={})  # אין תוצאה לשורה = נדחה
+        self.assertIsNone(written[1]["rev_task"])
 
     def test_manual_match_clears_the_task(self):
         rows = [mrow(1, "דהוכ", 100, rev_task="bad_rev", rev_page_id=180218, rev_page_title="x")]

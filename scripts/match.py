@@ -821,6 +821,9 @@ def main():
                     updated = dict(row)
                     updated["template_check_access_denied_at"] = datetime.now(timezone.utc).isoformat()
                     updates.append(updated)
+                    # התבנית לא ניתנת לקריאה (נעילה): גרסה חסרה אינה "גרסה שגויה" (rev_match.in_scope)
+                    if not rev_match.valid_rev(row.get("sort_template_rev")):
+                        decisions[row["id"]] = rev_match.NO_DECISION
                     access_denied_skipped += 1
                     continue
 

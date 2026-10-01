@@ -49,11 +49,17 @@ UNKNOWN = object()  # evidence_link_id שעוד לא נבדק (שונה מ-None:
 
 
 def in_scope(row):
-    """אותו היקף של מעקב גרסת המקור (list_pending_sort_template)."""
+    """
+    אותו היקף של מעקב גרסת המקור (list_pending_sort_template), בלי דפים שהתבנית שלהם לא ניתנת לקריאה
+    בגלל נעילה (sort_template_denied_at / template_check_access_denied_at): אין להם גרסה, וזה לא
+    "גרסה שגויה" - הם בטאב "נעולים" (ושיוך ידני הוא הדרך לקשר אותם).
+    """
     return (
         row.get("status") == STATUS_IMPORTED_DOCUMENTED
         and not row.get("is_dictionary_entry")
         and not row.get("needs_attention")
+        and not row.get("sort_template_denied_at")
+        and not row.get("template_check_access_denied_at")
     )
 
 

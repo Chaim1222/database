@@ -20,7 +20,7 @@ from mechalol_api import log
 PAGE_SIZE = 1000   # מגבלת סופבייס לשורות בבקשה
 WRITE_CHUNK = 500
 COLUMNS = ("id,title,status,is_dictionary_entry,needs_attention,wikipedia_id,sort_template_rev,"
-           "rev_task,rev_page_id,rev_page_title")
+           "sort_template_denied_at,template_check_access_denied_at,rev_task,rev_page_id,rev_page_title")
 
 
 def chunks(items, size):

@@ -29,7 +29,9 @@ class DecideTest(unittest.TestCase):
         return rm.decide(r, resolved, title_link, MAX_REV, exists, evidence_link_id=evidence)
 
     def test_out_of_scope_rows_get_no_decision(self):
-        for extra in ({"status": "מיובא ללא תיעוד"}, {"is_dictionary_entry": True}, {"needs_attention": True}):
+        for extra in ({"status": "מיובא ללא תיעוד"}, {"is_dictionary_entry": True}, {"needs_attention": True},
+                      {"sort_template_denied_at": "2026-09-30T00:00:00Z"},   # תבנית נעולה לקריאה
+                      {"template_check_access_denied_at": "2026-09-30T00:00:00Z"}):
             self.assertEqual(self.decide(row(**extra), page(1, "x")), rm.NO_DECISION)
 
     def test_invalid_revisions_are_bad_rev(self):
