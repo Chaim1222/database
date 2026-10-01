@@ -13,7 +13,9 @@
 |---|---|
 | `fetch_wikipedia.py` | שולף את **כל** כותרות ויקיפדיה מחדש (`allpages`) ומכניס ל-`wikipedia_pages`. חייב לרוץ **לפני** `fetch_mechalol.py` (ריקון עם CASCADE). |
 | `fetch_mechalol.py` | שולף את **כל** נתוני המכלול מחדש (סטטוס, קטגוריות) ומכניס ל-`mechalol_pages`. |
-| `match.py` | "מנוע ההתאמה" - מקשר כל שורת מכלול לשורת ויקיפדיה מתאימה (אם יש), בארבעה שלבים (ראו §5 "קסקדת ההתאמה"), ובסוף מחשב מחדש את `is_missing`. |
+| `match.py` | "מנוע ההתאמה" - מקשר כל שורת מכלול לשורת ויקיפדיה מתאימה (אם יש): קודם לפי גרסה (`rev_match.py`, לערכים מתועדים), ואז ידני, כותרת, נרמול ותבנית; ובסוף מחשב מחדש את `is_missing`. |
+| `rev_match.py` | ההתאמה לפי `גרסה=`: פותר גרסה ← דף ב-API ומחליט משימה (`rev_task`). בדיקות: `tests/test_rev_match.py`, `test_match_rev.py`. |
+| `backfill_rev_task.py` | מילוי ראשוני של `rev_task` בטבלה הפעילה (workflow `rev_task_backfill.yml`), בלי לגעת בקישורים. |
 
 ### דלתא (עדכון יומי הפרשי, בלי ריקון)
 | קובץ | תפקיד |
@@ -94,6 +96,7 @@
 | `title_normalized` | הכותרת המנורמלת שנמצאה לה התאמה. |
 | `source_type` | מקור השורה: `created`/`translated`/`pirushon`/`chabadpedia`/`wikishiva`/`wikipedia_documented`/`missing_sort`/`unknown`. |
 | `template_referenced_title` (2026-09) | השם שתבנית המיון בגוף הערך מצהירה עליו, כשהשם הזה לא נמצא בפועל ב-`wikipedia_pages` - "בעיה בשם" קונקרטית, לא סתם "אין תבנית". `NULL` באין-תבנית או בהתאמה מוצלחת. |
+| `rev_task` / `rev_page_id` / `rev_page_title` (2026-10) | משימת גרסה: `rename` / `redirect` / `bad_rev` / `deleted_by_rev`, הדף שהגרסה שייכת לו ושמו. מחושב ב-`match.py`; מזין את `report_rev_tasks` וארבעת הטאבים. |
 | `template_check_access_denied_at` (2026-09) | חותמת הזמן האחרונה שבדיקת התבנית נדחתה ע"י ה-API (לרוב דף נעול-לקריאה) ולא בוצעה בכלל. `NULL` אם השורה נבדקה בהצלחה לאחרונה - קשור ישירות לנעילת כותרות (`aspaklaryalockdown`). |
 
 ### תחזוקה ידנית (לא מתרוקנות)
@@ -136,6 +139,7 @@
 | `report_possibly_deleted_source` | שורות מכלול שחשודות כ"נמחקו בוויקיפדיה" (`maybe_deleted_from_wikipedia`) - כולל ערכים מילוניים/ערכים-לפתיחה (מ-2026-09; קודם היו מוסתרים משם בטעות). |
 | `report_undocumented_import` | שורות עם `status='מיובא ללא תיעוד'` (חסרות תבנית מיון תקינה). |
 | `report_tasks_to_handle` | איחוד של ארבעה סוגי משימה, עם עמודת `task_type` להבחנה: חשוד-כמחיקה, סטטוס לא-ברור, שם בתבנית שלא אומת מול ויקיפדיה, ודף נעול שלא ניתן לאמת (מ-2026-09). |
+| `report_rev_tasks` | ערכים עם `rev_task` (ארבעה טאבים בדשבורד). מחליף את `report_tasks_to_handle` ו-`report_possibly_deleted_source` בדשבורד (הדוחות הישנים נשארים במסד). |
 | `report_rav_prefix_normalization` | ערכי ויקיפדיה שלא נחשבים חסרים רק בזכות הסרת הקידומת "הרב"/"רבי". מציג את כל המועמדים במכלול ואת `candidate_count`, בלי ליצור התאמה ובלי לבחור מועמד. |
 
 ---

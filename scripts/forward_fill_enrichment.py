@@ -7,8 +7,9 @@ mechalol_redirect_exists) מהטבלה הפעילה לזמנית, כך שסקר�
 enrichment_after_reconciliation.yml) לא יצטרכו להתחיל מאפס על כל
 שורה אחרי כל החלפה.
 
-נקרא אחרי ההתאמה על הזמנית (match.py) ולפני שער האימות
-(validate_before_swap.py) - סדר קבוע, לא תלוי בתוצאת ה-match עצמה.
+נקרא לפני ההתאמה על הזמנית (match.py), כי ההתאמה לפי גרסה (rev_match.py) צריכה את
+sort_template_rev, ולפני שער האימות (validate_before_swap.py). ההעתקה לפי id בלבד ולכן
+לא תלויה בתוצאת ה-match.
 
 הרצה:
     python forward_fill_enrichment.py

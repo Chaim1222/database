@@ -60,6 +60,9 @@
 - סדר ההקמה בסביבה חדשה: `migration_add_word_filter_results.sql` ← `migration_add_word_filter_suspicion.sql` ← (לניתוח בלבד) `migration_add_word_filter_occurrences.sql`. ההגדרות מתועדות גם ב-`schema.sql`/`views.sql`.
 - **מחליף את `easy_import_has_images` ואת `problematic_words_clean` בדשבורד.** בעמודת התמונות הישנה נמצאו רק 1,046 ערכים "עם תמונות" מתוך 25 אלף, כי כל בקשה ל-API החזירה עד 10 תמונות לכל 50 דפים, בלי המשך. העמודות הישנות עדיין מתמלאות ב-`fetch_easy_import_candidates.py`, אבל כבר לא מוצגות.
 
+## התאמה לפי גרסה (2026-10)
+`match.py` מתאים לערכים מתועדים קודם לפי `גרסה=` בתבנית המיון (גרסה היא זהות יציבה של דף גם אחרי שינוי שם) ורק אחר כך לפי כותרת. `scripts/rev_match.py` שואל את ה-API לאיזה דף הגרסה שייכת ומחליט; ההחלטה נשמרת ב-`mechalol_pages.rev_task` (`rename` / `redirect` / `bad_rev` / `deleted_by_rev`) עם `rev_page_id` ו-`rev_page_title`, והדוח `report_rev_tasks` מזין את ארבעת הטאבים בדשבורד. הכללים והנימוקים: `SOURCE_TRACKING_NOTES.md` סעיף 0א. הקמה: `migrations/migration_add_rev_task.sql`, ואז `rev_task_backfill.yml` (מילוי ראשוני בלי נגיעה בקישורים). ההתאמה לפי גרסה פועלת בשבועי ובדלתא; `match.py --skip-rev-check` מדלג עליה. בריצה השבועית `forward_fill_enrichment` רץ לפני `match.py`.
+
 ## מעקב גרסת מקור: האם ויקיפדיה התקדמה מאז העדכון (2026-09)
 לכל ערך "מיובא ומתועד" (לא מילוני ולא "ערכים לפתיחה", כ-263.6 אלף) נשמר מול איזו גרסת ויקיפדיה הוא עודכן, כדי לדעת אם ויקיפדיה התקדמה מאז. הנתון נלקח מ-`גרסה=` בתבנית `{{מיון ויקיפדיה|דף=…|גרסה=…|תאריך=…}}` בסוף הערך (`0` או חסר = אין גרסה). מטא-דאטה בלבד - הטקסטים נשלפים חי, לא נשמרים.
 - הקמה: `migrations/migration_add_sort_template_columns.sql` (עמודות העשרה ב-`mechalol_pages`/`wikipedia_pages` וזמניות, הרחבת `forward_fill_enrichment_temp` גם למכלול, `recompute_source_state` ו-`report_source_ahead`). **לא להריץ בזמן הריצה השבועית.**

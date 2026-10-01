@@ -24,8 +24,8 @@
 		title: 'כותרת', status: 'סטטוס', source_type: 'מקור',
 		match_type: 'סוג התאמה', wikipedia_id: 'קישור לוויקיפדיה', checked_at: 'נבדק בתאריך',
 		wikidata_desc: 'תיאור (ויקינתונים)', created_at: 'תאריך יצירה בוויקיפדיה',
-		mechalol_redirect_exists: 'קיים במכלול כהפניה', task_type: 'סוג משימה',
-		manual_match_action: 'שיוך ידני', deletion_hint: 'רמז',
+		mechalol_redirect_exists: 'קיים במכלול כהפניה', task_type: 'סוג משימה', rev_page_title: 'הדף של הגרסה', linked_title: 'מקושר היום',
+		manual_match_action: 'שיוך ידני',
 		wikipedia_title: 'ערך בוויקיפדיה', mechalol_title: 'דף מקביל במכלול',
 		mechalol_status: 'סטטוס במכלול', candidate_count: 'מספר מועמדים',
 		mechalol_id: 'מזהה מכלול', lock_level: 'סוג נעילה', lock_source: 'איך זוהה', detected_at: 'זוהה בתאריך',
@@ -113,25 +113,31 @@
 		return String(cfg && cfg.rowId ? cfg.rowId(row) : row.id);
 	}
 	var VIEWS = {
-		deleted: { view: 'report_possibly_deleted_source', label: 'חשוד כמחיקה', columns: ['title', 'status', 'source_type', 'match_type', 'deletion_hint'], filters: [] },
-		undoc: { view: 'report_undocumented_import', label: 'מיובא ללא תיעוד', columns: ['title', 'source_type', 'match_type', 'wikipedia_id'], filters: [] },
-		// מאחד את שתי הקטגוריות למעלה (חשוד-כמחיקה, ללא-תיעוד) עם שתי
-		// קטגוריות חדשות (2026-09): "בעיה בשם" (template_referenced_
-		// title - יש תבנית מיון עם שם שלא נמצא בוויקיפדיה) ו"דף נעול"
-		// (template_check_access_denied_at - בדיקת התבנית נדחתה, לרוב
-		// כי הדף נעול-לקריאה). עמודת task_type מבחינה ביניהן.
-		// סוגי המשימות הופרדו ב-2026-09 (migration_review_fixes_2026_09.sql):
-		// "לבדוק מחיקה" פוצל לתבנית שמצביעה על שם שכבר לא קיים (בדרך כלל
-		// שינוי שם בוויקיפדיה) מול דף בלי שום מקביל, ו"סטטוס לא ברור" פוצל
-		// לחסרי תבנית מיון (לפי סימון המכלול עצמו) מול מקור לא ידוע.
-		tasks: {
-			view: 'report_tasks_to_handle', label: 'משימות לטיפול',
-			columns: ['title', 'task_type', 'status', 'source_type', 'match_type'],
-			filters: [{
-				key: 'task_type', label: 'סוג משימה',
-				options: ['שם בתבנית המיון לא קיים בוויקיפדיה', 'לא נמצא מקביל בוויקיפדיה', 'חסרה תבנית מיון', 'מקור לא ידוע', 'דף נעול - לא ניתן לאמת']
-			}]
+		// ארבעת טאבי הגרסה: סינון של report_rev_tasks לפי rev_task, ש-match.py מחשב לפי `גרסה=` בתבנית
+		// (scripts/rev_match.py; migrations/migration_add_rev_task.sql). ההחלטות לפי כללי חיים (2026-10-01).
+		rename: {
+			view: 'report_rev_tasks', label: 'העברת שם',
+			columns: ['title', 'rev_page_title', 'sort_template_rev', 'status'], filters: [],
+			baseFilters: [['rev_task', 'eq.rename']], titleLink: 'edit'
 		},
+		redirect: {
+			view: 'report_rev_tasks', label: 'הפכו להפניה',
+			columns: ['title', 'rev_page_title', 'sort_template_rev', 'linked_title', 'status'], filters: [],
+			baseFilters: [['rev_task', 'eq.redirect']], titleLink: 'edit'
+		},
+		// גרסה 0/1/חסרה/לא קיימת, גרסה של מרחב שם אחר, או של דף אחר מזה שהכותרת מקשרת אליו (לא ידוע אם
+		// הכותרת הייתה נכונה והדף הועבר, או שהגרסה שגויה מלכתחילה).
+		badrev: {
+			view: 'report_rev_tasks', label: 'גרסה שגויה',
+			columns: ['title', 'sort_template_rev', 'rev_page_title', 'linked_title', 'status'], filters: [],
+			baseFilters: [['rev_task', 'eq.bad_rev']], titleLink: 'edit'
+		},
+		deletedrev: {
+			view: 'report_rev_tasks', label: 'נמחקו לפי גרסה',
+			columns: ['title', 'sort_template_rev', 'linked_title', 'status'], filters: [],
+			baseFilters: [['rev_task', 'eq.deleted_by_rev']], titleLink: 'edit'
+		},
+		undoc: { view: 'report_undocumented_import', label: 'ללא תבנית מיון', columns: ['title', 'source_type', 'match_type', 'wikipedia_id'], filters: [] },
 		// "חסר במכלול" מופרד לשני טאבים: כותרות שבאמת אין להן כלום במכלול,
 		// מול כותרות שקיימות במכלול כהפניה (הערך כנראה קיים שם בשם אחר -
 		// פעולה שונה לגמרי: לבדוק את יעד ההפניה, לא לייבא).
@@ -201,7 +207,7 @@
 	var TAB_GROUPS = [
 		{ key: 'import', label: 'ייבוא', tabs: ['missing', 'requests', 'missing_redirect', 'rav', 'culture'] },
 		{ key: 'update', label: 'עדכון', tabs: ['update'] },
-		{ key: 'maint', label: 'תחזוקה', tabs: ['tasks', 'deleted', 'undoc', 'locked'] },
+		{ key: 'maint', label: 'תחזוקה', tabs: ['rename', 'redirect', 'badrev', 'deletedrev', 'undoc', 'locked'] },
 		{ key: 'stats', label: 'נתונים סטטיסטיים', tabs: ['stats'] }
 	];
 	// טאב עם group (ב-VIEWS) מוצג רק למי שדרגתו לפחות כדרגת הקבוצה. זו בדיקת נראות בצד
@@ -221,8 +227,7 @@
 	var STAT_DEFS = [
 		{ key: 'wiki', table: 'wikipedia_pages', estimated: true, statId: 'mchl-stat-wiki-total', spinId: 'mchl-spin-wiki', warnId: 'mchl-warn-wiki', warnMsg: 'לא ניתן לקרוא את wikipedia_pages — יש לבדוק RLS/הרשאות.' },
 		{ key: 'mechalol', table: 'mechalol_pages', estimated: true, statId: 'mchl-stat-mechalol-total', spinId: 'mchl-spin-mechalol', warnId: 'mchl-warn-mechalol', warnMsg: 'לא ניתן לקרוא את mechalol_pages — יש לבדוק RLS/הרשאות.' },
-		{ key: 'tasks', table: 'report_tasks_to_handle', statId: 'mchl-stat-tasks', spinId: 'mchl-spin-tasks', warnId: 'mchl-warn-tasks', warnMsg: 'לא ניתן לקרוא את report_tasks_to_handle.', tabCount: 'mchl-tab-count-tasks' },
-		{ key: 'deleted', table: 'report_possibly_deleted_source', statId: 'mchl-stat-deleted', spinId: 'mchl-spin-deleted', warnId: 'mchl-warn-deleted', warnMsg: 'לא ניתן לקרוא את report_possibly_deleted_source.', tabCount: 'mchl-tab-count-deleted' },
+		{ key: 'tasks', table: 'report_rev_tasks', statId: 'mchl-stat-tasks', spinId: 'mchl-spin-tasks', warnId: 'mchl-warn-tasks', warnMsg: 'לא ניתן לקרוא את report_rev_tasks.' },
 		{ key: 'undoc', table: 'report_undocumented_import', statId: 'mchl-stat-undoc', spinId: 'mchl-spin-undoc', warnId: 'mchl-warn-undoc', warnMsg: 'לא ניתן לקרוא את report_undocumented_import.', tabCount: 'mchl-tab-count-undoc' },
 		{ key: 'missing', table: 'report_missing_from_mechalol', viewKey: 'missing', statId: 'mchl-stat-missing', spinId: 'mchl-spin-missing', warnId: 'mchl-warn-missing', warnMsg: 'לא ניתן לקרוא את report_missing_from_mechalol.', tabCount: 'mchl-tab-count-missing' }
 	];
@@ -235,11 +240,6 @@
 	// null (אין הפניה בפועל/כשלון פתרון) | (לא ב-Map בכלל = טרם נבדק).
 	var mechalolRedirectTargetCache = new Map();
 	var mechalolRedirectTargetInFlight = new Set();
-	// רמז לטאב "חשוד כמחיקה" (ראו loadDeletionHintsForCurrentPage) -
-	// title (של שורת מכלול) -> {type: 'rename'|'deletion', ...} | null
-	// (אין רמז בטבלאות הדלתא שלנו) | (לא ב-Map בכלל = טרם נבדק).
-	var deletionHintCache = new Map();
-	var deletionHintInFlight = new Set();
 	var activeTab = 'missing';
 	// סולם ההרשאות: קבוצה גבוהה יותר רואה גם את מה שנועד לקבוצות נמוכות ממנה.
 	var GROUP_LEVELS = {
@@ -656,81 +656,6 @@
 			btn.disabled = false;
 		}
 		if (hint) hint.textContent = 'הצעה אוטומטית מהפניה קיימת - אפשר לשנות';
-	}
-
-	// ===== רמז אוטומטי בטאב "חשוד כמחיקה" - מנצל מידע שכבר קיים אצלנו
-	// ב-wikipedia_renames/wikipedia_deletions (לא קריאת API חיה - הטבלאות
-	// האלה כבר נמצאות ב-Supabase שלנו) כדי לחסוך מהמשתמש בדיקה ידנית
-	// אם השורה קשורה לשינוי-שם/מחיקה ידועים בוויקיפדיה. הכותרת שמחפשים
-	// לפיה היא כותרת המכלול עצמה (row.title) - התאמה טקסטואלית מול
-	// old_title/title של הטבלאות, לא לפי page_id (עמיד לבאג ה-page_id
-	// שתוקן היום ב-fetch_move_log - הכותרות עצמן היו תמיד נכונות שם) =====
-	function loadDeletionHintsForCurrentPage() {
-		if (activeTab !== 'deleted') return;
-		var need = currentPageRows
-			.map(function (r) { return r.title; })
-			.filter(function (t) { return !deletionHintCache.has(t) && !deletionHintInFlight.has(t); });
-		if (need.length === 0) { paintDeletionHints(); return; }
-		resolveDeletionHints(need);
-	}
-
-	function resolveDeletionHints(titles) {
-		titles.forEach(function (t) { deletionHintInFlight.add(t); });
-		// כל אצווה נכשלת ומסומנת לחוד, כך שכשל באחת לא מסמן "לא נטען" את כל העמוד.
-		return Promise.all(batches(titles, PG_IN_BATCH).map(resolveDeletionHintsBatch));
-	}
-	function resolveDeletionHintsBatch(titles) {
-		var inList = 'in.(' + titles.map(function (t) { return '"' + t.replace(/"/g, '\\"') + '"'; }).join(',') + ')';
-
-		var renamesParams = new URLSearchParams();
-		renamesParams.set('select', 'old_title,new_title,renamed_at');
-		renamesParams.set('old_title', inList);
-		renamesParams.set('order', 'renamed_at.desc');
-
-		var deletionsParams = new URLSearchParams();
-		deletionsParams.set('select', 'title,deleted_at,reason');
-		deletionsParams.set('title', inList);
-		deletionsParams.set('order', 'deleted_at.desc');
-
-		return Promise.all([
-			fetch(SUPABASE_URL + '/rest/v1/wikipedia_renames?' + renamesParams.toString(), { headers: pgHeaders() })
-				.then(function (res) { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); }),
-			fetch(SUPABASE_URL + '/rest/v1/wikipedia_deletions?' + deletionsParams.toString(), { headers: pgHeaders() })
-				.then(function (res) { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
-		]).then(function (results) {
-			var renames = results[0] || [], deletions = results[1] || [];
-			titles.forEach(function (t) { if (!deletionHintCache.has(t)) deletionHintCache.set(t, null); });
-			// האירוע האחרון (שינוי שם או מחיקה) קובע.
-			var consider = function (title, hint) {
-				var cur = deletionHintCache.get(title);
-				if (!cur || new Date(hint.at) > new Date(cur.at)) deletionHintCache.set(title, hint);
-			};
-			renames.forEach(function (r) { consider(r.old_title, { type: 'rename', newTitle: r.new_title, at: r.renamed_at }); });
-			deletions.forEach(function (d) { consider(d.title, { type: 'deletion', reason: d.reason, at: d.deleted_at }); });
-		}).catch(function () {
-			// כשל - לא נשמר במטמון כ"אין רמז"; מסומן כשגיאה, וינוסה שוב ברענון.
-			titles.forEach(function (t) { if (!deletionHintCache.has(t)) deletionHintCache.set(t, 'error'); });
-		}).then(function () {
-			titles.forEach(function (t) { deletionHintInFlight.delete(t); });
-			paintDeletionHints();
-		});
-	}
-
-	function paintDeletionHints() {
-		document.querySelectorAll('#mchl-dash [data-hint-title]').forEach(function (el) {
-			var title = el.getAttribute('data-hint-title');
-			var cached = deletionHintCache.get(title);
-			if (cached === undefined) return;
-			el.classList.remove('mchl-skeleton', 'mchl-muted');
-			if (!cached) { el.textContent = '—'; el.classList.add('mchl-muted'); return; }
-			if (cached === 'error') { el.textContent = '⚠ לא נטען'; el.title = 'שגיאה בטעינת יומני המחיקה ושינוי השם - נסה לרענן'; el.classList.add('mchl-muted'); return; }
-			var dateStr = new Date(cached.at).toLocaleDateString('he-IL');
-			if (cached.type === 'rename') {
-				el.innerHTML = '<span class="mchl-badge mchl-alert">שינוי שם ← "' + escapeHtml(cached.newTitle) + '" (' + dateStr + ')</span>';
-			} else {
-				el.innerHTML = '<span class="mchl-badge mchl-alert" title="לפי יומן המחיקות בוויקיפדיה; ייתכן שהערך שוחזר מאז">נמחק ביומן (' + dateStr + ')</span>';
-			}
-		});
 	}
 
 	// ===== בניית הממשק =====
@@ -1733,11 +1658,10 @@
 
 	function refreshAll() {
 		var btn = $id('mchl-refresh-btn');
-		// רענון מלא: גם הפרטים שנטענו (הקשר, הפניות, רמזי מחיקה) נשלפים מחדש.
+		// רענון מלא: גם הפרטים שנטענו (הקשר, הפניות) נשלפים מחדש.
 		wfDetailsCache.clear();
 		if (updateMod) updateMod.clear();
 		mechalolRedirectTargetCache.clear();
-		deletionHintCache.clear();
 		btn.classList.add('mchl-spinning');
 		wfSummary = null;
 		countsLoaded = {}; // רענון סופר מחדש רק את הקבוצה הפעילה
@@ -1861,10 +1785,10 @@
 		var fns = jobs;
 		if (isStats) {
 			// "תואמים" = דפי מכלול עם קישור לוויקיפדיה, *פחות* אלה שגם מופיעים
-			// במשימות לטיפול (למשל "חסרה תבנית מיון" - מקושרים אבל עדיין משימה),
+			// במשימות הגרסה (למשל "העברת שם" - מקושרים אבל עדיין משימה),
 			// אחרת הם נספרים פעמיים בפס.
 			var matchedJob = function () { return pgCount('mechalol_pages', [['wikipedia_id', 'not.is.null']], undefined, true).catch(function () { return null; }); };
-			var tasksLinkedJob = function () { return pgCount('report_tasks_to_handle', [['wikipedia_id', 'not.is.null']]).catch(function () { return null; }); };
+			var tasksLinkedJob = function () { return pgCount('report_rev_tasks', [['wikipedia_id', 'not.is.null']]).catch(function () { return null; }); };
 			fns = [matchedJob, tasksLinkedJob].concat(jobs);
 		}
 		return runLimited(fns, STATS_CONCURRENCY).then(function (results) {
@@ -1903,7 +1827,6 @@
 			loadWikidataDescriptionsForCurrentPage();
 			loadRedirectTargetsForCurrentPage();
 			markExistingInMechalol();
-			loadDeletionHintsForCurrentPage();
 			ensureUpdateForTab(cfg);
 		}).catch(function (e) {
 			if (myRequestId !== loadRequestId) return;
@@ -2218,6 +2141,15 @@
 		if (col === 'status') return '<span class="mchl-badge mchl-neutral">' + escapeHtml(val) + '</span>';
 		if (col === 'lock_level') return '<span class="mchl-badge ' + (val === 'נעול לקריאה' ? 'mchl-alert' : 'mchl-neutral') + '">' + escapeHtml(val) + '</span>';
 		if (col === 'lock_source') return '<span class="mchl-muted">' + escapeHtml(val) + '</span>';
+		if (col === 'rev_page_title') {
+			if (!val) return '<span class="mchl-muted">—</span>';
+			return row.rev_page_id
+				? '<a href="' + wikipediaUrl(row.rev_page_id) + '" target="_blank" rel="noopener">' + escapeHtml(val) + '</a>' : escapeHtml(val);
+		}
+		if (col === 'linked_title') return val ? '<a href="' + wikipediaUrl(row.wikipedia_id) + '" target="_blank" rel="noopener">' + escapeHtml(val) + '</a>' : '<span class="mchl-muted">—</span>';
+		if (col === 'sort_template_rev') {
+			return val ? '<a href="https://he.wikipedia.org/w/index.php?oldid=' + encodeURIComponent(val) + '" target="_blank" rel="noopener" class="mchl-num-cell" title="הגרסה בוויקיפדיה">' + val + '</a>' : '<span class="mchl-muted">חסרה</span>';
+		}
 		if (col === 'task_type') return '<span class="mchl-badge mchl-alert">' + escapeHtml(val) + '</span>';
 		if (col === 'manual_match_action') {
 			// כיוון הפוך מהעמודה הישנה (שהייתה ב"משימות לטיפול"): כאן row
@@ -2275,19 +2207,6 @@
 				return '<span data-desc-title="' + escapeHtml(title) + '">' + escapeHtml(v) + '</span>';
 			}
 			return '<span class="mchl-skeleton" data-desc-title="' + escapeHtml(title) + '" style="display:inline-block;height:12px;width:70%;">&nbsp;</span>';
-		}
-		if (col === 'deletion_hint') {
-			var hintTitle = row.title;
-			if (deletionHintCache.has(hintTitle)) {
-				var cached = deletionHintCache.get(hintTitle);
-				if (!cached) return '<span class="mchl-muted" data-hint-title="' + escapeHtml(hintTitle) + '">—</span>';
-				var dateStr = new Date(cached.at).toLocaleDateString('he-IL');
-				if (cached.type === 'rename') {
-					return '<span class="mchl-badge mchl-alert" data-hint-title="' + escapeHtml(hintTitle) + '">שינוי שם ← "' + escapeHtml(cached.newTitle) + '" (' + dateStr + ')</span>';
-				}
-				return '<span class="mchl-badge mchl-alert" data-hint-title="' + escapeHtml(hintTitle) + '">מחיקה בפועל (' + dateStr + ')</span>';
-			}
-			return '<span class="mchl-skeleton" data-hint-title="' + escapeHtml(hintTitle) + '" style="display:inline-block;height:12px;width:70%;">&nbsp;</span>';
 		}
 		return escapeHtml(val == null ? '—' : val);
 	}
@@ -3188,9 +3107,8 @@
 		'<div class="mchl-ledger-legend"><span class="mchl-item"><span class="mchl-swatch mchl-matched"></span> תואמים בין שני האתרים</span><span class="mchl-item"><span class="mchl-swatch mchl-tasks"></span> ממתינים לטיפול</span><span class="mchl-item"><span class="mchl-swatch mchl-missing"></span> חסרים במכלול לגמרי</span></div>' +
 		'</section>' +
 		'<section class="mchl-stat-cards">' +
-		'<div class="mchl-stat-card"><div class="mchl-n" id="mchl-stat-tasks">—</div><div class="mchl-l"><span class="mchl-mini-spinner" id="mchl-spin-tasks"></span><span class="mchl-warn-inline" id="mchl-warn-tasks" style="display:none;">⚠</span>משימות לטיפול</div></div>' +
-		'<div class="mchl-stat-card"><div class="mchl-n" id="mchl-stat-deleted">—</div><div class="mchl-l"><span class="mchl-mini-spinner" id="mchl-spin-deleted"></span><span class="mchl-warn-inline" id="mchl-warn-deleted" style="display:none;">⚠</span>חשוד כמחיקה מוויקיפדיה</div></div>' +
-		'<div class="mchl-stat-card"><div class="mchl-n" id="mchl-stat-undoc">—</div><div class="mchl-l"><span class="mchl-mini-spinner" id="mchl-spin-undoc"></span><span class="mchl-warn-inline" id="mchl-warn-undoc" style="display:none;">⚠</span>מיובא ללא תיעוד</div></div>' +
+		'<div class="mchl-stat-card"><div class="mchl-n" id="mchl-stat-tasks">—</div><div class="mchl-l"><span class="mchl-mini-spinner" id="mchl-spin-tasks"></span><span class="mchl-warn-inline" id="mchl-warn-tasks" style="display:none;">⚠</span>משימות גרסה</div></div>' +
+		'<div class="mchl-stat-card"><div class="mchl-n" id="mchl-stat-undoc">—</div><div class="mchl-l"><span class="mchl-mini-spinner" id="mchl-spin-undoc"></span><span class="mchl-warn-inline" id="mchl-warn-undoc" style="display:none;">⚠</span>ללא תבנית מיון</div></div>' +
 		'<div class="mchl-stat-card"><div class="mchl-n" id="mchl-stat-missing">—</div><div class="mchl-l"><span class="mchl-mini-spinner" id="mchl-spin-missing"></span><span class="mchl-warn-inline" id="mchl-warn-missing" style="display:none;">⚠</span>חסרים במכלול</div></div>' +
 		'</section>' +
 		'</div>' +
