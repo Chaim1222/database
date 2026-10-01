@@ -141,6 +141,8 @@
 			columns: ['title', 'verdict', 'topic', 'has_images', 'created_at', 'mechalol_redirect_exists', 'checked_at', 'wikidata_desc'], filters: [],
 			displayColumns: ['title', 'topic', 'verdict', 'wf_matches', 'has_images', 'created_at', 'import_action', 'expand'],
 			baseFilters: [['mechalol_redirect_exists', 'not.is.true']],
+			// הישנים קודם (תאריך יצירה בוויקיפדיה); בלי תאריך (כ-9%) בסוף; id לסדר יציב בדפדוף. הייצוא משתמש באותו סדר.
+			order: 'created_at.asc.nullslast,id.asc',
 			titleLink: 'edit', wikidata: true, easyImport: true, redirectFilter: true, lockable: true, manualMatch: true
 		},
 		missing_redirect: {
