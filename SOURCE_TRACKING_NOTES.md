@@ -125,6 +125,7 @@
 
 ## 8. מה ממתין
 
+0א. **בדיקת קישורים מול גרסת המקור (2026-10-01, ענף `claude/eager-albattani-ph0x6u`, לא בייצור):** ההתאמה ב-`match.py` לפי שם, ולכן ערך שהועבר בוויקיפדיה ואחריו נוצר ערך אחר בשם הישן מקושר לערך הלא נכון בלי משימה (דוגמה: מכלול 265071 "דהוכ", `גרסה=22338104` שייכת ל-180218 "דהוכ (מחוז)", והוא קושר ל-2328166). `scripts/check_rev_links.py` סורק את כל ~262 אלף הערכים עם גרסה, פותר גרסה ← `page_id` באצוות של 50 (`prop=revisions|info`), ומשווה ל-`wikipedia_id`. ממצאים (רק חריגים) ב-`rev_link_check`, דוח `report_rev_link_mismatch`. **להפעלה:** להריץ `migrations/migration_add_rev_link_check.sql` (באישור), ואז Actions "בדיקת קישורים מול גרסת המקור" (`dry_run` כברירת מחדל מדפיס סיכום בלי כתיבה, ובלי תלות במיגרציה). **מדגם של 100 ערכים: 100 תואמים.** שיעור החריגים האמיתי עוד לא ידוע. **ההחלטה הפתוחה (חיים):** כש-`name_equiv` false והגרסה מצביעה על דף אחר, איזה מהם גובר. **שלב הבא:** אם הממצאים מצדיקים, להפוך את הקסקדה ב-`match.py` לגרסה-קודם (עם אימות שם) ולחבר את הדוח לטאב משימות בגאדג'ט.
 0. **שבת 4.10.2026:** לקרוא בסיכום הריצה של `weekly_full_reconciliation.yml` את שלוש מדידות הנפח (`before_fetch`, `peak_before_swap`, `after_truncate`) ולהשוות לאומדן ~355 MiB. לוודא שהצעדים רצו (הם לא נוסו ב-Actions; `continue-on-error`, כך שכשל לא יפיל את הריצה). **לפי המדידה להחליט** אם להריץ את מיגרציית האינדקס החלקי (סעיף 7) ואת `REINDEX`.
 1. **שבת 3.10.2026 בערב (אחרי ההחלפה):** לבדוק שהעמודות שרדו: ~262 אלף `sort_template_parsed_rev`, 1,267 נעולים, ו-`source_state` לא התאפס. לבדוק זמן של `forward_fill_enrichment_temp` ושהנפח ירד (`sort_template_title`).
 2. **ריצות שעתיות אוטומטיות:** לוודא ב-Actions שירוקות, ושב-`sort_template_sync_state` ה-`watermark_ts` מתקדם כל שעה ו-`consecutive_failures` 0.
@@ -163,4 +164,5 @@ select pg_size_pretty(pg_database_size(current_database()));
 | #51 | עדכון שעתי, `sort_template_sync_state`, לוג התקדמות |
 | #52 | צמצום אחסון (510 → 449 MB) |
 | #53 | הפעלת התזמון השעתי |
+| ענף `claude/eager-albattani-ph0x6u` (1.10, בלי PR) | `check_rev_links.py`, `rev_link_check`, workflow ומיגרציה (לא בייצור) |
 | ענף `claude/optimistic-bell-woy53q` (30.9, בלי PR) | מדידת נפח שבועית (`db_size_report`, בייצור); טיוטת אינדקס חלקי (לא בייצור) |
