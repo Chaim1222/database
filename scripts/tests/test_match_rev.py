@@ -64,14 +64,14 @@ def fake_wikipedia_get(params):
 
 
 class MatchRevTest(unittest.TestCase):
-    def run_match(self, rows, wikipedia_map, extra_args=(), template=None):
+    def run_match(self, rows, wikipedia_map, extra_args=(), template=None, manual=None):
         # template: {id: None | (wikipedia_id, value) | ("unresolved", value)}; ברירת מחדל: אין תבנית
         client = FakeClient()
         existing = set(wikipedia_map.values()) | {555, 180218}
         argv = ["match.py", *extra_args]
         with mock.patch.object(match, "get_client", return_value=client), \
              mock.patch.object(match, "load_wikipedia_map", return_value=(wikipedia_map, existing)), \
-             mock.patch.object(match, "load_manual_matches", return_value={}), \
+             mock.patch.object(match, "load_manual_matches", return_value=manual or {}), \
              mock.patch.object(match, "iter_mechalol_rows", return_value=iter([rows])), \
              mock.patch.object(match, "execute_with_retry", side_effect=lambda op, desc: op()), \
              mock.patch.object(match, "resolve_pending_via_template",
@@ -115,6 +115,12 @@ class MatchRevTest(unittest.TestCase):
         written = self.run_match([mrow(2, "הטבח במסיבת הטבע ליד רעים", 200)], {"x": 1},
                                  extra_args=("--skip-template-check",))
         self.assertEqual((written[2]["rev_task"], written[2]["wikipedia_id"]), ("rename", 555))
+
+    def test_manual_match_clears_the_task(self):
+        rows = [mrow(1, "דהוכ", 100, rev_task="bad_rev", rev_page_id=180218, rev_page_title="x")]
+        written = self.run_match(rows, {"דהוכ": 2328166}, manual={1: 2328166})
+        self.assertIsNone(written[1]["rev_task"])
+        self.assertEqual(written[1]["wikipedia_id"], 2328166)
 
     def test_stale_task_is_cleared_when_resolved(self):
         rows = [mrow(1, "דהוכ", 100, rev_task="rename", rev_page_id=5, rev_page_title="x")]

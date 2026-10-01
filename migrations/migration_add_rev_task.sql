@@ -125,7 +125,8 @@ select m.id,
        m.rev_page_title
 from mechalol_pages m
 left join wikipedia_pages w on w.id = m.wikipedia_id
-where m.rev_task is not null;
+where m.rev_task is not null
+  and not exists (select 1 from manual_matches mm where mm.mechalol_page_id = m.id);  -- שיוך ידני = טופל
 
 grant select on report_rev_tasks to anon, authenticated, service_role;
 

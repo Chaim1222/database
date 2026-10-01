@@ -36,11 +36,11 @@ def fake_get(params):
 
 
 class BackfillTest(unittest.TestCase):
-    def run_scan(self, rows, dry_run=False):
+    def run_scan(self, rows, dry_run=False, manual=frozenset()):
         client = FakeClient()
         with mock.patch.object(bf, "scoped_rows", return_value=iter([rows])), \
              mock.patch("supabase_client.execute_with_retry", side_effect=lambda op, desc, log_fn=None: op()):
-            stats, complete = bf.scan(client, fake_get, {"דהוכ": 2328166}, {2328166, 180218}, dry_run, None, 1)
+            stats, complete = bf.scan(client, fake_get, {"דהוכ": 2328166}, {2328166, 180218}, dry_run, None, 1, manual)
         return client, stats, complete
 
     def test_writes_only_changed_rows(self):
@@ -60,6 +60,11 @@ class BackfillTest(unittest.TestCase):
     def test_existing_link_to_another_page_is_bad_rev_not_rename(self):
         client, stats, _ = self.run_scan([mrow(1, "שם אחר", 100, wikipedia_id=2328166)])
         self.assertEqual(client.writes[0][1][0]["rev_task"], "bad_rev")
+
+    def test_manual_match_clears_the_task(self):
+        rows = [mrow(1, "דהוכ", 100, rev_task="bad_rev", rev_page_id=180218, rev_page_title="x")]
+        client, _, _ = self.run_scan(rows, manual={1})
+        self.assertEqual(client.writes[0][1][0]["rev_task"], None)
 
     def test_dry_run_writes_nothing(self):
         client, stats, _ = self.run_scan([mrow(1, "דהוכ", 100)], dry_run=True)

@@ -59,7 +59,17 @@ def title_link_of(title, wikipedia_map):
     return link
 
 
-def scan(client, wikipedia_get, wikipedia_map, existing_ids, dry_run, deadline, workers):
+def manual_ids(client):
+    from supabase_client import execute_with_retry
+
+    response = execute_with_retry(
+        lambda: client.table("manual_matches").select("mechalol_page_id").execute(),
+        "manual_matches", log_fn=log,
+    )
+    return {row["mechalol_page_id"] for row in response.data or []}
+
+
+def scan(client, wikipedia_get, wikipedia_map, existing_ids, dry_run, deadline, workers, manual=frozenset()):
     from supabase_client import execute_with_retry
 
     max_rev = rev_match.fetch_max_rev(wikipedia_get)
@@ -74,7 +84,8 @@ def scan(client, wikipedia_get, wikipedia_map, existing_ids, dry_run, deadline, 
             stats["checked"] += 1
             if not row["title"]:
                 continue
-            decision = rev_match.decide(
+            # שיוך ידני = הערך טופל; אין משימת גרסה (כמו ב-match.py)
+            decision = rev_match.NO_DECISION if row["id"] in manual else rev_match.decide(
                 row, resolved.get(row.get("sort_template_rev")),
                 title_link_of(row["title"], wikipedia_map), max_rev, existing_ids.__contains__,
                 evidence_link_id=row.get("wikipedia_id"),  # הקישור הקיים (שם בתבנית / ידני) הוא העדות
@@ -119,7 +130,8 @@ def main():
     client = get_client()
     log(f"START | backfill_rev_task{' (--dry-run)' if args.dry_run else ''}")
     wikipedia_map, existing_ids = load_wikipedia_map(client)
-    stats, complete = scan(client, wikipedia_get, wikipedia_map, existing_ids, args.dry_run, deadline, args.workers)
+    stats, complete = scan(client, wikipedia_get, wikipedia_map, existing_ids, args.dry_run, deadline, args.workers,
+                           manual_ids(client))
     log(f"סיום | {'הושלם' if complete else 'לא הושלם'} | {dict(stats)}")
     if not complete:
         raise SystemExit(1)
