@@ -56,26 +56,34 @@ def finding(mid, task, rev, linked, page_id, title):
 
 
 class ScanTest(unittest.TestCase):
-    def run_scan(self, rows, store, dry_run=False):
-        wikipedia_map = {"דהוכ": 2328166, "אחר": 9}
-        existing = {2328166, 180218, 555, 9}
-        return rls.scan(store, fake_get, wikipedia_map, existing, iter([rows]), dry_run, None, 1)
+    # שמות התבנית שנקראים לערכים שהכותרת שלהם לא תואמת לכותרת הנוכחית
+    TEMPLATES = {1: "דהוכ", 2: "הטבח במסיבת הטבע ליד רעים", 3: "אחר", 7: "דהוכ (מחוז)"}
 
-    def test_findings_per_task_and_untouched_links(self):
+    def run_scan(self, rows, store, dry_run=False):
+        existing = {2328166, 180218, 555, 9}
+        original = rls.fetch_template_names
+        rls.fetch_template_names = lambda ids: {i: self.TEMPLATES.get(i) for i in ids}
+        try:
+            return rls.scan(store, fake_get, existing, iter([rows]), dry_run, None, 1)
+        finally:
+            rls.fetch_template_names = original
+
+    def test_findings_per_task(self):
         store = FakeStore()
         rows = [
-            mrow(1, "דהוכ", 100, wikipedia_id=2328166),                 # גרסה של דף אחר מהקישור
-            mrow(2, "הטבח במסיבת הטבע ליד רעים", 200, wikipedia_id=555),  # אותו דף, שם שונה
-            mrow(3, "אחר", 300, wikipedia_id=9),                         # דף הגרסה הפך להפניה
-            mrow(4, "אחר2", 1),                                          # גרסה 1
-            mrow(5, "נעול", None, sort_template_denied_at="2026-09-30"),  # תבנית נעולה
-            mrow(6, "דהוכ (מחוז)", 100, wikipedia_id=180218),                    # הכול מסכים
+            mrow(1, "דהוכ", 100, wikipedia_id=2328166),                    # הועבר, השם הישן תפוס: העברה
+            mrow(2, "הטבח במסיבת הטבע ליד רעים", 200, wikipedia_id=555),   # ויקיפדיה העבירה, לא עקבנו: העברה
+            mrow(3, "אחר", 300, wikipedia_id=9),                            # דף הגרסה הפך להפניה
+            mrow(4, "אחר2", 1),                                             # גרסה 1
+            mrow(5, "נעול", None, sort_template_denied_at="2026-09-30"),    # תבנית נעולה
+            mrow(6, "דהוכ (מחוז)", 100, wikipedia_id=180218),               # כותרת שלנו שווה לנוכחית
+            mrow(7, "כותרת מקומית", 100, wikipedia_id=180218),              # התבנית עודכנה לשם הנוכחי
         ]
         stats, complete = self.run_scan(rows, store)
         tasks = {f["mechalol_id"]: f["rev_task"] for f in store.upserts}
-        self.assertEqual(tasks, {1: "bad_rev", 2: "rename", 3: "redirect", 4: "bad_rev"})
+        self.assertEqual(tasks, {1: "rename", 2: "rename", 3: "redirect", 4: "bad_rev"})
         self.assertTrue(complete)
-        self.assertEqual(stats["ok"], 2)
+        self.assertEqual(stats["ok"], 3)
 
     def test_manual_match_is_not_a_task(self):
         store = FakeStore(manual={1})
@@ -84,18 +92,18 @@ class ScanTest(unittest.TestCase):
 
     def test_unchanged_findings_are_not_rewritten_and_healed_ones_deleted(self):
         previous = {
-            1: finding(1, "bad_rev", 100, 2328166, 180218, "דהוכ (מחוז)"),   # זהה: בלי כתיבה
-            6: finding(6, "bad_rev", 100, 5, 180218, "x"),                     # תוקן: נמחק
-            99: finding(99, "bad_rev", 1, None, None, None),                   # לא נראה יותר: נמחק
+            1: finding(1, "rename", 100, 2328166, 180218, "דהוכ (מחוז)"),    # זהה: בלי כתיבה
+            6: finding(6, "rename", 100, 5, 180218, "x"),                     # תוקן: נמחק
+            99: finding(99, "bad_rev", 1, None, None, None),                  # לא נראה יותר: נמחק
         }
         store = FakeStore(previous=previous)
         rows = [mrow(1, "דהוכ", 100, wikipedia_id=2328166), mrow(6, "דהוכ (מחוז)", 100, wikipedia_id=180218)]
-        stats, _ = self.run_scan(rows, store)
+        self.run_scan(rows, store)
         self.assertEqual(store.upserts, [])
         self.assertEqual(store.deletes, {6, 99})
 
     def test_dry_run_writes_nothing(self):
-        store = FakeStore(previous={6: finding(6, "bad_rev", 100, 5, 180218, "x")})
+        store = FakeStore(previous={6: finding(6, "rename", 100, 5, 180218, "x")})
         self.run_scan([mrow(1, "דהוכ", 100, wikipedia_id=2328166), mrow(6, "דהוכ (מחוז)", 100, wikipedia_id=180218)],
                       store, dry_run=True)
         self.assertEqual((store.upserts, store.deletes), ([], set()))

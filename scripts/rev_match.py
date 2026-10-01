@@ -1,22 +1,23 @@
 """
-התאמה לפי גרסה (`גרסה=` בתבנית {{מיון ויקיפדיה}}) - השלב הראשון ב-match.py לערכים מתועדים.
+בדיקת קישורי המכלול מול `גרסה=` בתבנית {{מיון ויקיפדיה}} (scripts/rev_link_scan.py, פעם בחודש).
 
-גרסה היא זהות יציבה של דף (גם אחרי שינוי שם), ולכן היא קודמת להתאמה לפי כותרת. ה-API של
-ויקיפדיה אומר לאיזה דף הגרסה שייכת, וההחלטה (decide) נשמרת בעמודות של mechalol_pages:
+גרסה היא זהות יציבה של דף גם אחרי שינוי שם: ה-API של ויקיפדיה אומר לאיזה דף הגרסה שייכת, ומה
+הכותרת הנוכחית שלו. ההחלטה (decide) נשמרת בטבלת העבודה rev_link_check:
 
-  rev_task        rename | redirect | bad_rev | deleted_by_rev | NULL (תקין)
-  rev_page_id     הדף שהגרסה שייכת לו (רק כשיש משימה)
-  rev_page_title  שמו הנוכחי (רק כשיש משימה; דף שאינו ב-wikipedia_pages אין לו כותרת אחרת)
+  rev_task        rename | redirect | bad_rev | deleted_by_rev  (אין שורה = תקין)
+  rev_page_id     הדף שהגרסה שייכת לו, ו-rev_page_title שמו הנוכחי
 
-כללי ההחלטה (הכרעת חיים, 2026-10-01):
-  - גרסה ריקה, 0 או 1 = גרסה שגויה (1 היא גרסת העמוד הראשי).
-  - הגרסה לא קיימת: אם היא גדולה מהגרסה האחרונה בוויקיפדיה - גרסה שגויה, אחרת הדף נמחק.
-  - הגרסה שייכת למרחב שם אחר - גרסה שגויה. הדף הפך להפניה - הפך להפניה.
-  - הגרסה שייכת לדף חי, ואין התאמה לפי כותרת: מבררים אם יש עדות אחרת לקישור (שם בתבנית, או קישור
-    קיים). אין עדות, או שהעדות מסכימה: הקישור לדף הגרסה, ואם הכותרות לא תואמות (נרמול והסרת
-    "הרב/רבי") - משימת העברת שם.
-  - הגרסה שייכת לדף חי שונה מזה שההתאמה (כותרת, תבנית או קישור קיים) מצאה: לא ידוע אם השם היה
-    נכון והדף הועבר, או שהגרסה שגויה מלכתחילה - גרסה שגויה, והקישור נשאר כפי שהיה.
+התהליך אצלנו (חיים, 2026-10-01): בייבוא הכותרת שלנו ושם התבנית (`דף=`) הם שם ויקיפדיה באותו רגע.
+בהעברה בעקבות ויקיפדיה מעדכנים גם את הכותרת וגם את התבנית. בהחלטה מקומית משנים רק את הכותרת
+ומשאירים את התבנית. לכן שם התבנית הוא שם המקור בעדכון האחרון, והכותרת שלנו חופשית.
+
+כללי ההחלטה:
+  - גרסה ריקה, 0 או 1 (גרסת העמוד הראשי) = גרסה שגויה.
+  - הגרסה לא קיימת: גדולה מהאחרונה בוויקיפדיה = גרסה שגויה, אחרת הדף נמחק.
+  - הגרסה שייכת למרחב שם אחר = גרסה שגויה. דף שהפך להפניה = הפך להפניה.
+  - הגרסה שייכת לדף חי: הכותרת הנוכחית שלו שווה לכותרת שלנו או לשם התבנית (נרמול, והסרת
+    "הרב/רבי" ו-"(רב)") = אין משימה. שניהם שונים ממנה = ויקיפדיה העבירה ואנחנו לא עקבנו:
+    העברת שם. עצם זה שהגרסה שייכת לדף בשם אחר משם התבנית הוא ההוכחה להעברה.
 """
 import re
 import time
@@ -38,14 +39,12 @@ _RAV_PREFIX = re.compile(r"^(הרב|רבי)\s+")
 # "X (רב)" בוויקיפדיה שקול ל"רבי X" / "הרב X" במכלול (הכרעת חיים, 2026-10-01)
 _RAV_SUFFIX = re.compile(r"\s*\(רב\)$")
 
-# link_id: הדף שהגרסה קובעת כקישור (None = ממשיכים בהתאמה לפי כותרת).
-# page_title: שם הדף שהגרסה שייכת לו, למשימה.
-# needs_evidence: אין התאמת כותרת והגרסה שייכת לדף חי - צריך קודם לברר עדות אחרת לקישור (בדיקת
-# התבנית ב-match.py) ואז לקרוא ל-decide שוב עם evidence_link_id.
-Decision = namedtuple("Decision", "link_id task page_id page_title needs_evidence", defaults=(False,))
-NO_DECISION = Decision(None, None, None, None)
-NEEDS_EVIDENCE = Decision(None, None, None, None, True)
-UNKNOWN = object()  # evidence_link_id שעוד לא נבדק (שונה מ-None: נבדק ואין עדות)
+# needs_template: הגרסה שייכת לדף חי והכותרת שלנו לא תואמת לכותרת הנוכחית שלו - צריך לקרוא את שם
+# התבנית (`דף=`) ולקרוא ל-decide שוב עם template_name.
+Decision = namedtuple("Decision", "task page_id page_title needs_template", defaults=(False,))
+NO_DECISION = Decision(None, None, None)
+NEEDS_TEMPLATE = Decision(None, None, None, True)
+UNKNOWN = object()  # template_name שעוד לא נקרא (שונה מ-None: נקרא ואין שם)
 
 
 def in_scope(row):
@@ -84,47 +83,40 @@ def names_match(mechalol_title, wikipedia_title):
     return False
 
 
-def decide(row, resolved, title_link_id, max_rev, page_exists, evidence_link_id=UNKNOWN):
+def decide(row, resolved, max_rev, page_exists, template_name=UNKNOWN):
     """
     row: שורת mechalol_pages. resolved: תוצאת resolve_revisions לגרסת השורה (None = לא קיימת).
-    title_link_id: הדף שהתאמת הכותרת (היגיינה/נרמול) מצאה, או None.
-    page_exists(page_id): האם הדף קיים ב-wikipedia_pages (wikipedia_id הוא מפתח זר אליו).
-    evidence_link_id: הדף שעדות אחרת (שם בתבנית או קישור קיים) מקשרת אליו; None = נבדק ואין;
-    UNKNOWN = טרם נבדק (ואז כשאין התאמת כותרת מוחזר NEEDS_EVIDENCE).
+    page_exists(page_id): האם הדף קיים ב-wikipedia_pages (הקישור הוא מפתח זר אליו).
+    template_name: `דף=` בתבנית; None = נקרא ואין שם; UNKNOWN = טרם נקרא (ואז, כשצריך אותו,
+    מוחזר NEEDS_TEMPLATE).
     """
     if not in_scope(row):
         return NO_DECISION
 
     rev = row.get("sort_template_rev")
     if not valid_rev(rev):
-        return Decision(None, TASK_BAD_REV, None, None)
+        return Decision(TASK_BAD_REV, None, None)
 
     if resolved is None:
-        task = TASK_BAD_REV if max_rev and rev > max_rev else TASK_DELETED
-        return Decision(None, task, None, None)
+        return Decision(TASK_BAD_REV if max_rev and rev > max_rev else TASK_DELETED, None, None)
 
     page_id, title = resolved["page_id"], resolved["title"]
     if resolved["ns"] != 0:
-        return Decision(None, TASK_BAD_REV, page_id, title)
+        return Decision(TASK_BAD_REV, page_id, title)
     if resolved["redirect"]:
-        return Decision(None, TASK_REDIRECT, page_id, title)
+        return Decision(TASK_REDIRECT, page_id, title)
 
     if not page_exists(page_id):
-        # דף חי שעוד לא נטען ל-wikipedia_pages (פער דלתא): אין מה לקשר אליו, ייבדק בריצה הבאה.
+        # דף חי שעוד לא נטען ל-wikipedia_pages (פער דלתא): ייבדק בריצה הבאה.
         return NO_DECISION
 
-    if title_link_id is None:
-        if evidence_link_id is UNKNOWN:
-            return NEEDS_EVIDENCE
-        if evidence_link_id is not None and evidence_link_id != page_id:
-            return Decision(None, TASK_BAD_REV, page_id, title)
-        if names_match(row.get("title"), title):
-            return Decision(page_id, None, None, None)
-        return Decision(page_id, TASK_RENAME, page_id, title)
-
-    if title_link_id == page_id:
+    if names_match(row.get("title"), title):
         return NO_DECISION
-    return Decision(None, TASK_BAD_REV, page_id, title)
+    if template_name is UNKNOWN:
+        return NEEDS_TEMPLATE
+    if template_name and names_match(template_name, title):
+        return NO_DECISION
+    return Decision(TASK_RENAME, page_id, title)
 
 
 def resolve_revisions(wikipedia_get, rev_ids):

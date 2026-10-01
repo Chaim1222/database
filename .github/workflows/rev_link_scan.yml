@@ -55,6 +55,8 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          USER_NAME: ${{ secrets.USER_NAME }}
+          PASSWORD: ${{ secrets.PASSWORD }}
           # הרצה מתוזמנת: כתיבה מלאה. ידנית: לפי הבחירה (dry_run כברירת מחדל).
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
           RECHECK: ${{ github.event_name == 'workflow_dispatch' && inputs.recheck && 'true' || 'false' }}
