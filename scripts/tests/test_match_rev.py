@@ -64,7 +64,8 @@ def fake_wikipedia_get(params):
 
 
 class MatchRevTest(unittest.TestCase):
-    def run_match(self, rows, wikipedia_map, extra_args=()):
+    def run_match(self, rows, wikipedia_map, extra_args=(), template=None):
+        # template: {id: None | (wikipedia_id, value) | ("unresolved", value)}; ברירת מחדל: אין תבנית
         client = FakeClient()
         existing = set(wikipedia_map.values()) | {555, 180218}
         argv = ["match.py", *extra_args]
@@ -73,7 +74,8 @@ class MatchRevTest(unittest.TestCase):
              mock.patch.object(match, "load_manual_matches", return_value={}), \
              mock.patch.object(match, "iter_mechalol_rows", return_value=iter([rows])), \
              mock.patch.object(match, "execute_with_retry", side_effect=lambda op, desc: op()), \
-             mock.patch.object(match, "resolve_pending_via_template", return_value={}), \
+             mock.patch.object(match, "resolve_pending_via_template",
+                               side_effect=lambda pending, wmap: {r["id"]: (template or {}).get(r["id"]) for r, _ in pending}), \
              mock.patch.object(fetch_wikipedia_revisions, "wikipedia_get", side_effect=fake_wikipedia_get), \
              mock.patch.object(sys, "argv", argv):
             match.main()
@@ -98,6 +100,21 @@ class MatchRevTest(unittest.TestCase):
         self.assertEqual(written[4]["rev_task"], "bad_rev")
         self.assertIsNone(written[5]["rev_task"])
         self.assertIsNone(written[5]["rev_page_id"])
+
+    def test_template_link_to_another_page_is_not_overridden_by_the_revision(self):
+        # הגרסה (דף 555) שייכת לדף אחר מזה שהתבנית מקשרת אליו (9): גרסה שגויה, והקישור נשאר 9
+        written = self.run_match([mrow(2, "שם בתבנית", 200)], {"אחר": 9}, template={2: (9, "אחר")})
+        self.assertEqual((written[2]["rev_task"], written[2]["wikipedia_id"], written[2]["rev_page_id"]),
+                         ("bad_rev", 9, 555))
+
+    def test_template_link_agreeing_with_the_revision_with_different_name_is_rename(self):
+        written = self.run_match([mrow(2, "שם ישן", 200)], {"x": 1}, template={2: (555, "הטבח בפסטיבל נובה")})
+        self.assertEqual((written[2]["rev_task"], written[2]["wikipedia_id"]), ("rename", 555))
+
+    def test_skip_template_check_links_by_revision_without_evidence(self):
+        written = self.run_match([mrow(2, "הטבח במסיבת הטבע ליד רעים", 200)], {"x": 1},
+                                 extra_args=("--skip-template-check",))
+        self.assertEqual((written[2]["rev_task"], written[2]["wikipedia_id"]), ("rename", 555))
 
     def test_stale_task_is_cleared_when_resolved(self):
         rows = [mrow(1, "דהוכ", 100, rev_task="rename", rev_page_id=5, rev_page_title="x")]

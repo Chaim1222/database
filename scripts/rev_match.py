@@ -12,10 +12,11 @@
   - גרסה ריקה, 0 או 1 = גרסה שגויה (1 היא גרסת העמוד הראשי).
   - הגרסה לא קיימת: אם היא גדולה מהגרסה האחרונה בוויקיפדיה - גרסה שגויה, אחרת הדף נמחק.
   - הגרסה שייכת למרחב שם אחר - גרסה שגויה. הדף הפך להפניה - הפך להפניה.
-  - הגרסה שייכת לדף חי, ואין התאמה לפי כותרת: הקישור לדף הגרסה, ואם הכותרות לא תואמות
-    (נרמול והסרת "הרב/רבי") - משימת העברת שם.
-  - הגרסה שייכת לדף חי שונה מזה שהתאמת הכותרת מצאה: לא ידוע אם הכותרת הייתה נכונה והדף הועבר,
-    או שהגרסה שגויה מלכתחילה - גרסה שגויה, והקישור נשאר לפי הכותרת.
+  - הגרסה שייכת לדף חי, ואין התאמה לפי כותרת: מבררים אם יש עדות אחרת לקישור (שם בתבנית, או קישור
+    קיים). אין עדות, או שהעדות מסכימה: הקישור לדף הגרסה, ואם הכותרות לא תואמות (נרמול והסרת
+    "הרב/רבי") - משימת העברת שם.
+  - הגרסה שייכת לדף חי שונה מזה שההתאמה (כותרת, תבנית או קישור קיים) מצאה: לא ידוע אם השם היה
+    נכון והדף הועבר, או שהגרסה שגויה מלכתחילה - גרסה שגויה, והקישור נשאר כפי שהיה.
 """
 import re
 import time
@@ -37,8 +38,12 @@ _RAV_PREFIX = re.compile(r"^(הרב|רבי)\s+")
 
 # link_id: הדף שהגרסה קובעת כקישור (None = ממשיכים בהתאמה לפי כותרת).
 # page_title: שם הדף שהגרסה שייכת לו, למשימה.
-Decision = namedtuple("Decision", "link_id task page_id page_title")
+# needs_evidence: אין התאמת כותרת והגרסה שייכת לדף חי - צריך קודם לברר עדות אחרת לקישור (בדיקת
+# התבנית ב-match.py) ואז לקרוא ל-decide שוב עם evidence_link_id.
+Decision = namedtuple("Decision", "link_id task page_id page_title needs_evidence", defaults=(False,))
 NO_DECISION = Decision(None, None, None, None)
+NEEDS_EVIDENCE = Decision(None, None, None, None, True)
+UNKNOWN = object()  # evidence_link_id שעוד לא נבדק (שונה מ-None: נבדק ואין עדות)
 
 
 def in_scope(row):
@@ -70,11 +75,13 @@ def names_match(mechalol_title, wikipedia_title):
     return False
 
 
-def decide(row, resolved, title_link_id, max_rev, page_exists):
+def decide(row, resolved, title_link_id, max_rev, page_exists, evidence_link_id=UNKNOWN):
     """
     row: שורת mechalol_pages. resolved: תוצאת resolve_revisions לגרסת השורה (None = לא קיימת).
     title_link_id: הדף שהתאמת הכותרת (היגיינה/נרמול) מצאה, או None.
     page_exists(page_id): האם הדף קיים ב-wikipedia_pages (wikipedia_id הוא מפתח זר אליו).
+    evidence_link_id: הדף שעדות אחרת (שם בתבנית או קישור קיים) מקשרת אליו; None = נבדק ואין;
+    UNKNOWN = טרם נבדק (ואז כשאין התאמת כותרת מוחזר NEEDS_EVIDENCE).
     """
     if not in_scope(row):
         return NO_DECISION
@@ -98,6 +105,10 @@ def decide(row, resolved, title_link_id, max_rev, page_exists):
         return NO_DECISION
 
     if title_link_id is None:
+        if evidence_link_id is UNKNOWN:
+            return NEEDS_EVIDENCE
+        if evidence_link_id is not None and evidence_link_id != page_id:
+            return Decision(None, TASK_BAD_REV, page_id, title)
         if names_match(row.get("title"), title):
             return Decision(page_id, None, None, None)
         return Decision(page_id, TASK_RENAME, page_id, title)

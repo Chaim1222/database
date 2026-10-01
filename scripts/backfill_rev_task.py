@@ -19,7 +19,8 @@ from mechalol_api import log
 
 PAGE_SIZE = 1000   # מגבלת סופבייס לשורות בבקשה
 WRITE_CHUNK = 500
-COLUMNS = "id,title,status,is_dictionary_entry,needs_attention,sort_template_rev,rev_task,rev_page_id,rev_page_title"
+COLUMNS = ("id,title,status,is_dictionary_entry,needs_attention,wikipedia_id,sort_template_rev,"
+           "rev_task,rev_page_id,rev_page_title")
 
 
 def chunks(items, size):
@@ -76,6 +77,7 @@ def scan(client, wikipedia_get, wikipedia_map, existing_ids, dry_run, deadline, 
             decision = rev_match.decide(
                 row, resolved.get(row.get("sort_template_rev")),
                 title_link_of(row["title"], wikipedia_map), max_rev, existing_ids.__contains__,
+                evidence_link_id=row.get("wikipedia_id"),  # הקישור הקיים (שם בתבנית / ידני) הוא העדות
             )
             task = decision.task
             new = {"rev_task": task, "rev_page_id": decision.page_id if task else None,

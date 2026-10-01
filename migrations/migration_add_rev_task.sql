@@ -8,8 +8,8 @@
 --   rev_page_id     הדף שהגרסה שייכת לו, ו-rev_page_title שמו הנוכחי (רק כשיש משימה; דף שאינו ב-
 --                   wikipedia_pages, כמו הפניה או מרחב שם אחר, אין לו כותרת בשום מקום אחר).
 --
--- העמודות מחושבות בכל ריצת match.py (שבועית על הטבלה הזמנית, ודלתא על הפעילה), ולכן אין צורך
--- ב-forward_fill. בלי מפתח זר (החלפת הטבלאות משנה שמות). אחסון: בערך 600 שורות עם ערך.
+-- העמודות מחושבות בכל ריצת match.py (שבועית על הטבלה הזמנית, ודלתא על הפעילה); forward_fill מעתיק
+-- אותן לפני ההתאמה, כדי ששורה שלא חושבה מחדש תשמור את ערך השבוע הקודם. בלי מפתח זר (החלפת הטבלאות משנה שמות). אחסון: בערך 600 שורות עם ערך.
 --
 -- חייבת לרוץ לפני הקוד החדש של match.py (שכותב את העמודות רק אם הן קיימות, אבל compute_stale_ids
 -- שואל עליהן) ולא בזמן הריצה השבועית (החלפת טבלאות). idempotent.
@@ -44,6 +44,43 @@ comment on column mechalol_pages.rev_page_id is
     'הדף בוויקיפדיה שהגרסה (גרסה= בתבנית) שייכת לו. רק כשיש rev_task.';
 comment on column mechalol_pages.rev_page_title is
     'שמו הנוכחי של דף הגרסה. רק כשיש rev_task.';
+
+-- forward_fill: מעתיק גם את שלוש העמודות מהפעילה לזמנית, לפני match.py. match.py מחשב אותן מחדש לכל
+-- שורה בהיקף; ההעתקה מבטיחה שאצווה שנכשלה, --skip-rev-check או ויקיפדיה שלא זמינה לא ימחקו את
+-- המשימות של השבוע הקודם בהחלפה. (שאר הגוף כמו migration_drop_sort_template_title.sql.)
+create or replace function forward_fill_enrichment_temp()
+returns void
+language sql
+set search_path to 'public'
+as $$
+    update wikipedia_pages_temp as new
+    set wikidata_desc = old.wikidata_desc,
+        created_at = old.created_at,
+        created_at_checked = old.created_at_checked,
+        easy_import_length = old.easy_import_length,
+        easy_import_has_images = old.easy_import_has_images,
+        problematic_words_clean = old.problematic_words_clean,
+        easy_import_checked = old.easy_import_checked,
+        mechalol_redirect_exists = old.mechalol_redirect_exists,
+        latest_rev_id = old.latest_rev_id,
+        latest_rev_ts = old.latest_rev_ts
+    from wikipedia_pages as old
+    where new.id = old.id;
+
+    update mechalol_pages_temp as new
+    set rev_id = old.rev_id,
+        rev_ts = old.rev_ts,
+        sort_template_rev = old.sort_template_rev,
+        sort_template_date = old.sort_template_date,
+        sort_template_parsed_rev = old.sort_template_parsed_rev,
+        sort_template_denied_at = old.sort_template_denied_at,
+        source_state = old.source_state,
+        rev_task = old.rev_task,
+        rev_page_id = old.rev_page_id,
+        rev_page_title = old.rev_page_title
+    from mechalol_pages as old
+    where new.id = old.id;
+$$;
 
 -- כתיבת תוצאות באצווה (scripts/backfill_rev_task.py). כל איבר: {id, rev_task, rev_page_id, rev_page_title}.
 -- מעדכן רק את שלוש העמודות (בלי upsert: כתיבת שורה חלקית ל-mechalol_pages נכשלת על NOT NULL).

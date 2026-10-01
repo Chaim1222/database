@@ -592,8 +592,14 @@ def main():
     max_rev = 0
     if rev_check:
         from fetch_wikipedia_revisions import wikipedia_get
-        max_rev = rev_match.fetch_max_rev(wikipedia_get)
-        log(f"שלב 0 | הגרסה האחרונה בוויקיפדיה: {max_rev:,}")
+        try:
+            max_rev = rev_match.fetch_max_rev(wikipedia_get)
+            log(f"שלב 0 | הגרסה האחרונה בוויקיפדיה: {max_rev:,}")
+        except Exception as exc:  # noqa: BLE001
+            # ה-API של ויקיפדיה לא זמין: ממשיכים בלי התאמה לפי גרסה (כמו --skip-rev-check), ו-rev_task
+            # נשאר כפי שהיה (בשבועי: מועתק מהשבוע הקודם ב-forward_fill).
+            log(f"WARNING | שלב 0 | הגרסה האחרונה בוויקיפדיה לא נשלפה ({exc}) - מדלגים על ההתאמה לפי גרסה")
+            rev_check = False
 
     only_ids = None
     wikipedia_changed = None
@@ -657,6 +663,7 @@ def main():
         # התאמה לפי גרסה (rev_match.py): לאיזה דף שייכת כל גרסה בתבנית. כשל ב-API לא מפיל את
         # הריצה - האצווה נמשכת בהתאמה לפי כותרת ו-rev_task שלה נשאר כפי שהיה.
         decisions = {}
+        deferred_rev = {}
         resolved_revs = {}
         batch_rev_ok = rev_check
         if rev_check:
@@ -719,6 +726,10 @@ def main():
                     wikipedia_existing_ids.__contains__,
                 )
                 decisions[row["id"]] = decision
+                if decision.needs_evidence:
+                    # אין התאמת כותרת והגרסה שייכת לדף חי: קודם בודקים מה בדיקת התבנית אומרת (שלב 3),
+                    # ורק אז מחליטים (אחרי שלב 3, להלן). אם התבנית מקשרת לדף אחר - גרסה שגויה.
+                    deferred_rev[row["id"]] = (row, resolved_revs.get(row.get("sort_template_rev")))
                 if decision.task:
                     rev_tasks[decision.task] = rev_tasks.get(decision.task, 0) + 1
                 if decision.link_id is not None:
@@ -887,6 +898,31 @@ def main():
                     unmatched += 1
 
                 updates.append(updated)
+
+        if deferred_rev:
+            # השלמת ההחלטה אחרי בדיקת התבנית. העדות = הקישור שבשורה המעודכנת (מהתבנית; קישור קיים
+            # כשהבדיקה נדחתה; None כשאין).
+            by_id = {u["id"]: u for u in updates}
+            for rid, (drow, dresolved) in deferred_rev.items():
+                u = by_id.get(rid)
+                if u is None:
+                    u = dict(drow)
+                    updates.append(u)
+                    by_id[rid] = u
+                final = rev_match.decide(
+                    drow, dresolved, None, max_rev, wikipedia_existing_ids.__contains__,
+                    evidence_link_id=u.get("wikipedia_id"),
+                )
+                decisions[rid] = final
+                if final.task:
+                    rev_tasks[final.task] = rev_tasks.get(final.task, 0) + 1
+                if final.link_id is not None and u.get("wikipedia_id") != final.link_id:
+                    u["wikipedia_id"] = final.link_id
+                    u["match_type"] = get_match_type(drow)
+                    u["maybe_deleted_from_wikipedia"] = False
+                    u["template_referenced_title"] = None
+                    u["template_check_access_denied_at"] = None
+                    rev_matches += 1
 
         if updates and batch_rev_ok:
             # עמודות המשימה נכתבות רק אם קיימות בטבלה (migration_add_rev_task.sql); שורה בלי החלטה

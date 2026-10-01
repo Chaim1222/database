@@ -25,8 +25,8 @@ def page(page_id, title, ns=0, redirect=False):
 
 
 class DecideTest(unittest.TestCase):
-    def decide(self, r, resolved, title_link=None, exists=EXISTS):
-        return rm.decide(r, resolved, title_link, MAX_REV, exists)
+    def decide(self, r, resolved, title_link=None, exists=EXISTS, evidence=None):
+        return rm.decide(r, resolved, title_link, MAX_REV, exists, evidence_link_id=evidence)
 
     def test_out_of_scope_rows_get_no_decision(self):
         for extra in ({"status": "מיובא ללא תיעוד"}, {"is_dictionary_entry": True}, {"needs_attention": True}):
@@ -66,6 +66,21 @@ class DecideTest(unittest.TestCase):
     def test_rav_prefix_difference_is_not_a_rename(self):
         decision = self.decide(row(title="הרב אברהם רזניק"), page(9, "אברהם רזניק"))
         self.assertEqual((decision.link_id, decision.task), (9, None))
+
+    def test_no_title_link_and_unchecked_evidence_asks_for_evidence(self):
+        decision = rm.decide(row(), page(9, "x"), None, MAX_REV, EXISTS)  # evidence_link_id=UNKNOWN
+        self.assertTrue(decision.needs_evidence)
+        self.assertIsNone(decision.task)
+
+    def test_template_link_to_another_page_is_bad_rev_and_keeps_the_link(self):
+        # "רבי יעקב שמשון משפטיבקה": התבנית מקשרת לדף הנכון, והגרסה שייכת לדף לא קשור
+        decision = self.decide(row(title="רבי יעקב שמשון משפטיבקה"), page(2562611, "שחיקה דמוקרטית בישראל"),
+                               evidence=78873)
+        self.assertEqual((decision.task, decision.link_id, decision.page_id), (rm.TASK_BAD_REV, None, 2562611))
+
+    def test_template_link_agreeing_with_revision_is_rename_when_names_differ(self):
+        decision = self.decide(row(title="רבי שלום מנצורה"), page(776399, "שלום מנצורה (רב)"), evidence=776399)
+        self.assertEqual((decision.link_id, decision.task), (776399, rm.TASK_RENAME))
 
     def test_live_page_missing_from_wikipedia_pages_is_left_for_next_run(self):
         self.assertEqual(self.decide(row(), page(9, "x"), exists=lambda page_id: False), rm.NO_DECISION)

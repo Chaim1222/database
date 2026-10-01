@@ -21,7 +21,7 @@ class FakeClient:
 
 
 def mrow(mid, title, rev, **extra):
-    base = {"id": mid, "title": title, "sort_template_rev": rev, "status": "מיובא ומתועד",
+    base = {"id": mid, "title": title, "sort_template_rev": rev, "status": "מיובא ומתועד", "wikipedia_id": None,
             "is_dictionary_entry": False, "needs_attention": False,
             "rev_task": None, "rev_page_id": None, "rev_page_title": None}
     base.update(extra)
@@ -56,6 +56,10 @@ class BackfillTest(unittest.TestCase):
         self.assertEqual(next(w for w in written if w["id"] == 1)["rev_task"], "bad_rev")
         self.assertEqual(next(w for w in written if w["id"] == 3)["rev_page_id"], None)
         self.assertEqual(stats["changed"], 2)
+
+    def test_existing_link_to_another_page_is_bad_rev_not_rename(self):
+        client, stats, _ = self.run_scan([mrow(1, "שם אחר", 100, wikipedia_id=2328166)])
+        self.assertEqual(client.writes[0][1][0]["rev_task"], "bad_rev")
 
     def test_dry_run_writes_nothing(self):
         client, stats, _ = self.run_scan([mrow(1, "דהוכ", 100)], dry_run=True)
