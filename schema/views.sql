@@ -27,14 +27,17 @@ from mechalol_pages
 where maybe_deleted_from_wikipedia = true
 order by title;
 
--- 2. מיובא ללא תיעוד: אין תבנית מיון תקינה (או שמעולם לא נבדק/לא
---    שויך לקטגוריה - אין הבדלה בין השניים כרגע, ראו fetch_mechalol.py).
+-- 2. מיובא ללא תיעוד (בדשבורד: "ללא תבנית מיון"): אין תבנית מיון תקינה (או שמעולם
+--    לא נבדק/לא שויך לקטגוריה - אין הבדלה בין השניים כרגע, ראו fetch_mechalol.py).
+--    שיוך ידני (manual_matches) = טופל, ולכן מוסתר (migration_exclude_manual_matches_from_maintenance.sql,
+--    הורץ בייצור ב-2026-10-01).
 create or replace view report_undocumented_import with (security_invoker = true) as
 select id, title, source_type, wikipedia_id, match_type
 from mechalol_pages
 where status = 'מיובא ללא תיעוד'
   and needs_attention = false
   and is_dictionary_entry = false
+  and not exists (select 1 from manual_matches mm where mm.mechalol_page_id = mechalol_pages.id)
 order by title;
 
 -- (שינוי ב-WHERE כאן מחייב לעדכן גם את mechalol_pages_tasks_idx - ראו
@@ -214,3 +217,26 @@ grant select on report_missing_from_mechalol to anon, authenticated;
 grant select on report_rav_prefix_normalization to anon, authenticated;
 grant select on report_missing_word_filter, report_missing_word_filter_summary to anon, authenticated;
 grant select on word_filter_feedback_summary to anon, authenticated;
+
+-- משימות גרסה (2026-10-01): ארבעה טאבים בדשבורד - העברת שם / הפכו להפניה / גרסה שגויה / נמחקו לפי גרסה.
+-- מקור: rev_link_check (טבלת עבודה שמעודכנת ב-scripts/rev_link_scan.py פעם בחודש; ראו
+-- migration_rev_link_check_v2.sql והסעיף "בדיקת קישורים מול גרסת המקור" ב-README). שיוך ידני = טופל.
+create or replace view report_rev_tasks with (security_invoker = true) as
+select c.mechalol_id as id,
+       m.title,
+       m.status,
+       c.rev_task,
+       c.rev_id as sort_template_rev,
+       m.sort_template_date,
+       m.wikipedia_id,
+       w.title as linked_title,
+       c.rev_page_id,
+       c.rev_page_title,
+       c.checked_at
+from rev_link_check c
+join mechalol_pages m on m.id = c.mechalol_id
+left join wikipedia_pages w on w.id = m.wikipedia_id
+where not exists (select 1 from manual_matches mm where mm.mechalol_page_id = c.mechalol_id);
+
+revoke all on report_rev_tasks from anon, authenticated;
+grant select on report_rev_tasks to anon, authenticated, service_role;
