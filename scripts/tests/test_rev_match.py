@@ -79,7 +79,7 @@ class DecideTest(unittest.TestCase):
         self.assertEqual((decision.task, decision.link_id, decision.page_id), (rm.TASK_BAD_REV, None, 2562611))
 
     def test_template_link_agreeing_with_revision_is_rename_when_names_differ(self):
-        decision = self.decide(row(title="רבי שלום מנצורה"), page(776399, "שלום מנצורה (רב)"), evidence=776399)
+        decision = self.decide(row(title="רבי שלום מנצורה"), page(776399, "שלום מנצורה (ראש ישיבה)"), evidence=776399)
         self.assertEqual((decision.link_id, decision.task), (776399, rm.TASK_RENAME))
 
     def test_live_page_missing_from_wikipedia_pages_is_left_for_next_run(self):
@@ -92,6 +92,9 @@ class NamesMatchTest(unittest.TestCase):
         self.assertTrue(rm.names_match("אליל", "אל"))
         self.assertTrue(rm.names_match("רבי אהרן כהן", "אהרן כהן"))
         self.assertTrue(rm.names_match("אהרן כהן", "הרב אהרן כהן"))
+        self.assertTrue(rm.names_match("רבי שלום מנצורה", "שלום מנצורה (רב)"))
+        self.assertTrue(rm.names_match("הרב דוד כהנא", "דוד כהנא (רב)"))
+        self.assertFalse(rm.names_match("רבי אהרן כהן", "אהרן כהן (ראש ישיבה)"))
         self.assertFalse(rm.names_match("דהוכ", "דהוכ (מחוז)"))
         self.assertFalse(rm.names_match(None, "x"))
 

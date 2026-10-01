@@ -35,6 +35,8 @@ TASKS = (TASK_RENAME, TASK_REDIRECT, TASK_BAD_REV, TASK_DELETED)
 API_BATCH = 50  # מגבלת revids בבקשה
 INVALID_REVS = (0, 1)
 _RAV_PREFIX = re.compile(r"^(הרב|רבי)\s+")
+# "X (רב)" בוויקיפדיה שקול ל"רבי X" / "הרב X" במכלול (הכרעת חיים, 2026-10-01)
+_RAV_SUFFIX = re.compile(r"\s*\(רב\)$")
 
 # link_id: הדף שהגרסה קובעת כקישור (None = ממשיכים בהתאמה לפי כותרת).
 # page_title: שם הדף שהגרסה שייכת לו, למשימה.
@@ -60,11 +62,12 @@ def valid_rev(rev):
 
 
 def _strip_rav(title):
-    return _RAV_PREFIX.sub("", title).strip()
+    """בלי קידומת "הרב/רבי" ובלי הסיומת המבדלת "(רב)"."""
+    return _RAV_SUFFIX.sub("", _RAV_PREFIX.sub("", title)).strip()
 
 
 def names_match(mechalol_title, wikipedia_title):
-    """כותרות תואמות אחרי hygiene, הנרמול הסמנטי והסרת קידומת "הרב/רבי" (מוסכמת המכלול)."""
+    """כותרות תואמות אחרי hygiene, הנרמול הסמנטי והסרת קידומת "הרב/רבי" או הסיומת "(רב)" (מוסכמת המכלול)."""
     if not mechalol_title or not wikipedia_title:
         return False
     wiki = hygiene(wikipedia_title)
