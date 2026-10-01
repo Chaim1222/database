@@ -137,7 +137,11 @@ def _cut_at_natural_boundary(text):
 
 
 def load_candidate_rows(limit):
-    """שורות 'חסר במכלול' שוויקינתונים בדק ואין להן תיאור (wikidata_desc = '')."""
+    """
+    שורות 'חסר במכלול' בלי תיאור: wikidata_desc ריק ("" - ויקינתונים בדק ואין תיאור)
+    או NULL (אין פריט ויקינתונים מקושר, ולכן fetch_wikidata_descriptions.py לא שמר
+    להן כלום). שורה שכבר מולאה לא נבחרת שוב.
+    """
     client = get_client()
     rows = []
     last_id = 0
@@ -146,7 +150,7 @@ def load_candidate_rows(limit):
             return (
                 client.table("report_missing_from_mechalol")
                 .select("id,title")
-                .eq("wikidata_desc", "")
+                .or_("wikidata_desc.is.null,wikidata_desc.eq.")
                 .gt("id", last_id)
                 .order("id")
                 .limit(BATCH_SIZE)
