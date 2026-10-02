@@ -2,7 +2,8 @@
 בדיקת קישורי המכלול↔ויקיפדיה מול גרסת המקור שבתבנית (`גרסה=`), פעם בחודש.
 
 ההתאמה ב-match.py נשארת לפי שם. הבדיקה הזו, בנפרד, שואלת את ה-API לאיזה דף כל גרסה שייכת (גרסה היא
-זהות יציבה גם אחרי שינוי שם), ומחליטה לפי scripts/rev_match.py (הכללים והנימוקים שם). הממצאים נכתבים
+זהות יציבה גם אחרי שינוי שם), קוראת את שם התבנית (`דף=`) לערכים שהכותרת שלנו לא תואמת בהם, ומחליטה לפי
+scripts/rev_match.py (הכללים והנימוקים שם). הממצאים נכתבים
 לטבלת העבודה rev_link_check ומוצגים בארבעה טאבים בדשבורד (העברת שם / הפכו להפניה / גרסה שגויה / נמחקו
 לפי גרסה) דרך report_rev_tasks. שורה שתוקנה נמחקת בריצה הבאה. הסקריפט לא נוגע בקישורים (wikipedia_id)
 ולא בטבלאות הערכים, ולכן לא תלוי בריצה השבועית.
@@ -18,7 +19,7 @@ import time
 from collections import Counter
 
 import rev_match
-from mechalol_api import log
+from mechalol_api import log, login
 
 PAGE_SIZE = 1000   # מגבלת סופבייס לשורות בבקשה
 WRITE_CHUNK = 500
@@ -104,15 +105,23 @@ class Store:
             )
 
 
-def title_link_of(title, wikipedia_map):
-    from normalize import hygiene, normalize_title
+def fetch_template_names(ids):
+    """
+    {id: `דף=` | None (אין שם / אין תבנית)} לערכי מכלול, באצוות של 50. דף נעול לקריאה לא נכלל.
+    """
+    from fetch_sort_templates import DENIED, fetch_contents
+    from sort_template import parse_sort_template
 
-    link = wikipedia_map.get(hygiene(title))
-    if link is None:
-        normalized, applied = normalize_title(title)
-        if applied:
-            link = wikipedia_map.get(hygiene(normalized))
-    return link
+    names = {}
+    for part in chunks(ids, rev_match.API_BATCH):
+        fetched = fetch_contents(part)
+        for page_id in part:
+            item = fetched.get(page_id)
+            if item is DENIED:
+                continue
+            parsed = parse_sort_template(item["content"]) if item else None
+            names[page_id] = parsed["title"] if parsed else None
+    return names
 
 
 def finding_of(row, decision):
@@ -123,21 +132,21 @@ def finding_of(row, decision):
     }
 
 
-def decide_rows(rows, resolved, wikipedia_map, existing_ids, max_rev, manual):
-    """[(שורה, החלטה)]. שיוך ידני = טופל; הקישור הקיים הוא העדות לקישור (שם בתבנית או ידני)."""
+def decide_rows(rows, resolved, existing_ids, max_rev, manual, names):
+    """[(שורה, החלטה)]. שיוך ידני = טופל. names: שמות תבנית שכבר נקראו (חסר = טרם נקרא)."""
     out = []
     for row in rows:
         if not row.get("title") or row["id"] in manual:
             out.append((row, rev_match.NO_DECISION))
             continue
         out.append((row, rev_match.decide(
-            row, resolved.get(row.get("sort_template_rev")), title_link_of(row["title"], wikipedia_map),
-            max_rev, existing_ids.__contains__, evidence_link_id=row.get("wikipedia_id"),
+            row, resolved.get(row.get("sort_template_rev")), max_rev, existing_ids.__contains__,
+            template_name=names.get(row["id"], rev_match.UNKNOWN),
         )))
     return out
 
 
-def scan(store, wikipedia_get, wikipedia_map, existing_ids, pages, dry_run, deadline, workers):
+def scan(store, wikipedia_get, existing_ids, pages, dry_run, deadline, workers):
     """pages: איטרטור של דפי שורות מכלול (הכול, או רק מה שכבר בטבלה ב-recheck)."""
     manual = store.manual_ids()
     previous = store.previous()
@@ -149,7 +158,13 @@ def scan(store, wikipedia_get, wikipedia_map, existing_ids, pages, dry_run, dead
         revs = [r["sort_template_rev"] for r in rows if rev_match.valid_rev(r.get("sort_template_rev"))]
         resolved = rev_match.resolve_many(wikipedia_get, revs, workers)
         changed, healed = [], []
-        for row, decision in decide_rows(rows, resolved, wikipedia_map, existing_ids, max_rev, manual):
+        decided = decide_rows(rows, resolved, existing_ids, max_rev, manual, {})
+        need = [row["id"] for row, decision in decided if decision.needs_template]
+        if need:
+            names = fetch_template_names(need)
+            decided = decide_rows(rows, resolved, existing_ids, max_rev, manual,
+                                  {page_id: names.get(page_id) for page_id in need})
+        for row, decision in decided:
             stats["checked"] += 1
             seen.add(row["id"])
             stats[decision.task or "ok"] += 1
@@ -195,12 +210,12 @@ def main():
     args = parser.parse_args()
 
     deadline = time.time() + args.max_minutes * 60 if args.max_minutes else None
+    login()
     store = Store(get_client())
     log(f"START | rev_link_scan{' (--recheck)' if args.recheck else ''}{' (--dry-run)' if args.dry_run else ''}")
-    wikipedia_map, existing_ids = load_wikipedia_map(store.client)
+    _, existing_ids = load_wikipedia_map(store.client)
     pages = store.pages_by_ids(store.previous()) if args.recheck else store.scope_pages()
-    stats, complete = scan(store, wikipedia_get, wikipedia_map, existing_ids, pages, args.dry_run, deadline,
-                           args.workers)
+    stats, complete = scan(store, wikipedia_get, existing_ids, pages, args.dry_run, deadline, args.workers)
     log(f"סיום | {'הושלם' if complete else 'לא הושלם'} | {dict(stats)}")
     if not complete:
         raise SystemExit(1)

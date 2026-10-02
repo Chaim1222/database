@@ -118,24 +118,24 @@
 		rename: {
 			view: 'report_rev_tasks', label: 'העברת שם',
 			columns: ['title', 'rev_page_title', 'sort_template_rev', 'status'], filters: [],
-			baseFilters: [['rev_task', 'eq.rename']], titleLink: 'edit'
+			baseFilters: [['rev_task', 'eq.rename']]
 		},
 		redirect: {
 			view: 'report_rev_tasks', label: 'הפכו להפניה',
 			columns: ['title', 'rev_page_title', 'sort_template_rev', 'linked_title', 'status'], filters: [],
-			baseFilters: [['rev_task', 'eq.redirect']], titleLink: 'edit'
+			baseFilters: [['rev_task', 'eq.redirect']]
 		},
 		// גרסה 0/1/חסרה/לא קיימת, גרסה של מרחב שם אחר, או של דף אחר מזה שהכותרת מקשרת אליו (לא ידוע אם
 		// הכותרת הייתה נכונה והדף הועבר, או שהגרסה שגויה מלכתחילה).
 		badrev: {
 			view: 'report_rev_tasks', label: 'גרסה שגויה',
 			columns: ['title', 'sort_template_rev', 'rev_page_title', 'linked_title', 'status'], filters: [],
-			baseFilters: [['rev_task', 'eq.bad_rev']], titleLink: 'edit'
+			baseFilters: [['rev_task', 'eq.bad_rev']]
 		},
 		deletedrev: {
 			view: 'report_rev_tasks', label: 'נמחקו לפי גרסה',
 			columns: ['title', 'sort_template_rev', 'linked_title', 'status'], filters: [],
-			baseFilters: [['rev_task', 'eq.deleted_by_rev']], titleLink: 'edit'
+			baseFilters: [['rev_task', 'eq.deleted_by_rev']]
 		},
 		undoc: { view: 'report_undocumented_import', label: 'ללא תבנית מיון', columns: ['title', 'source_type', 'match_type', 'wikipedia_id'], filters: [] },
 		// "חסר במכלול" מופרד לשני טאבים: כותרות שבאמת אין להן כלום במכלול,
@@ -181,7 +181,7 @@
 			view: 'report_locked_pages', label: 'נעולים',
 			columns: ['title', 'lock_level', 'lock_source', 'wikipedia_id', 'detected_at'],
 			filters: [{ key: 'lock_level', label: 'סוג נעילה', options: ['נעול לקריאה', 'נעול ליצירה'] }],
-			order: 'lock_level.asc,title.asc', titleLink: 'edit',
+			order: 'lock_level.asc,title.asc', titleLink: 'mechalol-read',
 			// נעולים לקריאה - פתוח לכולם; נעולים ליצירה (הרשימה השחורה) - רק למי שמחובר עם משתמש וסיסמה (פאנל הניהול).
 			// בצד הלקוח בלבד, כמו requiresLogin: הנתונים עצמם קריאים ל-anon.
 			loginOnly: { key: 'lock_level', values: ['נעול ליצירה'] }
@@ -282,6 +282,7 @@
 	}
 	function mechalolUrl(id) { return 'https://www.hamichlol.org.il/w/index.php?curid=' + id; }
 	function wikipediaUrl(id) { return 'https://he.wikipedia.org/w/index.php?curid=' + id; }
+	function mechalolReadUrl(title) { return 'https://www.hamichlol.org.il/w/index.php?title=' + encodeURIComponent(title.replace(/ /g, '_')); }
 	function mechalolEditUrl(title) { return 'https://www.hamichlol.org.il/w/index.php?title=' + encodeURIComponent(title.replace(/ /g, '_')) + '&action=edit'; }
 	function rowKey(row) { return activeTab + ':' + rowIdOf(row); }
 	function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]; }); }
@@ -2101,7 +2102,11 @@
 	function renderCell(col, row) {
 		var val = row[col];
 		if (col === 'title') {
-			var url = VIEWS[activeTab].titleLink === 'edit' ? mechalolEditUrl(val) : mechalolUrl(row.id);
+			var linkMode = VIEWS[activeTab].titleLink;
+			// בקריאה, לא בעריכה: לפי מזהה דף המכלול; בטאב "נעולים" לפי mechalol_id, ודף שעוד לא קיים (נעול ליצירה) לפי הכותרת
+			var url = linkMode === 'edit' ? mechalolEditUrl(val)
+				: linkMode === 'mechalol-read' ? (row.mechalol_id ? mechalolUrl(row.mechalol_id) : mechalolReadUrl(val))
+				: mechalolUrl(row.id);
 			var link = '<span class="mchl-title"><a href="' + url + '" target="_blank" rel="noopener">' + escapeHtml(val) + '</a></span>';
 			// בטאבים עם displayColumns התיאור מוויקינתונים מוצג מתחת לכותרת, במקום עמודה משלו.
 			if (VIEWS[activeTab].displayColumns && VIEWS[activeTab].wikidata) link += '<div class="mchl-row-desc">' + renderCell('wikidata_desc', row) + '</div>';
