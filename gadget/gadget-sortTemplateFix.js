@@ -79,13 +79,27 @@
 		}
 		return text.replace(/\s+$/, '') + '\n' + tpl;
 	}
+	// קטגוריית התחזוקה "ללא תבנית מיון" (לא בתוך הערה או nowiki) מוסרת כשיש תבנית. שורה שהיא רק הקטגוריה נמחקת כולה, בלי להשאיר שורה ריקה.
+	function removeMaintenanceCategory(text) {
+		var masked = maskWikitext(text);
+		var m = /\[\[\s*קטגוריה\s*:\s*המכלול\s*:\s*ערכים מוויקיפדיה ללא תבנית מיון ויקיפדיה\s*(?:\|[^\]\n]*)?\]\]/.exec(masked);
+		if (!m) return text;
+		var s = m.index, e = m.index + m[0].length;
+		var ls = masked.lastIndexOf('\n', s - 1) + 1, le = masked.indexOf('\n', e);
+		if (le < 0) le = masked.length;
+		if (/^[ \t]*$/.test(masked.slice(ls, s)) && /^[ \t]*$/.test(masked.slice(e, le))) {
+			if (le < masked.length) return text.slice(0, ls) + text.slice(le + 1);
+			return ls > 0 ? text.slice(0, ls - 1) : '';
+		}
+		return text.slice(0, s) + text.slice(e);
+	}
 	// תכנית השינוי. v = {page, rev, item, date, updatePage}. בתבנית קיימת: מעדכן גרסה= ו-תאריך= רק אם חסרים או שונים,
 	// פריט= רק אם חסר, ו-דף= רק כש-updatePage. בלי תבנית: מוסיף תבנית מלאה. מחזיר {text, changes:[{name,from,to}], created}.
 	function planSortTemplate(text, v) {
 		var t = findSortTemplate(text);
 		if (!t) {
-			var tpl = buildSortTemplate(v);
-			return { text: insertSortTemplate(text, tpl), changes: [], created: true, template: tpl };
+			var tpl = buildSortTemplate(v), base = removeMaintenanceCategory(text);
+			return { text: insertSortTemplate(base, tpl), changes: [], created: true, template: tpl, removedCategory: base !== text };
 		}
 		// always: מעדכן אם חסר או שונה; ifMissing: רק אם חסר או ריק; onRequest: קיים ושונה רק לפי updatePage, חסר או ריק תמיד נוסף.
 		var wanted = [['גרסה', String(v.rev), 'always'], ['פריט', v.item || '', 'ifMissing'], ['תאריך', v.date, 'always'], ['דף', v.page, v.updatePage ? 'always' : 'ifMissing']];
@@ -106,7 +120,8 @@
 		if (missing) edits.push([t.end, t.end, missing, 1]); // נוסף אחרון בטקסט גם כשפרמטר ריק נגמר באותו אינדקס
 		edits.sort(function (a, b) { return b[0] - a[0] || (b[3] || 0) - (a[3] || 0); });
 		edits.forEach(function (e) { text = text.slice(0, e[0]) + e[2] + text.slice(e[1]); });
-		return { text: text, changes: changes, created: false };
+		var cleaned = removeMaintenanceCategory(text);
+		return { text: cleaned, changes: changes, created: false, removedCategory: cleaned !== text };
 	}
 	// שם דף ויקיפדיה מהתבנית (דף=), או '' אם אין תבנית או שהפרמטר ריק.
 	function sortTemplatePage(text) {
@@ -218,6 +233,7 @@
 				box.appendChild(el('div', { text: c.name + ': ' + (c.from || '(חסר)') + ' ← ' + c.to }));
 			});
 		}
+		if (plan.removedCategory) box.appendChild(el('div', { text: 'תוסר קטגוריית התחזוקה "ללא תבנית מיון ויקיפדיה".' }));
 		// איך זה ייראה בטקסט הדף: השורות סביב התבנית, השורה המעודכנת מודגשת
 		var ctx = previewContext(plan.text, 2);
 		if (ctx) {
@@ -283,7 +299,7 @@
 			var values = { page: normTitle(wp.title), rev: wp.revid, item: wp.item, date: date };
 
 			var plan = planSortTemplate(content, Object.assign({ updatePage: titleDiffers }, values));
-			if (!plan.created && plan.changes.length === 0) { done('אין מה לתקן: הגרסה והתאריך כבר תואמים (גרסה ' + wp.revid + ').', true); return; }
+			if (!plan.created && plan.changes.length === 0 && !plan.removedCategory) { done('אין מה לתקן: הגרסה והתאריך כבר תואמים (גרסה ' + wp.revid + ').', true); return; }
 
 			// תצוגה ואישור
 			panel.textContent = '';

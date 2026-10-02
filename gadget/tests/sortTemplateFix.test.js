@@ -6,8 +6,8 @@ const path = require('path');
 
 const src = fs.readFileSync(path.join(__dirname, '..', 'gadget-sortTemplateFix.js'), 'utf8');
 const pure = src.slice(src.indexOf('// <fix-pure>'), src.indexOf('// </fix-pure>'));
-const { planSortTemplate, insertSortTemplate, sortDateFromTimestamp, sortTemplatePage, findSortTemplate, buildSortTemplate, previewContext } =
-  new Function(pure + '\nreturn { planSortTemplate, insertSortTemplate, sortDateFromTimestamp, sortTemplatePage, findSortTemplate, buildSortTemplate, previewContext };')();
+const { planSortTemplate, insertSortTemplate, sortDateFromTimestamp, sortTemplatePage, findSortTemplate, buildSortTemplate, previewContext, removeMaintenanceCategory } =
+  new Function(pure + '\nreturn { planSortTemplate, insertSortTemplate, sortDateFromTimestamp, sortTemplatePage, findSortTemplate, buildSortTemplate, previewContext, removeMaintenanceCategory };')();
 
 const V = { page: 'ערך', rev: 200, item: 'Q5', date: 'ספטמבר 2025' };
 
@@ -94,4 +94,26 @@ test('תצוגה מקדימה: השורות סביב התבנית וסימון �
   assert.deepStrictEqual(ctx.lines.map(l => l.hit), [false, true, false]);
   assert.ok(ctx.before && ctx.after);
   assert.strictEqual(previewContext('בלי תבנית', 2), null);
+});
+
+const CAT = '[[קטגוריה:המכלול: ערכים מוויקיפדיה ללא תבנית מיון ויקיפדיה]]';
+test('קטגוריית התחזוקה נמחקת עם שורתה, והתבנית נכנסת במקומה בלי שורה ריקה', () => {
+  assert.strictEqual(planSortTemplate('א\n[[קטגוריה:ב]]\n{{קרד}}\n' + CAT, V).text, 'א\n[[קטגוריה:ב]]\n{{קרד}}\n' + buildSortTemplate(V));
+  assert.strictEqual(planSortTemplate('א\n' + CAT + '\n[[קטגוריה:ב]]', V).text, 'א\n[[קטגוריה:ב]]\n' + buildSortTemplate(V));
+  assert.strictEqual(planSortTemplate('א\n{{קרד}}\n' + CAT + '\n[[קטגוריה:ב]]', V).text, 'א\n{{קרד}}\n' + buildSortTemplate(V) + '\n[[קטגוריה:ב]]');
+  assert.ok(planSortTemplate('א\n' + CAT, V).removedCategory);
+});
+
+test('קטגוריית התחזוקה בתוך הערה לא נמחקת; קטגוריה באמצע שורה נמחקת לבדה', () => {
+  assert.strictEqual(removeMaintenanceCategory('א <!-- ' + CAT + ' -->'), 'א <!-- ' + CAT + ' -->');
+  assert.strictEqual(removeMaintenanceCategory('א ' + CAT + ' ב'), 'א  ב');
+  assert.strictEqual(removeMaintenanceCategory('א\n' + CAT), 'א');
+});
+
+test('תבנית קיימת וקטגוריית תחזוקה: הקטגוריה מוסרת גם כשאין שינוי בתבנית', () => {
+  const t = '{{מיון ויקיפדיה|דף=ערך|גרסה=200|פריט=Q5|תאריך=ספטמבר 2025}}\n' + CAT;
+  const r = planSortTemplate(t, V);
+  assert.strictEqual(r.changes.length, 0);
+  assert.ok(r.removedCategory);
+  assert.strictEqual(r.text, '{{מיון ויקיפדיה|דף=ערך|גרסה=200|פריט=Q5|תאריך=ספטמבר 2025}}');
 });
