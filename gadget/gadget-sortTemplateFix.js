@@ -114,6 +114,21 @@
 		var p = t && t.params.filter(function (x) { return x.name === 'דף'; })[0];
 		return p ? normTitle(text.slice(p.valueStart, p.valueEnd)) : '';
 	}
+	// השורות סביב התבנית בטקסט החדש (radius לפני ואחרי), לתצוגה מקדימה: {lines:[{text, hit}], before, after}. null אם אין תבנית.
+	function previewContext(text, radius) {
+		var t = findSortTemplate(text);
+		if (!t) return null;
+		var lines = text.split('\n'), pos = 0, hitLine = 0;
+		for (var i = 0; i < lines.length; i++) {
+			if (t.start >= pos && t.start <= pos + lines[i].length) { hitLine = i; break; }
+			pos += lines[i].length + 1;
+		}
+		var from = Math.max(0, hitLine - radius), to = Math.min(lines.length, hitLine + radius + 1);
+		return {
+			lines: lines.slice(from, to).map(function (l, k) { return { text: l.length > 160 ? l.slice(0, 160) + '…' : l, hit: from + k === hitLine }; }),
+			before: from > 0, after: to < lines.length
+		};
+	}
 	// </fix-pure>
 
 	var BUTTON_CLASS = 'sort-fix-button';
@@ -197,12 +212,23 @@
 		var box = el('div', {});
 		box.appendChild(el('div', { text: 'גרסת ויקיפדיה שנמצאה: ' + wp.revid + ' (' + wp.ts + ') בערך "' + wp.title + '", לפי זמן השורה ' + tsHamichlol }));
 		if (plan.created) {
-			box.appendChild(el('div', { text: 'אין תבנית מיון בערך. תתווסף:' }));
-			box.appendChild(el('code', { text: plan.template, style: 'display:block;direction:ltr;text-align:left;' }));
+			box.appendChild(el('div', { text: 'אין תבנית מיון בערך, תתווסף שורה חדשה:' }));
 		} else {
 			plan.changes.forEach(function (c) {
 				box.appendChild(el('div', { text: c.name + ': ' + (c.from || '(חסר)') + ' ← ' + c.to }));
 			});
+		}
+		// איך זה ייראה בטקסט הדף: השורות סביב התבנית, השורה המעודכנת מודגשת
+		var ctx = previewContext(plan.text, 2);
+		if (ctx) {
+			var view = el('div', { dir: 'rtl', style: 'margin:4px 0;border:1px solid #c8ccd1;background:#fff;font-family:monospace;font-size:0.9em;text-align:right;' });
+			var addLine = function (text, hit) {
+				view.appendChild(el('div', { text: text === '' ? ' ' : text, dir: 'rtl', style: 'white-space:pre-wrap;padding:1px 6px;unicode-bidi:plaintext;' + (hit ? 'background:#d8f0d8;' : '') }));
+			};
+			if (ctx.before) addLine('…', false);
+			ctx.lines.forEach(function (l) { addLine(l.text, l.hit); });
+			if (ctx.after) addLine('…', false);
+			box.appendChild(view);
 		}
 		return box;
 	}

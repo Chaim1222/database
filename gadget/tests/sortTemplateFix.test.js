@@ -6,8 +6,8 @@ const path = require('path');
 
 const src = fs.readFileSync(path.join(__dirname, '..', 'gadget-sortTemplateFix.js'), 'utf8');
 const pure = src.slice(src.indexOf('// <fix-pure>'), src.indexOf('// </fix-pure>'));
-const { planSortTemplate, insertSortTemplate, sortDateFromTimestamp, sortTemplatePage, findSortTemplate, buildSortTemplate } =
-  new Function(pure + '\nreturn { planSortTemplate, insertSortTemplate, sortDateFromTimestamp, sortTemplatePage, findSortTemplate, buildSortTemplate };')();
+const { planSortTemplate, insertSortTemplate, sortDateFromTimestamp, sortTemplatePage, findSortTemplate, buildSortTemplate, previewContext } =
+  new Function(pure + '\nreturn { planSortTemplate, insertSortTemplate, sortDateFromTimestamp, sortTemplatePage, findSortTemplate, buildSortTemplate, previewContext };')();
 
 const V = { page: 'ערך', rev: 200, item: 'Q5', date: 'ספטמבר 2025' };
 
@@ -85,4 +85,13 @@ test('הוספה: בלי וח/קרד - שורה חדשה בסוף; וח בתוך
 
 test('בלי פריט: התבנית החדשה בלי פריט=', () => {
   assert.strictEqual(buildSortTemplate({ page: 'ערך', rev: 5, item: '', date: 'מאי 2020' }), '{{מיון ויקיפדיה|דף=ערך|גרסה=5|תאריך=מאי 2020}}');
+});
+
+test('תצוגה מקדימה: השורות סביב התבנית וסימון השורה', () => {
+  const plan = planSortTemplate('א\nב\nג\n{{קרד}}\n[[קטגוריה:ד]]\nה\nו\nז', V);
+  const ctx = previewContext(plan.text, 1);
+  assert.deepStrictEqual(ctx.lines.map(l => l.text), ['{{קרד}}', buildSortTemplate(V), '[[קטגוריה:ד]]']);
+  assert.deepStrictEqual(ctx.lines.map(l => l.hit), [false, true, false]);
+  assert.ok(ctx.before && ctx.after);
+  assert.strictEqual(previewContext('בלי תבנית', 2), null);
 });
