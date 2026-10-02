@@ -51,7 +51,7 @@
 						if (t2 === '{{') { c++; x++; } else if (t2 === '}}') { c--; x++; } else if (t2 === '[[') { sq++; x++; } else if (t2 === ']]') { sq--; x++; }
 						else if (masked[x] === '=' && c === 0 && sq === 0) { eq = x; break; }
 					}
-					return eq < 0 ? { name: '', valueStart: r[0], valueEnd: r[1] } : { name: text.slice(r[0], eq).trim(), valueStart: eq + 1, valueEnd: r[1] };
+					return eq < 0 ? { name: '', start: r[0], valueStart: r[0], valueEnd: r[1] } : { name: text.slice(r[0], eq).trim(), start: r[0], valueStart: eq + 1, valueEnd: r[1] };
 				})
 			};
 		}
@@ -88,7 +88,7 @@
 			return { text: insertSortTemplate(text, tpl), changes: [], created: true, template: tpl };
 		}
 		// always: מעדכן אם חסר או שונה; ifMissing: רק אם חסר או ריק; onRequest: קיים ושונה רק לפי updatePage, חסר או ריק תמיד נוסף.
-		var wanted = [['גרסה', String(v.rev), 'always'], ['תאריך', v.date, 'always'], ['פריט', v.item || '', 'ifMissing'], ['דף', v.page, v.updatePage ? 'always' : 'ifMissing']];
+		var wanted = [['גרסה', String(v.rev), 'always'], ['פריט', v.item || '', 'ifMissing'], ['תאריך', v.date, 'always'], ['דף', v.page, v.updatePage ? 'always' : 'ifMissing']];
 		var edits = [], missing = '', changes = [];
 		wanted.forEach(function (w) {
 			var name = w[0], value = w[1];
@@ -98,7 +98,9 @@
 			if (old.trim() === value) return;
 			if (w[2] === 'ifMissing' && old.trim() !== '') return;
 			changes.push({ name: name, from: old.trim(), to: value });
-			if (!p) missing += '|' + name + '=' + value;
+			var dateParam = t.params.filter(function (x) { return x.name === 'תאריך'; })[0];
+			if (!p && name === 'פריט' && dateParam) edits.push([dateParam.start - 1, dateParam.start - 1, '|פריט=' + value, 1]); // הסדר: דף, גרסה, פריט, תאריך
+			else if (!p) missing += '|' + name + '=' + value;
 			else edits.push([p.valueStart, p.valueEnd, /^\s*/.exec(old)[0] + value + /\s*$/.exec(old)[0]]);
 		});
 		if (missing) edits.push([t.end, t.end, missing, 1]); // נוסף אחרון בטקסט גם כשפרמטר ריק נגמר באותו אינדקס
