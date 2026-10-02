@@ -6,8 +6,8 @@ const path = require('path');
 
 const src = fs.readFileSync(path.join(__dirname, '..', 'gadget-sortTemplateFix.js'), 'utf8');
 const pure = src.slice(src.indexOf('// <fix-pure>'), src.indexOf('// </fix-pure>'));
-const { planSortTemplate, insertSortTemplate, sortDateFromTimestamp, sortTemplatePage, findSortTemplate, buildSortTemplate, previewContext, removeMaintenanceCategory } =
-  new Function(pure + '\nreturn { planSortTemplate, insertSortTemplate, sortDateFromTimestamp, sortTemplatePage, findSortTemplate, buildSortTemplate, previewContext, removeMaintenanceCategory };')();
+const { planSortTemplate, insertSortTemplate, sortDateFromTimestamp, sortTemplatePage, findSortTemplate, buildSortTemplate, previewContext, removeMaintenanceCategory, formatJerusalemTime } =
+  new Function(pure + '\nreturn { planSortTemplate, insertSortTemplate, sortDateFromTimestamp, sortTemplatePage, findSortTemplate, buildSortTemplate, previewContext, removeMaintenanceCategory, formatJerusalemTime };')();
 
 const V = { page: 'ערך', rev: 200, item: 'Q5', date: 'ספטמבר 2025' };
 
@@ -116,4 +116,10 @@ test('תבנית קיימת וקטגוריית תחזוקה: הקטגוריה מ
   assert.strictEqual(r.changes.length, 0);
   assert.ok(r.removedCategory);
   assert.strictEqual(r.text, '{{מיון ויקיפדיה|דף=ערך|גרסה=200|פריט=Q5|תאריך=ספטמבר 2025}}');
+});
+
+test('זמן קריא לפי שעון ירושלים (חורף וקיץ, חצות)', () => {
+  assert.strictEqual(formatJerusalemTime('2017-12-10T17:40:22Z'), '10.12.2017 19:40');
+  assert.strictEqual(formatJerusalemTime('2025-07-01T09:05:00Z'), '01.07.2025 12:05');
+  assert.strictEqual(formatJerusalemTime('2025-12-31T22:30:00Z'), '01.01.2026 00:30');
 });

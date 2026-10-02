@@ -63,6 +63,12 @@
 		var get = function (type) { return Number(parts.filter(function (p) { return p.type === type; })[0].value); };
 		return HE_MONTH_NAMES[get('month') - 1] + ' ' + get('year');
 	}
+	// "10.12.2017 19:40" - זמן קריא לפי שעון ירושלים מחותמת זמן ISO.
+	function formatJerusalemTime(ts) {
+		var parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(ts));
+		var g = function (type) { return parts.filter(function (p) { return p.type === type; })[0].value; };
+		return g('day') + '.' + g('month') + '.' + g('year') + ' ' + g('hour') + ':' + g('minute');
+	}
 	function normTitle(t) { return String(t || '').replace(/_/g, ' ').replace(/\s+/g, ' ').trim(); }
 	function buildSortTemplate(v) {
 		return '{{מיון ויקיפדיה|דף=' + v.page + '|גרסה=' + v.rev + (v.item ? '|פריט=' + v.item : '') + '|תאריך=' + v.date + '}}';
@@ -225,7 +231,7 @@
 
 	function describePlan(plan, wp, tsHamichlol) {
 		var box = el('div', {});
-		box.appendChild(el('div', { text: 'גרסת ויקיפדיה שנמצאה: ' + wp.revid + ' (' + wp.ts + ') בערך "' + wp.title + '", לפי זמן השורה ' + tsHamichlol }));
+		box.appendChild(el('div', { text: 'גרסת ויקיפדיה שנמצאה: ' + wp.revid + ' (' + formatJerusalemTime(wp.ts) + ') בערך "' + wp.title + '", לפי זמן השורה ' + formatJerusalemTime(tsHamichlol) }));
 		if (plan.created) {
 			box.appendChild(el('div', { text: 'אין תבנית מיון בערך, תתווסף שורה חדשה:' }));
 		} else {
