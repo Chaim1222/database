@@ -2891,86 +2891,67 @@
 		syncMaintRow();
 	}
 
-	// ===== רענון טבלאות התחזוקה (refresh_maintenance_tables) =====
-	// הפונקציה במסד (migrations/migration_add_refresh_maintenance_tables.sql) בודקת הרשאה בעצמה: מנהל מורשה
-	// (manual_match_admins) או service_role. הכפתור מוצג רק למחוברים; ההרשאה האמיתית נאכפת בשרת.
+	// ===== רענון נתוני התחזוקה =====
+	// הכפתור מפעיל דרך המסד (request_maintenance_refresh, pg_net) את ה-workflow maintenance_refresh.yml, שמביא את מצב
+	// המכלול האמיתי (דלתא, התאמה ממוקדת, עדכון שעתי, בדיקת גרסאות מחדש, ניקוי), ומחכה לסיומו (maintenance_refresh_status).
+	// כשהוא מסתיים הדשבורד נטען מחדש. הרשאה נאכפת במסד (manual_match_admins); הכפתור מוצג רק למחוברים.
+	// migrations/migration_add_trigger_maintenance_refresh.sql
+	var MAINT_POLL_MS = 10000, MAINT_START_TIMEOUT_MS = 4 * 60 * 1000, MAINT_RUN_TIMEOUT_MS = 40 * 60 * 1000;
+	var maintPolling = false;
 	function syncMaintRow() {
 		var row = $id('mchl-maint-row');
 		if (row) row.style.display = serviceKeyConnected ? '' : 'none';
 	}
-	var MAINT_REASONS = {
-		page_gone: 'הערך נמחק מהמכלול', out_of_scope: 'יצא מההיקף (נעול / לא מתועד / מילוני)', manual_match: 'כבר שויך ידנית',
-		rev_changed: 'הגרסה בתבנית עודכנה מאז הבדיקה', exists_in_mechalol: 'הכותרת כבר קיימת במכלול',
-		not_in_wikipedia: 'הכותרת כבר לא קיימת בוויקיפדיה', mechalol_gone: 'דף המכלול נמחק', wikipedia_gone: 'דף ויקיפדיה נמחק'
-	};
-	var MAINT_TABLES = [['rev_link_check', 'בדיקת גרסאות (ארבעת טאבי הגרסה)'], ['blacklist_titles', 'נעולים ליצירה (רשימה שחורה)'], ['manual_matches', 'נעולים לקריאה (שיוך אוטומטי)']];
-	function maintCall(apply) {
+	function maintRpc(name) {
 		var send = function () {
-			return fetch(SUPABASE_URL + '/rest/v1/rpc/refresh_maintenance_tables', {
-				method: 'POST',
-				headers: authHeaders({ 'Content-Type': 'application/json' }),
-				body: JSON.stringify({ p_apply: !!apply })
+			return fetch(SUPABASE_URL + '/rest/v1/rpc/' + name, {
+				method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: '{}'
 			});
 		};
 		return send().then(function (res) {
 			if (res.status !== 401) return res;
 			return refreshAuthSession().then(send);
 		}).then(function (res) {
-			if (res.status === 403 || res.status === 401) {
-				throw new Error('החשבון המחובר אינו ברשימת המורשים (manual_match_admins).');
-			}
+			if (res.status === 403 || res.status === 401) throw new Error('החשבון המחובר אינו ברשימת המורשים (manual_match_admins).');
 			if (!res.ok) return res.text().then(function (t) { throw makePgError(res.status, t); });
 			return res.json();
 		});
 	}
-	// סיכום קריא של דוח הרענון: לכל טבלה, כמה שורות ולמה, ומה נשאר לבדיקה ידנית.
-	function maintSummary(report) {
-		var lines = [], total = 0;
-		MAINT_TABLES.forEach(function (t) {
-			var info = report[t[0]] || {}, parts = [];
-			Object.keys(info.stale || {}).forEach(function (reason) {
-				total += info.stale[reason];
-				parts.push(info.stale[reason] + ' - ' + (MAINT_REASONS[reason] || reason));
-			});
-			if (parts.length) lines.push(t[1] + ' (מתוך ' + info.total + '):\n   ' + parts.join('\n   '));
-			var manual = info.manual_stale_not_deleted || [];
-			if (manual.length) lines.push(t[1] + ': ' + manual.length + ' שורות ידניות מיותרות לא ייגעו (לבדיקתך): ' + manual.slice(0, 10).join(', '));
-		});
-		return { total: total, text: lines.join('\n') };
-	}
 	function maintRefresh(btn) {
+		if (maintPolling) return;
 		var statusEl = $id('mchl-admin-status');
 		var original = btn.textContent;
-		var done = function (msg, ok) {
-			btn.disabled = false;
-			btn.textContent = original;
-			statusEl.textContent = msg;
-			statusEl.className = 'mchl-muted ' + (ok ? 'mchl-success' : 'mchl-alert');
-		};
+		var show = function (msg, cls) { statusEl.textContent = msg; statusEl.className = 'mchl-muted ' + (cls || ''); };
+		var finish = function (msg, cls) { maintPolling = false; btn.disabled = false; btn.textContent = original; show(msg, cls); };
+		maintPolling = true;
 		btn.disabled = true;
-		btn.textContent = 'בודק…';
-		maintCall(false).then(function (report) {
-			var sum = maintSummary(report);
-			if (!sum.total) {
-				done('טבלאות התחזוקה נקיות, אין מה להסיר.' + (sum.text ? '\n' + sum.text : ''), true);
-				return null;
-			}
-			if (!confirm('יוסרו ' + sum.total + ' שורות מיותרות:\n\n' + sum.text + '\n\nלהמשיך?')) {
-				done('הרענון בוטל, לא נמחק דבר.', true);
-				return null;
-			}
-			btn.disabled = true;
-			btn.textContent = 'מרענן…';
-			return maintCall(true).then(function (applied) {
-				var d = applied.deleted || {};
-				done('הוסרו ' + ((d.rev_link_check || 0) + (d.blacklist_titles || 0) + (d.manual_matches || 0)) + ' שורות (גרסאות ' +
-					(d.rev_link_check || 0) + ', נעולים ליצירה ' + (d.blacklist_titles || 0) + ', נעולים לקריאה ' + (d.manual_matches || 0) + ').', true);
-				return refreshAll();
-			});
+		btn.textContent = 'מרענן…';
+		show('מפעיל רענון…');
+		maintRpc('request_maintenance_refresh').then(function (res) {
+			var requestedAt = new Date(res.requested_at).getTime();
+			if (!res.started) show('רענון כבר רץ, ממתין לסיומו…');
+			var poll = function () {
+				return maintRpc('maintenance_refresh_status').then(function (st) {
+					var elapsed = Date.now() - requestedAt;
+					if (st.dispatch_error) return finish('ההפעלה נדחתה: ' + st.dispatch_error, 'mchl-alert');
+					var finishedAt = st.finished_at ? new Date(st.finished_at).getTime() : 0;
+					if (st.status === 'success' && finishedAt >= requestedAt) {
+						show('הרענון הושלם, טוען מחדש…', 'mchl-success');
+						return refreshAll().then(function () { finish('הנתונים עודכנו (' + new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) + ').', 'mchl-success'); });
+					}
+					if (st.status === 'failed' && finishedAt >= requestedAt) return finish('הרענון נכשל. פרטים ב-GitHub Actions (נפתח Issue).', 'mchl-alert');
+					if (st.status === 'requested' && elapsed > MAINT_START_TIMEOUT_MS) return finish('הריצה לא התחילה תוך כמה דקות. בדוק ב-GitHub Actions.', 'mchl-alert');
+					if (elapsed > MAINT_RUN_TIMEOUT_MS) return finish('הרענון נמשך זמן רב מהצפוי. בדוק ב-GitHub Actions.', 'mchl-alert');
+					show(st.status === 'running' ? 'הרענון רץ (' + Math.round(elapsed / 60000) + ' דק׳)…' : 'ממתין שהריצה תתחיל…');
+					return sleep(MAINT_POLL_MS).then(poll);
+				});
+			};
+			return sleep(MAINT_POLL_MS).then(poll);
 		}).catch(function (e) {
-			done('הרענון נכשל: ' + (e.message || e), false);
+			finish('הרענון נכשל: ' + (e.message || e), 'mchl-alert');
 		});
 	}
+
 
 	// ===== התחברות אמיתית (Supabase Auth) - רק לפתיחת פאנל ניהול =====
 	// לא ספריית supabase-js (הגאדג'ט לא משתמש בה בכלל, ראו pgHeaders
@@ -3186,8 +3167,8 @@
 		'</div>' +
 		'<div class="mchl-muted" id="mchl-admin-status" style="font-size:12.5px;margin-top:8px;">טרם התחברת - כפתור נעילת הכותרות בטאב "חסר במכלול" יופיע רק אחרי התחברות מוצלחת.</div>' +
 		'<div class="mchl-admin-row" id="mchl-maint-row" style="display:none;margin-top:12px;">' +
-		'<button type="button" class="mchl-export-btn" id="mchl-maint-btn" data-action="maint-refresh">רענון טבלאות תחזוקה</button>' +
-		'<span class="mchl-muted" style="font-size:12.5px;">מציג קודם מה יוסר, ומוחק רק אחרי אישור.</span>' +
+		'<button type="button" class="mchl-export-btn" id="mchl-maint-btn" data-action="maint-refresh">רענן נתוני תחזוקה</button>' +
+		'<span class="mchl-muted" style="font-size:12.5px;">מביא את מצב המכלול האמיתי ומנקה שורות שהתיישנו. לוקח כמה דקות.</span>' +
 		'</div>' +
 		'</section>' +
 		'<nav class="mchl-tabs" id="mchl-tabs"></nav>' +

@@ -8,6 +8,7 @@ name: רענון נתוני התחזוקה (ידני)
 #   ניקוי שורות שהתיישנו                                    - refresh_maintenance_tables (חייבת מיגרציה: migration_add_refresh_maintenance_tables.sql)
 # הסדר חשוב: הבדיקה מחדש והניקוי נשענים על כותרת וגרסה שכבר עודכנו. לא מוצאת ערכים חדשים בעייתיים (זה הסריקה החודשית).
 # אותה קבוצת concurrency כמו שאר ה-workflows שכותבים למסד: אם הדלתא הלילית או הסנכרון השבועי רצים, ממתין בתור.
+# מופעל גם מכפתור בדשבורד (request_maintenance_refresh, migrations/migration_add_trigger_maintenance_refresh.sql).
 # ריצה קצרה (דקות); לא להפעיל סביב 22:00 UTC כדי לא להתנגש בדלתא הלילית.
 
 on:
@@ -45,6 +46,11 @@ jobs:
       - name: התקנת ספריות
         run: pip install -r requirements.txt
 
+      # הדשבורד (הכפתור "רענן נתוני תחזוקה") מחכה לסימון הזה כדי לטעון מחדש. דורש migration_add_trigger_maintenance_refresh.sql.
+      - name: סימון התחלה
+        working-directory: scripts
+        run: python maintenance_refresh_state.py running
+
       - name: עדכון מצטבר - מכלול
         run: python scripts/fetch_mechalol_delta.py --defer-watermark
 
@@ -73,6 +79,11 @@ jobs:
           else
             python refresh_maintenance_tables.py --dry-run
           fi
+
+      - name: סימון סיום
+        if: always()
+        working-directory: scripts
+        run: python maintenance_refresh_state.py ${{ job.status == 'success' && 'success' || 'failed' }}
 
       - name: פתיחת Issue בעת כישלון
         if: failure()
