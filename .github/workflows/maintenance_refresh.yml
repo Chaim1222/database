@@ -1,0 +1,100 @@
+name: רענון נתוני התחזוקה (ידני)
+
+# להרצה ידנית אחרי שעורכים במכלול (הוספת תבנית מיון, העברת שם, תיקון גרסה), כדי שהדשבורד יראה נתונים עדכניים בלי
+# לחכות ללילה או לחודש. מריץ ברצף את אותם שלבים שרצים לפי לוח זמנים, כי כל סוג עריכה מגיע למסד בדרך אחרת:
+#   כותרת וסטטוס (העברת שם, "ללא תבנית מיון" שהפך למתועד)  - הדלתא הלילית + התאמה ממוקדת (nightly_delta.yml)
+#   גרסת התבנית (sort_template_rev, source_state)           - העדכון השעתי (sort_template_hourly.yml)
+#   ארבעת טאבי הגרסה (rev_link_check)                       - בדיקה מחדש של מה שכבר בטבלה (rev_link_scan.py --recheck)
+#   ניקוי שורות שהתיישנו                                    - refresh_maintenance_tables (חייבת מיגרציה: migration_add_refresh_maintenance_tables.sql)
+# הסדר חשוב: הבדיקה מחדש והניקוי נשענים על כותרת וגרסה שכבר עודכנו. לא מוצאת ערכים חדשים בעייתיים (זה הסריקה החודשית).
+# אותה קבוצת concurrency כמו שאר ה-workflows שכותבים למסד: אם הדלתא הלילית או הסנכרון השבועי רצים, ממתין בתור.
+# מופעל גם מכפתור בדשבורד (request_maintenance_refresh, migrations/migration_add_trigger_maintenance_refresh.sql).
+# ריצה קצרה (דקות); לא להפעיל סביב 22:00 UTC כדי לא להתנגש בדלתא הלילית.
+
+on:
+  workflow_dispatch:
+    inputs:
+      cleanup:
+        description: "גם למחוק שורות תחזוקה שהתיישנו (בלי זה: דוח בלבד)"
+        default: true
+        type: boolean
+
+concurrency:
+  group: mechalol-wikipedia-db-write
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      issues: write
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      USER_NAME: ${{ secrets.USER_NAME }}
+      PASSWORD: ${{ secrets.PASSWORD }}
+    steps:
+      - name: שחזור קוד
+        uses: actions/checkout@v4
+
+      - name: התקנת פייתון
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: התקנת ספריות
+        run: pip install -r requirements.txt
+
+      # הדשבורד (הכפתור "רענן נתוני תחזוקה") מחכה לסימון הזה כדי לטעון מחדש. דורש migration_add_trigger_maintenance_refresh.sql.
+      - name: סימון התחלה
+        working-directory: scripts
+        run: python maintenance_refresh_state.py running
+
+      - name: עדכון מצטבר - מכלול
+        run: python scripts/fetch_mechalol_delta.py --defer-watermark
+
+      - name: עדכון מצטבר - ויקיפדיה
+        run: python scripts/fetch_wikipedia_delta.py --defer-watermark
+
+      - name: התאמה ממוקדת
+        run: python scripts/match.py --scoped --login
+
+      - name: קידום נקודות התקדמות
+        run: python scripts/advance_delta_watermarks.py
+
+      - name: עדכון שעתי (גרסת התבנית)
+        working-directory: scripts
+        run: python sort_template_hourly.py
+
+      - name: בדיקה מחדש של טאבי הגרסה
+        working-directory: scripts
+        run: python rev_link_scan.py --recheck
+
+      - name: ניקוי שורות שהתיישנו
+        working-directory: scripts
+        run: |
+          if [ "${{ inputs.cleanup }}" = "true" ]; then
+            python refresh_maintenance_tables.py
+          else
+            python refresh_maintenance_tables.py --dry-run
+          fi
+
+      - name: סימון סיום
+        if: always()
+        working-directory: scripts
+        run: python maintenance_refresh_state.py ${{ job.status == 'success' && 'success' || 'failed' }}
+
+      - name: פתיחת Issue בעת כישלון
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `כשל ברענון נתוני התחזוקה - ${new Date().toISOString().slice(0, 10)}`,
+              body: `פרטי הריצה: ${runUrl}`,
+              labels: ["automation-failure"],
+            });

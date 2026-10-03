@@ -109,6 +109,8 @@
 | `manual_matches` | התאמות שהאוטומציה לא פתרה לבד. מפתח: `mechalol_page_id`/`wikipedia_page_id`. |
 | `blacklist_titles` | כותרות שבכוונה לא יובאו - לא יופיעו כ"חסרות". |
 
+`refresh_maintenance_tables(p_apply)` - רענון שמסיר מ-`rev_link_check` ומהשורות האוטומטיות של שתי הטבלאות האלה שורות שהתיישנו (דוח בלבד כברירת מחדל). ראו README.
+
 ### דלתא (עדכון יומי)
 | טבלה | תפקיד |
 |---|---|

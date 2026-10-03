@@ -49,6 +49,10 @@
 - **`manual_matches`** - התאמות שהאוטומציה לא יכולה לפתור לבד (למשל כותרת שונה + דף נעול-לקריאה). מפתח: `mechalol_page_id`/`wikipedia_page_id`.
 - **`blacklist_titles`** - כותרות שבכוונה לא יובאו למכלול, לא יופיעו כ"חסרות" ב-`report_missing_from_mechalol`.
 
+**רענון טבלאות התחזוקה (2026-10):** `refresh_maintenance_tables(p_apply)` (`migrations/migration_add_refresh_maintenance_tables.sql`) מסירה שורות שכבר לא אמורות להיות ב-`rev_link_check` (ארבעת טאבי הגרסה), ובשורות האוטומטיות של `blacklist_titles` ו-`manual_matches` (אלה ש-`check_missing_locked.py` הוסיף; שורה ידנית של עורך אף פעם לא נמחקת, רק מדווחת). נקראת מכפתור "רענון טבלאות תחזוקה" בפאנל הניהול של הדשבורד (למחוברים), מציגה קודם דוח (`p_apply=false`, ברירת המחדל) ומוחקת רק אחרי אישור. security definer; מותרת ל-`service_role` ול-`authenticated` שב-`manual_match_admins`, ההרשאה נבדקת בתוך הפונקציה. אינה מחליפה את הבדיקות מול ה-API (`rev_link_scan.py --recheck`, `check_missing_locked.py`). הכללים המדויקים בכותרת המיגרציה.
+
+**כפתור "רענן נתוני תחזוקה" (2026-10, `migrations/migration_add_trigger_maintenance_refresh.sql`):** בפאנל הניהול של הדשבורד (למחוברים שב-`manual_match_admins`). לחיצה מפעילה את `maintenance_refresh.yml` (דלתא מכלול וויקיפדיה, `match.py --scoped`, עדכון שעתי, `rev_link_scan.py --recheck`, ניקוי) דרך `request_maintenance_refresh()` במסד (pg_net, טוקן GitHub ב-Vault בשם `github_dispatch_token`), הדשבורד שואל `maintenance_refresh_status()` כל 10 שניות וכשהריצה מסתיימת נטען מחדש. מצב הריצה ב-`maintenance_refresh_state` (ה-workflow כותב אליו התחלה וסיום). ריצה אחת בכל פעם. **הגדרה חד-פעמית:** טוקן fine-grained לריפו הזה בלבד (Actions: read and write), `select vault.create_secret('<הטוקן>', 'github_dispatch_token');`, וה-workflow חייב להיות בענף `main`. לא מוצא ערכים חדשים בעייתיים (הסריקה החודשית).
+
 ## סינון מילים חשודות על ויקיטקסט
 כלי נפרד לבדיקת ערכים (לפני ייבוא ובתוך המכלול) לפי רשימות המילים החשודות - גאדג'ט לאתר וכלי מדידה, ב-JavaScript. הכל בתיקייה `word-filter/`, והתיעוד ב-[`word-filter/README.md`](word-filter/README.md).
 
