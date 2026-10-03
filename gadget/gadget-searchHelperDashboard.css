@@ -39,6 +39,7 @@ body:not(.mchl-no-site-nav) .mchl-sitenav-tab{right:11em;}
 #mchl-dash .mchl-manual-match-suggestion-item{padding:7px 10px;font-size:12.5px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 #mchl-dash .mchl-manual-match-suggestion-item:hover{background:var(--mchl-ink-700);}
 #mchl-dash .mchl-manual-match-suggestion-loading{padding:7px 10px;font-size:12.5px;color:var(--mchl-text-2);}
+#mchl-dash #mchl-admin-status{white-space:pre-line;}
 #mchl-dash #mchl-admin-status.mchl-alert{color:var(--mchl-alert);}
 #mchl-dash #mchl-admin-status.mchl-success{color:var(--mchl-wiki);}
 #mchl-dash .mchl-ledger-heads{display:flex;justify-content:space-between;margin-bottom:14px;}
