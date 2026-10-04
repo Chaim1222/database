@@ -30,6 +30,11 @@ on:
   schedule:
     - cron: "0 22 * * 6"  # כל מוצאי שבת (שבת -> ראשון), 22:00 UTC = חצות בישראל בחורף
   workflow_dispatch:
+    inputs:
+      resume_after_match:
+        description: "המשך אחרי ההתאמה: מדלג על השליפות וההתאמה (הטבלאות הזמניות כבר מלאות ומותאמות מריצה שנכשלה בהעברת ההעשרה). לא להפעיל אם הטבלאות הזמניות ריקות או ישנות."
+        type: boolean
+        default: false
 
 # אותה קבוצת concurrency כמו initial_run.yml/weekly_update.yml/
 # nightly_delta.yml - ראו הערה מלאה ב-initial_run.yml. חשוב כאן במיוחד:
@@ -65,6 +70,7 @@ jobs:
       # מדידת נפח (לא חוסמת; דורשת migration_add_db_size_report.sql - בלעדיה רק אזהרה):
       # לפני הטעינה, בשיא (טבלאות זמניות מלאות + פעילות) לפני ההחלפה, ואחרי הריקון.
       - name: מדידת גודל מסד - לפני הטעינה
+        if: ${{ !inputs.resume_after_match }}
         continue-on-error: true
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -79,6 +85,7 @@ jobs:
       # מהדמפ (stub-meta-current) + השלמת פער מ-recentchanges/logevents, לא סריקת allpages
       # (4.10.2026: ~800 בקשות רצופות נחסמו ב-429). --source api = fallback הישן.
       - name: שליפת כותרות ויקיפדיה לטבלה הזמנית
+        if: ${{ !inputs.resume_after_match }}
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
@@ -86,6 +93,7 @@ jobs:
         run: python scripts/fetch_wikipedia.py
 
       - name: שליפת נתוני המכלול לטבלה הזמנית
+        if: ${{ !inputs.resume_after_match }}
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
@@ -95,6 +103,7 @@ jobs:
         run: python scripts/fetch_mechalol.py
 
       - name: התאמה מלאה על הטבלה הזמנית
+        if: ${{ !inputs.resume_after_match }}
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
