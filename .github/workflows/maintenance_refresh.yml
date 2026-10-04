@@ -22,6 +22,7 @@ on:
 concurrency:
   group: mechalol-wikipedia-db-write
   cancel-in-progress: false
+  queue: max
 
 jobs:
   refresh:
@@ -45,6 +46,12 @@ jobs:
 
       - name: התקנת ספריות
         run: pip install -r requirements.txt
+
+      - name: בדיקת מצב סנכרון שבועי
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python scripts/weekly_build.py --check-writable
 
       # הדשבורד (הכפתור "רענן נתוני תחזוקה") מחכה לסימון הזה כדי לטעון מחדש. דורש migration_add_trigger_maintenance_refresh.sql.
       - name: סימון התחלה

@@ -74,7 +74,7 @@ def record_audit(client):
     return audit_id
 
 
-def record_full_diff(client, audit_id):
+def record_full_diff(client, audit_id, already_recorded=False):
     """
     ההשוואה המלאה (כל סוגי השינוי, גם שורות שקיימות רק בצד אחד), בנוסף לביקורת הקיימת -
     migrations/migration_add_reconciliation_diff_all.sql. מדידה בלבד: כשל כאן (למשל המיגרציה עוד לא
@@ -84,11 +84,10 @@ def record_full_diff(client, audit_id):
     from reconciliation_summary import format_summary
 
     try:
-        execute_with_retry(
-            lambda: client.rpc("log_reconciliation_diff_all", {"p_audit_id": audit_id}).execute(),
-            "LOG_RECONCILIATION_DIFF_ALL",
-            log_fn=log,
-        )
+        if not already_recorded:
+            # ניסיון יחיד בכוונה (לא execute_with_retry): המדידה לא חוסמת, וחמישה ניסיונות של עד timeout של
+            # 5 דקות כל אחד היו מעכבים את ריקון הטבלאות הזמניות. הזמן מוגבל ע"י statement_timeout של service_role.
+            client.rpc("log_reconciliation_diff_all", {"p_audit_id": audit_id}).execute()
         rows = execute_with_retry(
             lambda: client.table("reconciliation_diff_summary").select("*").eq("audit_id", audit_id).execute(),
             "reconciliation_diff_summary",
@@ -152,13 +151,13 @@ def _mark_linked_pairs_as_timing(client, by_side, timing_by_row_id):
     log(f"סיווג תזמון | {paired} זוגות מכלול-ויקיפדיה מקושרים סווגו יחד")
 
 
-def classify_timing(client, audit_id):
+def classify_timing(client, audit_id, watermarks=None):
     """
     עבור כל שורה ב-reconciliation_audit_details של audit_id הנתון:
     שולפת את הגרסה האחרונה בפועל של הדף (API חי, לפי side) ומשווה מול
-    watermark הדלתא האחרונה לאותו מקור (כפי שהוא כרגע ב-sync_watermarks -
-    זה בדיוק ה-watermark שהיה בתוקף כשהדלתא האחרונה רצה, לפני הפיוס
-    המלא הזה - הפיוס המלא רץ תמיד אחרי הדלתא, לא לפניה).
+    watermark הדלתא האחרונה לאותו מקור. השבועית מעבירה את נקודות
+    ההתקדמות שנשמרו עם הבנייה, כדי שהמשך מאוחר לא ישתמש בנקודות חדשות.
+    בקריאה ידנית ללא watermarks קוראים את sync_watermarks הנוכחית.
 
     is_timing_only=true כאשר הגרסה האחרונה בפועל מאוחרת-או-שווה
     ל-watermark - השינוי קרה אחרי שהדלתא האחרונה כבר הביטה, ופשוט לא
@@ -168,7 +167,8 @@ def classify_timing(client, audit_id):
 
     מחזיר את מספר הפערים ה"אמיתיים" (לא-תזמון) שנמצאו.
     """
-    watermarks = _load_watermarks(client)
+    if watermarks is None:
+        watermarks = _load_watermarks(client)
 
     result = execute_with_retry(
         lambda: client.table("reconciliation_audit_details")

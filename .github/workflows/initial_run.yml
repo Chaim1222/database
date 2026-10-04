@@ -35,6 +35,7 @@ on:
 concurrency:
   group: mechalol-wikipedia-db-write
   cancel-in-progress: false
+  queue: max
 
 jobs:
   collect:
@@ -63,6 +64,12 @@ jobs:
 
       - name: התקנת ספריות
         run: pip install -r requirements.txt
+
+      - name: בדיקת מצב סנכרון שבועי
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python scripts/weekly_build.py --check-writable
 
       # fetch_wikipedia.py *חייב* לרוץ לפני fetch_mechalol.py, גם כאן -
       # טעות בסדר ההפוך גרמה בעבר לאובדן נתונים אמיתי:
