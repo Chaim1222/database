@@ -85,11 +85,9 @@ def record_full_diff(client, audit_id, already_recorded=False):
 
     try:
         if not already_recorded:
-            execute_with_retry(
-                lambda: client.rpc("log_reconciliation_diff_all", {"p_audit_id": audit_id}).execute(),
-                "LOG_RECONCILIATION_DIFF_ALL",
-                log_fn=log,
-            )
+            # ניסיון יחיד בכוונה (לא execute_with_retry): המדידה לא חוסמת, וחמישה ניסיונות של עד timeout של
+            # 5 דקות כל אחד היו מעכבים את ריקון הטבלאות הזמניות. הזמן מוגבל ע"י statement_timeout של service_role.
+            client.rpc("log_reconciliation_diff_all", {"p_audit_id": audit_id}).execute()
         rows = execute_with_retry(
             lambda: client.table("reconciliation_diff_summary").select("*").eq("audit_id", audit_id).execute(),
             "reconciliation_diff_summary",

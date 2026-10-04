@@ -102,6 +102,21 @@ class BuildRecoveryTests(unittest.TestCase):
         self.assertEqual(self.current["phase"], "source_recomputed")
         self.assertFalse(any(p.get("p_step") == "cleaned" for _, p in self.calls))
 
+    def test_full_diff_failure_does_not_block_cleanup_or_completion(self):
+        mock.patch.stopall()
+        self.calls.clear()
+        mock.patch.object(weekly, "load_state", side_effect=lambda _: dict(self.current)).start()
+        mock.patch.object(weekly, "rpc_state", side_effect=self.rpc).start()
+        mock.patch.object(audit, "classify_timing").start()
+        client = mock.MagicMock()
+        client.rpc.return_value.execute.side_effect = RuntimeError("statement timeout")
+        self.current = state("source_recomputed")
+        weekly.build(client, resume=True, runner=self.runner)
+        self.assertEqual(self.current["phase"], "complete")
+        self.assertTrue(any(p.get("p_step") == "cleaned" for _, p in self.calls))
+        full_diff_calls = [c for c in client.rpc.call_args_list if c.args[0] == "log_reconciliation_diff_all"]
+        self.assertEqual(len(full_diff_calls), 1)  # בלי ניסיונות חוזרים
+
     def test_cleanup_failure_retains_audit_id(self):
         self.current = state("audited")
         self.fail_step = "cleaned"
