@@ -48,6 +48,8 @@ create table if not exists reconciliation_diff_examples (
     known_to_delta  boolean not null default false
 );
 create index if not exists reconciliation_diff_examples_audit_idx on reconciliation_diff_examples (audit_id, side, change_class);
+-- הרצה חוזרת של הפונקציה לאותו audit לא מכפילה דוגמאות (במקום מחיקה: כלי ה-MCP נתקע על הפונקציה כשהיא כללה פקודת מחיקה)
+create unique index if not exists reconciliation_diff_examples_uniq on reconciliation_diff_examples (audit_id, side, change_class, page_id);
 
 alter table reconciliation_diff_summary enable row level security;
 alter table reconciliation_diff_examples enable row level security;
@@ -69,99 +71,101 @@ begin
         raise exception 'reconciliation_audit % לא קיימת', p_audit_id;
     end if;
 
-    -- מה הדלתא (או שיוך ידני) כבר ידעה עליו מאז הביקורת הקודמת
-    create temporary table _known_m on commit drop as
-    select page_id from mechalol_creations where v_since is null or fetched_at > v_since
-    union select page_id from mechalol_deletions where v_since is null or fetched_at > v_since
-    union select page_id from mechalol_renames where v_since is null or fetched_at > v_since
-    union select page_id from mechalol_status_update_log where v_since is null or fetched_at > v_since
-    union select mechalol_page_id from manual_matches;
-    create temporary table _known_w on commit drop as
-    select page_id from wikipedia_creations where v_since is null or fetched_at > v_since
-    union select page_id from wikipedia_deletions where v_since is null or fetched_at > v_since
-    union select page_id from wikipedia_renames where v_since is null or fetched_at > v_since
-    union select wikipedia_page_id from manual_matches;
-
-    create temporary table _diff on commit drop as
-    -- ---- מכלול: cur = הפעילה החדשה, prev = הזמנית (הפעילה הקודמת) ----
-    select 'mechalol'::text as side, 'only_new'::text as change_class, cur.id as page_id, cur.title as title,
-           null::text as old_value, cur.title as new_value
-    from mechalol_pages cur where not exists (select 1 from mechalol_pages_temp p where p.id = cur.id)
-    union all
-    select 'mechalol', 'only_old', prev.id, prev.title, prev.title, null
-    from mechalol_pages_temp prev where not exists (select 1 from mechalol_pages c where c.id = prev.id)
-    union all
-    select 'mechalol', 'title', cur.id, cur.title, prev.title, cur.title
-    from mechalol_pages cur join mechalol_pages_temp prev using (id) where cur.title is distinct from prev.title
-    union all
-    select 'mechalol', 'status', cur.id, cur.title, prev.status, cur.status
-    from mechalol_pages cur join mechalol_pages_temp prev using (id) where cur.status is distinct from prev.status
-    union all
-    select 'mechalol', 'source_type', cur.id, cur.title, prev.source_type, cur.source_type
-    from mechalol_pages cur join mechalol_pages_temp prev using (id) where cur.source_type is distinct from prev.source_type
-    union all
-    select 'mechalol', 'needs_attention', cur.id, cur.title, prev.needs_attention::text, cur.needs_attention::text
-    from mechalol_pages cur join mechalol_pages_temp prev using (id) where cur.needs_attention is distinct from prev.needs_attention
-    union all
-    select 'mechalol', 'is_dictionary_entry', cur.id, cur.title, prev.is_dictionary_entry::text, cur.is_dictionary_entry::text
-    from mechalol_pages cur join mechalol_pages_temp prev using (id) where cur.is_dictionary_entry is distinct from prev.is_dictionary_entry
-    union all
-    select 'mechalol', 'wikipedia_id', cur.id, cur.title, prev.wikipedia_id::text, cur.wikipedia_id::text
-    from mechalol_pages cur join mechalol_pages_temp prev using (id) where cur.wikipedia_id is distinct from prev.wikipedia_id
-    union all
-    select 'mechalol', 'match_type', cur.id, cur.title, prev.match_type, cur.match_type
-    from mechalol_pages cur join mechalol_pages_temp prev using (id) where cur.match_type is distinct from prev.match_type
-    union all
-    select 'mechalol', 'maybe_deleted', cur.id, cur.title, prev.maybe_deleted_from_wikipedia::text, cur.maybe_deleted_from_wikipedia::text
-    from mechalol_pages cur join mechalol_pages_temp prev using (id)
-    where cur.maybe_deleted_from_wikipedia is distinct from prev.maybe_deleted_from_wikipedia
-    union all
-    select 'mechalol', 'template_referenced_title', cur.id, cur.title, prev.template_referenced_title, cur.template_referenced_title
-    from mechalol_pages cur join mechalol_pages_temp prev using (id)
-    where cur.template_referenced_title is distinct from prev.template_referenced_title
-    -- ---- ויקיפדיה ----
-    union all
-    select 'wikipedia', 'only_new', cur.id, cur.title, null, cur.title
-    from wikipedia_pages cur where not exists (select 1 from wikipedia_pages_temp p where p.id = cur.id)
-    union all
-    select 'wikipedia', 'only_old', prev.id, prev.title, prev.title, null
-    from wikipedia_pages_temp prev where not exists (select 1 from wikipedia_pages c where c.id = prev.id)
-    union all
-    select 'wikipedia', 'title', cur.id, cur.title, prev.title, cur.title
-    from wikipedia_pages cur join wikipedia_pages_temp prev using (id) where cur.title is distinct from prev.title
-    union all
-    select 'wikipedia', 'is_missing', cur.id, cur.title, prev.is_missing::text, cur.is_missing::text
-    from wikipedia_pages cur join wikipedia_pages_temp prev using (id) where cur.is_missing is distinct from prev.is_missing
-    union all
-    select 'wikipedia', 'missing_override_reason', cur.id, cur.title, prev.missing_override_reason, cur.missing_override_reason
-    from wikipedia_pages cur join wikipedia_pages_temp prev using (id)
-    where cur.missing_override_reason is distinct from prev.missing_override_reason
-    union all
-    select 'wikipedia', 'mechalol_redirect_exists', cur.id, cur.title, prev.mechalol_redirect_exists::text, cur.mechalol_redirect_exists::text
-    from wikipedia_pages cur join wikipedia_pages_temp prev using (id)
-    where cur.mechalol_redirect_exists is distinct from prev.mechalol_redirect_exists;
-
-    create temporary table _diff_k on commit drop as
-    select d.*,
-           case when d.side = 'mechalol'
-                then exists (select 1 from _known_m k where k.page_id = d.page_id)
-                else exists (select 1 from _known_w k where k.page_id = d.page_id)
-           end as known_to_delta
-    from _diff d;
-
-    insert into reconciliation_diff_summary (audit_id, side, change_class, n, n_known_to_delta)
-    select p_audit_id, side, change_class, count(*)::int, count(*) filter (where known_to_delta)::int
-    from _diff_k group by side, change_class
-    on conflict (audit_id, side, change_class) do update set n = excluded.n, n_known_to_delta = excluded.n_known_to_delta;
-
-    delete from reconciliation_diff_examples where audit_id = p_audit_id;
+    -- הכול בפקודה אחת (CTE) בלי טבלאות זמניות: כלי ה-MCP של סופרבייס נתקע על כל פקודה שמכילה את המילה
+    -- שמוחקת טבלה, כולל "on commit ..." של טבלה זמנית (ראו SOURCE_TRACKING_NOTES, מלכודות).
+    with known_m as (
+        select page_id from mechalol_creations where v_since is null or fetched_at > v_since
+        union select page_id from mechalol_deletions where v_since is null or fetched_at > v_since
+        union select page_id from mechalol_renames where v_since is null or fetched_at > v_since
+        union select page_id from mechalol_status_update_log where v_since is null or fetched_at > v_since
+        union select mechalol_page_id from manual_matches
+    ),
+    known_w as (
+        select page_id from wikipedia_creations where v_since is null or fetched_at > v_since
+        union select page_id from wikipedia_deletions where v_since is null or fetched_at > v_since
+        union select page_id from wikipedia_renames where v_since is null or fetched_at > v_since
+        union select wikipedia_page_id from manual_matches
+    ),
+    diff as (
+        select 'mechalol'::text as side, 'only_new'::text as change_class, cur.id as page_id, cur.title as title,
+               null::text as old_value, cur.title as new_value
+        from mechalol_pages cur where not exists (select 1 from mechalol_pages_temp p where p.id = cur.id)
+        union all
+        select 'mechalol', 'only_old', prev.id, prev.title, prev.title, null
+        from mechalol_pages_temp prev where not exists (select 1 from mechalol_pages c where c.id = prev.id)
+        union all
+        select 'mechalol', 'title', cur.id, cur.title, prev.title, cur.title
+        from mechalol_pages cur join mechalol_pages_temp prev using (id) where cur.title is distinct from prev.title
+        union all
+        select 'mechalol', 'status', cur.id, cur.title, prev.status, cur.status
+        from mechalol_pages cur join mechalol_pages_temp prev using (id) where cur.status is distinct from prev.status
+        union all
+        select 'mechalol', 'source_type', cur.id, cur.title, prev.source_type, cur.source_type
+        from mechalol_pages cur join mechalol_pages_temp prev using (id) where cur.source_type is distinct from prev.source_type
+        union all
+        select 'mechalol', 'needs_attention', cur.id, cur.title, prev.needs_attention::text, cur.needs_attention::text
+        from mechalol_pages cur join mechalol_pages_temp prev using (id) where cur.needs_attention is distinct from prev.needs_attention
+        union all
+        select 'mechalol', 'is_dictionary_entry', cur.id, cur.title, prev.is_dictionary_entry::text, cur.is_dictionary_entry::text
+        from mechalol_pages cur join mechalol_pages_temp prev using (id) where cur.is_dictionary_entry is distinct from prev.is_dictionary_entry
+        union all
+        select 'mechalol', 'wikipedia_id', cur.id, cur.title, prev.wikipedia_id::text, cur.wikipedia_id::text
+        from mechalol_pages cur join mechalol_pages_temp prev using (id) where cur.wikipedia_id is distinct from prev.wikipedia_id
+        union all
+        select 'mechalol', 'match_type', cur.id, cur.title, prev.match_type, cur.match_type
+        from mechalol_pages cur join mechalol_pages_temp prev using (id) where cur.match_type is distinct from prev.match_type
+        union all
+        select 'mechalol', 'maybe_deleted', cur.id, cur.title, prev.maybe_deleted_from_wikipedia::text, cur.maybe_deleted_from_wikipedia::text
+        from mechalol_pages cur join mechalol_pages_temp prev using (id)
+        where cur.maybe_deleted_from_wikipedia is distinct from prev.maybe_deleted_from_wikipedia
+        union all
+        select 'mechalol', 'template_referenced_title', cur.id, cur.title, prev.template_referenced_title, cur.template_referenced_title
+        from mechalol_pages cur join mechalol_pages_temp prev using (id)
+        where cur.template_referenced_title is distinct from prev.template_referenced_title
+        union all
+        select 'wikipedia', 'only_new', cur.id, cur.title, null, cur.title
+        from wikipedia_pages cur where not exists (select 1 from wikipedia_pages_temp p where p.id = cur.id)
+        union all
+        select 'wikipedia', 'only_old', prev.id, prev.title, prev.title, null
+        from wikipedia_pages_temp prev where not exists (select 1 from wikipedia_pages c where c.id = prev.id)
+        union all
+        select 'wikipedia', 'title', cur.id, cur.title, prev.title, cur.title
+        from wikipedia_pages cur join wikipedia_pages_temp prev using (id) where cur.title is distinct from prev.title
+        union all
+        select 'wikipedia', 'is_missing', cur.id, cur.title, prev.is_missing::text, cur.is_missing::text
+        from wikipedia_pages cur join wikipedia_pages_temp prev using (id) where cur.is_missing is distinct from prev.is_missing
+        union all
+        select 'wikipedia', 'missing_override_reason', cur.id, cur.title, prev.missing_override_reason, cur.missing_override_reason
+        from wikipedia_pages cur join wikipedia_pages_temp prev using (id)
+        where cur.missing_override_reason is distinct from prev.missing_override_reason
+        union all
+        select 'wikipedia', 'mechalol_redirect_exists', cur.id, cur.title, prev.mechalol_redirect_exists::text, cur.mechalol_redirect_exists::text
+        from wikipedia_pages cur join wikipedia_pages_temp prev using (id)
+        where cur.mechalol_redirect_exists is distinct from prev.mechalol_redirect_exists
+    ),
+    diff_k as materialized (
+        select d.*,
+               case when d.side = 'mechalol'
+                    then exists (select 1 from known_m k where k.page_id = d.page_id)
+                    else exists (select 1 from known_w k where k.page_id = d.page_id)
+               end as known_to_delta
+        from diff d
+    ),
+    summary as (
+        insert into reconciliation_diff_summary (audit_id, side, change_class, n, n_known_to_delta)
+        select p_audit_id, side, change_class, count(*)::int, count(*) filter (where known_to_delta)::int
+        from diff_k group by side, change_class
+        on conflict (audit_id, side, change_class) do update set n = excluded.n, n_known_to_delta = excluded.n_known_to_delta
+        returning 1
+    )
     insert into reconciliation_diff_examples (audit_id, side, change_class, page_id, title, old_value, new_value, known_to_delta)
     select p_audit_id, side, change_class, page_id, title, old_value, new_value, known_to_delta
     from (
-        select *, row_number() over (partition by side, change_class order by known_to_delta, page_id) as rn
-        from _diff_k
+        select diff_k.*, row_number() over (partition by side, change_class order by known_to_delta, page_id) as rn
+        from diff_k
     ) x
-    where rn <= p_examples_per_class;
+    where rn <= p_examples_per_class
+    on conflict (audit_id, side, change_class, page_id) do nothing;
 end;
 $$;
 
