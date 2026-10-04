@@ -217,7 +217,13 @@
 		var page = d.query && d.query.pages && d.query.pages[0];
 		if (!page || page.missing || page.invalid) throw new Error('הדף "' + title + '" לא נמצא בוויקיפדיה');
 		var rev = page.revisions && page.revisions[0];
-		if (!rev) throw new Error('הערך "' + page.title + '" עוד לא היה קיים בוויקיפדיה בזמן הזה');
+		if (!rev) {
+			// עזרה באבחון: מתי מתחילה ההיסטוריה של הדף בשם הזה (ערך שנמחק ושוחזר, או שם שנתפס מחדש, יתחילו מאוחר מהייבוא)
+			var first = await wikipediaApi({ action: 'query', titles: page.title, prop: 'revisions', rvlimit: '1', rvdir: 'newer', rvprop: 'ids|timestamp' });
+			var fp = first.query && first.query.pages && first.query.pages[0], fr = fp && fp.revisions && fp.revisions[0];
+			throw new Error('הערך "' + page.title + '" עוד לא היה קיים בוויקיפדיה בזמן הזה' +
+				(fr ? ' (הגרסה הראשונה בשם הזה: ' + fr.revid + ', ' + formatTime(fr.timestamp, zoneFromOption(mw.user.options.get('timecorrection'))) + ')' : ''));
+		}
 		return { title: page.title, revid: rev.revid, ts: rev.timestamp, item: (page.pageprops && page.pageprops.wikibase_item) || '' };
 	}
 
