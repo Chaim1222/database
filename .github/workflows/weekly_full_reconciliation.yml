@@ -6,8 +6,8 @@ name: סנכרון שבועי מלא
 # מטפל בעדכון השוטף כל לילה, זו רשת הביטחון הנוספת). הריצה הזו היא רשת
 # הביטחון: ריקון+מילוי-מלא רגיל, שתופסת את הפערים הידועים שהעדכון המצטבר
 # הלילי לא רואה במכוון - בעיקר שינוי סטטוס הפניה<->ערך בלי אירוע יצירה/
-# מחיקה/תזוזה נלווה. לא נוגעת ב-sync_watermarks בכלל - זו נשארת באחריות
-# nightly_delta.yml בלבד, שתי המסלולים בלתי תלויים אחד בשני.
+# מחיקה/תזוזה נלווה. תחילה מריצה את הדלתא ומקדמת את sync_watermarks
+# אחרי התאמה ממוקדת מוצלחת, ואז בונה את הטבלאות הזמניות.
 #
 # ארכיטקטורת החלפה אטומית עם טבלאות זמניות (ראו mirror_architecture_
 # design.md + README.md): הריקון-ומילוי-מחדש קורה על wikipedia_pages_temp/
@@ -17,14 +17,16 @@ name: סנכרון שבועי מלא
 # ההחלפה עצמה קורית באופן אטומי (רק שינוי שם טבלה - שניות בודדות, לא תלוי
 # בכמות השורות). אין חלון rollback - הוסר בכוונה (2026-09, ראו README.md):
 # מיד אחרי ההחלפה, מה שהיה פעיל רגע קודם יושב תחת השם הקבוע "_temp".
-# קודם log_reconciliation_diff.py שומר את ההשוואה במסד; מיד אחר כך
-# truncate_temp_pages.py מרוקן את הטבלאות הזמניות; ורק אז מתבצע סיווג
+# weekly_build.py שומר את ההשוואה במסד עם נקודת התקדמות; מיד אחר כך
+# מרוקן את הטבלאות הזמניות עם נקודת התקדמות; ורק אז מתבצע סיווג
 # התזמון מול הממשקים החיים. כך כשל בסיווג לא משאיר עותק מלא תקוע.
 #
 # בסיום מוצלח (ההחלפה בפועל קרתה), מפעילה אוטומטית את
 # enrichment_after_reconciliation.yml (טריגר workflow_run) - ארבעת
 # סקריפטי ההעשרה של דוח "חסר במכלול". הודות ל-forward_fill_enrichment.py
-# למטה, הוא ירוץ מהר משמעותית כי רוב העמודות כבר "נבדקו" והועברו קדימה.
+# הוא ירוץ מהר משמעותית כי רוב העמודות כבר "נבדקו" והועברו קדימה.
+# resume_after_match נשמר לתאימות: ההמשך נבחר לפי weekly_build_state,
+# גם אם הריצה כבר החליפה/שמרה ביקורת/רוקנה את הטבלאות הזמניות.
 
 on:
   schedule:
@@ -49,6 +51,7 @@ on:
 concurrency:
   group: mechalol-wikipedia-db-write
   cancel-in-progress: false
+  queue: max
 
 jobs:
   full_reconciliation:
@@ -56,10 +59,6 @@ jobs:
     timeout-minutes: 90
     permissions:
       issues: write
-    # הפלט should_swap מגיע מצעד "שער אימות" למטה - "true" אם ניתן
-    # להחליף, "false" אם התגלתה ירידה (חמורה או קלה) במספר השורות.
-    outputs:
-      should_swap: ${{ steps.validate.outputs.should_swap }}
     steps:
       - name: שחזור קוד
         uses: actions/checkout@v4
@@ -72,187 +71,19 @@ jobs:
       - name: התקנת ספריות
         run: pip install -r requirements.txt
 
-      # הדלתא הלילית (אותם ארבעה צעדים בדיוק כמו ב-nightly_delta.yml) רצה כאן **לפני** הבנייה מחדש (4.10.2026).
-      # למה: השבועית והלילית מתחילות באותה שעה, והשבועית קודמת (למשל 27.9: שבועית 00:16, לילית 00:20),
-      # כך שההשוואה בין הטבלה הפעילה לבנייה מחדש כללה יממה של שינויים שהדלתא עוד לא הספיקה לראות. כך ההבדל
-      # הוא רק מה שהדלתא באמת מפספסת. בשבת הלילית עצמה תרוץ אחרי השבועית על טווח זעיר.
-      - name: דלתא לפני הבנייה מחדש - מכלול
-        if: ${{ !inputs.resume_after_match }}
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python scripts/fetch_mechalol_delta.py --defer-watermark
-
-      - name: דלתא לפני הבנייה מחדש - ויקיפדיה
-        if: ${{ !inputs.resume_after_match }}
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python scripts/fetch_wikipedia_delta.py --defer-watermark
-
-      - name: דלתא לפני הבנייה מחדש - התאמה ממוקדת
-        if: ${{ !inputs.resume_after_match }}
+      # The DB checkpoint selects recovery steps. --resume never swaps old data back.
+      - name: סנכרון עם נקודות התאוששות
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           USER_NAME: ${{ secrets.USER_NAME }}
           PASSWORD: ${{ secrets.PASSWORD }}
-        run: python scripts/match.py --scoped --login
-
-      - name: דלתא לפני הבנייה מחדש - קידום נקודות התקדמות
-        if: ${{ !inputs.resume_after_match }}
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python scripts/advance_delta_watermarks.py
-
-      # מדידת נפח (לא חוסמת; דורשת migration_add_db_size_report.sql - בלעדיה רק אזהרה):
-      # לפני הטעינה, בשיא (טבלאות זמניות מלאות + פעילות) לפני ההחלפה, ואחרי הריקון.
-      - name: מדידת גודל מסד - לפני הטעינה
-        if: ${{ !inputs.resume_after_match }}
-        continue-on-error: true
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python scripts/log_db_size.py before_fetch
-
-      # fetch_wikipedia.py *חייב* לרוץ לפני fetch_mechalol.py - גם על
-      # הטבלאות הזמניות, מאותה סיבה בדיוק כמו על הטבלאות הפעילות (ראו
-      # postmortem 2026-09 ב-schema.sql): הריקון (truncate_temp_pages,
-      # רשת ביטחון בלבד - הטבלאות כבר אמורות להיות ריקות מסוף הסבב
-      # הקודם) חייב לקרות לפני מילוי mechalol_pages_temp, לא אחריו.
-      # מהדמפ (stub-meta-current) + השלמת פער מ-recentchanges/logevents, לא סריקת allpages
-      # (4.10.2026: ~800 בקשות רצופות נחסמו ב-429). --source api = fallback הישן.
-      - name: שליפת כותרות ויקיפדיה לטבלה הזמנית
-        if: ${{ !inputs.resume_after_match }}
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          TARGET_TABLE_SUFFIX: "_temp"
-        run: python scripts/fetch_wikipedia.py --source ${{ inputs.wikipedia_source || 'dump' }}
-
-      - name: שליפת נתוני המכלול לטבלה הזמנית
-        if: ${{ !inputs.resume_after_match }}
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          USER_NAME: ${{ secrets.USER_NAME }}
-          PASSWORD: ${{ secrets.PASSWORD }}
-          TARGET_TABLE_SUFFIX: "_temp"
-        run: python scripts/fetch_mechalol.py
-
-      - name: התאמה מלאה על הטבלה הזמנית
-        if: ${{ !inputs.resume_after_match }}
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          USER_NAME: ${{ secrets.USER_NAME }}
-          PASSWORD: ${{ secrets.PASSWORD }}
-          TARGET_TABLE_SUFFIX: "_temp"
-        run: python scripts/match.py --login
-
-      - name: העברת העשרה קדימה
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python scripts/forward_fill_enrichment.py
-
-      - name: מדידת גודל מסד - שיא לפני ההחלפה
-        continue-on-error: true
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python scripts/log_db_size.py peak_before_swap
-
-      - name: שער אימות
-        id: validate
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python scripts/validate_before_swap.py
-
-      # רץ רק אם שער האימות אישר (should_swap=true). ירידה קלה (מתחת
-      # לסף) לא חוסמת - רק מתועדת בלוג. ירידה חמורה כבר עצרה את ה-job
-      # קודם (validate_before_swap.py יוצא עם קוד 1 ונפתח Issue), אז
-      # הצעד הזה כלל לא מגיע אליו.
-      - name: החלפה אטומית
-        if: steps.validate.outputs.should_swap == 'true'
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python scripts/swap_temp_to_active.py
-
-      # forward_fill מעתיק source_state ישן; ההתאמה על הטבלה הזמנית עשויה
-      # לשנות wikipedia_id/היקף, ולכן מחשבים מחדש על הטבלה שהפכה לפעילה.
-      - name: חישוב מחדש של מצב מקור
-        if: steps.validate.outputs.should_swap == 'true'
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python scripts/recompute_source_state_all.py
-
-      # רק אחרי החלפה אטומית שבאמת קרתה. בשלב הזה נשמרת ההשוואה
-      # עצמה במסד, אבל עדיין לא מתבצע הסיווג מול הממשקים החיים.
-      # אם השמירה נכשלת, הצעד נכשל והריקון שאחריו לא ירוץ - כדי לא
-      # לאבד את המצב הקודם לפני שהפערים נשמרו.
-      - name: שמירת פערי פיוס
-        id: reconciliation_audit
-        if: steps.validate.outputs.should_swap == 'true'
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python scripts/log_reconciliation_diff.py --record-only
-
-      # ברגע שההשוואה נשמרה, אין עוד צורך בטבלאות הזמניות לצורך
-      # הסיווג. מרוקנים אותן מיד, לפני כל קריאת רשת נוספת, כדי שכשל
-      # מאוחר יותר לא ישאיר מאות אלפי שורות כפולות עד הסבב הבא.
-      - name: ריקון הטבלה הזמנית
-        if: steps.validate.outputs.should_swap == 'true'
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python scripts/truncate_temp_pages.py
-
-      - name: מדידת גודל מסד - אחרי ריקון הטבלה הזמנית
-        if: steps.validate.outputs.should_swap == 'true'
-        continue-on-error: true
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python scripts/log_db_size.py after_truncate
-
-      # הסיווג משתמש רק בביקורת שכבר נשמרה ובממשקים החיים; הוא לא
-      # תלוי יותר בטבלאות הזמניות. אם הוא נכשל, הריצה תסומן ככשל אבל
-      # האחסון כבר נוקה, ואפשר להשלים ידנית עם אותו audit_id.
-      - name: סיווג פערי פיוס
-        if: steps.validate.outputs.should_swap == 'true' && steps.reconciliation_audit.outputs.audit_id != ''
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python scripts/log_reconciliation_diff.py --classify-only "${{ steps.reconciliation_audit.outputs.audit_id }}"
-
-      # תחזוקה אחרי ההחלפה (4.10, בלי לחסום: כשל כאן לא מכשיל ריצה שהחליפה בהצלחה). הטבלאות האלה אינן
-      # מוחלפות ואף תהליך אחר לא מרענן אותן בשבועית. בדיקה מחדש של טאבי הגרסה (כמו בכפתור התחזוקה; מסירה רק
-      # שורות שתוקנו), וניקוי טבלאות התחזוקה **במצב דוח בלבד** (לא מוחק; הדוח בלוג, ומחיקה נשארת בכפתור).
-      - name: בדיקה מחדש של טאבי הגרסה
-        if: steps.validate.outputs.should_swap == 'true'
-        continue-on-error: true
-        working-directory: scripts
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          USER_NAME: ${{ secrets.USER_NAME }}
-          PASSWORD: ${{ secrets.PASSWORD }}
-        run: python rev_link_scan.py --recheck
-
-      - name: דוח ניקוי טבלאות תחזוקה (דוח בלבד)
-        if: steps.validate.outputs.should_swap == 'true'
-        continue-on-error: true
-        working-directory: scripts
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python refresh_maintenance_tables.py --dry-run
+          WIKIPEDIA_SOURCE: ${{ inputs.wikipedia_source || 'dump' }}
+          RESUME_BUILD: ${{ inputs.resume_after_match || false }}
+        run: |
+          args=(--source "$WIKIPEDIA_SOURCE")
+          if [ "$RESUME_BUILD" = "true" ]; then args+=(--resume); fi
+          python scripts/weekly_build.py "${args[@]}"
 
       - name: פתיחת Issue בעת כישלון
         if: failure()
