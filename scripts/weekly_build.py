@@ -12,6 +12,7 @@ from pathlib import Path
 import subprocess
 import sys
 import uuid
+from datetime import datetime, timezone
 
 from mechalol_api import log
 from supabase_client import execute_with_retry, get_client
@@ -72,6 +73,20 @@ def run_script(name, *args, temp=False, optional=False):
             raise subprocess.CalledProcessError(result.returncode, result.args)
 
 
+def iso_now():
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def timing_windows(state, fetch_finished):
+    """חלון לכל אתר: מנקודת הדלתא השמורה של הבנייה עד סיום השליפה בפועל (None = עד עכשיו)."""
+    windows = {}
+    for side, start in (state.get("delta_watermarks") or {}).items():
+        if side in ("wikipedia", "mechalol"):
+            start_dt = datetime.fromisoformat(str(start).replace("Z", "+00:00"))
+            windows[side] = (start_dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), fetch_finished.get(side))
+    return windows
+
+
 def build(client, source="dump", resume=False, runner=run_script):
     if resume:
         state = load_state(client)
@@ -89,6 +104,8 @@ def build(client, source="dump", resume=False, runner=run_script):
     else:
         state = rpc_state(client, "begin_weekly_build", {"p_build_id": str(uuid.uuid4())})
 
+    fetch_finished = {}  # בהמשך (resume) אחרי השליפה חסר: חלון התזמון נפתח עד עכשיו (קירוב)
+
     def advance(phase):
         nonlocal state
         state = rpc_state(client, "advance_weekly_build", {
@@ -103,7 +120,9 @@ def build(client, source="dump", resume=False, runner=run_script):
         runner("log_db_size.py", "before_fetch", optional=True)
         # Wikipedia fetch clears both mirrors: it must precede Mechalol fetch.
         runner("fetch_wikipedia.py", "--source", source, temp=True)
+        fetch_finished["wikipedia"] = iso_now()
         runner("fetch_mechalol.py", temp=True)
+        fetch_finished["mechalol"] = iso_now()
         runner("match.py", "--login", temp=True)
         advance("matched")
 
@@ -124,7 +143,7 @@ def build(client, source="dump", resume=False, runner=run_script):
 
         # Measurement only and non-blocking (its own statement, own timeout): it must run before cleanup,
         # which discards the previous tables it compares against, but a failure must not block the build.
-        record_full_diff(client, state["audit_id"])
+        record_full_diff(client, state["audit_id"], windows=timing_windows(state, fetch_finished))
         advance("cleaned")
         runner("log_db_size.py", "after_truncate", optional=True)
     if state["phase"] == "cleaned":

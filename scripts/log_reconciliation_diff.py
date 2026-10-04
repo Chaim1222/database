@@ -74,7 +74,46 @@ def record_audit(client):
     return audit_id
 
 
-def record_full_diff(client, audit_id, already_recorded=False):
+def explain_timing(client, audit_id, summary_rows, windows):
+    """
+    windows: {side: (start_ts, end_ts or None)}. מסווג את הדוגמאות "לא ידוע לדלתא" לפי פעילות בחלון (ראו timing_window.py).
+    מדידה בלבד: כשל נרשם כאזהרה. הניסוח "הוסבר בתזמון (אפשרי)": עריכה בחלון לא מוכיחה שהיא סיבת הפער.
+    """
+    from timing_window import fetch_window_activity, summarize
+
+    try:
+        examples, offset = [], 0
+        while True:
+            page = execute_with_retry(
+                lambda: client.table("reconciliation_diff_examples").select("side,change_class,page_id,title,old_value,new_value")
+                .eq("audit_id", audit_id).eq("known_to_delta", False).order("id").range(offset, offset + 999).execute(),
+                "reconciliation_diff_examples", log_fn=log,
+            ).data or []
+            examples += page
+            if len(page) < 1000:
+                break
+            offset += 1000
+        activity = {}
+        for side, (start, end) in windows.items():
+            activity[side] = fetch_window_activity(API_BY_SIDE[side], start, end)
+        rows = summarize(summary_rows, examples, activity)
+    except Exception as exc:  # noqa: BLE001 - מדידה בלבד
+        log(f"WARNING | הסבר התזמון לא חושב (לא חוסם): {type(exc).__name__}: {exc}")
+        return []
+
+    lines = ["הסבר תזמון (אפשרי, לא הוכחה לסיבה): חלון = מנקודת הדלתא של הבנייה עד סיום השליפה של כל אתר"]
+    for side, change_class, unknown, sampled, explained, unexplained, note in rows:
+        if explained is None:
+            lines.append(f"תזמון | {side} | {change_class} | לא ידוע לדלתא {unknown:,} | אין חלון לצד הזה")
+        else:
+            lines.append(
+                f"תזמון | {side} | {change_class} | לא ידוע לדלתא {unknown:,} | הוסבר בתזמון {explained:,} | "
+                f"לא הוסבר בתזמון {unexplained:,}" + (f" | {note}" if note else "")
+            )
+    return lines
+
+
+def record_full_diff(client, audit_id, already_recorded=False, windows=None):
     """
     ההשוואה המלאה (כל סוגי השינוי, גם שורות שקיימות רק בצד אחד), בנוסף לביקורת הקיימת -
     migrations/migration_add_reconciliation_diff_all.sql. מדידה בלבד: כשל כאן (למשל המיגרציה עוד לא
@@ -99,10 +138,15 @@ def record_full_diff(client, audit_id, already_recorded=False):
 
     for row in rows:
         log(f"השוואה מלאה | {row['side']} | {row['change_class']} | {row['n']:,} (לא ידוע לדלתא: {row['n'] - row['n_known_to_delta']:,})")
+    timing_lines = explain_timing(client, audit_id, rows, windows) if windows else []
+    for line in timing_lines:
+        log(line)
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary_path:
         with open(summary_path, "a", encoding="utf-8") as f:
             f.write(format_summary(rows, audit_id) + "\n")
+            if timing_lines:
+                f.write("\n".join(timing_lines) + "\n")
 
 
 def _parse_ts(ts_str):
