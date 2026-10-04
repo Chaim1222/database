@@ -120,5 +120,30 @@ class TemplateErrorTests(unittest.TestCase):
                 match.fetch_template_titles(["דף"])
 
 
+    def _fetch(self, response):
+        with mock.patch.object(match, "api_get_with_retry", side_effect=[response]), mock.patch.object(match.time, "sleep"):
+            return match.fetch_template_titles(["דף"])
+
+    def test_response_without_query_raises(self):
+        with self.assertRaises(RuntimeError):
+            self._fetch({"batchcomplete": True})
+
+    def test_page_without_revisions_and_not_missing_raises(self):
+        with self.assertRaises(RuntimeError):
+            self._fetch({"query": {"pages": [{"title": "דף"}]}})
+
+    def test_missing_page_is_just_no_template(self):
+        result = self._fetch({"query": {"pages": [{"title": "דף", "missing": True}]}})
+        self.assertIsNone(result["דף"])
+
+    def test_page_without_content_raises(self):
+        with self.assertRaises(RuntimeError):
+            self._fetch({"query": {"pages": [{"title": "דף", "revisions": [{"slots": {"main": {}}}]}]}})
+
+    def test_empty_content_is_no_template(self):
+        result = self._fetch({"query": {"pages": [{"title": "דף", "revisions": [{"slots": {"main": {"content": ""}}}]}]}})
+        self.assertIsNone(result["דף"])
+
+
 if __name__ == "__main__":
     unittest.main()
