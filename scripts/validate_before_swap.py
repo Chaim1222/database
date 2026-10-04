@@ -41,6 +41,88 @@ def count_rows(client, table):
     return result.count or 0
 
 
+# שער איכות (נוסף ב-4.10.2026 אחרי סקירה: השער בדק רק כמות, ולכן בנייה עם התאמה חלקית הייתה עוברת).
+# משווה כמה מאפיינים של הבנייה (הזמנית) מול הפעילה, שהיא המצב המוכר והתקין האחרון. הספים נבחרו כרחבים
+# בכוונה ונשענים על ריצה אחת (4.10: ללא התאמה 3,783 בבנייה מול 3,788 בפעילה אחריה, מתועדים 335,469, חסרים 27,886) -
+# לכוונן לפי הניסיון. כשל כאן עוצר את ההחלפה ופותח Issue, כמו ירידה חמורה במספר השורות.
+UNMATCHED_FACTOR = 1.5
+UNMATCHED_SLACK = 500
+DOCUMENTED_MAX_SHIFT = 0.05
+DOCUMENTED_MIN_SLACK = 1000
+MISSING_MAX_SHIFT = 0.30
+MISSING_SLACK = 500
+UNMATCHED = "ללא התאמה"
+DOCUMENTED = "מיובא ומתועד"
+
+
+# בדיקת טריות: הטבלה הזמנית חייבת להיות בנייה טרייה. בבנייה, כל שורת ויקיפדיה נכתבת עם checked_at של הרגע (fetch_wikipedia.py),
+# ו-forward_fill לא מעתיק את העמודה. אחרי החלפה הזמנית מחזיקה את הפעילה הקודמת, ושורותיה בנות ~שבוע. כך
+# `resume_after_match` אחרי כשל *לאחר* ההחלפה (שהיה מחליף בחזרה לנתונים הישנים) נחסם בלי שינוי במסד.
+FRESH_WINDOW_HOURS = 72
+FRESH_MIN_SHARE = 0.9
+
+
+def freshness_issue(total, fresh):
+    """None אם הזמנית נראית כבנייה טרייה (רוב השורות נכתבו לאחרונה), אחרת הסבר."""
+    if total <= 0:
+        return "הטבלה הזמנית ריקה"
+    if fresh / total < FRESH_MIN_SHARE:
+        return (
+            f"הטבלה הזמנית אינה בנייה טרייה: רק {fresh:,} מתוך {total:,} שורות נכתבו ב-{FRESH_WINDOW_HOURS} השעות האחרונות "
+            "(ייתכן שהיא מחזיקה את הפעילה הקודמת אחרי החלפה)"
+        )
+    return None
+
+
+def count_fresh(client, table, hours):
+    from datetime import datetime, timedelta, timezone
+
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
+    result = execute_with_retry(
+        lambda: client.table(table).select("id", count="exact", head=True).gte("checked_at", cutoff).execute(),
+        f"COUNT {table} checked_at>={cutoff}",
+        log_fn=log,
+    )
+    return result.count or 0
+
+
+def count_where(client, table, column, value):
+    result = execute_with_retry(
+        lambda: client.table(table).select("id", count="exact", head=True).eq(column, value).execute(),
+        f"COUNT {table} {column}={value}",
+        log_fn=log,
+    )
+    return result.count or 0
+
+
+def collect_quality_stats(client, mechalol_table, wikipedia_table):
+    return {
+        "unmatched": count_where(client, mechalol_table, "match_type", UNMATCHED),
+        "documented": count_where(client, mechalol_table, "status", DOCUMENTED),
+        "missing": count_where(client, wikipedia_table, "is_missing", True),
+    }
+
+
+def quality_issues(active, temp):
+    """
+    רשימת בעיות איכות (ריקה = תקין) מהשוואת סטטיסטיקות הפעילה והזמנית. טהורה, נבדקת ביחידות.
+    - ללא התאמה: עלייה חדה = התאמה חלקית או שגויה (ירידה אינה חוסמת).
+    - מתועדים: סטייה מעל 5% = סיווג קטגוריות חלקי.
+    - חסרים (is_missing): סטייה מעל 30% = חישוב החסרים לא הושלם או שגוי.
+    """
+    issues = []
+    unmatched_limit = active["unmatched"] * UNMATCHED_FACTOR + UNMATCHED_SLACK
+    if temp["unmatched"] > unmatched_limit:
+        issues.append(f"ללא התאמה: {temp['unmatched']:,} בבנייה מול {active['unmatched']:,} בפעילה (סף {unmatched_limit:,.0f})")
+    documented_limit = max(DOCUMENTED_MIN_SLACK, active["documented"] * DOCUMENTED_MAX_SHIFT)
+    if abs(temp["documented"] - active["documented"]) > documented_limit:
+        issues.append(f"מתועדים: {temp['documented']:,} בבנייה מול {active['documented']:,} בפעילה (סטייה מותרת {documented_limit:,.0f})")
+    missing_limit = active["missing"] * MISSING_MAX_SHIFT + MISSING_SLACK
+    if abs(temp["missing"] - active["missing"]) > missing_limit:
+        issues.append(f"חסרים: {temp['missing']:,} בבנייה מול {active['missing']:,} בפעילה (סטייה מותרת {missing_limit:,.0f})")
+    return issues
+
+
 def classify_drop(active, new, label):
     """
     מחזיר (severity, drop) עבור זוג טבלה אחד. severity אחד מ:
@@ -102,6 +184,24 @@ def main():
 
     if "severe" in severities:
         log("FAIL | ירידה חמורה באחת הטבלאות - עוצר, לא מתבצעת החלפה, נכשל במפורש")
+        write_github_output(should_swap=False)
+        raise SystemExit(1)
+
+    fresh_issue = freshness_issue(wikipedia_new, count_fresh(client, "wikipedia_pages_temp", FRESH_WINDOW_HOURS))
+    if fresh_issue:
+        log(f"SEVERE | טריות | {fresh_issue}")
+        log("FAIL | הזמנית אינה בנייה טרייה - עוצר, לא מתבצעת החלפה, נכשל במפורש")
+        write_github_output(should_swap=False)
+        raise SystemExit(1)
+
+    active_stats = collect_quality_stats(client, "mechalol_pages", "wikipedia_pages")
+    temp_stats = collect_quality_stats(client, "mechalol_pages_temp", "wikipedia_pages_temp")
+    log(f"איכות | פעילה: {active_stats} | בנייה: {temp_stats}")
+    issues = quality_issues(active_stats, temp_stats)
+    if issues:
+        for issue in issues:
+            log(f"SEVERE | איכות | {issue}")
+        log("FAIL | הבנייה חורגת משער האיכות - עוצר, לא מתבצעת החלפה, נכשל במפורש")
         write_github_output(should_swap=False)
         raise SystemExit(1)
 

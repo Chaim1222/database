@@ -164,6 +164,8 @@ def clean_template_value(raw):
 # מתוך האצווה גרמה לזה). שונה במפורש מ-None (נבדק בפועל, אין תבנית) -
 # "לא הצלחנו לבדוק בכלל" לעומת "בדקנו ואין תבנית".
 ACCESS_DENIED = object()
+ACCESS_DENIED_CODES = {"accessdenied"}
+TEMPLATE_ERROR_RETRIES = 3
 
 
 def fetch_template_titles(titles):
@@ -190,6 +192,19 @@ def fetch_template_titles(titles):
     }
 
     data = api_get_with_retry(params, "template batch")
+
+    # רק accessdenied מסמן דף כנעול (כמו DENIED_ERROR_CODES ב-fetch_sort_templates.py). שגיאה אחרת בגוף התשובה
+    # (ratelimited, internal_api_error וכו') היא תקלה זמנית: ניסיון חוזר, ואחריו כישלון בקול. קודם כל שגיאה
+    # הפכה ל-ACCESS_DENIED, ושורה תקינה סומנה נעולה ונשארה בלי התאמה (נקבע בסקירה, 4.10.2026).
+    for attempt in range(1, TEMPLATE_ERROR_RETRIES + 1):
+        error_code = (data.get("error") or {}).get("code") if "error" in data else None
+        if "error" not in data or error_code in ACCESS_DENIED_CODES:
+            break
+        if attempt >= TEMPLATE_ERROR_RETRIES:
+            raise RuntimeError(f"שגיאת API בבדיקת תבנית ({error_code}): {data['error']}")
+        log(f"WARNING | template | שגיאת API {error_code} (ניסיון {attempt}/{TEMPLATE_ERROR_RETRIES}) - ממתין ומנסה שוב")
+        time.sleep(5 * attempt)
+        data = api_get_with_retry(params, "template batch")
 
     if "error" in data:
         error_code = data["error"].get("code")
