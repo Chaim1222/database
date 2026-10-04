@@ -83,6 +83,22 @@ class QualityIssuesTests(unittest.TestCase):
         self.assertEqual(gate.quality_issues(self.ACTIVE, {"unmatched": 100, "documented": 335469, "missing": 27887}), [])
 
 
+class FreshnessTests(unittest.TestCase):
+    def test_fresh_build_passes(self):
+        self.assertIsNone(gate.freshness_issue(406059, 406059))
+
+    def test_old_active_after_swap_is_blocked(self):
+        # אחרי החלפה הזמנית מחזיקה את הפעילה הקודמת: רק שורות שהדלתא הוסיפה טריות
+        self.assertIn("אינה בנייה טרייה", gate.freshness_issue(406048, 40))
+
+    def test_empty_temp_is_blocked(self):
+        self.assertIn("ריקה", gate.freshness_issue(0, 0))
+
+    def test_threshold_is_ninety_percent(self):
+        self.assertIsNone(gate.freshness_issue(1000, 900))
+        self.assertIsNotNone(gate.freshness_issue(1000, 899))
+
+
 class TemplateErrorTests(unittest.TestCase):
     def test_only_accessdenied_is_marked_denied(self):
         responses = [{"error": {"code": "accessdenied"}}]

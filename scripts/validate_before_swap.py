@@ -55,6 +55,37 @@ UNMATCHED = "ללא התאמה"
 DOCUMENTED = "מיובא ומתועד"
 
 
+# בדיקת טריות: הטבלה הזמנית חייבת להיות בנייה טרייה. בבנייה, כל שורת ויקיפדיה נכתבת עם checked_at של הרגע (fetch_wikipedia.py),
+# ו-forward_fill לא מעתיק את העמודה. אחרי החלפה הזמנית מחזיקה את הפעילה הקודמת, ושורותיה בנות ~שבוע. כך
+# `resume_after_match` אחרי כשל *לאחר* ההחלפה (שהיה מחליף בחזרה לנתונים הישנים) נחסם בלי שינוי במסד.
+FRESH_WINDOW_HOURS = 72
+FRESH_MIN_SHARE = 0.9
+
+
+def freshness_issue(total, fresh):
+    """None אם הזמנית נראית כבנייה טרייה (רוב השורות נכתבו לאחרונה), אחרת הסבר."""
+    if total <= 0:
+        return "הטבלה הזמנית ריקה"
+    if fresh / total < FRESH_MIN_SHARE:
+        return (
+            f"הטבלה הזמנית אינה בנייה טרייה: רק {fresh:,} מתוך {total:,} שורות נכתבו ב-{FRESH_WINDOW_HOURS} השעות האחרונות "
+            "(ייתכן שהיא מחזיקה את הפעילה הקודמת אחרי החלפה)"
+        )
+    return None
+
+
+def count_fresh(client, table, hours):
+    from datetime import datetime, timedelta, timezone
+
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
+    result = execute_with_retry(
+        lambda: client.table(table).select("id", count="exact", head=True).gte("checked_at", cutoff).execute(),
+        f"COUNT {table} checked_at>={cutoff}",
+        log_fn=log,
+    )
+    return result.count or 0
+
+
 def count_where(client, table, column, value):
     result = execute_with_retry(
         lambda: client.table(table).select("id", count="exact", head=True).eq(column, value).execute(),
@@ -153,6 +184,13 @@ def main():
 
     if "severe" in severities:
         log("FAIL | ירידה חמורה באחת הטבלאות - עוצר, לא מתבצעת החלפה, נכשל במפורש")
+        write_github_output(should_swap=False)
+        raise SystemExit(1)
+
+    fresh_issue = freshness_issue(wikipedia_new, count_fresh(client, "wikipedia_pages_temp", FRESH_WINDOW_HOURS))
+    if fresh_issue:
+        log(f"SEVERE | טריות | {fresh_issue}")
+        log("FAIL | הזמנית אינה בנייה טרייה - עוצר, לא מתבצעת החלפה, נכשל במפורש")
         write_github_output(should_swap=False)
         raise SystemExit(1)
 
