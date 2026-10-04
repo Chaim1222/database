@@ -67,6 +67,40 @@ jobs:
       - name: התקנת ספריות
         run: pip install -r requirements.txt
 
+      # הדלתא הלילית (אותם ארבעה צעדים בדיוק כמו ב-nightly_delta.yml) רצה כאן **לפני** הבנייה מחדש (4.10.2026).
+      # למה: השבועית והלילית מתחילות באותה שעה, והשבועית קודמת (למשל 27.9: שבועית 00:16, לילית 00:20),
+      # כך שההשוואה בין הטבלה הפעילה לבנייה מחדש כללה יממה של שינויים שהדלתא עוד לא הספיקה לראות. כך ההבדל
+      # הוא רק מה שהדלתא באמת מפספסת. בשבת הלילית עצמה תרוץ אחרי השבועית על טווח זעיר.
+      - name: דלתא לפני הבנייה מחדש - מכלול
+        if: ${{ !inputs.resume_after_match }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python scripts/fetch_mechalol_delta.py --defer-watermark
+
+      - name: דלתא לפני הבנייה מחדש - ויקיפדיה
+        if: ${{ !inputs.resume_after_match }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python scripts/fetch_wikipedia_delta.py --defer-watermark
+
+      - name: דלתא לפני הבנייה מחדש - התאמה ממוקדת
+        if: ${{ !inputs.resume_after_match }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          USER_NAME: ${{ secrets.USER_NAME }}
+          PASSWORD: ${{ secrets.PASSWORD }}
+        run: python scripts/match.py --scoped --login
+
+      - name: דלתא לפני הבנייה מחדש - קידום נקודות התקדמות
+        if: ${{ !inputs.resume_after_match }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python scripts/advance_delta_watermarks.py
+
       # מדידת נפח (לא חוסמת; דורשת migration_add_db_size_report.sql - בלעדיה רק אזהרה):
       # לפני הטעינה, בשיא (טבלאות זמניות מלאות + פעילות) לפני ההחלפה, ואחרי הריקון.
       - name: מדידת גודל מסד - לפני הטעינה

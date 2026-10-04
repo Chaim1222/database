@@ -27,8 +27,9 @@ import json
 from config import MECHALOL_API
 from delta_api import (
     fetch_new_pages, fetch_delete_log, fetch_move_log,
-    fetch_edited_page_ids, fetch_redirect_status,
+    fetch_edited_page_ids, fetch_redirect_status, fetch_tagged_changes,
 )
+from redirect_tags import REDIRECT_ADDED_TAG, REDIRECT_REMOVED_TAG, revived_articles, union_candidates
 from fetch_mechalol import fetch_own_categories, classify_page_from_own_categories
 import delta_watermark
 from supabase_client import get_client, execute_with_retry
@@ -84,7 +85,7 @@ def find_tracked_ids(client, candidate_ids):
     return found
 
 
-def detect_edited_tracked_changes(client, since_ts, already_handled_ids):
+def detect_edited_tracked_changes(client, since_ts, already_handled_ids, tagged=None):
     """
     מזהה שני סוגי שינוי בדפי מכלול *במעקב אצלנו* שנערכו (לא נוצרו/
     נמחקו/הועברו) - הפער המתועד בתכנון: "עריכה רגילה יכולה להפוך
@@ -108,6 +109,9 @@ def detect_edited_tracked_changes(client, since_ts, already_handled_ids):
         return [], []
 
     edited = fetch_edited_page_ids(MECHALOL_API, since_ts)
+    # תגית mw-new-redirect (tagged) מצטרפת לסריקת כל העריכות, לא מחליפה אותה; "מהתגית בלבד" הוא מדד לכיסוי נוסף.
+    edited, tag_only = union_candidates(edited, tagged or [])
+    log(f"עריכות במעקב | מועמדים: {len(edited)} (מהתגית בלבד: {tag_only})")
     candidate_ids = {e["page_id"] for e in edited} - already_handled_ids
     if not candidate_ids:
         return [], []
@@ -519,7 +523,14 @@ def main():
         {"page_id": mv["page_id"], "title": mv["new_title"], "created_at": mv["renamed_at"]}
         for mv in move_creations
     ]
-    all_creations = new_pages + restores + move_creation_events
+    # הפניות שהפכו לערכים (תגית mw-removed-redirect): הדלתא לא ראתה אותן (הפניות לא בטבלה ועריכה רגילה אינה
+    # יצירה). נכנסות כיצירה ומסווגות לפי הקטגוריות שלהן, כמו כל דף חדש. המצב הנוכחי נקבע מול ה-API.
+    removed_redirect = fetch_tagged_changes(MECHALOL_API, since_ts, REDIRECT_REMOVED_TAG)
+    revived = revived_articles(
+        removed_redirect, fetch_redirect_status(MECHALOL_API, [e["title"] for e in removed_redirect])
+    )
+    added_redirect = fetch_tagged_changes(MECHALOL_API, since_ts, REDIRECT_ADDED_TAG)
+    all_creations = new_pages + restores + move_creation_events + revived
 
     move_deletion_events = [
         {
@@ -541,7 +552,9 @@ def main():
         | {d["page_id"] for d in move_deletion_events if d.get("page_id")}
         | {mv["page_id"] for mv in renames if mv.get("page_id")}
     )
-    became_redirect, status_updates = detect_edited_tracked_changes(client, since_ts, already_handled_ids)
+    became_redirect, status_updates = detect_edited_tracked_changes(
+        client, since_ts, already_handled_ids, tagged=added_redirect
+    )
 
     all_deletions = deletions + move_deletion_events + became_redirect
 
@@ -549,7 +562,7 @@ def main():
         f"נמצאו | יצירות={len(new_pages)} שחזורים={len(restores)} "
         f"תזוזות-כיצירה={len(move_creations)} | מחיקות={len(deletions)} "
         f"תזוזות-כמחיקה={len(move_deletions)} הפכו-להפניה={len(became_redirect)} | "
-        f"שינויי-שם={len(renames)} | עדכוני-סיווג={len(status_updates)}"
+        f"שינויי-שם={len(renames)} | עדכוני-סיווג={len(status_updates)} | הפניה-שהפכה-לערך={len(revived)}"
     )
 
     # קטגוריות עצמיות רק לכותרות שבאמת נוצרו (לא כל האתר) - ראו

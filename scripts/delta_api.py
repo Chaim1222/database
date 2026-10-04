@@ -104,6 +104,48 @@ def fetch_edited_page_ids(api_url, since_ts):
     return results
 
 
+def fetch_tagged_changes(api_url, since_ts, tag):
+    """
+    list=recentchanges, rcnamespace=0, rctype=edit|new, rctag=<tag>, rcdir=newer, rcstart=since_ts.
+    תגית אחת בבקשה (מגבלת ה-API). לשימוש עם redirect_tags.REDIRECT_REMOVED_TAG (הפניה -> ערך) ו-
+    REDIRECT_ADDED_TAG (ערך -> הפניה); ראו redirect_tags.py.
+
+    מחזיר רשימת dict: page_id, title, timestamp (אירוע אחרון לכל דף).
+    """
+    from redirect_tags import latest_by_page
+
+    results = []
+    rccontinue = None
+
+    while True:
+        params = {
+            "action": "query",
+            "list": "recentchanges",
+            "rcnamespace": 0,
+            "rctype": "edit|new",
+            "rctag": tag,
+            "rcdir": "newer",
+            "rcstart": since_ts,
+            "rcprop": "title|ids|timestamp",
+            "rclimit": 500,
+            "formatversion": "2",
+            "format": "json",
+        }
+        if rccontinue:
+            params["rccontinue"] = rccontinue
+
+        data = _api_get_with_retry(api_url, params, f"recentchanges (תגית {tag})")
+
+        for rc in data.get("query", {}).get("recentchanges", []):
+            results.append({"page_id": rc["pageid"], "title": rc["title"], "timestamp": rc["timestamp"]})
+
+        rccontinue = data.get("continue", {}).get("rccontinue")
+        if not rccontinue:
+            break
+
+    return latest_by_page(results)
+
+
 def fetch_redirect_status(api_url, titles):
     """
     prop=info&titles=... (POST, לא GET - כותרות עבריות מקודדות יכולות
