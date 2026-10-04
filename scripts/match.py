@@ -224,16 +224,24 @@ def fetch_template_titles(titles):
         result.update(fetch_template_titles(titles[mid:]))
         return result
 
-    pages = data.get("query", {}).get("pages", [])
+    # תשובה בלי "query" (ובלי "error") אינה "אין תבנית באף דף": היא תשובה לא תקינה, וכישלון בקול עדיף על
+    # סימון שקט של כל האצווה כבלי תבנית (סקירה חיצונית, 4.10.2026).
+    if "query" not in data:
+        raise RuntimeError(f"תשובת API ללא query בבדיקת תבנית ({len(titles)} כותרות): {str(data)[:200]}")
+    pages = data["query"].get("pages", [])
 
     for page in pages:
         title = page.get("title")
         revisions = page.get("revisions") or []
 
         if not revisions:
-            continue
+            if page.get("missing") or page.get("invalid") or page.get("special"):
+                continue  # דף שאינו קיים: באמת אין בו תבנית
+            raise RuntimeError(f"דף \"{title}\" הוחזר בלי גרסאות ובלי סימון missing/invalid - לא ניתן לדעת אם יש בו תבנית")
 
-        content = revisions[0].get("slots", {}).get("main", {}).get("content", "")
+        content = revisions[0].get("slots", {}).get("main", {}).get("content")
+        if content is None:
+            raise RuntimeError(f"דף \"{title}\" הוחזר בלי תוכן (ייתכן תוכן מוסתר) - לא ניתן לדעת אם יש בו תבנית")
 
         match = TEMPLATE_RE.search(content)
         if match:
