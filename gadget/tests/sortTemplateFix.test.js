@@ -6,8 +6,8 @@ const path = require('path');
 
 const src = fs.readFileSync(path.join(__dirname, '..', 'gadget-sortTemplateFix.js'), 'utf8');
 const pure = src.slice(src.indexOf('// <fix-pure>'), src.indexOf('// </fix-pure>'));
-const { planSortTemplate, insertSortTemplate, sortDateFromTimestamp, sortTemplatePage, findSortTemplate, buildSortTemplate, previewContext, removeMaintenanceCategory, formatJerusalemTime } =
-  new Function(pure + '\nreturn { planSortTemplate, insertSortTemplate, sortDateFromTimestamp, sortTemplatePage, findSortTemplate, buildSortTemplate, previewContext, removeMaintenanceCategory, formatJerusalemTime };')();
+const { planSortTemplate, insertSortTemplate, sortDateFromTimestamp, sortTemplatePage, findSortTemplate, buildSortTemplate, previewContext, removeMaintenanceCategory, formatTime, zoneFromOption } =
+  new Function(pure + '\nreturn { planSortTemplate, insertSortTemplate, sortDateFromTimestamp, sortTemplatePage, findSortTemplate, buildSortTemplate, previewContext, removeMaintenanceCategory, formatTime, zoneFromOption };')();
 
 const V = { page: 'ערך', rev: 200, item: 'Q5', date: 'ספטמבר 2025' };
 
@@ -119,7 +119,23 @@ test('תבנית קיימת וקטגוריית תחזוקה: הקטגוריה מ
 });
 
 test('זמן קריא לפי שעון ירושלים (חורף וקיץ, חצות)', () => {
-  assert.strictEqual(formatJerusalemTime('2017-12-10T17:40:22Z'), '10.12.2017 19:40');
-  assert.strictEqual(formatJerusalemTime('2025-07-01T09:05:00Z'), '01.07.2025 12:05');
-  assert.strictEqual(formatJerusalemTime('2025-12-31T22:30:00Z'), '01.01.2026 00:30');
+  assert.strictEqual(formatTime('2017-12-10T17:40:22Z'), '10.12.2017 19:40');
+  assert.strictEqual(formatTime('2025-07-01T09:05:00Z'), '01.07.2025 12:05');
+  assert.strictEqual(formatTime('2025-12-31T22:30:00Z'), '01.01.2026 00:30');
+});
+
+test('אזור הזמן של התצוגה: System|180 קבוע גם בחורף (גרסת היצירה של 1.3.2017 מוצגת כמרץ)', () => {
+  const zone = zoneFromOption('System|180');
+  assert.deepStrictEqual(zone, { offset: 180 });
+  assert.strictEqual(sortDateFromTimestamp('2017-02-28T21:03:42Z', zone), 'מרץ 2017');
+  assert.strictEqual(formatTime('2017-02-28T21:03:42Z', zone), '01.03.2017 00:03');
+  // ירושלים האמיתית באותו זמן עדיין פברואר
+  assert.strictEqual(sortDateFromTimestamp('2017-02-28T21:03:42Z'), 'פברואר 2017');
+});
+
+test('zoneFromOption: ZoneInfo, Offset, ריק', () => {
+  assert.deepStrictEqual(zoneFromOption('ZoneInfo|120|Asia/Jerusalem'), { tz: 'Asia/Jerusalem' });
+  assert.deepStrictEqual(zoneFromOption('Offset|-300'), { offset: -300 });
+  assert.deepStrictEqual(zoneFromOption(''), { tz: 'Asia/Jerusalem' });
+  assert.strictEqual(sortDateFromTimestamp('2025-08-31T22:30:00Z', zoneFromOption('ZoneInfo|180|Asia/Jerusalem')), 'ספטמבר 2025');
 });

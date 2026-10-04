@@ -57,17 +57,37 @@
 		}
 		return null;
 	}
-	// "חודש שנה" (בפורמט הקבוע של התבנית) מחותמת זמן ISO, לפי אזור הזמן של ירושלים.
-	function sortDateFromTimestamp(ts) {
-		var parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', year: 'numeric', month: 'numeric' }).formatToParts(new Date(ts));
-		var get = function (type) { return Number(parts.filter(function (p) { return p.type === type; })[0].value); };
-		return HE_MONTH_NAMES[get('month') - 1] + ' ' + get('year');
+	// אזור הזמן שבו האתר מציג זמנים למשתמש, מההעדפה timecorrection: "System|180" / "Offset|120" (היסט קבוע בדקות) או "ZoneInfo|120|Asia/Jerusalem".
+	// כך החודש שנכתב בתבנית תמיד תואם למה שהעורך רואה בהיסטוריה (למשל System|180 קבוע גם בחורף, כשירושלים ב-UTC+2). ברירת מחדל: ירושלים.
+	function zoneFromOption(opt) {
+		var m = /^(?:System|Offset)\|(-?\d+)/.exec(opt || '');
+		if (m) return { offset: Number(m[1]) };
+		m = /^ZoneInfo\|-?\d+\|(.+)$/.exec(opt || '');
+		if (m) return { tz: m[1] };
+		return { tz: 'Asia/Jerusalem' };
 	}
-	// "10.12.2017 19:40" - זמן קריא לפי שעון ירושלים מחותמת זמן ISO.
-	function formatJerusalemTime(ts) {
-		var parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(ts));
-		var g = function (type) { return parts.filter(function (p) { return p.type === type; })[0].value; };
-		return g('day') + '.' + g('month') + '.' + g('year') + ' ' + g('hour') + ':' + g('minute');
+	function zonedParts(ts, zone) {
+		zone = zone || { tz: 'Asia/Jerusalem' };
+		if (typeof zone.offset === 'number') {
+			var d = new Date(new Date(ts).getTime() + zone.offset * 60000);
+			return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate(), hour: d.getUTCHours(), minute: d.getUTCMinutes() };
+		}
+		var fmt;
+		try { fmt = new Intl.DateTimeFormat('en-GB', { timeZone: zone.tz, year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', hourCycle: 'h23' }); }
+		catch (e) { fmt = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jerusalem', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', hourCycle: 'h23' }); }
+		var parts = fmt.formatToParts(new Date(ts)), out = {};
+		parts.forEach(function (p) { if (p.type !== 'literal') out[p.type] = Number(p.value); });
+		return out;
+	}
+	// "חודש שנה" (בפורמט הקבוע של התבנית) מחותמת זמן ISO, באזור הזמן של התצוגה.
+	function sortDateFromTimestamp(ts, zone) {
+		var p = zonedParts(ts, zone);
+		return HE_MONTH_NAMES[p.month - 1] + ' ' + p.year;
+	}
+	// "10.12.2017 19:40" - זמן קריא באזור הזמן של התצוגה.
+	function formatTime(ts, zone) {
+		var p = zonedParts(ts, zone), two = function (n) { return (n < 10 ? '0' : '') + n; };
+		return two(p.day) + '.' + two(p.month) + '.' + p.year + ' ' + two(p.hour) + ':' + two(p.minute);
 	}
 	function normTitle(t) { return String(t || '').replace(/_/g, ' ').replace(/\s+/g, ' ').trim(); }
 	function buildSortTemplate(v) {
@@ -229,9 +249,9 @@
 		});
 	}
 
-	function describePlan(plan, wp, tsHamichlol) {
+	function describePlan(plan, wp, tsHamichlol, zone) {
 		var box = el('div', {});
-		box.appendChild(el('div', { text: 'גרסת ויקיפדיה שנמצאה: ' + wp.revid + ' (' + formatJerusalemTime(wp.ts) + ') בערך "' + wp.title + '", לפי זמן השורה ' + formatJerusalemTime(tsHamichlol) }));
+		box.appendChild(el('div', { text: 'גרסת ויקיפדיה שנמצאה: ' + wp.revid + ' (' + formatTime(wp.ts, zone) + ') בערך "' + wp.title + '", לפי זמן השורה ' + formatTime(tsHamichlol, zone) }));
 		if (plan.created) {
 			box.appendChild(el('div', { text: 'אין תבנית מיון בערך, תתווסף שורה חדשה:' }));
 		} else {
@@ -300,7 +320,8 @@
 			}
 
 			var wp = await lookupWikipediaRevision(wpTitle, rowTs);
-			var date = sortDateFromTimestamp(rowTs);
+			var zone = zoneFromOption(mw.user.options.get('timecorrection'));
+			var date = sortDateFromTimestamp(rowTs, zone);
 			var titleDiffers = !!tplPage && normTitle(wp.title) !== tplPage;
 			var values = { page: normTitle(wp.title), rev: wp.revid, item: wp.item, date: date };
 
@@ -309,7 +330,7 @@
 
 			// תצוגה ואישור
 			panel.textContent = '';
-			panel.appendChild(describePlan(plan, wp, rowTs));
+			panel.appendChild(describePlan(plan, wp, rowTs, zone));
 			var pageBox = null;
 			if (titleDiffers) {
 				pageBox = el('input', { type: 'checkbox', checked: 'checked' });
