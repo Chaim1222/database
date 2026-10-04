@@ -69,7 +69,23 @@ from wikipedia_title_gap import (
 
 PROGRESS_FILE = "wikipedia_progress.json"
 MAX_SUPABASE_RETRIES = 5
-MAX_API_RETRIES = 5
+MAX_API_RETRIES = 8  # 429 מחכה לפי Retry-After (ראו retry_wait_seconds), לכן יותר ניסיונות מבעבר
+
+
+def retry_wait_seconds(exc, attempt):
+    """
+    כמה לחכות לפני ניסיון חוזר. 429 (Too Many Requests) מכבד את Retry-After של השרת, ובהיעדרו ממתין 5·2^ניסיון
+    עד 120 שניות; שגיאה אחרת: 2^(ניסיון-1) עד 30 שניות כמו קודם. ב-4.10.2026 הסריקה נכשלה כי חיכתה כ-15 שניות
+    בסך הכול מול 429 (שורש הבעיה היה עומס הבקשות; זה ה-fallback של --source api).
+    """
+    response = getattr(exc, "response", None)
+    if response is not None and getattr(response, "status_code", None) == 429:
+        try:
+            retry_after = int(response.headers.get("Retry-After", 0))
+        except (TypeError, ValueError):
+            retry_after = 0
+        return min(retry_after, 300) if retry_after > 0 else min(120, 5 * 2 ** attempt)
+    return min(2 ** (attempt - 1), 30)
 
 
 def load_progress():
@@ -130,8 +146,9 @@ def fetch_all_titles(apcontinue):
                 if attempt >= MAX_API_RETRIES:
                     print(f"שגיאת API | ניסיון {attempt}/{MAX_API_RETRIES}: {exc}")
                     raise
-                print(f"WARNING | שגיאת API | ניסיון {attempt}/{MAX_API_RETRIES}: {exc}")
-                time.sleep(min(2 ** (attempt - 1), 30))
+                wait = retry_wait_seconds(exc, attempt)
+                print(f"WARNING | שגיאת API | ניסיון {attempt}/{MAX_API_RETRIES}: {exc} | ממתין {wait}ש")
+                time.sleep(wait)
 
         pages = data.get("query", {}).get("allpages", [])
         yield [{"title": p["title"], "id": p["pageid"]} for p in pages]

@@ -31,6 +31,11 @@ on:
     - cron: "0 22 * * 6"  # כל מוצאי שבת (שבת -> ראשון), 22:00 UTC = חצות בישראל בחורף
   workflow_dispatch:
     inputs:
+      wikipedia_source:
+        description: "מקור כותרות ויקיפדיה: dump (ברירת מחדל: דמפ + השלמת פער) או api (סריקת allpages; fallback כשהדמפ לא נגיש, חשוף ל-429)"
+        type: choice
+        options: [dump, api]
+        default: dump
       resume_after_match:
         description: "המשך אחרי ההתאמה: מדלג על השליפות וההתאמה (הטבלאות הזמניות כבר מלאות ומותאמות מריצה שנכשלה בהעברת ההעשרה). לא להפעיל אם הטבלאות הזמניות ריקות או ישנות."
         type: boolean
@@ -124,7 +129,7 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           TARGET_TABLE_SUFFIX: "_temp"
-        run: python scripts/fetch_wikipedia.py
+        run: python scripts/fetch_wikipedia.py --source ${{ inputs.wikipedia_source || 'dump' }}
 
       - name: שליפת נתוני המכלול לטבלה הזמנית
         if: ${{ !inputs.resume_after_match }}
@@ -225,6 +230,29 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: python scripts/log_reconciliation_diff.py --classify-only "${{ steps.reconciliation_audit.outputs.audit_id }}"
+
+      # תחזוקה אחרי ההחלפה (4.10, בלי לחסום: כשל כאן לא מכשיל ריצה שהחליפה בהצלחה). הטבלאות האלה אינן
+      # מוחלפות ואף תהליך אחר לא מרענן אותן בשבועית. בדיקה מחדש של טאבי הגרסה (כמו בכפתור התחזוקה; מסירה רק
+      # שורות שתוקנו), וניקוי טבלאות התחזוקה **במצב דוח בלבד** (לא מוחק; הדוח בלוג, ומחיקה נשארת בכפתור).
+      - name: בדיקה מחדש של טאבי הגרסה
+        if: steps.validate.outputs.should_swap == 'true'
+        continue-on-error: true
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          USER_NAME: ${{ secrets.USER_NAME }}
+          PASSWORD: ${{ secrets.PASSWORD }}
+        run: python rev_link_scan.py --recheck
+
+      - name: דוח ניקוי טבלאות תחזוקה (דוח בלבד)
+        if: steps.validate.outputs.should_swap == 'true'
+        continue-on-error: true
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python refresh_maintenance_tables.py --dry-run
 
       - name: פתיחת Issue בעת כישלון
         if: failure()
