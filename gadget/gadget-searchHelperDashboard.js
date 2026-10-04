@@ -285,8 +285,9 @@
 	function mechalolUrl(id) { return 'https://www.hamichlol.org.il/w/index.php?curid=' + id; }
 	function wikipediaUrl(id) { return 'https://he.wikipedia.org/w/index.php?curid=' + id; }
 	function mechalolReadUrl(title) { return 'https://www.hamichlol.org.il/w/index.php?title=' + encodeURIComponent(title.replace(/ /g, '_')); }
-	// היסטוריית הערך עם fixsrc=1: גאדג'ט "תיקון גרסת מקור" (gadget/gadget-sortTemplateFix.js) מכין שם את לחצני "קבע גרסת מקור" מיד.
-	// אם הגאדג'ט לא טעון אצל המשתמש, נפתחת סתם היסטוריית הערך.
+	// היסטוריית הערך עם fixsrc=1. הסקריפט שרץ שם הוא "משתמש:גאון הירדן/הוספת תאריך למיון ויקיפדיה.js"
+	// (עותק בריפו: gadget/gadget-sortTemplateFix.js); הוא מכין את לחצני "קבע גרסת מקור" מיד.
+	// זו רק פתיחת קישור: הדשבורד לא טוען את הסקריפט ולא תלוי בו. אם הוא לא טעון אצל המשתמש, נפתחת סתם היסטוריית הערך.
 	function mechalolFixSourceUrl(title) { return 'https://www.hamichlol.org.il/w/index.php?title=' + encodeURIComponent(title.replace(/ /g, '_')) + '&action=history&fixsrc=1'; }
 	function mechalolEditUrl(title) { return 'https://www.hamichlol.org.il/w/index.php?title=' + encodeURIComponent(title.replace(/ /g, '_')) + '&action=edit'; }
 	function rowKey(row) { return activeTab + ':' + rowIdOf(row); }
