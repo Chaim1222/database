@@ -76,6 +76,8 @@ jobs:
       # postmortem 2026-09 ב-schema.sql): הריקון (truncate_temp_pages,
       # רשת ביטחון בלבד - הטבלאות כבר אמורות להיות ריקות מסוף הסבב
       # הקודם) חייב לקרות לפני מילוי mechalol_pages_temp, לא אחריו.
+      # מהדמפ (stub-meta-current) + השלמת פער מ-recentchanges/logevents, לא סריקת allpages
+      # (4.10.2026: ~800 בקשות רצופות נחסמו ב-429). --source api = fallback הישן.
       - name: שליפת כותרות ויקיפדיה לטבלה הזמנית
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
