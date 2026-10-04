@@ -28,8 +28,14 @@ fetch_mechalol.py ממלא אותה ואז fetch_wikipedia.py מוחק את מה
 יותר מנגנון "ניקוי דפים שנעלמו" בסוף הריצה - הריקון בתחילתה כבר עושה
 את זה.
 
+מקור הכותרות: כברירת מחדל (--source dump) הדמפ stub-meta-current של hewiki, בהורדה אחת מ-
+dumps.wikimedia.org, ואחריו השלמת הפער מ-recentchanges/logevents (wikipedia_title_gap.py).
+כך כמעט אין קריאות ל-API (הסריקה המלאה של allpages, ~800 בקשות רצופות, נחסמה ב-429 ב-4.10.2026).
+--source api הוא ה-fallback הישן (allpages). המשך-ריצה (progress) רלוונטי רק ל-api.
+
 שימוש (הרצה ראשונית ומלאה):
-    python fetch_wikipedia.py
+    python fetch_wikipedia.py                 # דמפ + השלמת פער
+    python fetch_wikipedia.py --source api    # fallback
 
 הסקריפט תומך בהמשכה: אם הריצה נקטעת עקב מגבלת זמן של גיטהאב אקשנס (הריגה
 חיצונית של התהליך, בלי הזדמנות להגיב) - קובץ ה-progress נשאר במצבו האחרון
@@ -39,6 +45,7 @@ fetch_mechalol.py ממלא אותה ואז fetch_wikipedia.py מוחק את מה
 תתחיל מחדש עם ריקון, ולא "תמשיך" ממצב שאולי לא אמין.
 """
 
+import argparse
 import json
 import os
 import time
@@ -55,6 +62,10 @@ from config import (
 )
 from supabase_client import get_client
 from table_names import table_name, rpc_name
+from wiki_dump import iter_stub_titles
+from wikipedia_title_gap import (
+    RESOLVE_BATCH, chunks, classify_pages, gap_start, log_event_refs,
+)
 
 PROGRESS_FILE = "wikipedia_progress.json"
 MAX_SUPABASE_RETRIES = 5
@@ -249,7 +260,147 @@ def upsert_batch(client, batch):
                 raise
 
 
+DUMP_URL = "https://dumps.wikimedia.org/hewiki/latest/hewiki-latest-stub-meta-current.xml.gz"
+DUMP_BATCH = 1000
+DUMP_ATTEMPTS = 3
+DELETE_CHUNK = API_BATCH_SIZE_TEMPLATE_CHECK
+
+
+def iter_dump_batches(url=DUMP_URL):
+    """
+    מחזיר (batch, newest_ts): אצוות של {"title","id"} מהדמפ, ובסוף האצווה האחרונה את ה-timestamp
+    המאוחר ביותר שנראה. הורדה שנקטעה מתחילה מחדש; הכתיבה אידמפוטנטית (upsert לפי id).
+    """
+    from fetch_wikipedia_revisions import open_dump  # רק כאן: דורש רק requests/gzip
+
+    last_error = None
+    for attempt in range(1, DUMP_ATTEMPTS + 1):
+        try:
+            batch, newest = [], ""
+            with open_dump(url, None) as stream:
+                for page_id, title, _rev_id, timestamp in iter_stub_titles(stream):
+                    batch.append({"title": title, "id": page_id})
+                    if timestamp and timestamp > newest:
+                        newest = timestamp
+                    if len(batch) >= DUMP_BATCH:
+                        yield batch, newest
+                        batch = []
+            yield batch, newest
+            return
+        except (requests.RequestException, OSError, EOFError) as exc:
+            last_error = exc
+            print(f"WARNING | הורדת הדמפ נקטעה (ניסיון {attempt}/{DUMP_ATTEMPTS}): {exc}")
+            time.sleep(10 * attempt)
+    raise RuntimeError(f"הורדת הדמפ נכשלה: {last_error}")
+
+
+def collect_gap_refs(since):
+    """
+    מזהי דפים וכותרות שנגעו בהם מאז since: עריכות ויצירות במרחב הראשי (recentchanges)
+    והעברות/מחיקות בכל מרחב שם (logevents; העברה מטיוטה או ממרחב משתמש ל"ראשי" נרשמת
+    במרחב המקור, ולכן לא נתפסת ב-recentchanges של המרחב הראשי).
+    """
+    from fetch_wikipedia_revisions import collect_changes, wikipedia_get
+
+    changes, edits = collect_changes(since)
+    ids = set(changes)
+    titles = set()
+    for log_type in ("move", "delete"):
+        params = {
+            "action": "query", "list": "logevents", "letype": log_type,
+            "leprop": "ids|title|type|details", "ledir": "newer",
+            "lestart": since, "lelimit": 500,
+        }
+        count = 0
+        while True:
+            data = wikipedia_get(params)
+            events = data.get("query", {}).get("logevents", [])
+            count += len(events)
+            event_ids, event_titles = log_event_refs(events)
+            ids |= event_ids
+            titles |= event_titles
+            if "continue" not in data:
+                break
+            params.update(data["continue"])
+            time.sleep(1)
+        print(f"logevents | {log_type} | {count} אירועים")
+    return ids, titles, edits
+
+
+def resolve_current_state(ids, titles):
+    """שואל את ה-API מה המצב עכשיו (prop=info), באצוות של 50. מחזיר (keep, drop_ids, drop_titles)."""
+    from fetch_wikipedia_revisions import wikipedia_get
+
+    keep, drop_ids, drop_titles = {}, set(), set()
+    queries = [("pageids", [str(i) for i in sorted(ids)]), ("titles", sorted(titles))]
+    for key, values in queries:
+        for chunk in chunks(values, RESOLVE_BATCH):
+            data = wikipedia_get({"action": "query", "prop": "info", key: "|".join(chunk)})
+            kept, dropped_ids, dropped_titles = classify_pages(data.get("query", {}).get("pages", {}).values())
+            for row in kept:
+                keep[row["id"]] = row
+            drop_ids |= dropped_ids
+            drop_titles |= dropped_titles
+            time.sleep(1)
+    # מצב חי גובר: מזהה שנמצא חי באחת השאילתות לא נמחק
+    drop_ids -= set(keep)
+    return list(keep.values()), drop_ids, drop_titles
+
+
+def apply_gap(client, keep, drop_ids, drop_titles):
+    """מוחק מהטבלה את מה שכבר לא ערך חי, ואז כותב את הערכים החיים (upsert עם טיפול בהתנגשות כותרת)."""
+    table = table_name("wikipedia_pages")
+    for chunk in chunks(sorted(drop_ids), DELETE_CHUNK):
+        client.table(table).delete().in_("id", chunk).execute()
+    for chunk in chunks(sorted(drop_titles), DELETE_CHUNK):
+        client.table(table).delete().in_("title", chunk).execute()
+    for chunk in chunks(keep, DUMP_BATCH):
+        upsert_batch(client, chunk)
+
+
+def main_dump(url=DUMP_URL):
+    client = get_client()
+    print(f"START | dump | {url}")
+
+    total, newest, truncated = 0, "", False
+    for batch, newest in iter_dump_batches(url):
+        if batch and not truncated:
+            print(f"ריקון | מרוקן {table_name('wikipedia_pages')}...")
+            client.rpc(rpc_name("truncate_wikipedia_pages")).execute()
+            truncated = True
+        upsert_batch(client, batch)
+        total += len(batch)
+        if total % (DUMP_BATCH * 50) < DUMP_BATCH:
+            print(f"נטענו {total} כותרות מהדמפ עד כה")
+
+    if total == 0:
+        raise RuntimeError(
+            "הדמפ לא החזיר כותרות - הטבלה לא נגעה בה (הריקון עצל). לא מסמן כהצלחה."
+        )
+    print(f"הדמפ נקרא | {total} כותרות | הגרסה המאוחרת בדמפ: {newest}")
+
+    since = gap_start(newest)
+    ids, titles, edits = collect_gap_refs(since)
+    print(f"השלמת פער מ-{since} | {edits} עריכות | {len(ids)} מזהים | {len(titles)} כותרות לבדיקה")
+    keep, drop_ids, drop_titles = resolve_current_state(ids, titles)
+    apply_gap(client, keep, drop_ids, drop_titles)
+    print(f"הושלם הפער | נכתבו {len(keep)} | נמחקו לפי מזהה {len(drop_ids)} ולפי כותרת {len(drop_titles)}")
+    print(f"סיום. {total} כותרות מהדמפ, בתוספת השלמת פער")
+
+
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--source", choices=["dump", "api"], default="dump")
+    parser.add_argument("--url", default=DUMP_URL)
+    args = parser.parse_args()
+
+    if args.source == "dump":
+        main_dump(args.url)
+    else:
+        main_api()
+
+
+def main_api():
     done, apcontinue = load_progress()
     is_resumed = apcontinue is not None
 
