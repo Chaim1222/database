@@ -34,8 +34,9 @@ from datetime import datetime, timezone
 from config import WIKIPEDIA_API
 from delta_api import (
     fetch_new_pages, fetch_delete_log, fetch_move_log,
-    fetch_edited_page_ids, fetch_redirect_status,
+    fetch_edited_page_ids, fetch_redirect_status, fetch_tagged_changes,
 )
+from redirect_tags import REDIRECT_ADDED_TAG, REDIRECT_REMOVED_TAG, revived_articles, union_candidates
 import delta_watermark
 from supabase_client import get_client, execute_with_retry
 
@@ -103,7 +104,7 @@ def find_tracked_ids(client, table, candidate_ids):
     return found
 
 
-def detect_became_redirect(client, since_ts, already_handled_ids):
+def detect_became_redirect(client, since_ts, already_handled_ids, tagged=None):
     """
     מזהה ערכים *במעקב אצלנו* שהפכו להפניה בעריכה רגילה - הפער
     המתועד בתכנון שלא נראה כלל דרך logevents/type:new (ראו הערת
@@ -122,6 +123,10 @@ def detect_became_redirect(client, since_ts, already_handled_ids):
         return []
 
     edited = fetch_edited_page_ids(WIKIPEDIA_API, since_ts)
+    # תגית mw-new-redirect (tagged) מצטרפת לסריקת כל העריכות, לא מחליפה אותה. "מהתגית בלבד" הוא מדד לכך
+    # שהתגית מוסיפה כיסוי (אם תמיד 0, היא רק אישור כפול).
+    edited, tag_only = union_candidates(edited, tagged or [])
+    log(f"הפכו להפניה | מועמדים: {len(edited)} (מהתגית בלבד: {tag_only})")
     candidate_ids = {e["page_id"] for e in edited} - already_handled_ids
     if not candidate_ids:
         return []
@@ -492,7 +497,14 @@ def main():
         {"page_id": mv["page_id"], "title": mv["new_title"], "created_at": mv["renamed_at"]}
         for mv in move_creations
     ]
-    all_creations = new_pages + restores + move_creation_events
+    # הפניות שהפכו לערכים (תגית mw-removed-redirect): לא אירוע יצירה ולא במעקב (הפניות לא בטבלה), ולכן
+    # הדלתא לא ראתה אותן. המצב הנוכחי נקבע מול ה-API (דף שחזר להיות הפניה או נמחק לא נכנס).
+    removed_redirect = fetch_tagged_changes(WIKIPEDIA_API, since_ts, REDIRECT_REMOVED_TAG)
+    revived = revived_articles(
+        removed_redirect, fetch_redirect_status(WIKIPEDIA_API, [e["title"] for e in removed_redirect])
+    )
+    added_redirect = fetch_tagged_changes(WIKIPEDIA_API, since_ts, REDIRECT_ADDED_TAG)
+    all_creations = new_pages + restores + move_creation_events + revived
 
     move_deletion_events = [
         {
@@ -514,7 +526,7 @@ def main():
         | {d["page_id"] for d in move_deletion_events if d.get("page_id")}
         | {mv["page_id"] for mv in renames if mv.get("page_id")}
     )
-    became_redirect = detect_became_redirect(client, since_ts, already_handled_ids)
+    became_redirect = detect_became_redirect(client, since_ts, already_handled_ids, tagged=added_redirect)
 
     all_deletions = deletions + move_deletion_events + became_redirect
 
@@ -522,7 +534,7 @@ def main():
         f"נמצאו | יצירות={len(new_pages)} שחזורים={len(restores)} "
         f"תזוזות-כיצירה={len(move_creations)} | מחיקות={len(deletions)} "
         f"תזוזות-כמחיקה={len(move_deletions)} הפכו-להפניה={len(became_redirect)} | "
-        f"שינויי-שם={len(renames)}"
+        f"שינויי-שם={len(renames)} | הפניה-שהפכה-לערך={len(revived)}"
     )
 
     if args.dry_run:
