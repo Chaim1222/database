@@ -70,7 +70,40 @@ def record_audit(client):
 
     audit_id = int(audit_id)
     log(f"עודכן | reconciliation_audit קיבלה שורה חדשה | audit_id={audit_id}")
+    record_full_diff(client, audit_id)
     return audit_id
+
+
+def record_full_diff(client, audit_id):
+    """
+    ההשוואה המלאה (כל סוגי השינוי, גם שורות שקיימות רק בצד אחד), בנוסף לביקורת הקיימת -
+    migrations/migration_add_reconciliation_diff_all.sql. מדידה בלבד: כשל כאן (למשל המיגרציה עוד לא
+    הורצה בייצור) נרשם כאזהרה ולא עוצר את הריצה, כדי שלא יימנע ריקון הטבלאות הזמניות.
+    """
+    import os
+    from reconciliation_summary import format_summary
+
+    try:
+        execute_with_retry(
+            lambda: client.rpc("log_reconciliation_diff_all", {"p_audit_id": audit_id}).execute(),
+            "LOG_RECONCILIATION_DIFF_ALL",
+            log_fn=log,
+        )
+        rows = execute_with_retry(
+            lambda: client.table("reconciliation_diff_summary").select("*").eq("audit_id", audit_id).execute(),
+            "reconciliation_diff_summary",
+            log_fn=log,
+        ).data or []
+    except Exception as exc:  # noqa: BLE001 - מדידה בלבד
+        log(f"WARNING | ההשוואה המלאה לא נשמרה (לא חוסם): {type(exc).__name__}: {exc}")
+        return
+
+    for row in rows:
+        log(f"השוואה מלאה | {row['side']} | {row['change_class']} | {row['n']:,} (לא ידוע לדלתא: {row['n'] - row['n_known_to_delta']:,})")
+    summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary_path:
+        with open(summary_path, "a", encoding="utf-8") as f:
+            f.write(format_summary(rows, audit_id) + "\n")
 
 
 def _parse_ts(ts_str):
