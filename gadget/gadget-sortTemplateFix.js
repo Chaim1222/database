@@ -4,9 +4,10 @@
 // אם אין תבנית בכלל - מוסיף תבנית מלאה אחרי {{וח}} או {{קרד}} (הראשון שבהם), ובלעדיהם בשורה חדשה בסוף הערך.
 // שום דבר לא נשמר בלי אישור בפאנל התצוגה. הפונקציות הטהורות (בין <fix-pure> ל-</fix-pure>) נבדקות ב-tests/sortTemplateFix.test.js
 // ולכן חייבות להישאר בלי תלות ב-DOM או ב-mw.
+// בנוסף הסקריפט חושף את הלוגיקה ב-mw.sortTemplateFix, והדשבורד טוען אותו מהאתר ומשתמש בה (ראו fixSrc שם).
 (function () {
 	'use strict';
-	if (typeof mw === 'undefined' || mw.config.get('wgAction') !== 'history') return;
+	if (typeof mw === 'undefined') return;
 
 	// <fix-pure>
 	var HE_MONTH_NAMES = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
@@ -200,6 +201,16 @@
 		if (!rev) throw new Error('הערך "' + page.title + '" עוד לא היה קיים בוויקיפדיה בזמן הזה');
 		return { title: page.title, revid: rev.revid, ts: rev.timestamp, item: (page.pageprops && page.pageprops.wikibase_item) || '' };
 	}
+
+	// ממשק לדשבורד (gadget/gadget-searchHelperDashboard.js): הדשבורד טוען את הסקריפט הזה מדף הסקריפט באתר וקורא ללוגיקה שלו
+	// במקום להעתיק אותה. נחשף בכל דף שהסקריפט נטען בו; הממשק של דף ההיסטוריה למטה רץ רק ב-action=history.
+	mw.sortTemplateFix = {
+		version: 1,
+		planSortTemplate: planSortTemplate, sortTemplatePage: sortTemplatePage, sortDateFromTimestamp: sortDateFromTimestamp,
+		formatJerusalemTime: formatJerusalemTime, previewContext: previewContext, normTitle: normTitle,
+		wikipediaApi: wikipediaApi, lookupWikipediaRevision: lookupWikipediaRevision
+	};
+	if (mw.config.get('wgAction') !== 'history') return;
 
 	// שדה לשם דף ויקיפדיה (כשאין תבנית או שאין בה דף=), עם השלמה אוטומטית. מחזיר את השם או null אם בוטל.
 	function askTitle(panel, defaultTitle) {

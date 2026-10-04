@@ -2031,155 +2031,26 @@
 	}
 
 	// ===== קביעת גרסת מקור מתוך הדשבורד =====
-	// אותו מהלך כמו הסקריפט "משתמש:גאון הירדן/הוספת תאריך למיון ויקיפדיה.js" בדף ההיסטוריה (עותק בריפו: gadget/gadget-sortTemplateFix.js):
-	// העורך בוחר מההיסטוריה את שורת הייבוא, הכלי מוצא בוויקיפדיה את הגרסה שהייתה באותו זמן ומעדכן גרסה= ותאריך= בתבנית
-	// (או מוסיף תבנית), ומסיר את קטגוריית "ללא תבנית מיון". שום דבר לא נשמר בלי אישור בתצוגה המקדימה.
-	// הבלוק בין fix-pure לבין סופו זהה לבלוק בסקריפט, ונבדק שהוא נשאר זהה (gadget/tests/dashboardFixSource.test.js).
-	var fixSrc = (function () {
-	// <fix-pure>
-	var HE_MONTH_NAMES = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
-	// הערות HTML, nowiki ו-pre מוחלפים ברווחים (באותו אורך): תבנית שבתוכם אינה פעילה.
-	function maskWikitext(text) {
-		return text.replace(/<!--[\s\S]*?(?:-->|$)|<nowiki>[\s\S]*?(?:<\/nowiki>|$)|<pre[\s\S]*?(?:<\/pre>|$)/gi, function (m) { return m.replace(/[^\n]/g, ' '); });
-	}
-	// אינדקס מיד אחרי ה-}} שסוגר תבנית שגוף ה"{{" שלה נגמר ב-from; -1 אם לא נסגרה.
-	function templateEnd(masked, from) {
-		var depth = 1, i = from;
-		while (i < masked.length - 1) {
-			var pair = masked.substr(i, 2);
-			if (pair === '{{') { depth++; i += 2; }
-			else if (pair === '}}') { depth--; i += 2; if (depth === 0) return i; }
-			else i++;
+	// הלוגיקה (איתור תבנית, חישוב השינוי, חיפוש הגרסה בוויקיפדיה) היא של הסקריפט "משתמש:גאון הירדן/הוספת תאריך למיון ויקיפדיה.js"
+	// (עותק בריפו: gadget/gadget-sortTemplateFix.js). הדשבורד לא מעתיק אותה: הוא טוען את הסקריפט מהאתר כמו את מודול העדכון,
+	// והסקריפט חושף אותה ב-mw.sortTemplateFix. כאן רק הממשק: היסטוריית הערך, בחירת שורת הייבוא, תצוגה מקדימה ושמירה באישור.
+	var SORT_FIX_SCRIPT_PAGE = 'משתמש:גאון הירדן/הוספת תאריך למיון ויקיפדיה.js';
+	var sortFixPromise = null;
+	function loadSortTemplateFix() {
+		if (!sortFixPromise) {
+			sortFixPromise = Promise.resolve(mw.loader.using(['mediawiki.api', 'mediawiki.util'])).then(function () {
+				if (mw.sortTemplateFix) return null;
+				return Promise.resolve(mw.loader.getScript(mw.util.wikiScript('index') + '?title=' + encodeURIComponent(SORT_FIX_SCRIPT_PAGE) + '&action=raw&ctype=text/javascript'));
+			}).then(function () {
+				if (!mw.sortTemplateFix) throw new Error('הסקריפט "' + SORT_FIX_SCRIPT_PAGE + '" נטען אבל לא חושף את mw.sortTemplateFix: צריך להחליף אותו בגרסה העדכנית (gadget/gadget-sortTemplateFix.js).');
+				return mw.sortTemplateFix;
+			});
+			sortFixPromise.catch(function () { sortFixPromise = null; });
 		}
-		return -1;
+		return sortFixPromise;
 	}
-	// התבנית {{מיון ויקיפדיה}} הפעילה האחרונה: אינדקסים של הגוף ושל הפרמטרים ברמה העליונה בלבד (לא בתוך {{…}} או [[…]]).
-	function findSortTemplate(text) {
-		var masked = maskWikitext(text), re = /\{\{\s*מיון[\s_]+ויקיפדיה\s*(?=\||\}\})/g, m, starts = [];
-		while ((m = re.exec(masked))) starts.push(m.index + m[0].length);
-		for (var k = starts.length - 1; k >= 0; k--) {
-			var after = templateEnd(masked, starts[k]);
-			if (after < 0) continue;
-			var end = after - 2, ranges = [], ps = starts[k] + (masked[starts[k]] === '|' ? 1 : 0), curly = 0, square = 0, i;
-			for (i = ps; i < end; i++) {
-				var two = masked.substr(i, 2);
-				if (two === '{{') { curly++; i++; }
-				else if (two === '}}') { curly--; i++; }
-				else if (two === '[[') { square++; i++; }
-				else if (two === ']]') { square--; i++; }
-				else if (masked[i] === '|' && curly === 0 && square === 0) { ranges.push([ps, i]); ps = i + 1; }
-			}
-			ranges.push([ps, end]);
-			return {
-				start: starts[k], end: end,
-				params: ranges.map(function (r) {
-					var eq = -1, c = 0, sq = 0;
-					for (var x = r[0]; x < r[1]; x++) {
-						var t2 = masked.substr(x, 2);
-						if (t2 === '{{') { c++; x++; } else if (t2 === '}}') { c--; x++; } else if (t2 === '[[') { sq++; x++; } else if (t2 === ']]') { sq--; x++; }
-						else if (masked[x] === '=' && c === 0 && sq === 0) { eq = x; break; }
-					}
-					return eq < 0 ? { name: '', start: r[0], valueStart: r[0], valueEnd: r[1] } : { name: text.slice(r[0], eq).trim(), start: r[0], valueStart: eq + 1, valueEnd: r[1] };
-				})
-			};
-		}
-		return null;
-	}
-	// "חודש שנה" (בפורמט הקבוע של התבנית) מחותמת זמן ISO, לפי אזור הזמן של ירושלים.
-	function sortDateFromTimestamp(ts) {
-		var parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', year: 'numeric', month: 'numeric' }).formatToParts(new Date(ts));
-		var get = function (type) { return Number(parts.filter(function (p) { return p.type === type; })[0].value); };
-		return HE_MONTH_NAMES[get('month') - 1] + ' ' + get('year');
-	}
-	// "10.12.2017 19:40" - זמן קריא לפי שעון ירושלים מחותמת זמן ISO.
-	function formatJerusalemTime(ts) {
-		var parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(ts));
-		var g = function (type) { return parts.filter(function (p) { return p.type === type; })[0].value; };
-		return g('day') + '.' + g('month') + '.' + g('year') + ' ' + g('hour') + ':' + g('minute');
-	}
-	function normTitle(t) { return String(t || '').replace(/_/g, ' ').replace(/\s+/g, ' ').trim(); }
-	function buildSortTemplate(v) {
-		return '{{מיון ויקיפדיה|דף=' + v.page + '|גרסה=' + v.rev + (v.item ? '|פריט=' + v.item : '') + '|תאריך=' + v.date + '}}';
-	}
-	// מוסיף תבנית אחרי {{וח}} או {{קרד}} (הראשון שמופיע בטקסט, לא בתוך הערה או nowiki), ובלעדיהם בשורה חדשה בסוף הערך.
-	function insertSortTemplate(text, tpl) {
-		var masked = maskWikitext(text), m = /\{\{\s*(?:וח|קרד)\s*(?=\||\}\})/.exec(masked);
-		if (m) {
-			var end = templateEnd(masked, m.index + m[0].length);
-			if (end >= 0) {
-				var rest = text.slice(end);
-				return text.slice(0, end) + '\n' + tpl + (rest === '' || rest[0] === '\n' ? '' : '\n') + rest;
-			}
-		}
-		return text.replace(/\s+$/, '') + '\n' + tpl;
-	}
-	// קטגוריית התחזוקה "ללא תבנית מיון" (לא בתוך הערה או nowiki) מוסרת כשיש תבנית. שורה שהיא רק הקטגוריה נמחקת כולה, בלי להשאיר שורה ריקה.
-	function removeMaintenanceCategory(text) {
-		var masked = maskWikitext(text);
-		var m = /\[\[\s*קטגוריה\s*:\s*המכלול\s*:\s*ערכים מוויקיפדיה ללא תבנית מיון ויקיפדיה\s*(?:\|[^\]\n]*)?\]\]/.exec(masked);
-		if (!m) return text;
-		var s = m.index, e = m.index + m[0].length;
-		var ls = masked.lastIndexOf('\n', s - 1) + 1, le = masked.indexOf('\n', e);
-		if (le < 0) le = masked.length;
-		if (/^[ \t]*$/.test(masked.slice(ls, s)) && /^[ \t]*$/.test(masked.slice(e, le))) {
-			if (le < masked.length) return text.slice(0, ls) + text.slice(le + 1);
-			return ls > 0 ? text.slice(0, ls - 1) : '';
-		}
-		return text.slice(0, s) + text.slice(e);
-	}
-	// תכנית השינוי. v = {page, rev, item, date, updatePage}. בתבנית קיימת: מעדכן גרסה= ו-תאריך= רק אם חסרים או שונים,
-	// פריט= רק אם חסר, ו-דף= רק כש-updatePage. בלי תבנית: מוסיף תבנית מלאה. מחזיר {text, changes:[{name,from,to}], created}.
-	function planSortTemplate(text, v) {
-		var t = findSortTemplate(text);
-		if (!t) {
-			var tpl = buildSortTemplate(v), base = removeMaintenanceCategory(text);
-			return { text: insertSortTemplate(base, tpl), changes: [], created: true, template: tpl, removedCategory: base !== text };
-		}
-		// always: מעדכן אם חסר או שונה; ifMissing: רק אם חסר או ריק; onRequest: קיים ושונה רק לפי updatePage, חסר או ריק תמיד נוסף.
-		var wanted = [['גרסה', String(v.rev), 'always'], ['פריט', v.item || '', 'ifMissing'], ['תאריך', v.date, 'always'], ['דף', v.page, v.updatePage ? 'always' : 'ifMissing']];
-		var edits = [], missing = '', changes = [];
-		wanted.forEach(function (w) {
-			var name = w[0], value = w[1];
-			if (!value) return;
-			var p = t.params.filter(function (x) { return x.name === name; })[0];
-			var old = p ? text.slice(p.valueStart, p.valueEnd) : '';
-			if (old.trim() === value) return;
-			if (w[2] === 'ifMissing' && old.trim() !== '') return;
-			changes.push({ name: name, from: old.trim(), to: value });
-			var dateParam = t.params.filter(function (x) { return x.name === 'תאריך'; })[0];
-			if (!p && name === 'פריט' && dateParam) edits.push([dateParam.start - 1, dateParam.start - 1, '|פריט=' + value, 1]); // הסדר: דף, גרסה, פריט, תאריך
-			else if (!p) missing += '|' + name + '=' + value;
-			else edits.push([p.valueStart, p.valueEnd, /^\s*/.exec(old)[0] + value + /\s*$/.exec(old)[0]]);
-		});
-		if (missing) edits.push([t.end, t.end, missing, 1]); // נוסף אחרון בטקסט גם כשפרמטר ריק נגמר באותו אינדקס
-		edits.sort(function (a, b) { return b[0] - a[0] || (b[3] || 0) - (a[3] || 0); });
-		edits.forEach(function (e) { text = text.slice(0, e[0]) + e[2] + text.slice(e[1]); });
-		var cleaned = removeMaintenanceCategory(text);
-		return { text: cleaned, changes: changes, created: false, removedCategory: cleaned !== text };
-	}
-	// שם דף ויקיפדיה מהתבנית (דף=), או '' אם אין תבנית או שהפרמטר ריק.
-	function sortTemplatePage(text) {
-		var t = findSortTemplate(text);
-		var p = t && t.params.filter(function (x) { return x.name === 'דף'; })[0];
-		return p ? normTitle(text.slice(p.valueStart, p.valueEnd)) : '';
-	}
-	// השורות סביב התבנית בטקסט החדש (radius לפני ואחרי), לתצוגה מקדימה: {lines:[{text, hit}], before, after}. null אם אין תבנית.
-	function previewContext(text, radius) {
-		var t = findSortTemplate(text);
-		if (!t) return null;
-		var lines = text.split('\n'), pos = 0, hitLine = 0;
-		for (var i = 0; i < lines.length; i++) {
-			if (t.start >= pos && t.start <= pos + lines[i].length) { hitLine = i; break; }
-			pos += lines[i].length + 1;
-		}
-		var from = Math.max(0, hitLine - radius), to = Math.min(lines.length, hitLine + radius + 1);
-		return {
-			lines: lines.slice(from, to).map(function (l, k) { return { text: l.length > 160 ? l.slice(0, 160) + '…' : l, hit: from + k === hitLine }; }),
-			before: from > 0, after: to < lines.length
-		};
-	}
-	// </fix-pure>
 
+	var fixSrc = (function () {
 		var PAGE_BATCH = 20;
 		var BOX_STYLE = 'margin:6px 0;padding:8px 12px;border:1px solid var(--mchl-border, #c8ccd1);border-radius:8px;background:var(--mchl-ink-800, #f8f9fa);';
 
@@ -2200,29 +2071,6 @@
 				});
 			});
 		}
-		function wikipediaApi(params) {
-			var qs = new URLSearchParams(Object.assign({ format: 'json', formatversion: '2', origin: '*' }, params));
-			return fetch('https://he.wikipedia.org/w/api.php?' + qs.toString()).then(function (res) {
-				if (!res.ok) throw new Error('ויקיפדיה: HTTP ' + res.status);
-				return res.json();
-			}).then(function (data) {
-				if (data.error) throw new Error('ויקיפדיה: ' + (data.error.info || data.error.code));
-				return data;
-			});
-		}
-		// גרסת ויקיפדיה האחרונה שזמנה לא מאוחר מ-ts. redirects: אחרי העברה השם הישן הוא הפניה והיסטוריית הערך בשם החדש.
-		function lookupWikipediaRevision(title, ts) {
-			return wikipediaApi({
-				action: 'query', titles: title, redirects: '1', prop: 'revisions|pageprops', ppprop: 'wikibase_item',
-				rvlimit: '1', rvstart: ts, rvdir: 'older', rvprop: 'ids|timestamp'
-			}).then(function (d) {
-				var page = d.query && d.query.pages && d.query.pages[0];
-				if (!page || page.missing || page.invalid) throw new Error('הדף "' + title + '" לא נמצא בוויקיפדיה');
-				var rev = page.revisions && page.revisions[0];
-				if (!rev) throw new Error('הערך "' + page.title + '" עוד לא היה קיים בוויקיפדיה בזמן הזה');
-				return { title: page.title, revid: rev.revid, ts: rev.timestamp, item: (page.pageprops && page.pageprops.wikibase_item) || '' };
-			});
-		}
 
 		function setBody(state, nodes) {
 			state.panel.textContent = '';
@@ -2234,6 +2082,7 @@
 
 		// שדה לשם דף ויקיפדיה (כשאין תבנית או שאין בה דף=), עם השלמה אוטומטית. מחזיר Promise לשם, או null אם בוטל.
 		function askTitle(state, defaultTitle) {
+			var fix = state.fix;
 			return new Promise(function (resolve) {
 				var input = el('input', { type: 'text', list: 'mchl-fix-titles', style: 'width:22em;direction:rtl;' });
 				input.value = defaultTitle;
@@ -2243,7 +2092,7 @@
 					clearTimeout(timer);
 					timer = setTimeout(function () {
 						if (!input.value.trim()) return;
-						wikipediaApi({ action: 'opensearch', search: input.value, limit: '8', namespace: '0' }).then(function (d) {
+						fix.wikipediaApi({ action: 'opensearch', search: input.value, limit: '8', namespace: '0' }).then(function (d) {
 							list.textContent = '';
 							(d[1] || []).forEach(function (t) { list.appendChild(el('option', { value: t })); });
 						}).catch(function () { /* ההשלמה אופציונלית */ });
@@ -2252,15 +2101,15 @@
 				var ok = el('button', { text: 'המשך', type: 'button', 'class': 'mchl-import-btn' });
 				var cancel = el('button', { text: 'ביטול', type: 'button', 'class': 'mchl-import-btn', style: 'margin-right:6px;' });
 				setBody(state, [el('div', {}, [el('div', { text: 'אין תבנית מיון עם דף=. שם הערך בוויקיפדיה:' }), input, list, ok, cancel])]);
-				ok.addEventListener('click', function () { var v = normTitle(input.value); if (v) resolve(v); });
+				ok.addEventListener('click', function () { var v = fix.normTitle(input.value); if (v) resolve(v); });
 				cancel.addEventListener('click', function () { resolve(null); });
 				input.focus();
 			});
 		}
 
-		function describePlan(plan, wp, tsHamichlol) {
+		function describePlan(fix, plan, wp, tsHamichlol) {
 			var box = el('div', {});
-			box.appendChild(el('div', { text: 'גרסת ויקיפדיה שנמצאה: ' + wp.revid + ' (' + formatJerusalemTime(wp.ts) + ') בערך "' + wp.title + '", לפי זמן השורה ' + formatJerusalemTime(tsHamichlol) }));
+			box.appendChild(el('div', { text: 'גרסת ויקיפדיה שנמצאה: ' + wp.revid + ' (' + fix.formatJerusalemTime(wp.ts) + ') בערך "' + wp.title + '", לפי זמן השורה ' + fix.formatJerusalemTime(tsHamichlol) }));
 			if (plan.created) {
 				box.appendChild(el('div', { text: 'אין תבנית מיון בערך, תתווסף שורה חדשה:' }));
 			} else {
@@ -2269,7 +2118,7 @@
 				});
 			}
 			if (plan.removedCategory) box.appendChild(el('div', { text: 'תוסר קטגוריית התחזוקה "ללא תבנית מיון ויקיפדיה".' }));
-			var ctx = previewContext(plan.text, 2);
+			var ctx = fix.previewContext(plan.text, 2);
 			if (ctx) {
 				var view = el('div', { dir: 'rtl', style: 'margin:4px 0;border:1px solid #c8ccd1;background:#fff;color:#202122;font-family:monospace;font-size:0.9em;text-align:right;' });
 				var addLine = function (text, hit) {
@@ -2316,7 +2165,7 @@
 				var pick = el('button', { type: 'button', 'class': 'mchl-import-btn', text: 'זו שורת הייבוא' });
 				pick.addEventListener('click', function () { choose(state, rev); });
 				table.appendChild(el('tr', {}, [
-					el('td', { text: formatJerusalemTime(rev.timestamp), style: 'white-space:nowrap;' }),
+					el('td', { text: state.fix.formatJerusalemTime(rev.timestamp), style: 'white-space:nowrap;' }),
 					el('td', { text: rev.user || '(מוסתר)' }),
 					el('td', { text: (rev.comment || '').slice(0, 120) }),
 					el('td', {}, [pick])
@@ -2333,6 +2182,7 @@
 
 		// בחירת שורה: שולף את התוכן הנוכחי, מוצא את גרסת ויקיפדיה לפי זמן השורה, ומציג תכנית לאישור.
 		function choose(state, rev) {
+			var fix = state.fix;
 			setStatus(state, 'מעבד…');
 			var rv, content, tplPage, wp, values, date;
 			return mwApiFetch({ action: 'query', prop: 'revisions', titles: state.title, rvprop: 'content|timestamp', rvslots: 'main' }).then(function (cur) {
@@ -2342,23 +2192,23 @@
 				var slot = rv.slots && rv.slots.main;
 				if (!slot || typeof slot.content !== 'string') throw new Error('תוכן הערך חסר או מוסתר.');
 				content = slot.content;
-				tplPage = sortTemplatePage(content);
-				return tplPage ? tplPage : askTitle(state, normTitle(state.hint));
+				tplPage = fix.sortTemplatePage(content);
+				return tplPage ? tplPage : askTitle(state, fix.normTitle(state.hint));
 			}).then(function (wpTitle) {
 				if (!wpTitle) { renderList(state); return null; }
 				setStatus(state, 'מחפש את גרסת ויקיפדיה…');
-				return lookupWikipediaRevision(wpTitle, rev.timestamp).then(function (found) {
+				return fix.lookupWikipediaRevision(wpTitle, rev.timestamp).then(function (found) {
 					wp = found;
-					date = sortDateFromTimestamp(rev.timestamp);
-					var titleDiffers = !!tplPage && normTitle(wp.title) !== tplPage;
-					values = { page: normTitle(wp.title), rev: wp.revid, item: wp.item, date: date };
-					var plan = planSortTemplate(content, Object.assign({ updatePage: titleDiffers }, values));
+					date = fix.sortDateFromTimestamp(rev.timestamp);
+					var titleDiffers = !!tplPage && fix.normTitle(wp.title) !== tplPage;
+					values = { page: fix.normTitle(wp.title), rev: wp.revid, item: wp.item, date: date };
+					var plan = fix.planSortTemplate(content, Object.assign({ updatePage: titleDiffers }, values));
 					if (!plan.created && plan.changes.length === 0 && !plan.removedCategory) {
 						setStatus(state, 'אין מה לתקן: הגרסה והתאריך כבר תואמים (גרסה ' + wp.revid + ').', 'ok');
 						state.onDone();
 						return;
 					}
-					var pageBox = null, nodes = [headerNodes(state), describePlan(plan, wp, rev.timestamp)];
+					var pageBox = null, nodes = [headerNodes(state), describePlan(fix, plan, wp, rev.timestamp)];
 					if (titleDiffers) {
 						pageBox = el('input', { type: 'checkbox', checked: 'checked' });
 						nodes.push(el('label', {}, [pageBox, document.createTextNode(' הערך הועבר בוויקיפדיה ל"' + wp.title + '" - לעדכן גם דף=')]));
@@ -2371,7 +2221,7 @@
 					confirmBtn.addEventListener('click', function () {
 						confirmBtn.disabled = true;
 						cancelBtn.disabled = true;
-						var final = planSortTemplate(content, Object.assign({ updatePage: !!(pageBox && pageBox.checked) }, values));
+						var final = fix.planSortTemplate(content, Object.assign({ updatePage: !!(pageBox && pageBox.checked) }, values));
 						var summary = 'תיקון גרסת מקור: ויקיפדיה גרסה ' + wp.revid + (final.created ? ' (הוספת תבנית מיון)' : '');
 						mw.loader.using('mediawiki.api').then(function () {
 							return mwCall(new mw.Api().postWithToken('csrf', {
@@ -2405,10 +2255,14 @@
 			var panelRow = el('tr', { 'class': 'mchl-fix-row' }, [el('td', { colspan: String(tr.children.length) }, [panel])]);
 			tr.parentNode.insertBefore(panelRow, tr.nextSibling);
 			var state = {
-				title: title, hint: row.linked_title || row.rev_page_title || title, dir: 'newer', cont: null, revs: [], panel: panel,
+				title: title, hint: row.linked_title || row.rev_page_title || title, dir: 'newer', cont: null, revs: [], panel: panel, fix: null,
 				onDone: function () { btn.textContent = 'בוצע ✓'; btn.disabled = true; tr.style.opacity = '0.6'; }
 			};
-			loadRevisions(state, true);
+			setStatus(state, 'טוען את הסקריפט של קביעת הגרסה…');
+			loadSortTemplateFix().then(function (fix) {
+				state.fix = fix;
+				return loadRevisions(state, true);
+			}).catch(function (e) { setStatus(state, 'לא ניתן לטעון את הסקריפט: ' + errText(e), 'error'); });
 		}
 
 		return { toggle: toggle };
