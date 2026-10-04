@@ -230,22 +230,29 @@ def fetch_template_titles(titles):
         raise RuntimeError(f"תשובת API ללא query בבדיקת תבנית ({len(titles)} כותרות): {str(data)[:200]}")
     pages = data["query"].get("pages", [])
 
-    for page in pages:
-        title = page.get("title")
+    # ה-API מנרמל כותרות (קו תחתון לרווח וכד') ומחזיר ב-pages את הכותרת המנורמלת; query.normalized מתאר את
+    # ההמרה. כל כותרת שנשלחה חייבת לקבל תשובה, אחרת כותרת שנשמטה הייתה נחשבת "אין תבנית".
+    normalized = {row["from"]: row["to"] for row in data["query"].get("normalized", []) or []}
+    pages_by_title = {page.get("title"): page for page in pages}
+
+    for requested in titles:
+        page = pages_by_title.get(normalized.get(requested, requested))
+        if page is None:
+            raise RuntimeError(f"הכותרת \"{requested}\" לא הוחזרה בתשובת ה-API ({len(pages)} דפים הוחזרו)")
         revisions = page.get("revisions") or []
 
         if not revisions:
             if page.get("missing") or page.get("invalid") or page.get("special"):
                 continue  # דף שאינו קיים: באמת אין בו תבנית
-            raise RuntimeError(f"דף \"{title}\" הוחזר בלי גרסאות ובלי סימון missing/invalid - לא ניתן לדעת אם יש בו תבנית")
+            raise RuntimeError(f"דף \"{requested}\" הוחזר בלי גרסאות ובלי סימון missing/invalid - לא ניתן לדעת אם יש בו תבנית")
 
         content = revisions[0].get("slots", {}).get("main", {}).get("content")
         if content is None:
-            raise RuntimeError(f"דף \"{title}\" הוחזר בלי תוכן (ייתכן תוכן מוסתר) - לא ניתן לדעת אם יש בו תבנית")
+            raise RuntimeError(f"דף \"{requested}\" הוחזר בלי תוכן (ייתכן תוכן מוסתר) - לא ניתן לדעת אם יש בו תבנית")
 
         match = TEMPLATE_RE.search(content)
         if match:
-            result[title] = clean_template_value(match.group(1))
+            result[requested] = clean_template_value(match.group(1))
 
     if REQUEST_DELAY_SECONDS:
         time.sleep(REQUEST_DELAY_SECONDS)

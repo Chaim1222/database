@@ -145,5 +145,25 @@ class TemplateErrorTests(unittest.TestCase):
         self.assertIsNone(result["דף"])
 
 
+    def test_query_without_pages_raises(self):
+        with self.assertRaises(RuntimeError):
+            self._fetch({"query": {}})
+
+    def test_empty_pages_list_raises(self):
+        with self.assertRaises(RuntimeError):
+            self._fetch({"query": {"pages": []}})
+
+    def test_requested_title_not_returned_raises(self):
+        with self.assertRaises(RuntimeError):
+            self._fetch({"query": {"pages": [{"title": "אחר", "missing": True}]}})
+
+    def test_normalized_title_maps_back_to_requested(self):
+        page = {"title": "אבא ב", "revisions": [{"slots": {"main": {"content": "{{מיון ויקיפדיה|דף=גג}}"}}}]}
+        with mock.patch.object(match, "api_get_with_retry", side_effect=[{"query": {"normalized": [{"from": "אבא_ב", "to": "אבא ב"}], "pages": [page]}}]), \
+                mock.patch.object(match.time, "sleep"):
+            result = match.fetch_template_titles(["אבא_ב"])
+        self.assertEqual(result["אבא_ב"], "גג")
+
+
 if __name__ == "__main__":
     unittest.main()
