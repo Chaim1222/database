@@ -30,7 +30,7 @@
 		mechalol_status: 'סטטוס במכלול', candidate_count: 'מספר מועמדים',
 		mechalol_id: 'מזהה מכלול', lock_level: 'סוג נעילה', lock_source: 'איך זוהה', detected_at: 'זוהה בתאריך',
 		update_date: 'עודכן לאחרונה', update_bucket: 'טווח עדכון',
-		update_change: 'שינוי בוויקיפדיה', update_action: '',
+		update_change: 'שינוי בוויקיפדיה', update_action: '', fix_source_action: '',
 		sort_template_date: 'עודכן לאחרונה (חודש)', sort_template_rev: 'גרסת הבסיס',
 		verdict: 'רמת תוכן', has_images: 'תמונות', topic: 'נושא', wf_matches: 'מילים', import_action: '', expand: ''
 	};
@@ -130,14 +130,16 @@
 		badrev: {
 			view: 'report_rev_tasks', label: 'גרסה שגויה',
 			columns: ['title', 'sort_template_rev', 'rev_page_title', 'linked_title', 'status'], filters: [],
+			displayColumns: ['title', 'sort_template_rev', 'rev_page_title', 'linked_title', 'status', 'fix_source_action'],
 			baseFilters: [['rev_task', 'eq.bad_rev']]
 		},
 		deletedrev: {
 			view: 'report_rev_tasks', label: 'נמחקו לפי גרסה',
 			columns: ['title', 'sort_template_rev', 'linked_title', 'status'], filters: [],
+			displayColumns: ['title', 'sort_template_rev', 'linked_title', 'status', 'fix_source_action'],
 			baseFilters: [['rev_task', 'eq.deleted_by_rev']]
 		},
-		undoc: { view: 'report_undocumented_import', label: 'ללא תבנית מיון', columns: ['title', 'source_type', 'match_type', 'wikipedia_id'], filters: [] },
+		undoc: { view: 'report_undocumented_import', label: 'ללא תבנית מיון', columns: ['title', 'source_type', 'match_type', 'wikipedia_id'], displayColumns: ['title', 'source_type', 'match_type', 'wikipedia_id', 'fix_source_action'], filters: [] },
 		// "חסר במכלול" מופרד לשני טאבים: כותרות שבאמת אין להן כלום במכלול,
 		// מול כותרות שקיימות במכלול כהפניה (הערך כנראה קיים שם בשם אחר -
 		// פעולה שונה לגמרי: לבדוק את יעד ההפניה, לא לייבא).
@@ -283,6 +285,9 @@
 	function mechalolUrl(id) { return 'https://www.hamichlol.org.il/w/index.php?curid=' + id; }
 	function wikipediaUrl(id) { return 'https://he.wikipedia.org/w/index.php?curid=' + id; }
 	function mechalolReadUrl(title) { return 'https://www.hamichlol.org.il/w/index.php?title=' + encodeURIComponent(title.replace(/ /g, '_')); }
+	// היסטוריית הערך עם fixsrc=1: גאדג'ט "תיקון גרסת מקור" (gadget/gadget-sortTemplateFix.js) מכין שם את לחצני "קבע גרסת מקור" מיד.
+	// אם הגאדג'ט לא טעון אצל המשתמש, נפתחת סתם היסטוריית הערך.
+	function mechalolFixSourceUrl(title) { return 'https://www.hamichlol.org.il/w/index.php?title=' + encodeURIComponent(title.replace(/ /g, '_')) + '&action=history&fixsrc=1'; }
 	function mechalolEditUrl(title) { return 'https://www.hamichlol.org.il/w/index.php?title=' + encodeURIComponent(title.replace(/ /g, '_')) + '&action=edit'; }
 	function rowKey(row) { return activeTab + ':' + rowIdOf(row); }
 	function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]; }); }
@@ -2088,7 +2093,7 @@
 		}
 		var allOnPageSelected = currentPageRows.every(function (r) { return selectedRows.has(rowKey(r)); });
 		var thead = '<tr><th class="mchl-chk-col"><input type="checkbox" data-action="toggle-page-selection" ' + (allOnPageSelected ? 'checked' : '') + '></th>' +
-			columns.map(function (c) { return '<th' + (c === 'import_action' || c === 'expand' || c === 'update_action' ? ' class="mchl-narrow-col"' : '') + '>' + escapeHtml(c in COLUMN_LABELS ? COLUMN_LABELS[c] : c) + '</th>'; }).join('') + '</tr>';
+			columns.map(function (c) { return '<th' + (c === 'import_action' || c === 'expand' || c === 'update_action' || c === 'fix_source_action' ? ' class="mchl-narrow-col"' : '') + '>' + escapeHtml(c in COLUMN_LABELS ? COLUMN_LABELS[c] : c) + '</th>'; }).join('') + '</tr>';
 		var tbody = currentPageRows.map(function (r) {
 			var selected = selectedRows.has(rowKey(r));
 			var expandable = columns.indexOf('expand') >= 0 && wfHasDetails(r);
@@ -2137,6 +2142,7 @@
 				escapeHtml(updDate.toLocaleDateString('he-IL', { month: 'long', year: 'numeric' })) + '</span>';
 		}
 		if (col === 'update_change') return renderUpdateChange(row);
+		if (col === 'fix_source_action') return '<button type="button" class="mchl-import-btn" data-action="fix-source-open" data-title="' + escapeHtml(row.title) + '" title="פותח את היסטוריית הערך במכלול: בוחרים את שורת הייבוא ולוחצים \'קבע גרסת מקור\' (גאדג\'ט תיקון גרסת מקור)">קבע גרסה</button>';
 		if (col === 'update_action') return '<button type="button" class="mchl-import-btn" data-action="update-open" data-id="' + row.id + '" title="השוואה ומיזוג של מה שהתחדש בוויקיפדיה, ופתיחת טופס העריכה במכלול">עדכן</button>';
 		if (col === 'wikipedia_title') return '<span class="mchl-title"><a href="' + wikipediaUrl(row.wikipedia_id) + '" target="_blank" rel="noopener">' + escapeHtml(val) + '</a></span>';
 		if (col === 'mechalol_title') return '<a href="' + mechalolUrl(row.mechalol_id) + '" target="_blank" rel="noopener">' + escapeHtml(val) + '</a>';
@@ -3089,6 +3095,7 @@
 			else if (action === 'maint-refresh') maintRefresh(el);
 			else if (action === 'wf-details') toggleContentDetails(el);
 			else if (action === 'update-open') toggleUpdatePanel(el);
+			else if (action === 'fix-source-open') window.open(mechalolFixSourceUrl(el.getAttribute('data-title')), '_blank', 'noopener');
 			else if (action === 'update-merge-open') openUpdateMerge(el);
 			else if (action === 'import') importFromDashboard(el);
 			else if (action === 'req-filter') { requestsState.filter = el.getAttribute('data-v'); renderRequests(); }
