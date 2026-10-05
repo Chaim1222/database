@@ -32,6 +32,11 @@ class VerdictTest(unittest.TestCase):
     def test_summarize(self):
         self.assertEqual(v.summarize(["still_locked", "open_now", "still_locked"]), {"still_locked": 2, "open_now": 1})
 
+    def test_row_result_keeps_the_raw_level_for_unknown_levels(self):
+        self.assertEqual(v.row_result(1, "ט", "read_locked", info("sysop", pageid=1)),
+                         {"id": 1, "title": "ט", "verdict": "other:unknown", "allevel": "sysop"})
+        self.assertEqual(v.row_result(2, "ט", "read_locked", None)["allevel"], None)
+
 
 class FakeClient:
     """מחזיר דפי שורות לפי הסדר; מתעלם משרשרת הסינון."""
@@ -54,6 +59,7 @@ class CheckTest(unittest.TestCase):
         finally:
             v.read_all, v.fetch_page_lock_info = original_read, original_fetch
         self.assertEqual([r["verdict"] for r in out], ["still_locked", "open_now", "not_returned"])
+        self.assertEqual([r["allevel"] for r in out], ["read", "none", None])
         self.assertEqual(calls, [[1, 2, 3], [1, 2]])
         self.assertEqual(len(limited), 2)
 
