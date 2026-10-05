@@ -1,0 +1,40 @@
+name: בדיקת נעילות (דוח בלבד)
+
+# בודק שדפי הטאב "נעולים" בדשבורד עדיין נעולים: שואל את ה-API של המכלול מחדש את רמת הנעילה של כל דף (מטא-נתונים בלבד,
+# בלי תוכן) ומשווה למה שנרשם. scripts/verify_locked_pages.py. **לא כותב למסד ולא משנה כלום.** הדוח המלא מצורף כ-artifact
+# (locked-verify-report), וסיכום עם הכותרות הראשונות בלוג. לא בקבוצת ה-concurrency של הכתיבה: אינו כותב.
+on:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: שחזור קוד
+        uses: actions/checkout@v4
+
+      - name: התקנת פייתון
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: התקנת ספריות
+        run: pip install -r requirements.txt
+
+      - name: בדיקת הנעילות
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          USER_NAME: ${{ secrets.USER_NAME }}
+          PASSWORD: ${{ secrets.PASSWORD }}
+        run: python verify_locked_pages.py --report ../locked_verify_report.json
+
+      - name: צירוף הדוח המלא
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: locked-verify-report
+          path: locked_verify_report.json
+          if-no-files-found: ignore
