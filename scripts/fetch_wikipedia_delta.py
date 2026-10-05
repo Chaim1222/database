@@ -263,12 +263,23 @@ def _dedupe_creations_by_id(creations):
     return list(latest_by_id.values())
 
 
-def apply_creations(client, creations):
+def final_title(creation, renames):
+    """
+    הכותרת שיצירה צריכה להיכתב בה: הכותרת החדשה של ההעברה האחרונה של אותו דף שאחרי היצירה (לפי renamed_at),
+    ואם אין כזו, כותרת היצירה. ראו fetch_mechalol_delta.final_title.
+    """
+    later = [mv for mv in renames if mv["page_id"] == creation["page_id"] and mv["renamed_at"] >= creation["created_at"]]
+    if not later:
+        return creation["title"]
+    return max(later, key=lambda mv: mv["renamed_at"])["new_title"]
+
+
+def apply_creations(client, creations, renames=()):
     if not creations:
         return
     checked_at = datetime.now(timezone.utc).isoformat()
     rows = [
-        {"id": c["page_id"], "title": c["title"], "checked_at": checked_at}
+        {"id": c["page_id"], "title": final_title(c, renames), "checked_at": checked_at}
         for c in _dedupe_creations_by_id(creations)
     ]
     execute_with_retry(
@@ -365,6 +376,79 @@ def apply_renames(client, renames):
         )
     if renames:
         log(f"עודכנו {len(renames)} שינויי-שם ב-{TABLE}")
+
+
+# '#' אסור בכותרות מדיה-ויקי, ולכן כותרת זמנית כזו לעולם לא מתנגשת בדף אמיתי
+TEMP_TITLE_PREFIX = "#reconcile-tmp-"
+
+
+def final_titles_by_id(renames):
+    """{page_id: הכותרת החדשה של ההעברה האחרונה לפי renamed_at}. מצב סופי ולא רצף: הרצה חוזרת על אותו חלון זהה."""
+    final = {}
+    for mv in sorted(renames, key=lambda mv: mv["renamed_at"]):
+        final[mv["page_id"]] = mv["new_title"]
+    return final
+
+
+def _set_title(client, page_id, title):
+    def _update():
+        try:
+            client.table(TABLE).update({"title": title}).eq("id", page_id).execute()
+        except Exception as exc:
+            if _is_title_collision(exc) and resolve_title_collisions(client, [{"id": page_id, "title": title}]):
+                log(f"עדכון כותרת page_id={page_id} | טופלה התנגשות כותרת, מנסה שוב")
+                client.table(TABLE).update({"title": title}).eq("id", page_id).execute()
+            else:
+                raise
+
+    execute_with_retry(_update, f"עדכון כותרת page_id={page_id} -> '{title}'", log_fn=log)
+
+
+def apply_final_titles(client, final_titles):
+    """
+    מביאה כל דף שבטבלה (ושיש לו העברה בחלון) לכותרתו הסופית, לפי המצב הנוכחי בטבלה ולא לפי רצף האירועים.
+    ראו fetch_mechalol_delta.apply_final_titles לתיעוד המלא (סדר לפי תלות, כותרת זמנית למעגל, הרצה חוזרת בטוחה).
+    """
+    cur = {}
+    ids = sorted(final_titles)
+    for i in range(0, len(ids), ID_LOOKUP_BATCH_SIZE):
+        chunk = ids[i:i + ID_LOOKUP_BATCH_SIZE]
+        rows = execute_with_retry(
+            lambda chunk=chunk: client.table(TABLE).select("id, title").in_("id", chunk).execute(),
+            "שליפת כותרות נוכחיות להעברות",
+            log_fn=log,
+        ).data or []
+        cur.update({row["id"]: row["title"] for row in rows})
+
+    todo = {i: t for i, t in final_titles.items() if i in cur and cur[i] != t}
+    if todo:
+        log(f"העברות של דפים שבטבלה: {len(todo)} דפים לא בכותרתם הסופית (לפי המצב הנוכחי)")
+    while todo:
+        progressed = False
+        for i in sorted(todo):
+            if any(j in todo and j != i and cur[j] == todo[i] for j in cur):
+                continue
+            _set_title(client, i, todo[i])
+            cur[i] = todo.pop(i)
+            progressed = True
+        if not progressed:
+            i = min(todo)
+            _set_title(client, i, f"{TEMP_TITLE_PREFIX}{i}")
+            cur[i] = f"{TEMP_TITLE_PREFIX}{i}"
+    if final_titles:
+        log(f"עודכנו כותרות סופיות ל-{len(final_titles)} דפים עם העברות בחלון")
+
+
+def apply_core(client, creations, deletions, renames):
+    """
+    יצירות, מחיקות והעברות על wikipedia_pages. העברות של דפים שבטבלה מוחלות **קודם** (כותרת סופית לפי המצב
+    הנוכחי): מחיקה של ההפניה שנשארה בכותרת הישנה נעשית לפי כותרת, ואם ההעברה עוד לא הוחלה היא מוחקת את
+    השורה של הדף שהועבר (נצפה ב-5.10.2026: Morphine (band) -> Morphine, מזהה 2579988, אחרי העברה ומחיקת
+    ההפניה באותו חלון). ראו fetch_mechalol_delta.apply_core.
+    """
+    apply_final_titles(client, final_titles_by_id(renames))
+    apply_creations(client, creations, renames=renames)
+    apply_deletions(client, deletions)
 
 
 def write_delta_tables(client, creations, deletions, renames):
@@ -552,9 +636,7 @@ def main():
 
     try:
         write_delta_tables(client, all_creations, all_deletions, renames)
-        apply_creations(client, all_creations)
-        apply_deletions(client, all_deletions)
-        apply_renames(client, renames)
+        apply_core(client, all_creations, all_deletions, renames)
         write_changed_ids_file(all_creations, all_deletions, renames)
 
     except Exception:
