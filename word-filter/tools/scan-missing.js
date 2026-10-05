@@ -29,6 +29,7 @@
  *   --force        לסרוק הכל, גם מה שלא השתנה.
  *   --limit N      רק N הערכים הראשונים (לבדיקה).
  *   --prune        למחוק מהטבלה ערכים שכבר לא בדוח (נוצרו במכלול/נחסמו).
+ *   --backend v2   לקרוא ולכתוב במסד החדש (database_V2) דרך RPC; ברירת מחדל v1 (או SCAN_BACKEND).
  */
 'use strict';
 const fs = require('fs');
@@ -54,7 +55,7 @@ function parseArgs(argv) {
 	const args = {};
 	for (let i = 0; i < argv.length; i++) {
 		const a = argv[i];
-		if (a === '--ids-file' || a === '--out' || a === '--limit') args[a.slice(2).replace('-f', 'F')] = argv[++i];
+		if (a === '--ids-file' || a === '--out' || a === '--limit' || a === '--backend') args[a.slice(2).replace('-f', 'F')] = argv[++i];
 		else if (a === '--dry-run') args.dryRun = true;
 		else if (a === '--force') args.force = true;
 		else if (a === '--prune') args.prune = true;
@@ -87,6 +88,49 @@ function compileBoth() {
 }
 
 // ===== סופבייס (PostgREST) =====
+
+// מסד v2 (database_V2): אותו ממשק, דרך RPC בסכמת api (db/migrations/0016_scan_io.sql). הכתיבה אטומית (סיכום ופירוט יחד).
+function supabaseV2() {
+	const url = process.env.SUPABASE_URL, key = process.env.SUPABASE_SERVICE_KEY;
+	if (!url || !key) throw new Error('חסרים SUPABASE_URL / SUPABASE_SERVICE_KEY');
+	const headers = { apikey: key, Authorization: 'Bearer ' + key, 'Content-Type': 'application/json', 'Content-Profile': 'api', 'Accept-Profile': 'api' };
+	async function rpc(name, body) {
+		for (let attempt = 1; ; attempt++) {
+			try {
+				const res = await fetch(url + '/rest/v1/rpc/' + name, { method: 'POST', headers, body: JSON.stringify(body || {}) });
+				if (res.ok) return res.status === 204 ? null : res.json();
+				const text = await res.text();
+				if (res.status < 500 && res.status !== 429) throw Object.assign(new Error(`HTTP ${res.status}: ${text}`), { fatal: true });
+				throw new Error(`HTTP ${res.status}: ${text}`);
+			} catch (e) {
+				if (e.fatal || attempt >= 6) throw e;
+				log(`v2: ניסיון ${attempt} נכשל (${e.message}) - מנסה שוב`);
+				await new Promise((r) => setTimeout(r, Math.min(2 ** attempt, 30) * 1000));
+			}
+		}
+	}
+	let cache = null;
+	async function all() {
+		if (cache) return cache;
+		const rows = [];
+		let last = 0;
+		for (;;) {
+			const batch = await rpc('scan_pending', { p_after: last, p_limit: 1000 });
+			rows.push(...batch);
+			if (batch.length < 1000) break;
+			last = batch[batch.length - 1].wiki_id;
+		}
+		return (cache = rows);
+	}
+	return {
+		missing: async () => (await all()).map((r) => ({ id: r.wiki_id, title: r.title, wikidata_desc: r.wikidata_desc })),
+		existing: async () => (await all()).filter((r) => r.scan_rev_id != null || r.scan_lists_version != null)
+			.map((r) => ({ wikipedia_id: r.wiki_id, rev_id: r.scan_rev_id, lists_version: r.scan_lists_version, topic: r.scan_topic })),
+		setTopic: (id, topic) => rpc('scan_set_topic', { p_id: id, p_topic: topic }),
+		upsert: (rows) => rpc('sync_apply_scan', { p_rows: rows }),
+		remove: (ids) => rpc('scan_prune', { p_ids: ids }),
+	};
+}
 
 function supabase() {
 	const url = process.env.SUPABASE_URL, key = process.env.SUPABASE_SERVICE_KEY;
@@ -322,13 +366,16 @@ async function main() {
 	const lists = compileBoth();
 	const problems = lists.suggested.problems.concat(lists.clues.suggested.problems);
 	if (problems.length) throw new Error('תבניות לא תקינות: ' + JSON.stringify(problems));
-	const db = args.dryRun ? null : supabase();
+	const backend = args.backend || process.env.SCAN_BACKEND || 'v1';
+	if (!['v1', 'v2'].includes(backend)) throw new Error('--backend חייב להיות v1 או v2');
+	const makeDb = backend === 'v2' ? supabaseV2 : supabase;
+	const db = args.dryRun ? null : makeDb();
 
 	let targets;
 	if (args.idsFile) {
 		targets = fs.readFileSync(args.idsFile, 'utf8').split(/\s+/).filter(Boolean).map((id) => ({ id: Number(id) }));
 	} else {
-		targets = await (db || supabase()).missing();
+		targets = await (db || makeDb()).missing();
 	}
 	log(`רשימת החסרים: ${targets.length} ערכים. גרסת רשימות ${version}.`);
 
