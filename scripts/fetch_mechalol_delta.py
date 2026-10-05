@@ -372,7 +372,11 @@ def apply_deletions(client, deletions):
 
 
 def apply_renames(client, renames):
-    """זהה ל-fetch_wikipedia_delta.apply_renames - ראו שם לתיעוד מלא."""
+    """
+    זהה ל-fetch_wikipedia_delta.apply_renames - ראו שם לתיעוד מלא. מוחל לפי סדר כרונולוגי (renamed_at), כדי
+    ששרשרת העברות של אותו דף (A->B ואז B->C) תסתיים בשם האחרון.
+    """
+    renames = sorted(renames, key=lambda mv: mv["renamed_at"])
     for mv in renames:
         def _update_with_collision_handling(mv=mv):
             try:
@@ -391,6 +395,36 @@ def apply_renames(client, renames):
         )
     if renames:
         log(f"עודכנו {len(renames)} שינויי-שם ב-{TABLE}")
+
+
+def apply_vacating_renames(client, creations, renames):
+    """
+    העברות שמפנות כותרת שיצירה באותו חלון תופסת מחדש (העברה בלי הפניה, ואחריה דף חדש בשם הישן). חייבות
+    להיות מוחלות **לפני** היצירות: אחרת הטיפול בהתנגשות כותרת ב-apply_creations מוחק את השורה "המיושנת"
+    (הדף שהועבר) ובהמשך apply_renames לא מוצא מה לשנות, והדף שהועבר נעלם מהטבלה עד הבנייה השבועית
+    (נצפה ב-5.10.2026: "בית האזרח" -> "בית האזרח (רמת גן)", מזהה 710987).
+    ההעברה מוחלת שוב ב-apply_renames; עדכון כותרת כפול זהה אינו פוגע (והסדר שם כרונולוגי).
+    דף שנוצר והועבר באותו חלון (אותו מזהה) אינו נכלל: היצירה שלו נכתבת קודם בכותרת המקורית.
+    """
+    creating = {c["title"]: c["page_id"] for c in creations}
+    vacating = [
+        mv for mv in renames
+        if mv["old_title"] in creating and mv["page_id"] != creating[mv["old_title"]]
+    ]
+    if vacating:
+        log(f"העברות שמפנות כותרת ליצירה באותו חלון: {len(vacating)} (מוחלות לפני היצירות)")
+        apply_renames(client, vacating)
+
+
+def apply_core(client, creations, deletions, renames, own_categories_by_title):
+    """
+    יצירות, מחיקות והעברות על mechalol_pages, בסדר שמונע אובדן דף שהועבר. מחזירה את מה שהשתחרר במחיקות.
+    """
+    apply_vacating_renames(client, creations, renames)
+    apply_creations(client, creations, own_categories_by_title)
+    released = apply_deletions(client, deletions)
+    apply_renames(client, renames)
+    return released
 
 
 def write_delta_tables(client, creations, deletions, renames):
@@ -589,9 +623,7 @@ def main():
 
     try:
         write_delta_tables(client, all_creations, all_deletions, renames)
-        apply_creations(client, all_creations, own_categories_by_title)
-        released = apply_deletions(client, all_deletions)
-        apply_renames(client, renames)
+        released = apply_core(client, all_creations, all_deletions, renames, own_categories_by_title)
         apply_status_updates(client, status_updates)
         write_status_update_log(client, status_updates)
         write_changed_ids_file(all_creations, renames, status_updates)
