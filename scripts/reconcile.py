@@ -10,21 +10,26 @@ wikipedia_pages ו-mechalol_pages (select בלבד), ומפיק לכל אתר: �
 
 הגנה: הקובץ הזה לא קורא ל-insert/upsert/update/delete/rpc (בדיקה ב-tests/test_reconcile.py).
 
+חלון התזמון סגור: [נקודת הדלתא השמורה, רגע סיום הצילום של אותו אתר]. השאילתות מקבלות את שני הקצוות
+(rcend/leend) והתוצאות מסוננות גם לפי timestamp. אם נקודת הדלתא התקדמה בזמן הריצה, זה מתועד בדוח.
+
 שימוש:
     python reconcile.py --out-dir reconcile_out
     python reconcile.py --out-dir out --skip-mechalol
+    python reconcile.py --out-dir out --snapshot-in out/snapshot_<run>.json.gz   # אותו צילום, בלי שליפה מחדש
 """
 import argparse
-import gzip
 import json
 import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from config import BATCH_SIZE, MECHALOL_API, WIKIPEDIA_API  # noqa: F401  (MECHALOL_API לתיעוד/הרחבה)
+import snapshot_io
+from config import BATCH_SIZE, MECHALOL_API, WIKIPEDIA_API
 from reconcile_compare import (
-    CLASSIFICATION_FIELDS, compare_classification, compare_titles, render_markdown, summarize_site,
+    CLASSIFICATION_FIELDS, collect_window, compare_classification, compare_titles, render_markdown,
+    summarize_site,
 )
 from supabase_client import execute_with_retry, get_client
 
@@ -96,14 +101,6 @@ def snapshot_wikipedia():
     return pages, {"dump_newest_ts": newest, "gap_since": since, "gap_edits": edits}
 
 
-def window_wikipedia(since_iso):
-    """מזהים וכותרות שנגעו בהם בוויקיפדיה מאז since (אותה פונקציה של השלמת הפער)."""
-    from fetch_wikipedia import collect_gap_refs
-
-    ids, titles, _edits = collect_gap_refs(since_iso)
-    return set(ids), set(titles)
-
-
 # --- המכלול ---
 
 def snapshot_mechalol():
@@ -133,37 +130,26 @@ def snapshot_mechalol():
     return titles, classification
 
 
-def window_mechalol(since_iso):
-    """מזהים וכותרות שנגעו בהם במכלול מאז since: עריכות, יצירות, מחיקות ושחזורים."""
-    from config import MECHALOL_API as api
-    from delta_api import fetch_delete_log, fetch_edited_page_ids, fetch_new_pages
+def window_for(api_url, label, since, until):
+    """חלון סגור [since, until] של דפים שנגעו בהם (עריכות, יצירות, העברות, מחיקות, שחזורים)."""
+    from delta_api import _api_get_with_retry
 
-    ids, titles = set(), set()
-    for row in fetch_edited_page_ids(api, since_iso) + fetch_new_pages(api, since_iso):
-        ids.add(row["page_id"])
-        titles.add(row["title"])
-    deletions, restores = fetch_delete_log(api, since_iso)
-    for row in deletions + restores:
-        if row["page_id"]:
-            ids.add(row["page_id"])
-        titles.add(row["title"])
-    return ids, titles
+    def api_get(params):
+        return _api_get_with_retry(api_url, {**params, "format": "json"}, f"חלון תזמון ({label})")
+
+    ids, titles, counts = collect_window(api_get, since, until)
+    log(f"{label} | חלון {since} עד {until} | {len(ids)} מזהים | {len(titles)} כותרות | {counts}")
+    return ids, titles, {"since": since, "until": until, "refs": len(ids) + len(titles), "counts": counts}
 
 
 # --- הרצה ---
-
-def save_snapshot(out_dir, run_id, snapshot):
-    path = out_dir / f"snapshot_{run_id}.json.gz"
-    with gzip.open(path, "wt", encoding="utf-8") as fh:
-        json.dump(snapshot, fh, ensure_ascii=False)
-    return path
-
 
 def main():
     parser = argparse.ArgumentParser(description="reconcile - דוח בלבד, בלי כתיבה")
     parser.add_argument("--out-dir", default="reconcile_out")
     parser.add_argument("--skip-wikipedia", action="store_true")
     parser.add_argument("--skip-mechalol", action="store_true")
+    parser.add_argument("--snapshot-in", help="צילום שמור (snapshot_*.json.gz): משתמש בו במקום לשלוף מחדש")
     parser.add_argument("--examples", type=int, default=20)
     args = parser.parse_args()
 
@@ -173,53 +159,63 @@ def main():
     started = time.monotonic()
     client = get_client()
     watermarks = read_watermarks(client)
-    log(f"START | run_id={run_id} | נקודות הדלתא: {watermarks}")
+    stored = snapshot_io.load(args.snapshot_in) if args.snapshot_in else None
+    log(f"START | run_id={run_id} | נקודות הדלתא: {watermarks} | צילום שמור: {args.snapshot_in or 'לא'}")
 
     snapshot = {"run_id": run_id, "started": utc_now(), "watermarks": watermarks}
-    sites, meta = [], {"watermarks": watermarks}
+    sites, meta = [], {"watermarks": watermarks, "snapshot_in": args.snapshot_in or "none"}
 
     if not args.skip_wikipedia:
-        source, info = snapshot_wikipedia()
-        snapshot["wikipedia"] = {"pages": source, **info}
-        snapshot_time = utc_now()
+        if stored and "wikipedia" in stored:
+            source, info = stored["wikipedia"]["pages"], stored["wikipedia"]
+            until = info["captured_at"]
+        else:
+            source, info = snapshot_wikipedia()
+            until = utc_now()  # סוף הצילום: חלון התזמון נסגר כאן
+            info = {**info, "captured_at": until}
+        snapshot["wikipedia"] = {"pages": source, **{k: v for k, v in info.items() if k != "pages"}}
         db = {i: r["title"] for i, r in read_table(client, "wikipedia_pages", "id,title").items()}
         log(f"ויקיפדיה | הטבלה | {len(db):,} שורות")
         since = iso_utc(watermarks["wikipedia"])
-        window_ids, window_titles = window_wikipedia(since)
+        ids, titles, window = window_for(WIKIPEDIA_API, "ויקיפדיה", since, until)
         sites.append(summarize_site(
             "wikipedia", len(source), len(db), compare_titles(source, db), {},
-            window_ids, window_titles, source_titles=source, examples_per_class=args.examples,
+            ids, titles, source_titles=source, window=window, examples_per_class=args.examples,
         ))
-        meta["wikipedia_snapshot_time"] = snapshot_time
-        meta["wikipedia_window_since"] = since
-        meta["wikipedia_window_refs"] = len(window_ids) + len(window_titles)
 
     if not args.skip_mechalol:
-        titles, classification = snapshot_mechalol()
-        snapshot["mechalol"] = {"pages": titles, "classification": classification}
-        snapshot_time = utc_now()
+        if stored and "mechalol" in stored:
+            titles_src, classification = stored["mechalol"]["pages"], stored["mechalol"]["classification"]
+            until = stored["mechalol"]["captured_at"]
+        else:
+            titles_src, classification = snapshot_mechalol()
+            until = utc_now()
+        snapshot["mechalol"] = {"pages": titles_src, "classification": classification, "captured_at": until}
         columns = "id,title," + ",".join(CLASSIFICATION_FIELDS)
         rows = read_table(client, "mechalol_pages", columns)
         db_titles = {i: r["title"] for i, r in rows.items()}
         db_class = {i: {f: r[f] for f in CLASSIFICATION_FIELDS} for i, r in rows.items()}
         log(f"מכלול | הטבלה | {len(rows):,} שורות")
         since = iso_utc(watermarks["mechalol"])
-        window_ids, window_titles = window_mechalol(since)
+        ids, titles, window = window_for(MECHALOL_API, "מכלול", since, until)
         sites.append(summarize_site(
-            "mechalol", len(titles), len(rows), compare_titles(titles, db_titles),
-            compare_classification(classification, db_class), window_ids, window_titles,
-            source_titles=titles, examples_per_class=args.examples,
+            "mechalol", len(titles_src), len(rows), compare_titles(titles_src, db_titles),
+            compare_classification(classification, db_class), ids, titles,
+            source_titles=titles_src, window=window, examples_per_class=args.examples,
         ))
-        meta["mechalol_snapshot_time"] = snapshot_time
-        meta["mechalol_window_since"] = since
-        meta["mechalol_window_refs"] = len(window_ids) + len(window_titles)
+
+    # נקודת הדלתא שהתקדמה בזמן הריצה = הדלתא כתבה לטבלאות בין הצילום לקריאה: ההבדלים אינם נקיים
+    after = read_watermarks(client)
+    if after != watermarks:
+        meta["watermark_moved_during_run"] = {"before": watermarks, "after": after}
+        log(f"WARNING | נקודת הדלתא התקדמה בזמן הריצה: {watermarks} -> {after}. הדוח עלול לכלול הבדלים שהדלתא כתבה")
 
     meta["elapsed_seconds"] = round(time.monotonic() - started)
     report = {"run_id": run_id, "snapshot": meta, "sites": sites}
     (out_dir / f"report_{run_id}.json").write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
     markdown = render_markdown(report)
     (out_dir / f"report_{run_id}.md").write_text(markdown, encoding="utf-8")
-    save_snapshot(out_dir, run_id, snapshot)
+    snapshot_io.save(out_dir / f"snapshot_{run_id}.json.gz", snapshot)
     print(markdown)
     log(f"סיום | {meta['elapsed_seconds']} שניות | {out_dir}")
 

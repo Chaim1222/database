@@ -1,23 +1,26 @@
 """
 ההשוואה של `reconcile.py` (דוח בלבד): צילום מקור מול הטבלה הפעילה.
 
-הפונקציות כאן טהורות (בלי רשת, בלי סופרבייס ובלי config) ולכן נבדקות ביחידות.
+הפונקציות כאן טהורות (בלי רשת, בלי סופרבייס ובלי config) ולכן נבדקות ביחידות; הגישה ל-API מוזרקת.
 ראו PLAN_SYNC_REDESIGN.md, שלב 2.
 
 מבנה הממצאים: לכל אתר, לכל סוג שינוי (`only_source`, `only_db`, `title`, `status`, ...), רשימת פריטים.
-כל פריט מסומן `explained_by_window` אם הדף (לפי מזהה או כותרת) נגעו בו בחלון שבין נקודת הדלתא השמורה
-לבין רגע הצילום. סימון כזה אומר רק שהדף השתנה בחלון, לא שהשינוי גרם לפער: הדוח מדווח
-"פערים שלא הוסברו בתזמון" ולא "פספוסי דלתא".
+כל פריט מסומן `explained_by_window` אם הדף (לפי מזהה או כותרת) נגעו בו בחלון **סגור** [since, until]:
+`since` = נקודת הדלתא השמורה, `until` = רגע סיום הצילום של אותו אתר. עריכה אחרי `until` אינה יכולה
+להסביר פער בצילום, ולכן אינה נספרת. סימון כזה אומר רק שהדף השתנה בחלון, לא שהשינוי גרם לפער:
+הדוח מדווח "פערים שלא הוסברו בתזמון" ולא "פספוסי דלתא".
 """
 
 # שדות הסיווג של המכלול שמושווים (בדיוק אלה ש-classify_page מחזירה)
 CLASSIFICATION_FIELDS = ("status", "source_type", "needs_attention", "is_dictionary_entry")
 
-# match.py מקדם status ל"מיובא ומתועד" אחרי שתבנית המיון אומתה (match.py, "תבנית מיון תקינה... הוכחה ישירה").
-# הצילום מסווג רק לפי קטגוריות, לפני ההתאמה, ולכן הפרש בכיוון הזה צפוי ואינו פער. מדווח בנפרד.
+# המסד אומר "מיובא ומתועד" והצילום (לפי קטגוריות בלבד) אומר "מיובא ללא תיעוד". match.py אכן מקדם status
+# ל"מתועד" אחרי אימות תבנית, אבל גם הסרת תיעוד אמיתית נראית כך. אין כאן ראיה לאף אחד מהם, ולכן זה נשאר
+# **פער שמקורו לא אומת** (נספר בסך הפערים, בלי הנחה שהוא קידום).
 STATUS_DOCUMENTED = "מיובא ומתועד"
 STATUS_UNDOCUMENTED = "מיובא ללא תיעוד"
-PROMOTED_BY_MATCH = "status_promoted_by_match"
+STATUS_DOC_IN_DB_ONLY = "status_documented_in_db_only"
+ORIGIN_UNVERIFIED = frozenset({STATUS_DOC_IN_DB_ONLY})
 
 # סף התחלתי להצעה בלבד (PLAN_SYNC_REDESIGN.md, שלב 4): הדוח מדווח אם היה נחצה, ואינו עוצר דבר
 PROVISIONAL_DELETE_RATE = 0.001
@@ -40,7 +43,7 @@ def compare_classification(source, db, fields=CLASSIFICATION_FIELDS):
     """
     source, db: {page_id: {field: value}}. משווה רק מזהים שקיימים בשני הצדדים.
     מחזיר {field: [(id, old, new)]} (old = בטבלה, new = במקור), רק לשדות שיש בהם שינוי.
-    קידום סטטוס על ידי match.py (טבלה "מתועד", צילום "ללא תיעוד") מדווח בנפרד תחת PROMOTED_BY_MATCH.
+    status מ"מתועד" (טבלה) ל"ללא תיעוד" (צילום) מדווח תחת STATUS_DOC_IN_DB_ONLY: מקורו לא אומת.
     """
     changes = {}
     for page_id in sorted(set(source) & set(db)):
@@ -49,16 +52,71 @@ def compare_classification(source, db, fields=CLASSIFICATION_FIELDS):
             if old != new:
                 name = field
                 if field == "status" and old == STATUS_DOCUMENTED and new == STATUS_UNDOCUMENTED:
-                    name = PROMOTED_BY_MATCH
+                    name = STATUS_DOC_IN_DB_ONLY
                 changes.setdefault(name, []).append((page_id, old, new))
     return changes
 
 
+def _paged(api_get, params, list_key):
+    """מעבר על כל דפי התשובה של list=..., לפי `continue`."""
+    params = dict(params)
+    while True:
+        data = api_get(params)
+        yield from data.get("query", {}).get(list_key, [])
+        cont = data.get("continue")
+        if not cont:
+            return
+        params.update(cont)
+
+
+def collect_window(api_get, since, until):
+    """
+    מזהים וכותרות שנגעו בהם בחלון הסגור [since, until] באתר אחד (api_get(params) -> dict של ה-API):
+      עריכות ויצירות במרחב הראשי (recentchanges), והעברות, מחיקות ושחזורים בכל מרחב שם (logevents).
+    העברה כוללת את יעד ההעברה (params.target_title) ואת logpage.
+    הסוף נאכף פעמיים: rcend/leend בבקשה, וסינון לפי timestamp בתוצאה (תשובה שחורגת לא נספרת).
+    מחזיר (ids, titles, counts) כש-counts = {"edit_new": n, "move": n, "delete": n}.
+    """
+    ids, titles, counts = set(), set(), {"edit_new": 0, "move": 0, "delete": 0}
+
+    rc = {
+        "action": "query", "list": "recentchanges", "rcnamespace": 0, "rctype": "edit|new",
+        "rcdir": "newer", "rcstart": since, "rcend": until, "rcprop": "title|ids|timestamp",
+        "rclimit": 500, "formatversion": "2",
+    }
+    for entry in _paged(api_get, rc, "recentchanges"):
+        if entry.get("timestamp", until) > until:
+            continue
+        counts["edit_new"] += 1
+        if entry.get("pageid"):
+            ids.add(entry["pageid"])
+        if entry.get("title"):
+            titles.add(entry["title"])
+
+    for log_type in ("move", "delete"):
+        params = {
+            "action": "query", "list": "logevents", "letype": log_type, "ledir": "newer",
+            "lestart": since, "leend": until, "leprop": "ids|title|type|details|timestamp",
+            "lelimit": 500, "formatversion": "2",
+        }
+        for event in _paged(api_get, params, "logevents"):
+            if event.get("timestamp", until) > until:
+                continue
+            counts[log_type] += 1
+            if event.get("logpage"):
+                ids.add(event["logpage"])
+            if event.get("title"):
+                titles.add(event["title"])
+            target = (event.get("params") or {}).get("target_title")
+            if target:
+                titles.add(target)
+    return ids, titles, counts
+
+
 def explain(items, window_ids, window_titles):
     """
-    items: רשימת טאפלים שהאיבר הראשון בהם הוא מזהה והאחרון (או השני, לשינוי כותרת) כותרת; לכן
-    מקבלים פונקציית חילוץ בנפרד. כאן: items = [(id, title_or_none)].
-    מחזיר (explained, unexplained): דף "מוסבר" אם המזהה או הכותרת נגעו בו בחלון.
+    items: [(id, title_or_none)]. מחזיר (explained, unexplained): דף "מוסבר" אם המזהה או הכותרת
+    נגעו בו בחלון.
     """
     explained, unexplained = [], []
     for page_id, title in items:
@@ -79,11 +137,13 @@ def _title_findings(diff):
 
 
 def summarize_site(site, source_count, db_count, title_diff, class_changes, window_ids, window_titles,
-                   source_titles=None, examples_per_class=20):
+                   source_titles=None, window=None, examples_per_class=20):
     """
     דוח של אתר אחד. מחזיר dict:
       counts: מספר שורות במקור ובטבלה
-      classes: {class: {"n", "explained_by_window", "unexplained", "examples": [...]}}
+      window: {"since", "until", ...} כפי שהועבר (לתיעוד)
+      classes: {class: {"n", "explained_by_window", "unexplained", "origin_unverified", "examples", ...}}
+      unexplained_total: סך הפערים שלא הוסברו בחלון (כולל מחלקות שמקורן לא אומת)
       delete_rate: only_db / שורות בטבלה, ו-would_exceed_provisional_gate (מידע בלבד)
     source_titles: {id: title} של המקור, להסבר שינויי סיווג גם לפי כותרת.
     """
@@ -96,10 +156,9 @@ def summarize_site(site, source_count, db_count, title_diff, class_changes, wind
             "n": len(findings),
             "explained_by_window": len(explained),
             "unexplained": len(unexplained),
+            "origin_unverified": name in ORIGIN_UNVERIFIED,
             "examples": examples[:examples_per_class],
-            "unexplained_examples": [
-                {"id": i, "title": t} for i, t in unexplained[:examples_per_class]
-            ],
+            "unexplained_examples": [{"id": i, "title": t} for i, t in unexplained[:examples_per_class]],
         }
 
     for name, findings in _title_findings(title_diff).items():
@@ -119,7 +178,9 @@ def summarize_site(site, source_count, db_count, title_diff, class_changes, wind
     return {
         "site": site,
         "counts": {"source": source_count, "db": db_count},
+        "window": window or {},
         "classes": classes,
+        "unexplained_total": sum(c["unexplained"] for c in classes.values()),
         "delete_rate": {
             "n": n_delete,
             "rate": rate,
@@ -131,20 +192,25 @@ def summarize_site(site, source_count, db_count, title_diff, class_changes, wind
 def render_markdown(report):
     """דוח קריא לסיכום הריצה. report = {"run_id", "snapshot": {...}, "sites": [summarize_site(...)]}."""
     lines = [f"# דוח reconcile (דוח בלבד, בלי כתיבה) | ריצה {report['run_id']}", ""]
-    snap = report.get("snapshot", {})
-    for key, value in sorted(snap.items()):
+    for key, value in sorted(report.get("snapshot", {}).items()):
         lines.append(f"- {key}: {value}")
     lines.append("")
     for site in report["sites"]:
         c = site["counts"]
+        w = site.get("window") or {}
         lines.append(f"## {site['site']} | מקור {c['source']:,} | טבלה {c['db']:,}")
+        if w:
+            lines.append(f"חלון: {w.get('since')} עד {w.get('until')} "
+                         f"({w.get('refs', 0)} דפים נגעו בהם; {w.get('counts', {})})")
         lines.append("")
-        lines.append("| סוג | סה\"כ | הוסבר בחלון | לא הוסבר בתזמון |")
-        lines.append("|---|---|---|---|")
+        lines.append("| סוג | סה\"כ | הוסבר בחלון | לא הוסבר בתזמון | הערה |")
+        lines.append("|---|---|---|---|---|")
         for name, info in sorted(site["classes"].items()):
-            lines.append(f"| {name} | {info['n']} | {info['explained_by_window']} | {info['unexplained']} |")
+            note = "מקור לא אומת" if info.get("origin_unverified") else ""
+            lines.append(f"| {name} | {info['n']} | {info['explained_by_window']} | {info['unexplained']} | {note} |")
         d = site["delete_rate"]
         lines.append("")
+        lines.append(f"סך הפערים שלא הוסברו בתזמון: {site.get('unexplained_total', 0)}")
         lines.append(
             f"שיעור מחיקות: {d['n']} מתוך {c['db']:,} ({d['rate']:.4%}); "
             f"{'חורג' if d['would_exceed_provisional_gate'] else 'לא חורג'} מהסף ההתחלתי "
@@ -152,7 +218,8 @@ def render_markdown(report):
         )
         lines.append("")
     lines.append(
-        "הערה: \"הוסבר בחלון\" פירושו שהדף נגעו בו בין נקודת הדלתא השמורה לרגע הצילום; "
-        "זה לא מוכיח שהעריכה גרמה לפער. \"לא הוסבר בתזמון\" אינו פספוס מוכח."
+        "הערה: \"הוסבר בחלון\" פירושו שהדף נגעו בו בין נקודת הדלתא השמורה לרגע סיום הצילום; "
+        "זה לא מוכיח שהעריכה גרמה לפער. \"לא הוסבר בתזמון\" אינו פספוס מוכח. "
+        "מחלקות עם \"מקור לא אומת\" אינן מסווגות כקידום של match.py או כהסרת תיעוד."
     )
     return "\n".join(lines) + "\n"
