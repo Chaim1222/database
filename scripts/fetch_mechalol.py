@@ -397,6 +397,44 @@ def fetch_own_categories(titles):
     return result
 
 
+def fetch_own_categories_by_pageids(page_ids):
+    """
+    כמו fetch_own_categories, אבל לפי מזהה דף (prop=categories&pageids=...) ומחזירה dict: page_id -> set(קטגוריות).
+    נחוצה לדלתא: שליפה לפי כותרת מחזירה את הדף שנמצא בכותרת *עכשיו*, וכשדף הועבר ודף אחר נוצר בכותרתו
+    הישנה, הסיווג היה נלקח מהדף הלא נכון. מזהה שאינו קיים (נמחק) מקבל קבוצה ריקה, כמו כותרת חסרה.
+    """
+    page_ids = list(dict.fromkeys(page_ids))
+    result = {i: set() for i in page_ids}
+
+    for i in range(0, len(page_ids), API_BATCH_SIZE_TEMPLATE_CHECK):
+        batch = page_ids[i:i + API_BATCH_SIZE_TEMPLATE_CHECK]
+        clcontinue = None
+
+        while True:
+            params = {
+                "action": "query",
+                "prop": "categories",
+                "pageids": "|".join(str(x) for x in batch),
+                "cllimit": 500,
+            }
+            if clcontinue:
+                params["clcontinue"] = clcontinue
+
+            data = api_get(params, f"קטגוריות עצמיות לפי מזהה | אצווה {i // API_BATCH_SIZE_TEMPLATE_CHECK + 1}")
+            for page in data.get("query", {}).get("pages", {}).values():
+                page_id = page.get("pageid")
+                if page_id not in result:
+                    continue
+                for cat in page.get("categories", []):
+                    result[page_id].add(cat["title"])
+
+            clcontinue = data.get("continue", {}).get("clcontinue")
+            if not clcontinue:
+                break
+
+    return result
+
+
 _CREATED_SOURCE_CATEGORIES = None  # מחושב פעם אחת ב-classify_page_from_own_categories
 MECHALOL_MAINTENANCE_CATEGORY_PREFIX = "קטגוריה:המכלול:"
 
