@@ -93,31 +93,19 @@ class DecideTest(unittest.TestCase):
     def test_our_title_equal_to_the_current_one_needs_no_template(self):
         self.assertEqual(self.decide(row(title="דהוכ"), page(9, "דהוכ")), rm.NO_DECISION)
 
-    def test_different_title_asks_for_the_template_name(self):
-        decision = rm.decide(row(), page(9, "דהוכ (מחוז)"), MAX_REV, EXISTS)  # template_name=UNKNOWN
-        self.assertTrue(decision.needs_template)
-
     def test_template_name_equal_to_current_title_is_no_task_even_if_ours_differs(self):
         # הכותרת שלנו היא בחירה מקומית (קידומת "רבי"); התבנית עודכנה לשם הנוכחי
         decision = self.decide(row(title="חג הפסח"), page(9, "פסח"), template="פסח")
         self.assertEqual(decision, rm.NO_DECISION)
 
-    def test_both_names_differ_from_the_current_title_is_rename(self):
-        # דהוכ: הכותרת והתבנית עדיין "דהוכ", ודף הגרסה הועבר ל"דהוכ (מחוז)" (והשם הישן תפוס בערך אחר)
-        decision = self.decide(row(), page(180218, "דהוכ (מחוז)"), template="דהוכ")
-        self.assertEqual((decision.task, decision.page_id, decision.page_title),
-                         (rm.TASK_RENAME, 180218, "דהוכ (מחוז)"))
+    def test_live_page_under_another_name_is_not_a_task_anymore(self):
+        # העברת שם כבר לא משימה (הטאב "הועברו בוויקיפדיה" מכסה אותה ישר מהדלתא)
+        self.assertEqual(self.decide(row(), page(180218, "דהוכ (מחוז)"), template="דהוכ"), rm.NO_DECISION)
+        self.assertEqual(rm.decide(row(), page(180218, "דהוכ (מחוז)"), MAX_REV, EXISTS), rm.NO_DECISION)
 
     def test_old_template_name_but_our_title_already_equal_is_no_task(self):
         decision = self.decide(row(title="ספין (פיזיקה)"), page(9, "ספין (פיזיקה)"), template="ספין")
         self.assertEqual(decision, rm.NO_DECISION)
-
-    def test_missing_or_empty_template_name_counts_as_not_matching(self):
-        self.assertEqual(self.decide(row(), page(9, "x"), template=None).task, rm.TASK_RENAME)
-
-    def test_rav_prefix_and_suffix_do_not_make_a_rename(self):
-        self.assertEqual(self.decide(row(title="רבי שלום מנצורה"), page(9, "שלום מנצורה (רב)"), template="x").task,
-                         None)
 
     def test_live_page_missing_from_wikipedia_pages_is_left_for_next_run(self):
         self.assertEqual(self.decide(row(), page(9, "x"), exists=lambda page_id: False), rm.NO_DECISION)

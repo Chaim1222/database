@@ -24,7 +24,7 @@
 		title: 'כותרת', status: 'סטטוס', source_type: 'מקור',
 		match_type: 'סוג התאמה', wikipedia_id: 'קישור לוויקיפדיה', checked_at: 'נבדק בתאריך',
 		wikidata_desc: 'תיאור (ויקינתונים)', created_at: 'תאריך יצירה בוויקיפדיה',
-		mechalol_redirect_exists: 'קיים במכלול כהפניה', task_type: 'סוג משימה', rev_page_title: 'הדף של הגרסה', linked_title: 'מקושר היום',
+		mechalol_redirect_exists: 'קיים במכלול כהפניה', task_type: 'סוג משימה', old_title: 'השם הקודם בוויקיפדיה', renamed_at: 'הועבר בתאריך', via: 'זוהה לפי', rev_page_title: 'הדף של הגרסה', linked_title: 'מקושר היום',
 		manual_match_action: 'שיוך ידני',
 		wikipedia_title: 'ערך בוויקיפדיה', mechalol_title: 'דף מקביל במכלול',
 		mechalol_status: 'סטטוס במכלול', candidate_count: 'מספר מועמדים',
@@ -115,10 +115,12 @@
 	var VIEWS = {
 		// ארבעת טאבי הגרסה: סינון של report_rev_tasks לפי rev_task, ש-match.py מחשב לפי `גרסה=` בתבנית
 		// (scripts/rev_match.py; migrations/migration_add_rev_task.sql). ההחלטות לפי כללי חיים (2026-10-01).
-		rename: {
-			view: 'report_rev_tasks', label: 'העברת שם',
-			columns: ['title', 'rev_page_title', 'sort_template_rev', 'status'], filters: [],
-			baseFilters: [['rev_task', 'eq.rename']]
+		// ערכים שהדף שלהם בוויקיפדיה הועבר ואצלנו עדיין השם הישן (בכותרת או בתבנית). נבנה ישר מטבלת הדלתא wikipedia_renames,
+		// ולכן מתעדכן כל לילה (migrations/migration_add_wikipedia_moves_report.sql).
+		moved: {
+			view: 'report_wikipedia_moves', label: 'הועברו בוויקיפדיה',
+			columns: ['title', 'old_title', 'wikipedia_title', 'renamed_at', 'via', 'status'], filters: [],
+			order: 'renamed_at.desc,id.asc'
 		},
 		redirect: {
 			view: 'report_rev_tasks', label: 'הפכו להפניה',
@@ -209,7 +211,7 @@
 	var TAB_GROUPS = [
 		{ key: 'import', label: 'ייבוא', tabs: ['missing', 'requests', 'missing_redirect', 'rav', 'culture'] },
 		{ key: 'update', label: 'עדכון', tabs: ['update'] },
-		{ key: 'maint', label: 'תחזוקה', tabs: ['rename', 'redirect', 'badrev', 'deletedrev', 'undoc', 'locked'] },
+		{ key: 'maint', label: 'תחזוקה', tabs: ['moved', 'redirect', 'badrev', 'deletedrev', 'undoc', 'locked'] },
 		{ key: 'stats', label: 'נתונים סטטיסטיים', tabs: ['stats'] }
 	];
 	// טאב עם group (ב-VIEWS) מוצג רק למי שדרגתו לפחות כדרגת הקבוצה. זו בדיקת נראות בצד
@@ -2442,7 +2444,8 @@
 			if (row.has_images === false) return '<span class="mchl-muted">אין</span>';
 			return '<span class="mchl-muted">—</span>';
 		}
-		if (col === 'checked_at' || col === 'created_at' || col === 'detected_at') return val ? '<span class="mchl-num-cell">' + new Date(val).toLocaleDateString('he-IL') + '</span>' : '<span class="mchl-muted">—</span>';
+		if (col === 'via') return '<span class="mchl-badge mchl-neutral" title="' + (val === 'template' ? 'שם התבנית (דף=) הוא שם ישן שכבר לא קיים בוויקיפדיה' : 'הכותרת שלנו זהה לשם הישן בוויקיפדיה') + '">' + (val === 'template' ? 'שם בתבנית' : 'כותרת') + '</span>';
+		if (col === 'checked_at' || col === 'created_at' || col === 'detected_at' || col === 'renamed_at') return val ? '<span class="mchl-num-cell">' + new Date(val).toLocaleDateString('he-IL') + '</span>' : '<span class="mchl-muted">—</span>';
 		if (col === 'mechalol_redirect_exists') {
 			if (val === true) return '<span class="mchl-badge mchl-neutral">קיים כהפניה</span>';
 			if (val === false) return '<span class="mchl-muted">אין בכלל</span>';

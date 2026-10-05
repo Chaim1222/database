@@ -89,9 +89,9 @@ class ScanTest(unittest.TestCase):
         ]
         stats, complete = self.run_scan(rows, store)
         tasks = {f["mechalol_id"]: f["rev_task"] for f in store.upserts}
-        self.assertEqual(tasks, {1: "rename", 2: "rename", 3: "redirect", 4: "bad_rev", 9: "redirect"})
+        self.assertEqual(tasks, {3: "redirect", 4: "bad_rev", 9: "redirect"})
         self.assertTrue(complete)
-        self.assertEqual(stats["ok"], 4)
+        self.assertEqual(stats["ok"], 6)
 
     def test_manual_match_is_not_a_task(self):
         store = FakeStore(manual={1})
@@ -100,18 +100,18 @@ class ScanTest(unittest.TestCase):
 
     def test_unchanged_findings_are_not_rewritten_and_healed_ones_deleted(self):
         previous = {
-            1: finding(1, "rename", 100, 2328166, 180218, "דהוכ (מחוז)"),    # זהה: בלי כתיבה
-            6: finding(6, "rename", 100, 5, 180218, "x"),                     # תוקן: נמחק
+            1: finding(1, "rename", 100, 2328166, 180218, "דהוכ (מחוז)"),      # שורת העברת שם ישנה: כבר לא משימה, נמחקת
+            6: finding(6, "redirect", 100, 5, 180218, "x"),                     # תוקן: נמחק
             99: finding(99, "bad_rev", 1, None, None, None),                  # לא נראה יותר: נמחק
         }
         store = FakeStore(previous=previous)
         rows = [mrow(1, "דהוכ", 100, wikipedia_id=2328166), mrow(6, "דהוכ (מחוז)", 100, wikipedia_id=180218)]
         self.run_scan(rows, store)
         self.assertEqual(store.upserts, [])
-        self.assertEqual(store.deletes, {6, 99})
+        self.assertEqual(store.deletes, {1, 6, 99})
 
     def test_dry_run_writes_nothing(self):
-        store = FakeStore(previous={6: finding(6, "rename", 100, 5, 180218, "x")})
+        store = FakeStore(previous={6: finding(6, "redirect", 100, 5, 180218, "x")})
         self.run_scan([mrow(1, "דהוכ", 100, wikipedia_id=2328166), mrow(6, "דהוכ (מחוז)", 100, wikipedia_id=180218)],
                       store, dry_run=True)
         self.assertEqual((store.upserts, store.deletes), ([], set()))
