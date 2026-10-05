@@ -18,8 +18,9 @@
   - דף שהפך להפניה = הפך להפניה, **אלא אם יעד ההפניה כבר זהה לשם התבנית (`דף=`)**: אז העורך כבר טיפל (גרסה שמצביעה על
     הפניה ישנה, ושם התבנית הוא היעד), ואין שינוי חדש לטיפול (הכרעת חיים, 2026-10-05, אחרי ש-44 ערכים כאלה הופיעו בטעות).
   - הגרסה שייכת לדף חי: הכותרת הנוכחית שלו שווה לכותרת שלנו או לשם התבנית (נרמול, והסרת
-    "הרב/רבי" ו-"(רב)") = אין משימה. שניהם שונים ממנה = ויקיפדיה העבירה ואנחנו לא עקבנו:
-    העברת שם. עצם זה שהגרסה שייכת לדף בשם אחר משם התבנית הוא ההוכחה להעברה.
+    "הרב/רבי" ו-"(רב)") = אין משימה. שונים ממנה = העברת שם, וגם היא כבר לא משימה (הכרעת חיים, 5.10:
+    הערכים האלה הם בעיקר גרסה של השם הקודם שעוד לא עודכנה, לא עבודה): הטאב "הועברו בוויקיפדיה" מכסה
+    העברות ישר מטבלת הדלתא. קבוע TASK_RENAME נשאר רק בשביל אילוץ הטבלה rev_link_check.
 """
 import re
 import time
@@ -118,13 +119,8 @@ def decide(row, resolved, max_rev, page_exists, template_name=UNKNOWN, redirect_
         # דף חי שעוד לא נטען ל-wikipedia_pages (פער דלתא): ייבדק בריצה הבאה.
         return NO_DECISION
 
-    if names_match(row.get("title"), title):
-        return NO_DECISION
-    if template_name is UNKNOWN:
-        return NEEDS_TEMPLATE
-    if template_name and names_match(template_name, title):
-        return NO_DECISION
-    return Decision(TASK_RENAME, page_id, title)
+    # דף חי בשם אחר = העברת שם: כבר לא משימה כאן (הטאב "הועברו בוויקיפדיה" מכסה זאת ישר מהדלתא)
+    return NO_DECISION
 
 
 def resolve_revisions(wikipedia_get, rev_ids):

@@ -122,11 +122,6 @@
 			columns: ['title', 'old_title', 'wikipedia_title', 'renamed_at', 'via', 'status'], filters: [],
 			order: 'renamed_at.desc,id.asc'
 		},
-		rename: {
-			view: 'report_rev_tasks', label: 'העברת שם',
-			columns: ['title', 'rev_page_title', 'sort_template_rev', 'status'], filters: [],
-			baseFilters: [['rev_task', 'eq.rename']]
-		},
 		redirect: {
 			view: 'report_rev_tasks', label: 'הפכו להפניה',
 			columns: ['title', 'rev_page_title', 'sort_template_rev', 'linked_title', 'status'], filters: [],
@@ -216,7 +211,7 @@
 	var TAB_GROUPS = [
 		{ key: 'import', label: 'ייבוא', tabs: ['missing', 'requests', 'missing_redirect', 'rav', 'culture'] },
 		{ key: 'update', label: 'עדכון', tabs: ['update'] },
-		{ key: 'maint', label: 'תחזוקה', tabs: ['moved', 'rename', 'redirect', 'badrev', 'deletedrev', 'undoc', 'locked'] },
+		{ key: 'maint', label: 'תחזוקה', tabs: ['moved', 'redirect', 'badrev', 'deletedrev', 'undoc', 'locked'] },
 		{ key: 'stats', label: 'נתונים סטטיסטיים', tabs: ['stats'] }
 	];
 	// טאב עם group (ב-VIEWS) מוצג רק למי שדרגתו לפחות כדרגת הקבוצה. זו בדיקת נראות בצד

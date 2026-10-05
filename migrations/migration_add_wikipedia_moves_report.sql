@@ -8,10 +8,20 @@
 --   title     הכותרת שלנו שווה לשם הישן בוויקיפדיה
 --   template  שם התבנית (דף=) הוא שם ישן שכבר לא קיים ב-wikipedia_pages (mechalol_pages.template_referenced_title)
 -- בכוונה לא "הקישור wikipedia_id לדף שהועבר": ערך שהכותרת שלו הוחלטה מקומית (למשל "רבי X" מול "X") היה מופיע לנצח.
--- ערך שהכותרת שלו כבר זהה לשם הנוכחי בוויקיפדיה לא מופיע (m.title <> w.title); ערך שהוסר מההיקף (needs_attention או מילוני) לא מופיע.
+-- ערך שהכותרת שלו כבר זהה לשם הנוכחי בוויקיפדיה לא מופיע (m.title <> w.title); ערכים מילוניים ודפי טיפול (needs_attention) כן מופיעים - גם אותם צריך להעביר.
 -- ערך שנתפס בשני הסימנים מופיע פעם אחת (title קודם), כי הדשבורד משתמש ב-id כמפתח שורה.
--- הענף template משתמש באותם תנאים של mechalol_pages_tasks_idx, כדי להשתמש בו (13 מ"ש, מול 5 שניות בסריקה מלאה).
+-- הענף template נשען על אינדקס חלקי קטן על template_referenced_title (153 שורות בלבד), אחרת סריקה מלאה לוקחת 5 שניות.
 -- security_invoker, כמו שאר ה-views: anon קורא את wikipedia_renames (policy "קריאה ציבורית"). בלי שינוי סכמה ובלי נפח. idempotent.
+
+create index if not exists mechalol_pages_template_ref_idx
+    on mechalol_pages (template_referenced_title) where template_referenced_title is not null;
+-- הטבלה הזמנית של הסנכרון השבועי (ההחלפה האטומית משנה שמות אינדקסים דינמית)
+do $$ begin
+    if to_regclass('public.mechalol_pages_temp') is not null then
+        create index if not exists mechalol_pages_temp_template_ref_idx
+            on mechalol_pages_temp (template_referenced_title) where template_referenced_title is not null;
+    end if;
+end $$;
 
 create or replace view report_wikipedia_moves with (security_invoker = true) as
 with last_move as (
@@ -23,15 +33,13 @@ with last_move as (
 tpl as (
     select m.id, m.template_referenced_title
     from mechalol_pages m
-    where m.needs_attention = false and m.is_dictionary_entry = false
-      and m.template_referenced_title is not null
+    where m.template_referenced_title is not null
       and m.status <> 'נשמר במכלול למרות מחיקה בוויקיפדיה'
 ),
 hits as (
     select m.id, 'title'::text as via, lm.page_id, lm.old_title, lm.renamed_at
     from last_move lm
     join mechalol_pages m on m.title = lm.old_title
-    where m.needs_attention = false and m.is_dictionary_entry = false
     union all
     select t.id, 'template', lm.page_id, lm.old_title, lm.renamed_at
     from last_move lm
