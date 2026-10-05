@@ -1,10 +1,22 @@
-name: בדיקת נעילות (דוח בלבד)
+name: בדיקת נעילות
 
 # בודק שדפי הטאב "נעולים" בדשבורד עדיין נעולים: שואל את ה-API של המכלול מחדש את רמת הנעילה של כל דף (מטא-נתונים בלבד,
-# בלי תוכן) ומשווה למה שנרשם. scripts/verify_locked_pages.py. **לא כותב למסד ולא משנה כלום.** הדוח המלא מצורף כ-artifact
-# (locked-verify-report), וסיכום עם הכותרות הראשונות בלוג. לא בקבוצת ה-concurrency של הכתיבה: אינו כותב.
+# בלי תוכן) ומשווה למה שנרשם. scripts/verify_locked_pages.py. ברירת המחדל: **דוח בלבד, לא כותב למסד.**
+# apply=true: רושם ב-page_lock_levels את רמת הנעילה (נעול למחצה לקריאה, read-semi, מוסתר מהטאב; migrations/
+# migration_add_page_lock_levels.sql חייבת לרוץ קודם), ומתקן נעילות שהוסרו (הסרה מהרשימה השחורה, איפוס סימון הקריאה).
+# מעקה: יותר מ-20% "פתוחים" בקבוצה = כנראה תקלת API, לא משנים כלום. הדוח המלא מצורף כ-artifact (locked-verify-report).
+# עם apply הריצה כותבת למסד ולכן באותה קבוצת concurrency כמו שאר הכותבים; בלי apply היא לא ממתינה להם.
 on:
   workflow_dispatch:
+    inputs:
+      apply:
+        description: "לתקן (לרשום רמות ולטפל בנעילות שהוסרו). בלי זה: דוח בלבד"
+        default: false
+        type: boolean
+
+concurrency:
+  group: ${{ inputs.apply && 'mechalol-wikipedia-db-write' || format('verify-locked-{0}', github.run_id) }}
+  cancel-in-progress: false
 
 jobs:
   verify:
@@ -29,7 +41,12 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           USER_NAME: ${{ secrets.USER_NAME }}
           PASSWORD: ${{ secrets.PASSWORD }}
-        run: python verify_locked_pages.py --report ../locked_verify_report.json
+        run: |
+          if [ "${{ inputs.apply }}" = "true" ]; then
+            python verify_locked_pages.py --report ../locked_verify_report.json --apply
+          else
+            python verify_locked_pages.py --report ../locked_verify_report.json
+          fi
 
       - name: צירוף הדוח המלא
         if: always()
