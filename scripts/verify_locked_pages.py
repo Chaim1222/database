@@ -19,7 +19,7 @@ from collections import Counter
 from mechalol_api import classify_lock_level, fetch_page_lock_info, log, login
 
 PAGE_SIZE = 1000
-SHOW = 30  # כמה כותרות להדפיס ללוג לכל קטגוריה; הרשימה המלאה בקובץ הדוח
+SHOW = 300  # כמה חריגות להדפיס ללוג לכל קטגוריה (הלוג צריך להספיק: את ה-artifact אי אפשר תמיד להוריד); הרשימה המלאה בקובץ הדוח
 
 
 def verdict(expected, info):
@@ -35,6 +35,11 @@ def verdict(expected, info):
     if level == "open":
         return "open_now"
     return "other:" + level
+
+
+def row_result(row_id, title, expected, info):
+    """שורת דוח: ההכרעה, וגם ה-allevel הגולמי מה-API (כדי לזהות רמות לא מוכרות)."""
+    return {"id": row_id, "title": title, "verdict": verdict(expected, info), "allevel": info.get("allevel") if info else None}
 
 
 def summarize(verdicts):
@@ -68,7 +73,7 @@ def check_read_locked(client, limit):
     rows = rows[:limit] if limit else rows
     info = fetch_page_lock_info(pageids=[r["id"] for r in rows])
     by_id = {v["pageid"]: v for v in info.values() if v.get("pageid")}
-    return [{"id": r["id"], "title": r["title"], "verdict": verdict("read_locked", by_id.get(r["id"]))} for r in rows]
+    return [row_result(r["id"], r["title"], "read_locked", by_id.get(r["id"])) for r in rows]
 
 
 def check_create_locked(client, limit):
@@ -80,7 +85,7 @@ def check_create_locked(client, limit):
     )
     rows = rows[:limit] if limit else rows
     info = fetch_page_lock_info(titles=[r["title"] for r in rows])
-    return [{"id": r["id"], "title": r["title"], "verdict": verdict("create_locked", info.get(r["title"]))} for r in rows]
+    return [row_result(r["id"], r["title"], "create_locked", info.get(r["title"])) for r in rows]
 
 
 def check_manual_read_locked(client, limit):
@@ -95,8 +100,7 @@ def check_manual_read_locked(client, limit):
         return []
     info = fetch_page_lock_info(pageids=[r["mechalol_page_id"] for r in rows])
     by_id = {v["pageid"]: v for v in info.values() if v.get("pageid")}
-    return [{"id": r["id"], "title": str(r["mechalol_page_id"]), "verdict": verdict("read_locked", by_id.get(r["mechalol_page_id"]))}
-            for r in rows]
+    return [row_result(r["id"], str(r["mechalol_page_id"]), "read_locked", by_id.get(r["mechalol_page_id"])) for r in rows]
 
 
 def main():
@@ -117,8 +121,11 @@ def main():
     }
     for name, results in groups.items():
         log(f"{name}: {len(results)} נבדקו | {summarize(r['verdict'] for r in results)}")
+        levels = summarize(f"{r['verdict']}/allevel={r['allevel']}" for r in results if r["verdict"] != "still_locked")
+        if levels:
+            log(f"   פירוט החריגות לפי רמת נעילה מה-API: {levels}")
         for r in [x for x in results if x["verdict"] != "still_locked"][:SHOW]:
-            log(f"   {r['verdict']} | {r['id']} | {r['title']}")
+            log(f"   {r['verdict']} | allevel={r['allevel']} | {r['id']} | {r['title']}")
     with open(args.report, "w", encoding="utf-8") as fh:
         json.dump(groups, fh, ensure_ascii=False, indent=1)
     log(f"הדוח המלא נכתב ל-{args.report}")
