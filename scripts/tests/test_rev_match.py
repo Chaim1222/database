@@ -24,6 +24,26 @@ def page(page_id, title, ns=0, redirect=False):
     return {"page_id": page_id, "title": title, "ns": ns, "redirect": redirect}
 
 
+class RedirectTargetsTest(unittest.TestCase):
+    def test_targets_are_resolved_with_normalization_and_missing_targets_are_none(self):
+        calls = []
+
+        def fake(params):
+            calls.append(params)
+            return {"query": {"normalized": [{"from": "א_ב", "to": "א ב"}],
+                              "redirects": [{"from": "א ב", "to": "יעד"}, {"from": "ג", "to": "יעד 2"}]}}
+
+        result = rm.resolve_redirect_targets(fake, ["א_ב", "ג", "ד"])
+        self.assertEqual(result, {"א_ב": "יעד", "ג": "יעד 2", "ד": None})
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0]["redirects"], "1")
+
+    def test_batches_of_fifty(self):
+        calls = []
+        rm.resolve_redirect_targets(lambda p: calls.append(p) or {"query": {}}, ["t%d" % i for i in range(120)])
+        self.assertEqual(len(calls), 3)
+
+
 class DecideTest(unittest.TestCase):
     def decide(self, r, resolved, exists=EXISTS, template=None):
         return rm.decide(r, resolved, MAX_REV, exists, template_name=template)
@@ -44,8 +64,31 @@ class DecideTest(unittest.TestCase):
 
     def test_other_namespace_and_redirect(self):
         self.assertEqual(self.decide(row(), page(5, "טיוטה:x", ns=118)).task, rm.TASK_BAD_REV)
-        decision = self.decide(row(), page(5, "x", redirect=True))
+        decision = rm.decide(row(), page(5, "x", redirect=True), MAX_REV, EXISTS, template_name="אחר", redirect_target="יעד")
         self.assertEqual((decision.task, decision.page_id, decision.page_title), (rm.TASK_REDIRECT, 5, "x"))
+
+    def test_redirect_asks_for_target_and_template_name(self):
+        decision = rm.decide(row(), page(5, "x", redirect=True), MAX_REV, EXISTS)
+        self.assertEqual((decision.task, decision.needs_template, decision.needs_redirect), (None, True, True))
+        only_target = rm.decide(row(), page(5, "x", redirect=True), MAX_REV, EXISTS, template_name="דף")
+        self.assertEqual((only_target.needs_template, only_target.needs_redirect), (False, True))
+
+    def test_redirect_whose_target_is_the_template_name_is_handled(self):
+        # הגרסה על הפניה ישנה, אבל שם התבנית כבר הוא היעד: אין שינוי חדש לטיפול
+        decision = rm.decide(row(), page(5, "ישן", redirect=True), MAX_REV, EXISTS, template_name="יעד חדש", redirect_target="יעד חדש")
+        self.assertEqual(decision, rm.NO_DECISION)
+
+    def test_redirect_target_matches_template_name_after_normalization(self):
+        decision = rm.decide(row(), page(5, "ישן", redirect=True), MAX_REV, EXISTS, template_name="הרב יעד", redirect_target="יעד (רב)")
+        self.assertEqual(decision, rm.NO_DECISION)
+
+    def test_redirect_with_stale_template_or_unknown_target_stays_a_task(self):
+        old_name = rm.decide(row(), page(5, "ישן", redirect=True), MAX_REV, EXISTS, template_name="ישן", redirect_target="יעד חדש")
+        self.assertEqual(old_name.task, rm.TASK_REDIRECT)
+        broken = rm.decide(row(), page(5, "ישן", redirect=True), MAX_REV, EXISTS, template_name="ישן", redirect_target=None)
+        self.assertEqual(broken.task, rm.TASK_REDIRECT)
+        no_template = rm.decide(row(), page(5, "ישן", redirect=True), MAX_REV, EXISTS, template_name=None, redirect_target="יעד")
+        self.assertEqual(no_template.task, rm.TASK_REDIRECT)
 
     def test_our_title_equal_to_the_current_one_needs_no_template(self):
         self.assertEqual(self.decide(row(title="דהוכ"), page(9, "דהוכ")), rm.NO_DECISION)

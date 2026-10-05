@@ -132,8 +132,12 @@ def finding_of(row, decision):
     }
 
 
-def decide_rows(rows, resolved, existing_ids, max_rev, manual, names):
-    """[(שורה, החלטה)]. שיוך ידני = טופל. names: שמות תבנית שכבר נקראו (חסר = טרם נקרא)."""
+def decide_rows(rows, resolved, existing_ids, max_rev, manual, names, targets=None):
+    """
+    [(שורה, החלטה)]. שיוך ידני = טופל. names: שמות תבנית שכבר נקראו (חסר = טרם נקרא).
+    targets: {id שורה: יעד ההפניה} לערכים שהגרסה שלהם שייכת להפניה (חסר = טרם נקרא).
+    """
+    targets = targets or {}
     out = []
     for row in rows:
         if not row.get("title") or row["id"] in manual:
@@ -142,6 +146,7 @@ def decide_rows(rows, resolved, existing_ids, max_rev, manual, names):
         out.append((row, rev_match.decide(
             row, resolved.get(row.get("sort_template_rev")), max_rev, existing_ids.__contains__,
             template_name=names.get(row["id"], rev_match.UNKNOWN),
+            redirect_target=targets.get(row["id"], rev_match.UNKNOWN),
         )))
     return out
 
@@ -159,11 +164,15 @@ def scan(store, wikipedia_get, existing_ids, pages, dry_run, deadline, workers):
         resolved = rev_match.resolve_many(wikipedia_get, revs, workers)
         changed, healed = [], []
         decided = decide_rows(rows, resolved, existing_ids, max_rev, manual, {})
-        need = [row["id"] for row, decision in decided if decision.needs_template]
+        redirect_rows = {row["id"]: resolved[row["sort_template_rev"]]["title"]
+                         for row, decision in decided if decision.needs_redirect}
+        need = sorted({row["id"] for row, decision in decided if decision.needs_template} | set(redirect_rows))
         if need:
             names = fetch_template_names(need)
+            found = rev_match.resolve_redirect_targets(wikipedia_get, redirect_rows.values()) if redirect_rows else {}
             decided = decide_rows(rows, resolved, existing_ids, max_rev, manual,
-                                  {page_id: names.get(page_id) for page_id in need})
+                                  {page_id: names.get(page_id) for page_id in need},
+                                  {page_id: found.get(title) for page_id, title in redirect_rows.items()})
         for row, decision in decided:
             stats["checked"] += 1
             seen.add(row["id"])
