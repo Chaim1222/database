@@ -405,13 +405,39 @@ def main_dump(url=DUMP_URL):
     print(f"סיום. {total} כותרות מהדמפ, בתוספת השלמת פער")
 
 
+def main_snapshot(path):
+    """
+    טוען את הכותרות מצילום שמור של reconcile.py (snapshot_io) במקום מדמפ ומהשלמת פער: הצילום כבר כולל את
+    ההשלמה. כך הסנכרון השבועי והדוח רצים מול אותו צילום מקור. אותו ריקון עצל ואותה כתיבה כמו main_dump.
+    """
+    import snapshot_io
+
+    snapshot = snapshot_io.load(path)
+    client = get_client()
+    print(f"START | snapshot | {path} | run_id={snapshot.get('run_id')} | captured_at={snapshot['wikipedia'].get('captured_at')}")
+    total, truncated = 0, False
+    for batch in snapshot_io.wikipedia_batches(snapshot, DUMP_BATCH):
+        if batch and not truncated:
+            print(f"ריקון | מרוקן {table_name('wikipedia_pages')}...")
+            client.rpc(rpc_name("truncate_wikipedia_pages")).execute()
+            truncated = True
+        upsert_batch(client, batch)
+        total += len(batch)
+    if total == 0:
+        raise RuntimeError("הצילום לא כולל כותרות ויקיפדיה - הטבלה לא נגעה בה. לא מסמן כהצלחה.")
+    print(f"סיום. {total} כותרות מהצילום")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", choices=["dump", "api"], default="dump")
     parser.add_argument("--url", default=DUMP_URL)
+    parser.add_argument("--snapshot", help="צילום שמור של reconcile.py (snapshot_*.json.gz) במקום דמפ והשלמת פער")
     args = parser.parse_args()
 
-    if args.source == "dump":
+    if args.snapshot:
+        main_snapshot(args.snapshot)
+    elif args.source == "dump":
         main_dump(args.url)
     else:
         main_api()

@@ -672,7 +672,20 @@ def main():
     log("=" * 80)
     log("התחלה | fetch_mechalol.py")
 
-    categories, last_update_map = fetch_classification_data()
+    # RECONCILE_SNAPSHOT: צילום שמור של reconcile.py (snapshot_io) במקום allpages וקטגוריות, כדי שהסנכרון
+    # השבועי והדוח ירוצו מול אותו צילום מקור. ברירת המחדל (לא מוגדר) ללא שינוי.
+    snapshot_path = os.getenv("RECONCILE_SNAPSHOT")
+    snapshot_classification = None
+    if snapshot_path:
+        import snapshot_io
+        snapshot = snapshot_io.load(snapshot_path)
+        snapshot_classification = snapshot["mechalol"]["classification"]
+        batches = snapshot_io.mechalol_batches(snapshot, MECHALOL_BATCH_SIZE)
+        categories = last_update_map = None
+        log(f"צילום שמור | {snapshot_path} | run_id={snapshot.get('run_id')} | captured_at={snapshot['mechalol'].get('captured_at')}")
+    else:
+        categories, last_update_map = fetch_classification_data()
+        batches = None
 
     total = progress.get("uploaded_count", 0)
     batch_number = progress.get("upload_batch", 0)
@@ -688,7 +701,7 @@ def main():
     truncated = is_resumed
 
     try:
-        for batch in fetch_all_titles(progress):
+        for batch in (batches if batches is not None else fetch_all_titles(progress)):
             if not batch:
                 continue
 
@@ -711,7 +724,10 @@ def main():
             rows = []
 
             for title, page_id in batch:
-                classification = classify_page(title, categories, last_update_map)
+                classification = (
+                    snapshot_classification[page_id] if snapshot_classification is not None
+                    else classify_page(title, categories, last_update_map)
+                )
                 rows.append({
                     "id": page_id,
                     "title": title,
