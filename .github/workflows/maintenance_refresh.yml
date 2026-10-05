@@ -6,6 +6,9 @@ name: רענון נתוני התחזוקה (ידני)
 #   גרסת התבנית (sort_template_rev, source_state)           - העדכון השעתי (sort_template_hourly.yml)
 #   ארבעת טאבי הגרסה (rev_link_check)                       - בדיקה מחדש של מה שכבר בטבלה (rev_link_scan.py --recheck)
 #   ניקוי שורות שהתיישנו                                    - refresh_maintenance_tables (חייבת מיגרציה: migration_add_refresh_maintenance_tables.sql)
+#   אימות נעילות (טאב "נעולים")                             - verify_locked_pages.py --apply (חייבת migrations/migration_add_page_lock_levels.sql):
+#                                                             רושם רמות (נעול למחצה מוסתר מהטאב) ומתקן נעילות שהוסרו; עם מעקה. רץ כשלב עם
+#                                                             continue-on-error: כשל או עצירת המעקה לא הופכים את כל הרענון לכושל (רואים בלוג)
 # הסדר חשוב: הבדיקה מחדש והניקוי נשענים על כותרת וגרסה שכבר עודכנו. לא מוצאת ערכים חדשים בעייתיים (זה הסריקה החודשית).
 # אותה קבוצת concurrency כמו שאר ה-workflows שכותבים למסד: אם הדלתא הלילית או הסנכרון השבועי רצים, ממתין בתור.
 # מופעל גם מכפתור בדשבורד (request_maintenance_refresh, migrations/migration_add_trigger_maintenance_refresh.sql).
@@ -15,7 +18,7 @@ on:
   workflow_dispatch:
     inputs:
       cleanup:
-        description: "גם למחוק שורות תחזוקה שהתיישנו (בלי זה: דוח בלבד)"
+        description: "גם למחוק שורות תחזוקה שהתיישנו ולתקן נעילות שהוסרו (בלי זה: דוח בלבד)"
         default: true
         type: boolean
 
@@ -85,6 +88,18 @@ jobs:
             python refresh_maintenance_tables.py
           else
             python refresh_maintenance_tables.py --dry-run
+          fi
+
+      # אימות מחדש מול ה-API של כל הדפים בטאב "נעולים" (דקה בערך). continue-on-error: המעקה (מעל 20% "פתוחים") או תקלת API
+      # לא אמורים לסמן את כל הרענון ככושל, כי שאר השלבים כבר הצליחו; הכשל נראה בלוג של השלב הזה.
+      - name: אימות נעילות
+        continue-on-error: true
+        working-directory: scripts
+        run: |
+          if [ "${{ inputs.cleanup }}" = "true" ]; then
+            python verify_locked_pages.py --report ../locked_verify_report.json --apply
+          else
+            python verify_locked_pages.py --report ../locked_verify_report.json
           fi
 
       - name: סימון סיום
