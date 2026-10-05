@@ -285,8 +285,8 @@
 	function mechalolUrl(id) { return 'https://www.hamichlol.org.il/w/index.php?curid=' + id; }
 	function wikipediaUrl(id) { return 'https://he.wikipedia.org/w/index.php?curid=' + id; }
 	function mechalolReadUrl(title) { return 'https://www.hamichlol.org.il/w/index.php?title=' + encodeURIComponent(title.replace(/ /g, '_')); }
-	// היסטוריית הערך עם fixsrc=1: גאדג'ט "תיקון גרסת מקור" (gadget/gadget-sortTemplateFix.js) מכין שם את לחצני "קבע גרסת מקור" מיד.
-	// אם הגאדג'ט לא טעון אצל המשתמש, נפתחת סתם היסטוריית הערך.
+	// קישור להיסטוריית הערך עם fixsrc=1: הסקריפט "משתמש:גאון הירדן/הוספת תאריך למיון ויקיפדיה.js" (עותק בריפו: gadget/gadget-sortTemplateFix.js)
+	// מכין שם את הלחצנים מיד. בדשבורד משמש רק כקישור גיבוי בפאנל "קביעת גרסת מקור" (fixSrc); הפאנל עצמו לא תלוי בסקריפט.
 	function mechalolFixSourceUrl(title) { return 'https://www.hamichlol.org.il/w/index.php?title=' + encodeURIComponent(title.replace(/ /g, '_')) + '&action=history&fixsrc=1'; }
 	function mechalolEditUrl(title) { return 'https://www.hamichlol.org.il/w/index.php?title=' + encodeURIComponent(title.replace(/ /g, '_')) + '&action=edit'; }
 	function rowKey(row) { return activeTab + ':' + rowIdOf(row); }
@@ -2030,6 +2030,244 @@
 		});
 	}
 
+	// ===== קביעת גרסת מקור מתוך הדשבורד =====
+	// הלוגיקה (איתור תבנית, חישוב השינוי, חיפוש הגרסה בוויקיפדיה) היא של הסקריפט "משתמש:גאון הירדן/הוספת תאריך למיון ויקיפדיה.js"
+	// (עותק בריפו: gadget/gadget-sortTemplateFix.js). הדשבורד לא מעתיק אותה: הוא טוען את הסקריפט מהאתר כמו את מודול העדכון,
+	// והסקריפט חושף אותה ב-mw.sortTemplateFix. כאן רק הממשק: היסטוריית הערך, בחירת שורת הייבוא, תצוגה מקדימה ושמירה באישור.
+	var SORT_FIX_SCRIPT_PAGE = 'משתמש:גאון הירדן/הוספת תאריך למיון ויקיפדיה.js';
+	var sortFixPromise = null;
+	function loadSortTemplateFix() {
+		if (!sortFixPromise) {
+			sortFixPromise = Promise.resolve(mw.loader.using(['mediawiki.api', 'mediawiki.util'])).then(function () {
+				if (mw.sortTemplateFix) return null;
+				return Promise.resolve(mw.loader.getScript(mw.util.wikiScript('index') + '?title=' + encodeURIComponent(SORT_FIX_SCRIPT_PAGE) + '&action=raw&ctype=text/javascript'));
+			}).then(function () {
+				if (!mw.sortTemplateFix) throw new Error('הסקריפט "' + SORT_FIX_SCRIPT_PAGE + '" נטען אבל לא חושף את mw.sortTemplateFix: צריך להחליף אותו בגרסה העדכנית (gadget/gadget-sortTemplateFix.js).');
+				return mw.sortTemplateFix;
+			});
+			sortFixPromise.catch(function () { sortFixPromise = null; });
+		}
+		return sortFixPromise;
+	}
+
+	var fixSrc = (function () {
+		var PAGE_BATCH = 20;
+		var BOX_STYLE = 'margin:6px 0;padding:8px 12px;border:1px solid var(--mchl-border, #c8ccd1);border-radius:8px;background:var(--mchl-ink-800, #f8f9fa);';
+
+		function errText(e) { return e && e.message ? e.message : String(e); }
+		function el(tag, props, children) {
+			var node = document.createElement(tag);
+			Object.keys(props || {}).forEach(function (k) {
+				if (k === 'style') node.style.cssText = props[k]; else if (k === 'text') node.textContent = props[k]; else node.setAttribute(k, props[k]);
+			});
+			(children || []).forEach(function (c) { node.appendChild(c); });
+			return node;
+		}
+		// mw.Api דוחה עם (code, data): עוטפים ושומרים גם את המידע.
+		function mwCall(promise) {
+			return new Promise(function (resolve, reject) {
+				promise.then(resolve, function (code, data) {
+					reject(new Error(code + (data && data.error && data.error.info ? ': ' + data.error.info : '')));
+				});
+			});
+		}
+
+		function setBody(state, nodes) {
+			state.panel.textContent = '';
+			nodes.forEach(function (n) { state.panel.appendChild(n); });
+		}
+		function setStatus(state, text, kind) {
+			setBody(state, [el('div', { text: text, style: kind === 'error' ? 'color:var(--mchl-alert, #a94442);' : kind === 'ok' ? 'color:var(--mchl-wiki, #3c763d);' : 'opacity:.8;' })]);
+		}
+
+		// שדה לשם דף ויקיפדיה (כשאין תבנית או שאין בה דף=), עם השלמה אוטומטית. מחזיר Promise לשם, או null אם בוטל.
+		function askTitle(state, defaultTitle) {
+			var fix = state.fix;
+			return new Promise(function (resolve) {
+				var input = el('input', { type: 'text', list: 'mchl-fix-titles', style: 'width:22em;direction:rtl;' });
+				input.value = defaultTitle;
+				var list = el('datalist', { id: 'mchl-fix-titles' });
+				var timer;
+				input.addEventListener('input', function () {
+					clearTimeout(timer);
+					timer = setTimeout(function () {
+						if (!input.value.trim()) return;
+						fix.wikipediaApi({ action: 'opensearch', search: input.value, limit: '8', namespace: '0' }).then(function (d) {
+							list.textContent = '';
+							(d[1] || []).forEach(function (t) { list.appendChild(el('option', { value: t })); });
+						}).catch(function () { /* ההשלמה אופציונלית */ });
+					}, 250);
+				});
+				var ok = el('button', { text: 'המשך', type: 'button', 'class': 'mchl-import-btn' });
+				var cancel = el('button', { text: 'ביטול', type: 'button', 'class': 'mchl-import-btn', style: 'margin-right:6px;' });
+				setBody(state, [el('div', {}, [el('div', { text: 'אין תבנית מיון עם דף=. שם הערך בוויקיפדיה:' }), input, list, ok, cancel])]);
+				ok.addEventListener('click', function () { var v = fix.normTitle(input.value); if (v) resolve(v); });
+				cancel.addEventListener('click', function () { resolve(null); });
+				input.focus();
+			});
+		}
+
+		function describePlan(fix, plan, wp, tsHamichlol) {
+			var box = el('div', {});
+			box.appendChild(el('div', { text: 'גרסת ויקיפדיה שנמצאה: ' + wp.revid + ' (' + fix.formatJerusalemTime(wp.ts) + ') בערך "' + wp.title + '", לפי זמן השורה ' + fix.formatJerusalemTime(tsHamichlol) }));
+			if (plan.created) {
+				box.appendChild(el('div', { text: 'אין תבנית מיון בערך, תתווסף שורה חדשה:' }));
+			} else {
+				plan.changes.forEach(function (c) {
+					box.appendChild(el('div', { text: c.name + ': ' + (c.from || '(חסר)') + ' ← ' + c.to }));
+				});
+			}
+			if (plan.removedCategory) box.appendChild(el('div', { text: 'תוסר קטגוריית התחזוקה "ללא תבנית מיון ויקיפדיה".' }));
+			var ctx = fix.previewContext(plan.text, 2);
+			if (ctx) {
+				var view = el('div', { dir: 'rtl', style: 'margin:4px 0;border:1px solid #c8ccd1;background:#fff;color:#202122;font-family:monospace;font-size:0.9em;text-align:right;' });
+				var addLine = function (text, hit) {
+					view.appendChild(el('div', { text: text === '' ? ' ' : text, dir: 'rtl', style: 'white-space:pre-wrap;padding:1px 6px;unicode-bidi:plaintext;' + (hit ? 'background:#d8f0d8;' : '') }));
+				};
+				if (ctx.before) addLine('…', false);
+				ctx.lines.forEach(function (l) { addLine(l.text, l.hit); });
+				if (ctx.after) addLine('…', false);
+				box.appendChild(view);
+			}
+			return box;
+		}
+
+		function headerNodes(state) {
+			var link = el('a', { href: mechalolFixSourceUrl(state.title), target: '_blank', rel: 'noopener', text: 'פתח את ההיסטוריה בדף' });
+			return el('div', { style: 'margin-bottom:6px;' }, [
+				el('strong', { text: 'קביעת גרסת מקור: ' }),
+				document.createTextNode('בוחרים את שורת הייבוא (בדרך כלל הראשונה). שום דבר לא נשמר בלי אישור.  '),
+				link
+			]);
+		}
+
+		function loadRevisions(state, fresh) {
+			if (fresh) { state.revs = []; state.cont = null; }
+			setStatus(state, 'טוען את היסטוריית הערך…');
+			var params = { action: 'query', prop: 'revisions', titles: state.title, rvlimit: String(PAGE_BATCH), rvdir: state.dir, rvprop: 'ids|timestamp|user|comment' };
+			if (state.cont) params.rvcontinue = state.cont;
+			return mwApiFetch(params).then(function (d) {
+				var page = d.query && d.query.pages && d.query.pages[0];
+				if (!page || page.missing) throw new Error('הערך לא נמצא במכלול.');
+				state.revs = state.revs.concat(page.revisions || []);
+				state.cont = (d['continue'] && d['continue'].rvcontinue) || null;
+				renderList(state);
+			}).catch(function (e) { setStatus(state, 'טעינת ההיסטוריה נכשלה: ' + errText(e), 'error'); });
+		}
+
+		function renderList(state) {
+			var nodes = [headerNodes(state)];
+			var dirBtn = el('button', { type: 'button', 'class': 'mchl-import-btn', text: state.dir === 'newer' ? 'להציג מהחדשה' : 'להציג מהישנה' });
+			dirBtn.addEventListener('click', function () { state.dir = state.dir === 'newer' ? 'older' : 'newer'; loadRevisions(state, true); });
+			nodes.push(el('div', { style: 'margin-bottom:6px;' }, [el('span', { text: state.dir === 'newer' ? 'מהישנה לחדשה  ' : 'מהחדשה לישנה  ', style: 'opacity:.8;' }), dirBtn]));
+			var table = el('table', { style: 'width:100%;' });
+			state.revs.forEach(function (rev) {
+				var pick = el('button', { type: 'button', 'class': 'mchl-import-btn', text: 'זו שורת הייבוא' });
+				pick.addEventListener('click', function () { choose(state, rev); });
+				table.appendChild(el('tr', {}, [
+					el('td', { text: state.fix.formatJerusalemTime(rev.timestamp), style: 'white-space:nowrap;' }),
+					el('td', { text: rev.user || '(מוסתר)' }),
+					el('td', { text: (rev.comment || '').slice(0, 120) }),
+					el('td', {}, [pick])
+				]));
+			});
+			nodes.push(table);
+			if (state.cont) {
+				var more = el('button', { type: 'button', 'class': 'mchl-import-btn', text: 'עוד', style: 'margin-top:6px;' });
+				more.addEventListener('click', function () { loadRevisions(state, false); });
+				nodes.push(more);
+			}
+			setBody(state, nodes);
+		}
+
+		// בחירת שורה: שולף את התוכן הנוכחי, מוצא את גרסת ויקיפדיה לפי זמן השורה, ומציג תכנית לאישור.
+		function choose(state, rev) {
+			var fix = state.fix;
+			setStatus(state, 'מעבד…');
+			var rv, content, tplPage, wp, values, date;
+			return mwApiFetch({ action: 'query', prop: 'revisions', titles: state.title, rvprop: 'content|timestamp', rvslots: 'main' }).then(function (cur) {
+				var page = cur.query.pages[0];
+				if (page.missing) throw new Error('הערך חסר או שלא ניתן לקרוא אותו.');
+				rv = page.revisions[0];
+				var slot = rv.slots && rv.slots.main;
+				if (!slot || typeof slot.content !== 'string') throw new Error('תוכן הערך חסר או מוסתר.');
+				content = slot.content;
+				tplPage = fix.sortTemplatePage(content);
+				return tplPage ? tplPage : askTitle(state, fix.normTitle(state.hint));
+			}).then(function (wpTitle) {
+				if (!wpTitle) { renderList(state); return null; }
+				setStatus(state, 'מחפש את גרסת ויקיפדיה…');
+				return fix.lookupWikipediaRevision(wpTitle, rev.timestamp).then(function (found) {
+					wp = found;
+					date = fix.sortDateFromTimestamp(rev.timestamp);
+					var titleDiffers = !!tplPage && fix.normTitle(wp.title) !== tplPage;
+					values = { page: fix.normTitle(wp.title), rev: wp.revid, item: wp.item, date: date };
+					var plan = fix.planSortTemplate(content, Object.assign({ updatePage: titleDiffers }, values));
+					if (!plan.created && plan.changes.length === 0 && !plan.removedCategory) {
+						setStatus(state, 'אין מה לתקן: הגרסה והתאריך כבר תואמים (גרסה ' + wp.revid + ').', 'ok');
+						state.onDone();
+						return;
+					}
+					var pageBox = null, nodes = [headerNodes(state), describePlan(fix, plan, wp, rev.timestamp)];
+					if (titleDiffers) {
+						pageBox = el('input', { type: 'checkbox', checked: 'checked' });
+						nodes.push(el('label', {}, [pageBox, document.createTextNode(' הערך הועבר בוויקיפדיה ל"' + wp.title + '" - לעדכן גם דף=')]));
+					}
+					var confirmBtn = el('button', { text: 'שמור', type: 'button', 'class': 'mchl-import-btn', style: 'margin-top:4px;' });
+					var cancelBtn = el('button', { text: 'חזרה לרשימה', type: 'button', 'class': 'mchl-import-btn', style: 'margin-right:6px;' });
+					nodes.push(el('div', {}, [confirmBtn, cancelBtn]));
+					setBody(state, nodes);
+					cancelBtn.addEventListener('click', function () { renderList(state); });
+					confirmBtn.addEventListener('click', function () {
+						confirmBtn.disabled = true;
+						cancelBtn.disabled = true;
+						var final = fix.planSortTemplate(content, Object.assign({ updatePage: !!(pageBox && pageBox.checked) }, values));
+						var summary = 'תיקון גרסת מקור: ויקיפדיה גרסה ' + wp.revid + (final.created ? ' (הוספת תבנית מיון)' : '');
+						mw.loader.using('mediawiki.api').then(function () {
+							return mwCall(new mw.Api().postWithToken('csrf', {
+								action: 'edit', title: state.title, text: final.text, summary: summary, bot: true,
+								basetimestamp: rv.timestamp, nocreate: true, formatversion: 2
+							}));
+						}).then(function (res) {
+							if (!res.edit || res.edit.result !== 'Success') throw new Error('השמירה לא הצליחה: ' + JSON.stringify(res.edit || res));
+							setStatus(state, (res.edit.nochange ? 'אין שינוי בדף.' : 'נשמר: גרסה ' + wp.revid + ', ' + date + '.') + ' הערך יצא מהטאב אחרי "רענן נתוני תחזוקה".', 'ok');
+							state.onDone();
+						}).catch(function (e) {
+							console.error('שגיאה בשמירת גרסת מקור:', e);
+							setStatus(state, 'שגיאה בשמירה: ' + errText(e), 'error');
+						});
+					});
+				});
+			}).catch(function (e) {
+				console.error('שגיאה בקביעת גרסת מקור:', e);
+				setStatus(state, errText(e), 'error');
+			});
+		}
+
+		// פותח או סוגר פאנל מתחת לשורה של הכפתור.
+		function toggle(btn) {
+			var tr = btn.closest('tr');
+			var next = tr.nextElementSibling;
+			if (next && next.classList.contains('mchl-fix-row')) { next.parentNode.removeChild(next); return; }
+			var title = btn.getAttribute('data-title');
+			var row = currentPageRows.filter(function (r) { return r.title === title; })[0] || {};
+			var panel = el('div', { style: BOX_STYLE });
+			var panelRow = el('tr', { 'class': 'mchl-fix-row' }, [el('td', { colspan: String(tr.children.length) }, [panel])]);
+			tr.parentNode.insertBefore(panelRow, tr.nextSibling);
+			var state = {
+				title: title, hint: row.linked_title || row.rev_page_title || title, dir: 'newer', cont: null, revs: [], panel: panel, fix: null,
+				onDone: function () { btn.textContent = 'בוצע ✓'; btn.disabled = true; tr.style.opacity = '0.6'; }
+			};
+			setStatus(state, 'טוען את הסקריפט של קביעת הגרסה…');
+			loadSortTemplateFix().then(function (fix) {
+				state.fix = fix;
+				return loadRevisions(state, true);
+			}).catch(function (e) { setStatus(state, 'לא ניתן לטעון את הסקריפט: ' + errText(e), 'error'); });
+		}
+
+		return { toggle: toggle };
+	})();
+
 	function effectiveColumns(cfg) {
 		// עמודת השיוך הידני מתווספת רק בטאב "חסר במכלול", ורק כש-
 		// יש חיבור פעיל - לא כל מבקר בטאב הזה אמור לראות אותה בכלל.
@@ -2142,7 +2380,7 @@
 				escapeHtml(updDate.toLocaleDateString('he-IL', { month: 'long', year: 'numeric' })) + '</span>';
 		}
 		if (col === 'update_change') return renderUpdateChange(row);
-		if (col === 'fix_source_action') return '<button type="button" class="mchl-import-btn" data-action="fix-source-open" data-title="' + escapeHtml(row.title) + '" title="פותח את היסטוריית הערך במכלול: בוחרים את שורת הייבוא ולוחצים \'קבע גרסת מקור\' (גאדג\'ט תיקון גרסת מקור)">קבע גרסה</button>';
+		if (col === 'fix_source_action') return '<button type="button" class="mchl-import-btn" data-action="fix-source-open" data-title="' + escapeHtml(row.title) + '" title="פותח כאן את היסטוריית הערך: בוחרים את שורת הייבוא והכלי קובע גרסה ותאריך (נשמר רק באישור)">קבע גרסה</button>';
 		if (col === 'update_action') return '<button type="button" class="mchl-import-btn" data-action="update-open" data-id="' + row.id + '" title="השוואה ומיזוג של מה שהתחדש בוויקיפדיה, ופתיחת טופס העריכה במכלול">עדכן</button>';
 		if (col === 'wikipedia_title') return '<span class="mchl-title"><a href="' + wikipediaUrl(row.wikipedia_id) + '" target="_blank" rel="noopener">' + escapeHtml(val) + '</a></span>';
 		if (col === 'mechalol_title') return '<a href="' + mechalolUrl(row.mechalol_id) + '" target="_blank" rel="noopener">' + escapeHtml(val) + '</a>';
@@ -3095,7 +3333,7 @@
 			else if (action === 'maint-refresh') maintRefresh(el);
 			else if (action === 'wf-details') toggleContentDetails(el);
 			else if (action === 'update-open') toggleUpdatePanel(el);
-			else if (action === 'fix-source-open') window.open(mechalolFixSourceUrl(el.getAttribute('data-title')), '_blank', 'noopener');
+			else if (action === 'fix-source-open') fixSrc.toggle(el);
 			else if (action === 'update-merge-open') openUpdateMerge(el);
 			else if (action === 'import') importFromDashboard(el);
 			else if (action === 'req-filter') { requestsState.filter = el.getAttribute('data-v'); renderRequests(); }
