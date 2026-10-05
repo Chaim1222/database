@@ -1,0 +1,70 @@
+name: reconcile - דוח בלבד (שלב 2)
+
+# PLAN_SYNC_REDESIGN.md, שלב 2: מושך צילום של ויקיפדיה (דמפ + השלמת פער) ושל המכלול (allpages + קטגוריות),
+# משווה בזיכרון מול wikipedia_pages ו-mechalol_pages ומפיק דוח. **אין כתיבה למסד** (scripts/reconcile.py
+# קורא בלבד; בדיקה ב-scripts/tests/test_reconcile.py). הדוח והצילום נשמרים כ-artifact (30 יום).
+# ידני בלבד. הריצה צריכה להיות אחרי הדלתא הלילית, כדי שההבדלים לא יכללו יממה שהדלתא עוד לא ראתה.
+# קבוצת ה-concurrency זהה לשאר ה-workflows שנוגעים בטבלאות, כדי לא לקרוא באמצע החלפת הטבלאות.
+
+on:
+  workflow_dispatch:
+    inputs:
+      skip_wikipedia:
+        description: "בלי ויקיפדיה (בדיקה מהירה של המכלול בלבד)"
+        type: boolean
+        default: false
+      skip_mechalol:
+        description: "בלי המכלול"
+        type: boolean
+        default: false
+
+concurrency:
+  group: mechalol-wikipedia-db-write
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: שחזור קוד
+        uses: actions/checkout@v4
+
+      - name: התקנת פייתון
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: התקנת ספריות
+        run: pip install -r requirements.txt
+
+      - name: בדיקת מצב סנכרון שבועי
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python scripts/weekly_build.py --check-writable
+
+      - name: דוח reconcile
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          USER_NAME: ${{ secrets.USER_NAME }}
+          PASSWORD: ${{ secrets.PASSWORD }}
+        run: |
+          python reconcile.py --out-dir reconcile_out \
+            ${{ inputs.skip_wikipedia && '--skip-wikipedia' || '' }} \
+            ${{ inputs.skip_mechalol && '--skip-mechalol' || '' }}
+
+      - name: סיכום בדף הריצה
+        if: always()
+        run: cat scripts/reconcile_out/report_*.md >> "$GITHUB_STEP_SUMMARY" || true
+
+      - name: שמירת הדוח והצילום
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reconcile-report
+          path: scripts/reconcile_out/
+          retention-days: 30
