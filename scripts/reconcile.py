@@ -158,12 +158,22 @@ def main():
     run_id = f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}-{uuid.uuid4().hex[:6]}"
     started = time.monotonic()
     client = get_client()
-    watermarks = read_watermarks(client)
+    current = read_watermarks(client)
     stored = snapshot_io.load(args.snapshot_in) if args.snapshot_in else None
-    log(f"START | run_id={run_id} | נקודות הדלתא: {watermarks} | צילום שמור: {args.snapshot_in or 'לא'}")
+    if stored:
+        # שחזור: החלון נקבע לפי נקודות הדלתא שנשמרו בצילום, לא לפי הנוכחיות (שהתקדמו, ועלולות להיות אחרי סוף הצילום)
+        if "watermarks" not in stored:
+            raise RuntimeError("בצילום השמור אין נקודות דלתא (watermarks): לא ניתן לבנות חלון תזמון")
+        watermarks = stored["watermarks"]
+    else:
+        watermarks = current
+    log(f"START | run_id={run_id} | נקודות הדלתא בשימוש: {watermarks} | נוכחיות: {current} | צילום שמור: {args.snapshot_in or 'לא'}")
 
     snapshot = {"run_id": run_id, "started": utc_now(), "watermarks": watermarks}
     sites, meta = [], {"watermarks": watermarks, "snapshot_in": args.snapshot_in or "none"}
+    if stored:
+        meta["watermarks_current"] = current
+        meta["db_state"] = "המצב הנוכחי של המסד בזמן השחזור, לא כפי שהיה בזמן הצילום; ההבדלים עשויים לכלול כתיבות שנעשו מאז"
 
     if not args.skip_wikipedia:
         if stored and "wikipedia" in stored:
@@ -206,9 +216,9 @@ def main():
 
     # נקודת הדלתא שהתקדמה בזמן הריצה = הדלתא כתבה לטבלאות בין הצילום לקריאה: ההבדלים אינם נקיים
     after = read_watermarks(client)
-    if after != watermarks:
-        meta["watermark_moved_during_run"] = {"before": watermarks, "after": after}
-        log(f"WARNING | נקודת הדלתא התקדמה בזמן הריצה: {watermarks} -> {after}. הדוח עלול לכלול הבדלים שהדלתא כתבה")
+    if after != current:
+        meta["watermark_moved_during_run"] = {"before": current, "after": after}
+        log(f"WARNING | נקודת הדלתא התקדמה בזמן הריצה: {current} -> {after}. הדוח עלול לכלול הבדלים שהדלתא כתבה")
 
     meta["elapsed_seconds"] = round(time.monotonic() - started)
     report = {"run_id": run_id, "snapshot": meta, "sites": sites}

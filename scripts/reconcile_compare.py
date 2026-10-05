@@ -77,6 +77,8 @@ def collect_window(api_get, since, until):
     הסוף נאכף פעמיים: rcend/leend בבקשה, וסינון לפי timestamp בתוצאה (תשובה שחורגת לא נספרת).
     מחזיר (ids, titles, counts) כש-counts = {"edit_new": n, "move": n, "delete": n}.
     """
+    if since > until:
+        raise ValueError(f"חלון הפוך: ההתחלה ({since}) אחרי הסוף ({until}). בשחזור יש להשתמש בנקודות הדלתא שנשמרו בצילום")
     ids, titles, counts = set(), set(), {"edit_new": 0, "move": 0, "delete": 0}
 
     rc = {
@@ -143,15 +145,19 @@ def summarize_site(site, source_count, db_count, title_diff, class_changes, wind
       counts: מספר שורות במקור ובטבלה
       window: {"since", "until", ...} כפי שהועבר (לתיעוד)
       classes: {class: {"n", "explained_by_window", "unexplained", "origin_unverified", "examples", ...}}
-      unexplained_total: סך הפערים שלא הוסברו בחלון (כולל מחלקות שמקורן לא אומת)
+      unexplained_findings: הפרשי שדות שלא הוסברו בחלון (ערך עם שני שדות שונים נספר פעמיים)
+      unexplained_pages: מספר ערכים **ייחודיים** שיש בהם לפחות הפרש אחד שלא הוסבר (המדד להחלטות)
+      (שניהם כוללים מחלקות שמקורן לא אומת)
       delete_rate: only_db / שורות בטבלה, ו-would_exceed_provisional_gate (מידע בלבד)
     source_titles: {id: title} של המקור, להסבר שינויי סיווג גם לפי כותרת.
     """
     source_titles = source_titles or {}
     classes = {}
+    unexplained_ids = set()
 
     def add(name, findings, examples):
         explained, unexplained = explain(findings, window_ids, window_titles)
+        unexplained_ids.update(page_id for page_id, _title in unexplained)
         classes[name] = {
             "n": len(findings),
             "explained_by_window": len(explained),
@@ -180,7 +186,8 @@ def summarize_site(site, source_count, db_count, title_diff, class_changes, wind
         "counts": {"source": source_count, "db": db_count},
         "window": window or {},
         "classes": classes,
-        "unexplained_total": sum(c["unexplained"] for c in classes.values()),
+        "unexplained_findings": sum(c["unexplained"] for c in classes.values()),
+        "unexplained_pages": len(unexplained_ids),
         "delete_rate": {
             "n": n_delete,
             "rate": rate,
@@ -210,7 +217,10 @@ def render_markdown(report):
             lines.append(f"| {name} | {info['n']} | {info['explained_by_window']} | {info['unexplained']} | {note} |")
         d = site["delete_rate"]
         lines.append("")
-        lines.append(f"סך הפערים שלא הוסברו בתזמון: {site.get('unexplained_total', 0)}")
+        lines.append(
+            f"ערכים ייחודיים עם פער שלא הוסבר בתזמון: {site.get('unexplained_pages', 0)} "
+            f"(הפרשי שדות: {site.get('unexplained_findings', 0)}; ערך עם כמה שדות שונים נספר בהם כמה פעמים)"
+        )
         lines.append(
             f"שיעור מחיקות: {d['n']} מתוך {c['db']:,} ({d['rate']:.4%}); "
             f"{'חורג' if d['would_exceed_provisional_gate'] else 'לא חורג'} מהסף ההתחלתי "

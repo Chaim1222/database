@@ -44,7 +44,7 @@ class CompareClassificationTests(unittest.TestCase):
         info = site["classes"][STATUS_DOC_IN_DB_ONLY]
         self.assertTrue(info["origin_unverified"])
         self.assertEqual(info["unexplained"], 1)
-        self.assertEqual(site["unexplained_total"], 1)  # נספר בסך הפערים, לא מוחרג כקידום
+        self.assertEqual(site["unexplained_findings"], 1)  # נספר בסך הפערים, לא מוחרג כקידום
 
     def test_reverse_direction_is_real_status_change(self):
         db = {1: self.cls()}
@@ -102,7 +102,25 @@ class CollectWindowTests(unittest.TestCase):
         diff = compare_titles({5: "חדש"}, {5: "ישן"})
         site = summarize_site("wikipedia", 1, 1, diff, {}, ids, titles, source_titles={5: "חדש"})
         self.assertEqual(site["classes"]["title"]["explained_by_window"], 1)
-        self.assertEqual(site["unexplained_total"], 0)
+        self.assertEqual(site["unexplained_findings"], 0)
+
+
+class WindowGuardTests(unittest.TestCase):
+    def test_inverted_window_is_rejected(self):
+        with self.assertRaises(ValueError):
+            collect_window(FakeApi(), "2026-10-05T10:00:00Z", "2026-10-04T12:00:00Z")
+
+
+class UniquePagesTests(unittest.TestCase):
+    def test_page_with_two_changed_fields_counts_once_in_pages(self):
+        cls = {"status": "מיובא ללא תיעוד", "source_type": "missing_sort", "needs_attention": False, "is_dictionary_entry": False}
+        new = {**cls, "status": "מיובא ומתועד", "source_type": "wikipedia_documented"}
+        changes = compare_classification({1: new, 2: new}, {1: cls, 2: cls})
+        site = summarize_site("mechalol", 2, 2, compare_titles({1: "א", 2: "ב"}, {1: "א", 2: "ב"}), changes,
+                              {2}, set(), source_titles={1: "א", 2: "ב"})
+        self.assertEqual(site["unexplained_findings"], 2)  # id=1: status + source_type
+        self.assertEqual(site["unexplained_pages"], 1)     # ערך ייחודי אחד (id=2 הוסבר בחלון)
+        self.assertIn("ייחודיים", render_markdown({"run_id": "r", "snapshot": {}, "sites": [site]}))
 
 
 class SnapshotIoTests(unittest.TestCase):
