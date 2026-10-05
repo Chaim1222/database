@@ -1,0 +1,37 @@
+name: סינון תוכן - מסד חדש (v2)
+
+# כמו word_filter_scan.yml, אבל קורא וכותב את המסד החדש (database_V2) דרך RPC (scan-missing.js --backend v2).
+# ידני בלבד. דורש secrets בריפו הזה: V2_SUPABASE_URL ו-V2_SUPABASE_SERVICE_KEY, ואת מיגרציה 0016 במסד החדש.
+# הסריקה מדלגת על ערך שלא השתנה (אותה גרסה ואותן רשימות), ולכן ריצה חוזרת קצרה.
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "לסרוק הכל מחדש, גם מה שלא השתנה"
+        type: boolean
+        default: false
+
+concurrency:
+  group: word-filter-scan-v2
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: בדיקות המנוע
+        run: node --test word-filter/tests/*.test.js
+      - name: סריקת החסרים (v2)
+        env:
+          SUPABASE_URL: ${{ secrets.V2_SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.V2_SUPABASE_SERVICE_KEY }}
+          FORCE: ${{ inputs.force && '--force' || '' }}
+        run: node word-filter/tools/scan-missing.js --backend v2 --prune $FORCE
