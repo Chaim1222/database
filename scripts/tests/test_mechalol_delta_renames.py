@@ -7,6 +7,7 @@ import os
 import sys
 import types
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 os.environ.setdefault("SUPABASE_URL", "http://localhost")
@@ -84,8 +85,9 @@ class Query:
 
 
 class FakeTable:
-    def __init__(self, store):
+    def __init__(self, store, owner):
         self.store = store
+        self.owner = owner
 
     def select(self, _columns):
         return Query(self.store, "select")
@@ -94,6 +96,9 @@ class FakeTable:
         return Query(self.store, "delete")
 
     def upsert(self, rows, on_conflict=None):
+        if self.owner.fail_next_upsert:
+            self.owner.fail_next_upsert = False
+            raise RuntimeError("כשל מדומה באמצע הריצה")
         return Query(self.store, "upsert", rows)
 
     def update(self, payload):
@@ -101,12 +106,13 @@ class FakeTable:
 
 
 class FakeClient:
-    def __init__(self, rows):
+    def __init__(self, rows, fail_next_upsert=False):
         self.store = {r["id"]: dict(r) for r in rows}
+        self.fail_next_upsert = fail_next_upsert
 
     def table(self, name):
         assert name == "mechalol_pages"
-        return FakeTable(self.store)
+        return FakeTable(self.store, self)
 
     def titles(self):
         return {i: r["title"] for i, r in self.store.items()}
@@ -195,6 +201,79 @@ class MovedPageSurvivesTests(unittest.TestCase):
         client = FakeClient([row(9, "ערך")])
         delta.apply_core(client, [creation(10, "ערך")], [], [], {})
         self.assertEqual(client.titles(), {10: "ערך"})
+
+
+class ReplayAndResumeTests(unittest.TestCase):
+    """הרצה חוזרת של אותו חלון (נקודת הדלתא לא התקדמה אחרי כשל ב-match.py) והמשך אחרי עצירה באמצע."""
+
+    def test_real_scenario_is_safe_to_replay(self):
+        client = FakeClient([row(710987, "בית האזרח")])
+        expected = {710987: "בית האזרח (רמת גן)", 1178368: "בית האזרח"}
+        for _ in range(3):
+            delta.apply_core(client, [NEW_PAGE], [], [MOVE], {})
+            self.assertEqual(client.titles(), expected)
+
+    def test_real_scenario_resumes_after_interruption(self):
+        client = FakeClient([row(710987, "בית האזרח")], fail_next_upsert=True)
+        with mock.patch.object(delta, "execute_with_retry", lambda op, description, log_fn=None: op()):
+            with self.assertRaises(RuntimeError):
+                delta.apply_core(client, [NEW_PAGE], [], [MOVE], {})  # עצירה אחרי ההעברה, לפני היצירה
+        self.assertEqual(client.titles(), {710987: "בית האזרח (רמת גן)"})  # דף שהועבר לא אבד
+        delta.apply_core(client, [NEW_PAGE], [], [MOVE], {})
+        self.assertEqual(client.titles(), {710987: "בית האזרח (רמת גן)", 1178368: "בית האזרח"})
+
+    def test_four_move_chain_replay_does_not_delete_a_page(self):
+        """הרצף שנמצא בסקירה: 1: A->C, 2: B->A, 1: C->B, 2: A->C. בהרצה חוזרת אסור שדף ייעלם."""
+        renames = [
+            move(1, "A", "C", "2026-10-05T09:01:00Z"),
+            move(2, "B", "A", "2026-10-05T09:02:00Z"),
+            move(1, "C", "B", "2026-10-05T09:03:00Z"),
+            move(2, "A", "C", "2026-10-05T09:04:00Z"),
+        ]
+        client = FakeClient([row(1, "A"), row(2, "B")])
+        for _ in range(2):
+            delta.apply_core(client, [], [], renames, {})
+            self.assertEqual(client.titles(), {1: "B", 2: "C"})
+
+    def test_title_swap_cycle_uses_temporary_title_and_resumes(self):
+        """החלפת A<->B: מעגל; נשבר בכותרת זמנית, וגם אחרי עצירה (כותרת זמנית בטבלה) ההרצה הבאה מסיימת."""
+        renames = [move(1, "A", "B", "2026-10-05T09:01:00Z"), move(2, "B", "A", "2026-10-05T09:01:30Z")]
+        client = FakeClient([row(1, "A"), row(2, "B")])
+        delta.apply_core(client, [], [], renames, {})
+        self.assertEqual(client.titles(), {1: "B", 2: "A"})
+        interrupted = FakeClient([row(1, delta.TEMP_TITLE_PREFIX + "1"), row(2, "B")])
+        delta.apply_core(interrupted, [], [], renames, {})
+        self.assertEqual(interrupted.titles(), {1: "B", 2: "A"})
+
+
+class ClassificationByPageIdTests(unittest.TestCase):
+    def test_creations_are_classified_by_page_id_not_title(self):
+        """דף 7 נוצר ב-T (קטגוריית "נוצר במכלול") והועבר ל-U; דף 8 נוצר אחר כך ב-T בלי קטגוריות."""
+        import config
+        creations = [creation(7, "T", "2026-10-05T09:00:00Z"), creation(8, "T", "2026-10-05T09:10:00Z")]
+        categories_by_id = {7: {config.CATEGORY_CREATED_IN_MECHALOL}, 8: set()}
+        client = FakeClient([])
+        delta.apply_core(client, creations, [], [move(7, "T", "U", "2026-10-05T09:05:00Z")], categories_by_id)
+        self.assertEqual(client.titles(), {7: "U", 8: "T"})
+        self.assertEqual(client.store[7]["status"], config.STATUS_CREATED_IN_MECHALOL)
+        self.assertEqual(client.store[8]["status"], config.STATUS_IMPORTED_UNDOCUMENTED)
+
+    def test_fetch_own_categories_by_pageids_maps_by_id(self):
+        import fetch_mechalol as fm
+        calls = []
+
+        def fake_api_get(params, description=""):
+            calls.append(params)
+            return {"query": {"pages": {
+                "7": {"pageid": 7, "title": "U", "categories": [{"title": "קטגוריה:א"}]},
+                "8": {"pageid": 8, "title": "T", "categories": [{"title": "קטגוריה:ב"}]},
+            }}}
+
+        with mock.patch.object(fm, "api_get", fake_api_get):
+            result = fm.fetch_own_categories_by_pageids([7, 8, 9, 7])
+        self.assertEqual(result, {7: {"קטגוריה:א"}, 8: {"קטגוריה:ב"}, 9: set()})
+        self.assertEqual(calls[0]["pageids"], "7|8|9")
+        self.assertNotIn("titles", calls[0])
 
 
 if __name__ == "__main__":

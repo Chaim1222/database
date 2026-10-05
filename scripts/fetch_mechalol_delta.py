@@ -30,7 +30,7 @@ from delta_api import (
     fetch_edited_page_ids, fetch_redirect_status, fetch_tagged_changes,
 )
 from redirect_tags import REDIRECT_ADDED_TAG, REDIRECT_REMOVED_TAG, revived_articles, union_candidates
-from fetch_mechalol import fetch_own_categories, classify_page_from_own_categories
+from fetch_mechalol import fetch_own_categories, fetch_own_categories_by_pageids, classify_page_from_own_categories
 import delta_watermark
 from supabase_client import get_client, execute_with_retry
 
@@ -258,22 +258,17 @@ def write_status_update_log(client, status_updates):
 
 def final_title(creation, renames):
     """
-    הכותרת שיצירה צריכה להיכתב בה: אחרי כל ההעברות של אותו דף שבאו אחרי היצירה (לפי הסדר הכרונולוגי,
-    ורק העברות שיוצאות מהכותרת הנוכחית בשרשרת). דף שנוצר ב-T והועבר ל-U באותו חלון נכתב כ-U, כך שדף
-    אחר שנוצר אחר כך ב-T לא מתנגש בו. הסיווג נשאר לפי הכותרת המקורית (c["title"]).
+    הכותרת שיצירה צריכה להיכתב בה: הכותרת החדשה של ההעברה האחרונה של אותו דף שאחרי היצירה (לפי renamed_at),
+    ואם אין כזו, כותרת היצירה. דף שנוצר ב-T והועבר ל-U באותו חלון נכתב כ-U, כך שדף אחר שנוצר אחר כך
+    ב-T לא מתנגש בו. הסיווג נקבע לפי מזהה הדף (own_categories_by_id), לא לפי כותרת.
     """
-    title = creation["title"]
-    chain = sorted(
-        (mv for mv in renames if mv["page_id"] == creation["page_id"] and mv["renamed_at"] >= creation["created_at"]),
-        key=lambda mv: mv["renamed_at"],
-    )
-    for mv in chain:
-        if mv["old_title"] == title:
-            title = mv["new_title"]
-    return title
+    later = [mv for mv in renames if mv["page_id"] == creation["page_id"] and mv["renamed_at"] >= creation["created_at"]]
+    if not later:
+        return creation["title"]
+    return max(later, key=lambda mv: mv["renamed_at"])["new_title"]
 
 
-def apply_creations(client, creations, own_categories_by_title, renames=()):
+def apply_creations(client, creations, own_categories_by_id, renames=()):
     """
     בשונה מהגרסה הקודמת (שהשתמשה ב-fetch_classification_data/
     classify_page הגלובליים - התגלה בפועל כיקר מדי לריצה תכופה, ראו
@@ -299,7 +294,7 @@ def apply_creations(client, creations, own_categories_by_title, renames=()):
     rows = []
     for c in latest_by_id.values():
         classification = classify_page_from_own_categories(
-            c["title"], own_categories_by_title.get(c["title"], set())
+            c["title"], own_categories_by_id.get(c["page_id"], set())
         )
         rows.append({"id": c["page_id"], "title": final_title(c, renames), **classification})
 
@@ -414,24 +409,84 @@ def apply_renames(client, renames):
         log(f"עודכנו {len(renames)} שינויי-שם ב-{TABLE}")
 
 
-def apply_core(client, creations, deletions, renames, own_categories_by_title):
+# '#' אסור בכותרות מדיה-ויקי, ולכן כותרת זמנית כזו לעולם לא מתנגשת בדף אמיתי
+TEMP_TITLE_PREFIX = "#reconcile-tmp-"
+
+
+def final_titles_by_id(renames):
+    """{page_id: הכותרת החדשה של ההעברה האחרונה לפי renamed_at}. מצב סופי ולא רצף: הרצה חוזרת על אותו חלון זהה."""
+    final = {}
+    for mv in sorted(renames, key=lambda mv: mv["renamed_at"]):
+        final[mv["page_id"]] = mv["new_title"]
+    return final
+
+
+def _set_title(client, page_id, title):
+    def _update():
+        try:
+            client.table(TABLE).update({"title": title}).eq("id", page_id).execute()
+        except Exception as exc:
+            if _is_title_collision(exc) and resolve_title_collisions(client, [{"id": page_id, "title": title}]):
+                log(f"עדכון כותרת page_id={page_id} | טופלה התנגשות כותרת, מנסה שוב")
+                client.table(TABLE).update({"title": title}).eq("id", page_id).execute()
+            else:
+                raise
+
+    execute_with_retry(_update, f"עדכון כותרת page_id={page_id} -> '{title}'", log_fn=log)
+
+
+def apply_final_titles(client, final_titles):
+    """
+    מביאה כל דף שבטבלה (ושיש לו העברה בחלון) לכותרתו הסופית, **לפי המצב הנוכחי בטבלה** ולא לפי רצף האירועים.
+    לכן הרצה חוזרת של אותו חלון (נקודת הדלתא לא התקדמה) או המשך אחרי עצירה באמצע אינם משנים דבר שכבר
+    נכון, ואינם עוברים דרך כותרות ביניים שמתנגשות עם דף שכבר עבר.
+    סדר ההחלה: דף שהכותרת הסופית שלו תפוסה בידי דף אחר שגם הוא עדיין צריך לעבור - ממתין לו. מעגל
+    (החלפת כותרות) נשבר בכותרת זמנית. כותרת תפוסה בידי דף שאינו עובר (מיושן) - הטיפול הקיים בהתנגשות מוחק אותו.
+    """
+    cur = {}
+    ids = sorted(final_titles)
+    for i in range(0, len(ids), ID_LOOKUP_BATCH_SIZE):
+        chunk = ids[i:i + ID_LOOKUP_BATCH_SIZE]
+        rows = execute_with_retry(
+            lambda chunk=chunk: client.table(TABLE).select("id, title").in_("id", chunk).execute(),
+            "שליפת כותרות נוכחיות להעברות",
+            log_fn=log,
+        ).data or []
+        cur.update({row["id"]: row["title"] for row in rows})
+
+    todo = {i: t for i, t in final_titles.items() if i in cur and cur[i] != t}
+    if todo:
+        log(f"העברות של דפים שבטבלה: {len(todo)} דפים לא בכותרתם הסופית (לפי המצב הנוכחי)")
+    while todo:
+        progressed = False
+        for i in sorted(todo):
+            if any(j in todo and j != i and cur[j] == todo[i] for j in cur):
+                continue  # הכותרת הסופית עדיין תפוסה בידי דף שצריך לעבור קודם
+            _set_title(client, i, todo[i])
+            cur[i] = todo.pop(i)
+            progressed = True
+        if not progressed:
+            i = min(todo)  # מעגל: שוברים אותו בכותרת זמנית
+            _set_title(client, i, f"{TEMP_TITLE_PREFIX}{i}")
+            cur[i] = f"{TEMP_TITLE_PREFIX}{i}"
+    if final_titles:
+        log(f"עודכנו כותרות סופיות ל-{len(final_titles)} דפים עם העברות בחלון")
+
+
+def apply_core(client, creations, deletions, renames, own_categories_by_id):
     """
     יצירות, מחיקות והעברות על mechalol_pages, בסדר שמונע אובדן דף שהועבר. מחזירה את מה שהשתחרר במחיקות.
 
-    1. העברות של דפים שכבר בטבלה מוחלות קודם, לפי הסדר הכרונולוגי: זה משחזר את רצף האירועים באתר (כל העברה
-       הייתה חוקית ברגעה), ומפנה כותרות לפני שיצירה חדשה תופסת אותן. בלי זה הטיפול בהתנגשות כותרת ב-
-       apply_creations מוחק את הדף "המיושן" שעדיין לא הועבר (נצפה ב-5.10.2026: "בית האזרח" -> "בית האזרח
-       (רמת גן)", מזהה 710987, ואחר כך דף חדש ב"בית האזרח").
-    2. יצירות נכתבות בכותרת הסופית (אחרי העברות של אותו דף באותו חלון), ולכן אין צורך להחיל אותן שוב.
+    1. דפים שכבר בטבלה מובאים קודם לכותרתם הסופית (apply_final_titles), לפי המצב הנוכחי ובלי תלות ברצף
+       ההעברות: מפנה כותרות לפני שיצירה חדשה תופסת אותן, ובטוח להרצה חוזרת של אותו חלון. בלי זה הטיפול
+       בהתנגשות כותרת ב-apply_creations מוחק את הדף "המיושן" שעדיין לא הועבר (נצפה ב-5.10.2026:
+       "בית האזרח" -> "בית האזרח (רמת גן)", מזהה 710987, ואחר כך דף חדש ב"בית האזרח").
+    2. יצירות נכתבות בכותרת הסופית (אחרי העברות של אותו דף באותו חלון), והסיווג לפי מזהה הדף.
     3. מחיקות.
-    העברות של דפים שאינם בטבלה ואינם נוצרו בחלון אינן משנות דבר, ולכן לא מוחלות.
+    העברות של דפים שאינם בטבלה ואינם נוצרו בחלון אינן משנות דבר, ולכן אינן מוחלות.
     """
-    tracked = find_tracked_ids(client, {mv["page_id"] for mv in renames})
-    early = [mv for mv in renames if mv["page_id"] in tracked]
-    if early:
-        log(f"העברות של דפים שבטבלה: {len(early)} (מוחלות לפי סדר כרונולוגי, לפני היצירות)")
-        apply_renames(client, early)
-    apply_creations(client, creations, own_categories_by_title, renames=renames)
+    apply_final_titles(client, final_titles_by_id(renames))
+    apply_creations(client, creations, own_categories_by_id, renames=renames)
     return apply_deletions(client, deletions)
 
 
@@ -609,13 +664,13 @@ def main():
 
     # קטגוריות עצמיות רק לכותרות שבאמת נוצרו (לא כל האתר) - ראו
     # fetch_own_categories. עדיין נשלף ב-dry-run כדי להציג status אמיתי.
-    own_categories_by_title = fetch_own_categories([c["title"] for c in all_creations])
+    own_categories_by_id = fetch_own_categories_by_pageids([c["page_id"] for c in all_creations])
 
     if args.dry_run:
         log("--- DRY RUN: לא נכתב שום דבר לסופרבייס ---")
         for c in all_creations[:20]:
             classification = classify_page_from_own_categories(
-                c["title"], own_categories_by_title.get(c["title"], set())
+                c["title"], own_categories_by_id.get(c["page_id"], set())
             )
             log(f"  יצירה   | id={c['page_id']} | '{c['title']}' | status={classification['status']}")
         for d in all_deletions[:20]:
@@ -631,7 +686,7 @@ def main():
 
     try:
         write_delta_tables(client, all_creations, all_deletions, renames)
-        released = apply_core(client, all_creations, all_deletions, renames, own_categories_by_title)
+        released = apply_core(client, all_creations, all_deletions, renames, own_categories_by_id)
         apply_status_updates(client, status_updates)
         write_status_update_log(client, status_updates)
         write_changed_ids_file(all_creations, renames, status_updates)
