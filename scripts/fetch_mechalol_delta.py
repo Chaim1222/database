@@ -256,7 +256,24 @@ def write_status_update_log(client, status_updates):
     )
 
 
-def apply_creations(client, creations, own_categories_by_title):
+def final_title(creation, renames):
+    """
+    הכותרת שיצירה צריכה להיכתב בה: אחרי כל ההעברות של אותו דף שבאו אחרי היצירה (לפי הסדר הכרונולוגי,
+    ורק העברות שיוצאות מהכותרת הנוכחית בשרשרת). דף שנוצר ב-T והועבר ל-U באותו חלון נכתב כ-U, כך שדף
+    אחר שנוצר אחר כך ב-T לא מתנגש בו. הסיווג נשאר לפי הכותרת המקורית (c["title"]).
+    """
+    title = creation["title"]
+    chain = sorted(
+        (mv for mv in renames if mv["page_id"] == creation["page_id"] and mv["renamed_at"] >= creation["created_at"]),
+        key=lambda mv: mv["renamed_at"],
+    )
+    for mv in chain:
+        if mv["old_title"] == title:
+            title = mv["new_title"]
+    return title
+
+
+def apply_creations(client, creations, own_categories_by_title, renames=()):
     """
     בשונה מהגרסה הקודמת (שהשתמשה ב-fetch_classification_data/
     classify_page הגלובליים - התגלה בפועל כיקר מדי לריצה תכופה, ראו
@@ -284,7 +301,7 @@ def apply_creations(client, creations, own_categories_by_title):
         classification = classify_page_from_own_categories(
             c["title"], own_categories_by_title.get(c["title"], set())
         )
-        rows.append({"id": c["page_id"], "title": c["title"], **classification})
+        rows.append({"id": c["page_id"], "title": final_title(c, renames), **classification})
 
     execute_with_retry(
         lambda: _upsert_with_collision_handling(client, rows),
@@ -397,34 +414,25 @@ def apply_renames(client, renames):
         log(f"עודכנו {len(renames)} שינויי-שם ב-{TABLE}")
 
 
-def apply_vacating_renames(client, creations, renames):
-    """
-    העברות שמפנות כותרת שיצירה באותו חלון תופסת מחדש (העברה בלי הפניה, ואחריה דף חדש בשם הישן). חייבות
-    להיות מוחלות **לפני** היצירות: אחרת הטיפול בהתנגשות כותרת ב-apply_creations מוחק את השורה "המיושנת"
-    (הדף שהועבר) ובהמשך apply_renames לא מוצא מה לשנות, והדף שהועבר נעלם מהטבלה עד הבנייה השבועית
-    (נצפה ב-5.10.2026: "בית האזרח" -> "בית האזרח (רמת גן)", מזהה 710987).
-    ההעברה מוחלת שוב ב-apply_renames; עדכון כותרת כפול זהה אינו פוגע (והסדר שם כרונולוגי).
-    דף שנוצר והועבר באותו חלון (אותו מזהה) אינו נכלל: היצירה שלו נכתבת קודם בכותרת המקורית.
-    """
-    creating = {c["title"]: c["page_id"] for c in creations}
-    vacating = [
-        mv for mv in renames
-        if mv["old_title"] in creating and mv["page_id"] != creating[mv["old_title"]]
-    ]
-    if vacating:
-        log(f"העברות שמפנות כותרת ליצירה באותו חלון: {len(vacating)} (מוחלות לפני היצירות)")
-        apply_renames(client, vacating)
-
-
 def apply_core(client, creations, deletions, renames, own_categories_by_title):
     """
     יצירות, מחיקות והעברות על mechalol_pages, בסדר שמונע אובדן דף שהועבר. מחזירה את מה שהשתחרר במחיקות.
+
+    1. העברות של דפים שכבר בטבלה מוחלות קודם, לפי הסדר הכרונולוגי: זה משחזר את רצף האירועים באתר (כל העברה
+       הייתה חוקית ברגעה), ומפנה כותרות לפני שיצירה חדשה תופסת אותן. בלי זה הטיפול בהתנגשות כותרת ב-
+       apply_creations מוחק את הדף "המיושן" שעדיין לא הועבר (נצפה ב-5.10.2026: "בית האזרח" -> "בית האזרח
+       (רמת גן)", מזהה 710987, ואחר כך דף חדש ב"בית האזרח").
+    2. יצירות נכתבות בכותרת הסופית (אחרי העברות של אותו דף באותו חלון), ולכן אין צורך להחיל אותן שוב.
+    3. מחיקות.
+    העברות של דפים שאינם בטבלה ואינם נוצרו בחלון אינן משנות דבר, ולכן לא מוחלות.
     """
-    apply_vacating_renames(client, creations, renames)
-    apply_creations(client, creations, own_categories_by_title)
-    released = apply_deletions(client, deletions)
-    apply_renames(client, renames)
-    return released
+    tracked = find_tracked_ids(client, {mv["page_id"] for mv in renames})
+    early = [mv for mv in renames if mv["page_id"] in tracked]
+    if early:
+        log(f"העברות של דפים שבטבלה: {len(early)} (מוחלות לפי סדר כרונולוגי, לפני היצירות)")
+        apply_renames(client, early)
+    apply_creations(client, creations, own_categories_by_title, renames=renames)
+    return apply_deletions(client, deletions)
 
 
 def write_delta_tables(client, creations, deletions, renames):

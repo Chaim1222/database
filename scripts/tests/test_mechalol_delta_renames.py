@@ -156,6 +156,35 @@ class MovedPageSurvivesTests(unittest.TestCase):
         delta.apply_core(client, [creation(2, "A", "2026-10-05T09:10:00Z")], [], renames, {})
         self.assertEqual(client.titles(), {1: "C", 2: "A"})
 
+    def test_reviewer_scenario_rename_into_title_held_by_a_page_that_moves_away(self):
+        """דף 2: B->C; דף 1: A->B; דף 3 נוצר ב-A. תוצאה נדרשת: 1=B, 2=C, 3=A (בכל סדר קלט של ההעברות)."""
+        moves = [
+            move(2, "B", "C", "2026-10-05T09:01:00Z"),
+            move(1, "A", "B", "2026-10-05T09:02:00Z"),
+        ]
+        for renames in (moves, list(reversed(moves))):
+            client = FakeClient([row(1, "A"), row(2, "B")])
+            delta.apply_core(client, [creation(3, "A", "2026-10-05T09:03:00Z")], [], renames, {})
+            self.assertEqual(client.titles(), {1: "B", 2: "C", 3: "A"})
+
+    def test_title_swap_through_a_temporary_title(self):
+        """הנחלפות A<->B דרך כותרת ביניים: 1: A->C, 2: B->A, 1: C->B. תוצאה: 1=B, 2=A."""
+        renames = [
+            move(1, "A", "C", "2026-10-05T09:01:00Z"),
+            move(2, "B", "A", "2026-10-05T09:02:00Z"),
+            move(1, "C", "B", "2026-10-05T09:03:00Z"),
+        ]
+        client = FakeClient([row(1, "A"), row(2, "B")])
+        delta.apply_core(client, [], [], renames, {})
+        self.assertEqual(client.titles(), {1: "B", 2: "A"})
+
+    def test_created_and_moved_page_and_new_page_at_its_first_title(self):
+        """X נוצר ב-T והועבר ל-U; Y נוצר אחר כך ב-T. תוצאה: X=U, Y=T (גם בלי שורות קודמות בטבלה)."""
+        creations = [creation(7, "T", "2026-10-05T09:00:00Z"), creation(8, "T", "2026-10-05T09:10:00Z")]
+        client = FakeClient([])
+        delta.apply_core(client, creations, [], [move(7, "T", "U", "2026-10-05T09:05:00Z")], {})
+        self.assertEqual(client.titles(), {7: "U", 8: "T"})
+
     def test_without_renames_or_creations_nothing_changes(self):
         client = FakeClient([row(1, "א")])
         delta.apply_core(client, [], [], [], {})
