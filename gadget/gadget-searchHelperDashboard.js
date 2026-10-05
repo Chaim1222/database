@@ -7,29 +7,8 @@
 	if (!/\/ניהול_ייבוא$/.test(wgPageName)) return;
 
 	// ===== הגדרות חיבור - לערוך כאן אם צריך =====
-	// שני מסדים: הישן (v1, public) והחדש (v2, סכמת api עם views בשמות של v1; ראו database_V2 מיגרציה 0014).
-	// הבחירה נשמרת בדפדפן ומשתנה מפאנל הניהול (מנהלים בלבד, כמו שאר הפאנל). ברירת המחדל: v1.
-	var BACKENDS = {
-		v1: { label: 'מסד ישן (v1)', url: 'https://hgsyzaghedqsypisbvev.supabase.co', key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhnc3l6YWdoZWRxc3lwaXNidmV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzNTY2ODgsImV4cCI6MjEwMTkzMjY4OH0.eDPO3n3OHvmndWDvgF-istBP2NhY5W20erG3zztm7vs', profile: null },
-		v2: { label: 'מסד חדש (v2)', url: 'https://ukzijtrpchvmoxlslxpz.supabase.co', key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVremlqdHJwY2h2bW94bHNseHB6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEyMTU1MzMsImV4cCI6MjEwNjc5MTUzM30.QCUKSOb1oOSwUPurOOhubPJFoSrQCUsClCSHEBp0BH8', profile: 'api' }
-	};
-	var BACKEND_STORAGE_KEY = 'mchl-backend';
-	function readBackendName() {
-		try { var v = localStorage.getItem(BACKEND_STORAGE_KEY); if (v && BACKENDS[v]) return v; } catch (e) { /* ברירת מחדל */ }
-		return 'v1';
-	}
-	var BACKEND_NAME = readBackendName();
-	var SUPABASE_URL = BACKENDS[BACKEND_NAME].url;
-	var SUPABASE_ANON_KEY = BACKENDS[BACKEND_NAME].key;
-	var PG_PROFILE = BACKENDS[BACKEND_NAME].profile;   // null = public (v1); 'api' = v2
-	// רענון התחזוקה (maintRpc) נתמך רק ב-v1; שיוך ידני ומשוב סינון נתמכים בשני המסדים
-	function assertWritable() {
-		if (PG_PROFILE) throw new Error('הפעולה אינה נתמכת במסד החדש (v2). אפשר לחזור למסד הישן בפאנל הניהול.');
-	}
-	function profileHeaders(h) {
-		if (PG_PROFILE) { h['Accept-Profile'] = PG_PROFILE; h['Content-Profile'] = PG_PROFILE; }
-		return h;
-	}
+	var SUPABASE_URL = 'https://hgsyzaghedqsypisbvev.supabase.co';
+	var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhnc3l6YWdoZWRxc3lwaXNidmV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzNTY2ODgsImV4cCI6MjEwMTkzMjY4OH0.eDPO3n3OHvmndWDvgF-istBP2NhY5W20erG3zztm7vs';
 
 	var NEW_ARTICLE_CUTOFF_DAYS = 14;
 	function newArticleCutoffIso() {
@@ -289,7 +268,7 @@
 	// מקרה לקרוא אותה ולצרף ידנית לכותרת Authorization, בדיוק כמו
 	// sessionStorage - בלי שום יתרון, ועם המגבלות של עוגייה (גודל,
 	// שליחה אוטומטית ללא-קשר לבקשות אחרות) בלי סיבה.
-	var SESSION_STORAGE_KEY = 'mchl-auth-session' + (BACKEND_NAME === 'v1' ? '' : '-' + BACKEND_NAME);   // טוקן נפרד לכל מסד
+	var SESSION_STORAGE_KEY = 'mchl-auth-session';
 	var serviceKeyConnected = false;
 
 	function $id(id) { return document.getElementById(id); }
@@ -364,7 +343,7 @@
 	// עובד תקין אחרי קידוד URL רגיל על ידי URLSearchParams, בדיוק כמו
 	// שסופרבייס-js עצמו עושה).
 	function pgHeaders(extra) {
-		var h = profileHeaders({ apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY });
+		var h = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY };
 		if (extra) for (var k in extra) h[k] = extra[k];
 		return h;
 	}
@@ -383,7 +362,7 @@
 				if (parsed && parsed.access_token) token = parsed.access_token;
 			}
 		} catch (e) { /* מתעלמים - נופל בחזרה למפתח ה-anon */ }
-		var h = profileHeaders({ apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + token });
+		var h = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + token };
 		if (extra) for (var k in extra) h[k] = extra[k];
 		return h;
 	}
@@ -2609,15 +2588,6 @@
 		var mode = wfMode;
 		var level = m.h ? m[mode] : (wfMethod === 'ctx' && m['c' + mode] != null ? m['c' + mode] : m[mode]);
 		var send = function () {
-			if (PG_PROFILE) {
-				// v2: פונקציות מנהלים בסכמת api (database_V2 מיגרציות 0005, 0019)
-				return fetch(SUPABASE_URL + '/rest/v1/rpc/' + (unmark ? 'unmark_feedback' : 'mark_feedback'), {
-					method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
-					body: JSON.stringify(unmark ? { p_wiki_id: Number(id), p_match_key: key } : {
-						p_wiki_id: Number(id), p_match_key: key, p_word: m.x, p_entries: m.e || [], p_label: label, p_topic: m.t || null,
-						p_hidden: m.h || null, p_level: level || null, p_lists_version: d.lists_version || null })
-				});
-			}
 			if (unmark) {
 				var q = new URLSearchParams();
 				q.set('wikipedia_id', 'eq.' + id);
@@ -3135,12 +3105,6 @@
 		// עצמה + מההצעה שנבחרה) - בניגוד לגרסה הישנה, אין כאן שלב חיפוש
 		// נפרד לפני הכתיבה.
 		var postMatch = function () {
-			if (PG_PROFILE) {
-				return fetch(SUPABASE_URL + '/rest/v1/rpc/set_manual_link', {
-					method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
-					body: JSON.stringify({ p_mech_id: mechalolId, p_wiki_id: wikipediaId, p_reason: null })
-				});
-			}
 			return fetch(SUPABASE_URL + '/rest/v1/manual_matches', {
 				method: 'POST',
 				headers: authHeaders({ 'Content-Type': 'application/json', Prefer: 'return=minimal' }),
@@ -3183,10 +3147,9 @@
 	var maintPolling = false;
 	function syncMaintRow() {
 		var row = $id('mchl-maint-row');
-		if (row) row.style.display = serviceKeyConnected && !PG_PROFILE ? '' : 'none';   // רענון תחזוקה: v1 בלבד (ב-v2 הסנכרון והבדיקות הן workflows)
+		if (row) row.style.display = serviceKeyConnected ? '' : 'none';
 	}
 	function maintRpc(name) {
-		assertWritable();
 		var send = function () {
 			return fetch(SUPABASE_URL + '/rest/v1/rpc/' + name, {
 				method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: '{}'
@@ -3451,13 +3414,6 @@
 		'<button type="button" class="mchl-export-btn" id="mchl-auth-login-btn" data-action="auth-login">התחברות</button>' +
 		'</div>' +
 		'<div class="mchl-muted" id="mchl-admin-status" style="font-size:12.5px;margin-top:8px;">טרם התחברת - כפתור נעילת הכותרות בטאב "חסר במכלול" יופיע רק אחרי התחברות מוצלחת.</div>' +
-		'<div class="mchl-admin-row" style="margin-top:12px;">' +
-		'<span class="mchl-muted">מסד נתונים:</span>' +
-		'<select id="mchl-backend-select" class="mchl-search" style="max-width:220px;">' +
-		Object.keys(BACKENDS).map(function (k) { return '<option value="' + k + '">' + BACKENDS[k].label + '</option>'; }).join('') +
-		'</select>' +
-		'<span class="mchl-muted" style="font-size:12.5px;">הבחירה נשמרת בדפדפן הזה ומרעננת את הדף. במסד החדש (ניסיוני): שיוך ידני ומשוב סינון נתמכים; רענון תחזוקה לא.</span>' +
-		'</div>' +
 		'<div class="mchl-admin-row" id="mchl-maint-row" style="display:none;margin-top:12px;">' +
 		'<button type="button" class="mchl-export-btn" id="mchl-maint-btn" data-action="maint-refresh">רענן נתוני תחזוקה</button>' +
 		'<span class="mchl-muted" style="font-size:12.5px;">מביא את מצב המכלול האמיתי ומנקה שורות שהתיישנו. לוקח כמה דקות.</span>' +
@@ -3546,35 +3502,6 @@
 		}
 
 		wireEvents(container);
-		var backendSelect = $id('mchl-backend-select');
-		if (backendSelect) {
-			backendSelect.value = BACKEND_NAME;
-			backendSelect.addEventListener('change', function () {
-				try { localStorage.setItem(BACKEND_STORAGE_KEY, backendSelect.value); } catch (e) { /* בלי אחסון: נשארים במסד הנוכחי */ }
-				location.reload();
-			});
-		}
-		if (PG_PROFILE) {
-			var banner = document.createElement('div');
-			banner.className = 'mchl-muted mchl-alert';
-			banner.style.margin = '8px 0';
-			banner.textContent = 'מוצג מהמסד החדש (v2), גרסת ניסוי. החזרה למסד הישן: ⚙ ניהול ← מסד נתונים.';
-			container.insertBefore(banner, container.firstChild);
-			// שער בריאות: הסנכרון ישן או תקוע (api.v_sync_status.health)
-			fetch(SUPABASE_URL + '/rest/v1/v_sync_status?select=kind,health,last_success_at&kind=eq.sync', { headers: pgHeaders() })
-				.then(function (res) { return res.ok ? res.json() : []; })
-				.then(function (rows) {
-					var h = rows && rows[0];
-					if (!h || h.health === 'ok') return;
-					var warn = document.createElement('div');
-					warn.className = 'mchl-alert';
-					warn.style.margin = '8px 0';
-					warn.textContent = h.health === 'never' ? 'הנתונים טרם סונכרנו.'
-						: h.health === 'stuck' ? 'הסנכרון האחרון נראה תקוע; הנתונים עלולים להיות ישנים.'
-						: 'הנתונים לא עודכנו מאז ' + new Date(h.last_success_at).toLocaleString('he-IL') + '.';
-					container.insertBefore(warn, banner.nextSibling);
-				}).catch(function () { /* אזהרה בלבד */ });
-		}
 		buildTabs();
 		applySiteNav();
 		applySidePanel();
