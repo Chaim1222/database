@@ -13,12 +13,18 @@ REVS = {
     100: {"page_id": 180218, "title": "דהוכ (מחוז)", "ns": 0, "redirect": False},
     200: {"page_id": 555, "title": "הטבח בפסטיבל נובה", "ns": 0, "redirect": False},
     300: {"page_id": 777, "title": "יעד", "ns": 0, "redirect": True},
+    400: {"page_id": 888, "title": "ישן", "ns": 0, "redirect": True},
 }
+# יעדי הפניות: "יעד" מוביל ל"יעד חדש"; "ישן" מוביל ל"חדש"
+REDIRECTS = {"יעד": "יעד חדש", "ישן": "חדש"}
 
 
 def fake_get(params):
     if params.get("list") == "recentchanges":
         return {"query": {"recentchanges": [{"revid": 44_000_000}]}}
+    if "titles" in params:
+        titles = params["titles"].split("|")
+        return {"query": {"redirects": [{"from": t, "to": REDIRECTS[t]} for t in titles if t in REDIRECTS]}}
     revs = [int(r) for r in params["revids"].split("|")]
     pages = [{"pageid": REVS[r]["page_id"], "ns": 0, "title": REVS[r]["title"], "redirect": REVS[r]["redirect"],
               "revisions": [{"revid": r}]} for r in revs if r in REVS]
@@ -57,7 +63,7 @@ def finding(mid, task, rev, linked, page_id, title):
 
 class ScanTest(unittest.TestCase):
     # שמות התבנית שנקראים לערכים שהכותרת שלהם לא תואמת לכותרת הנוכחית
-    TEMPLATES = {1: "דהוכ", 2: "הטבח במסיבת הטבע ליד רעים", 3: "אחר", 7: "דהוכ (מחוז)"}
+    TEMPLATES = {1: "דהוכ", 2: "הטבח במסיבת הטבע ליד רעים", 3: "אחר", 7: "דהוכ (מחוז)", 8: "חדש", 9: "ישן"}
 
     def run_scan(self, rows, store, dry_run=False):
         existing = {2328166, 180218, 555, 9}
@@ -78,12 +84,14 @@ class ScanTest(unittest.TestCase):
             mrow(5, "נעול", None, sort_template_denied_at="2026-09-30"),    # תבנית נעולה
             mrow(6, "דהוכ (מחוז)", 100, wikipedia_id=180218),               # כותרת שלנו שווה לנוכחית
             mrow(7, "כותרת מקומית", 100, wikipedia_id=180218),              # התבנית עודכנה לשם הנוכחי
+            mrow(8, "ערך אחר", 400, wikipedia_id=9),                        # הגרסה על הפניה, אבל שם התבנית הוא היעד: טופל
+            mrow(9, "ערך נוסף", 400, wikipedia_id=9),                       # הגרסה על הפניה, ושם התבנית עדיין השם הישן: משימה
         ]
         stats, complete = self.run_scan(rows, store)
         tasks = {f["mechalol_id"]: f["rev_task"] for f in store.upserts}
-        self.assertEqual(tasks, {1: "rename", 2: "rename", 3: "redirect", 4: "bad_rev"})
+        self.assertEqual(tasks, {1: "rename", 2: "rename", 3: "redirect", 4: "bad_rev", 9: "redirect"})
         self.assertTrue(complete)
-        self.assertEqual(stats["ok"], 3)
+        self.assertEqual(stats["ok"], 4)
 
     def test_manual_match_is_not_a_task(self):
         store = FakeStore(manual={1})

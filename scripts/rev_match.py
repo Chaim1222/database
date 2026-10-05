@@ -14,7 +14,9 @@
 כללי ההחלטה:
   - גרסה ריקה, 0 או 1 (גרסת העמוד הראשי) = גרסה שגויה.
   - הגרסה לא קיימת: גדולה מהאחרונה בוויקיפדיה = גרסה שגויה, אחרת הדף נמחק.
-  - הגרסה שייכת למרחב שם אחר = גרסה שגויה. דף שהפך להפניה = הפך להפניה.
+  - הגרסה שייכת למרחב שם אחר = גרסה שגויה.
+  - דף שהפך להפניה = הפך להפניה, **אלא אם יעד ההפניה כבר זהה לשם התבנית (`דף=`)**: אז העורך כבר טיפל (גרסה שמצביעה על
+    הפניה ישנה, ושם התבנית הוא היעד), ואין שינוי חדש לטיפול (הכרעת חיים, 2026-10-05, אחרי ש-44 ערכים כאלה הופיעו בטעות).
   - הגרסה שייכת לדף חי: הכותרת הנוכחית שלו שווה לכותרת שלנו או לשם התבנית (נרמול, והסרת
     "הרב/רבי" ו-"(רב)") = אין משימה. שניהם שונים ממנה = ויקיפדיה העבירה ואנחנו לא עקבנו:
     העברת שם. עצם זה שהגרסה שייכת לדף בשם אחר משם התבנית הוא ההוכחה להעברה.
@@ -40,11 +42,12 @@ _RAV_PREFIX = re.compile(r"^(הרב|רבי)\s+")
 _RAV_SUFFIX = re.compile(r"\s*\(רב\)$")
 
 # needs_template: הגרסה שייכת לדף חי והכותרת שלנו לא תואמת לכותרת הנוכחית שלו - צריך לקרוא את שם
-# התבנית (`דף=`) ולקרוא ל-decide שוב עם template_name.
-Decision = namedtuple("Decision", "task page_id page_title needs_template", defaults=(False,))
+# התבנית (`דף=`) ולקרוא ל-decide שוב עם template_name. needs_redirect: הגרסה שייכת להפניה - צריך את יעד
+# ההפניה (redirect_target) וגם את שם התבנית.
+Decision = namedtuple("Decision", "task page_id page_title needs_template needs_redirect", defaults=(False, False))
 NO_DECISION = Decision(None, None, None)
 NEEDS_TEMPLATE = Decision(None, None, None, True)
-UNKNOWN = object()  # template_name שעוד לא נקרא (שונה מ-None: נקרא ואין שם)
+UNKNOWN = object()  # template_name / redirect_target שעוד לא נקראו (שונה מ-None: נקרא ואין)
 
 
 def in_scope(row):
@@ -83,12 +86,13 @@ def names_match(mechalol_title, wikipedia_title):
     return False
 
 
-def decide(row, resolved, max_rev, page_exists, template_name=UNKNOWN):
+def decide(row, resolved, max_rev, page_exists, template_name=UNKNOWN, redirect_target=UNKNOWN):
     """
     row: שורת mechalol_pages. resolved: תוצאת resolve_revisions לגרסת השורה (None = לא קיימת).
     page_exists(page_id): האם הדף קיים ב-wikipedia_pages (הקישור הוא מפתח זר אליו).
     template_name: `דף=` בתבנית; None = נקרא ואין שם; UNKNOWN = טרם נקרא (ואז, כשצריך אותו,
-    מוחזר NEEDS_TEMPLATE).
+    מוחזר NEEDS_TEMPLATE). redirect_target: יעד ההפניה כשהדף של הגרסה הוא הפניה; None = אין יעד
+    (נשבר/לא ידוע); UNKNOWN = טרם נקרא.
     """
     if not in_scope(row):
         return NO_DECISION
@@ -104,6 +108,10 @@ def decide(row, resolved, max_rev, page_exists, template_name=UNKNOWN):
     if resolved["ns"] != 0:
         return Decision(TASK_BAD_REV, page_id, title)
     if resolved["redirect"]:
+        if redirect_target is UNKNOWN or template_name is UNKNOWN:
+            return Decision(None, None, None, template_name is UNKNOWN, redirect_target is UNKNOWN)
+        if redirect_target and template_name and names_match(template_name, redirect_target):
+            return NO_DECISION  # הגרסה על הפניה ישנה, אבל שם התבנית כבר הוא היעד: טופל
         return Decision(TASK_REDIRECT, page_id, title)
 
     if not page_exists(page_id):
@@ -143,6 +151,28 @@ def resolve_revisions(wikipedia_get, rev_ids):
             result[revision["revid"]] = info
     if REQUEST_DELAY_SECONDS:
         time.sleep(REQUEST_DELAY_SECONDS)
+    return result
+
+
+def resolve_redirect_targets(wikipedia_get, titles):
+    """
+    {כותרת הפניה: כותרת היעד | None} עבור כותרות של דפי הפניה, באצוות של 50. None = אין יעד ידוע
+    (הפניה שבורה או חוצת אתרים). redirects=1 מפענח גם שרשראות.
+    """
+    titles = sorted(set(titles))
+    result = {t: None for t in titles}
+    for i in range(0, len(titles), API_BATCH):
+        part = titles[i:i + API_BATCH]
+        data = wikipedia_get({
+            "action": "query", "titles": "|".join(part), "redirects": "1", "formatversion": "2",
+        })
+        query = data.get("query", {})
+        normalized = {n["from"]: n["to"] for n in query.get("normalized", [])}
+        redirects = {r["from"]: r["to"] for r in query.get("redirects", [])}
+        for title in part:
+            result[title] = redirects.get(normalized.get(title, title))
+        if REQUEST_DELAY_SECONDS:
+            time.sleep(REQUEST_DELAY_SECONDS)
     return result
 
 
