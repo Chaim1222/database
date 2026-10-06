@@ -78,6 +78,8 @@ jobs:
         run: python sort_template_hourly.py
 
       - name: אימות מקור למועמדי העברה
+        # אימות משני: כשל משאיר מועמדים ללא הוכחה תקפה גלויים, ולא עוצר את יתר הרענון.
+        continue-on-error: true
         working-directory: scripts
         run: python check_move_sources.py
 
