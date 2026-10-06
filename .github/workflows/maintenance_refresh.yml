@@ -77,6 +77,12 @@ jobs:
         working-directory: scripts
         run: python sort_template_hourly.py
 
+      - name: אימות מקור למועמדי העברה
+        # אימות משני: כשל משאיר מועמדים ללא הוכחה תקפה גלויים, ולא עוצר את יתר הרענון.
+        continue-on-error: true
+        working-directory: scripts
+        run: python check_move_sources.py
+
       - name: בדיקה מחדש של טאבי הגרסה
         working-directory: scripts
         run: python rev_link_scan.py --recheck
