@@ -22,7 +22,6 @@ current_source as (
        or (lm.new_title like 'טיוטה:%' and not exists (
             select from public.wikipedia_deletions d
             where d.title = lm.new_title
-              and (d.page_id = lm.page_id or d.page_id = 0)
               and d.deleted_at >= lm.renamed_at
               and not exists (
                   select from public.wikipedia_creations c

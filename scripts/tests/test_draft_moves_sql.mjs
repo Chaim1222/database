@@ -39,7 +39,8 @@ await db.exec("insert into wikipedia_deletions values(0,'טיוטה:חדש','202
 await expect([]);
 await db.exec("insert into wikipedia_creations values(10,'טיוטה:חדש','2026-10-04')");
 await expect(rows('טיוטה:חדש'));
-await db.exec("insert into wikipedia_deletions values(10,'טיוטה:חדש','2026-10-05')");
+// The API may report the current replacement page ID, not the deleted identity.
+await db.exec("insert into wikipedia_deletions values(999,'טיוטה:חדש','2026-10-05')");
 await expect([]);
 await db.exec("insert into wikipedia_pages values(10,'אחרי חזרה')");
 await expect(rows('אחרי חזרה'));
