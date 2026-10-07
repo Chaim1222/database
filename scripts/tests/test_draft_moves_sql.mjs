@@ -24,7 +24,7 @@ grant select on all tables in schema public to anon,authenticated,service_role;
 insert into mechalol_pages(id,title,status) values (1,'שם ישן','מיובא ומתועד'),(2,'שם מקומי','מיובא ומתועד');
 update mechalol_pages set template_referenced_title='שם ישן' where id=2;
 insert into wikipedia_renames(page_id,old_title,new_title,renamed_at,action)
- values(10,'שם ישן','טיוטה:ערך','2026-10-01','move');
+ values(10,'שם ישן','שם חדש','2026-09-30','move');
 insert into wikipedia_deletions values(10,'שם ישן','2026-10-01');
 `);
 await db.exec(readFileSync(new URL('../../migrations/20261006205515_old_dashboard_task_validity.sql',import.meta.url),'utf8'));
@@ -32,26 +32,43 @@ const dir=new URL('../../migrations/',import.meta.url);
 const migration=readFileSync(new URL(readdirSync(dir).find(f=>f.endsWith('_draft_move_report.sql')),dir),'utf8');
 await db.exec(migration); await db.exec(migration);
 const rows=title=>[{id:1,wikipedia_title:title},{id:2,wikipedia_title:title}];
+await db.exec("insert into wikipedia_pages values(10,'שם חדש')");
+await expect(rows('שם חדש')); // Existing mainspace candidates survive seeding.
+await db.exec("delete from wikipedia_pages");
+await db.exec("insert into maintenance_wikipedia_events(kind,page_id,title,namespace,target_title,target_namespace,event_at) values('move',10,'שם ישן',0,'טיוטה:ערך',118,'2026-10-01') on conflict(kind,title,target_title,event_at) do nothing");
+await db.exec("insert into maintenance_wikipedia_events(kind,page_id,title,namespace,target_title,target_namespace,event_at) values('move',10,'שם ישן',0,'טיוטה:ערך',118,'2026-10-01') on conflict(kind,title,target_title,event_at) do nothing");
+assert.equal((await db.query('select count(*)::int as n from maintenance_wikipedia_events')).rows[0].n,2); checks++;
 await expect(rows('טיוטה:ערך'));
-await db.exec("insert into wikipedia_renames(page_id,old_title,new_title,renamed_at,action) values(10,'טיוטה:ערך','טיוטה:חדש','2026-10-02','move_redir')");
+await db.exec("insert into maintenance_wikipedia_events(kind,page_id,title,namespace,target_title,target_namespace,event_at) values('move',10,'טיוטה:ערך',118,'טיוטה:חדש',118,'2026-10-02')");
 await expect(rows('טיוטה:חדש'));
-await db.exec("insert into wikipedia_deletions values(0,'טיוטה:חדש','2026-10-03')");
+await db.exec("insert into maintenance_wikipedia_events(kind,page_id,title,namespace,event_at) values('delete',0,'טיוטה:חדש',118,'2026-10-03')");
 await expect([]);
-await db.exec("insert into wikipedia_creations values(10,'טיוטה:חדש','2026-10-04')");
+await db.exec("insert into maintenance_wikipedia_events(kind,page_id,title,namespace,event_at) values('restore',10,'טיוטה:חדש',118,'2026-10-04')");
 await expect(rows('טיוטה:חדש'));
 // The API may report the current replacement page ID, not the deleted identity.
-await db.exec("insert into wikipedia_deletions values(999,'טיוטה:חדש','2026-10-05')");
+await db.exec("insert into maintenance_wikipedia_events(kind,page_id,title,namespace,event_at) values('delete',999,'טיוטה:חדש',118,'2026-10-05')");
 await expect([]);
 await db.exec("insert into wikipedia_pages values(10,'אחרי חזרה')");
 await expect(rows('אחרי חזרה'));
 await db.exec("update wikipedia_pages set title='שם ישן' where id=10");
 await expect([{id:2,wikipedia_title:'שם ישן'}]);
-await db.exec("delete from wikipedia_pages; insert into wikipedia_renames(page_id,old_title,new_title,renamed_at,action) values(10,'טיוטה:חדש','שם ישן','2026-10-06','move')");
+await db.exec("delete from wikipedia_pages; insert into maintenance_wikipedia_events(kind,page_id,title,namespace,target_title,target_namespace,event_at) values('move',10,'טיוטה:חדש',118,'שם ישן',0,'2026-10-06')");
 await expect([]);
-await db.exec("insert into wikipedia_renames(page_id,old_title,new_title,renamed_at,action) values(0,'שם ישן','טיוטה:לא ידוע','2026-10-07','move')");
+await db.exec("insert into maintenance_wikipedia_events(kind,page_id,title,namespace,target_title,target_namespace,event_at) values('move',0,'שם ישן',0,'טיוטה:לא ידוע',118,'2026-10-07')");
 await expect([]);
+// Legacy audit tables were neither polluted nor rewritten; reapplying preserves the journal.
+await db.exec(migration);
+assert.equal((await db.query('select count(*)::int as n from wikipedia_renames')).rows[0].n,1);
+assert.equal((await db.query('select count(*)::int as n from wikipedia_deletions')).rows[0].n,1);
+assert.equal((await db.query('select count(*)::int as n from wikipedia_creations')).rows[0].n,0);
+checks++;
 for (const role of ['anon','authenticated']) {
- await db.exec(`set role ${role}`); await expect([]); await db.exec('reset role');
+ await db.exec(`set role ${role}`); await expect([]);
+ assert.equal((await db.query('select count(*)::int as n from maintenance_wikipedia_events')).rows[0].n,8); checks++;
+ for (const sql of ["insert into maintenance_wikipedia_events(kind,page_id,title,namespace,event_at) values('delete',10,'טיוטה:חדש',118,now())", "update maintenance_wikipedia_events set page_id=999", "delete from maintenance_wikipedia_events"]) {
+   await assert.rejects(db.exec(sql), /permission denied/); checks++;
+ }
+ await db.exec('reset role');
 }
 console.log(`PASS: ${checks} draft lifecycle and permission checks`);
 } finally {await db.close();}

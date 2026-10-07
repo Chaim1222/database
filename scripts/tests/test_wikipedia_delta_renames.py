@@ -206,7 +206,7 @@ class DraftHistoryTests(unittest.TestCase):
             mocks = {}
             for name in ("get_client", "get_watermark", "fetch_new_pages", "fetch_delete_log", "fetch_move_log",
                          "fetch_tagged_changes", "revived_articles", "fetch_redirect_status", "detect_became_redirect",
-                         "write_delta_tables", "apply_core", "write_changed_ids_file"):
+                         "write_delta_tables", "write_move_maintenance_events", "apply_core", "write_changed_ids_file"):
                 mocks[name] = stack.enter_context(patch.object(delta, name))
             stack.enter_context(patch("sys.argv", ["fetch_wikipedia_delta.py"]))
             mocks["get_watermark"].return_value = "2026-10-07T00:00:00Z"
@@ -219,9 +219,11 @@ class DraftHistoryTests(unittest.TestCase):
             delta.main()
             self.assertEqual(mocks["fetch_delete_log"].call_args_list[1].kwargs, {"namespace":118})
             history = mocks["write_delta_tables"].call_args.args
-            self.assertEqual(history[1], [restored])
-            self.assertIn(deleted, history[2])
-            self.assertEqual(history[3], [moved, draft_move])
+            self.assertEqual(history[1], [])
+            self.assertNotIn(deleted, history[2])
+            self.assertEqual(history[3], [])
+            journal = mocks["write_move_maintenance_events"].call_args.args
+            self.assertEqual(journal[1:], ([moved, draft_move], [deleted], [restored]))
             applied = mocks["apply_core"].call_args.args
             self.assertEqual(applied[1], [])
             self.assertEqual(applied[3], [])
@@ -233,13 +235,28 @@ class DraftHistoryTests(unittest.TestCase):
                  patch.object(delta, "get_client"), \
                  patch.object(delta, "fetch_move_log", return_value=[]), \
                  patch.object(delta, "fetch_delete_log", return_value=([], [])), \
-                 patch.object(delta, "write_delta_tables") as write, \
+                 patch.object(delta, "write_move_maintenance_events") as write, \
+                 patch.object(delta, "write_delta_tables") as old_write, \
                  patch.object(delta, "apply_core") as apply, \
                  patch.object(delta, "get_watermark") as read_mark, \
                  patch.object(delta.delta_watermark, "advance") as advance:
                 delta.main()
                 self.assertEqual(write.call_count, 0 if dry else 1)
-                apply.assert_not_called(); advance.assert_not_called(); read_mark.assert_not_called()
+                apply.assert_not_called(); advance.assert_not_called(); read_mark.assert_not_called(); old_write.assert_not_called()
+
+    def test_journal_preserves_namespaces_and_deduplicates_without_touching_delta_logs(self):
+        from unittest.mock import MagicMock
+        client = MagicMock()
+        event = dict(move(9, "ערך", "טיוטה:ערך", "2026-10-07T09:00:00Z"), old_ns=0, new_ns=118)
+        deleted = redirect_deletion("טיוטה:ערך", "2026-10-07T10:00:00Z")
+        restored = {"page_id":9, "title":"טיוטה:ערך", "created_at":"2026-10-07T11:00:00Z"}
+        delta.write_move_maintenance_events(client, [event, event], [deleted], [restored])
+        client.table.assert_called_once_with("maintenance_wikipedia_events")
+        args, kwargs = client.table.return_value.upsert.call_args
+        self.assertEqual(len(args[0]), 3)
+        self.assertEqual([r["namespace"] for r in args[0]], [0,118,118])
+        self.assertEqual(args[0][0]["target_namespace"],118)
+        self.assertEqual(kwargs, {"on_conflict":"kind,title,target_title,event_at", "ignore_duplicates":True})
 
     def test_delete_log_namespace_is_explicit_and_defaults_to_mainspace(self):
         import delta_api

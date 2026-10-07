@@ -32,6 +32,9 @@ import sys
 from datetime import datetime, timezone
 
 from config import WIKIPEDIA_API
+
+# Hebrew Wikipedia Draft namespace; this maintenance journal does not affect mainspace delta logs.
+WIKIPEDIA_DRAFT_NAMESPACE = 118
 from delta_api import (
     fetch_new_pages, fetch_delete_log, fetch_move_log,
     fetch_edited_page_ids, fetch_redirect_status, fetch_tagged_changes,
@@ -506,6 +509,28 @@ def write_delta_tables(client, creations, deletions, renames):
         )
 
 
+def write_move_maintenance_events(client, moves, deletions, restores):
+    """Isolated journal: all moves and draft lifecycle. Replays do not modify delta audit logs."""
+    rows = [
+        {"kind": "move", "page_id": m["page_id"], "title": m["old_title"],
+         "namespace": m["old_ns"], "target_title": m["new_title"],
+         "target_namespace": m["new_ns"], "event_at": m["renamed_at"]}
+        for m in moves
+    ]
+    for kind, events, time_field in (("delete", deletions, "deleted_at"), ("restore", restores, "created_at")):
+        rows.extend({"kind": kind, "page_id": e["page_id"], "title": e["title"],
+                     "namespace": WIKIPEDIA_DRAFT_NAMESPACE, "target_title": "",
+                     "target_namespace": None, "event_at": e[time_field]} for e in events)
+    # One event can be observed more than once in an overlapping window.
+    unique = {(r["kind"], r["title"], r["target_title"], r["event_at"]): r for r in rows}
+    if unique:
+        execute_with_retry(
+            lambda: client.table("maintenance_wikipedia_events").upsert(
+                list(unique.values()), on_conflict="kind,title,target_title,event_at", ignore_duplicates=True
+            ).execute(), "maintenance move history", log_fn=log,
+        )
+
+
 def write_changed_ids_file(all_creations, all_deletions, renames):
     """
     כותב wikipedia_delta_changed_ids.json - כל page_id בוויקיפדיה
@@ -565,11 +590,11 @@ def main():
     client = None if (args.dry_run and args.since) else get_client()
     if args.move_history_only:
         moves = fetch_move_log(WIKIPEDIA_API, args.since)
-        deletions, restores = fetch_delete_log(WIKIPEDIA_API, args.since, namespace=118)
+        deletions, restores = fetch_delete_log(WIKIPEDIA_API, args.since, namespace=WIKIPEDIA_DRAFT_NAMESPACE)
         for d in deletions:
             d["reason"] = "log_event"
         if not args.dry_run:
-            write_delta_tables(client, restores, deletions, moves)
+            write_move_maintenance_events(client, moves, deletions, restores)
         log(f"Move history | moves={len(moves)} | draft_deletes={len(deletions)} | draft_restores={len(restores)} | dry_run={args.dry_run}")
         return
     since_ts = args.since or get_watermark(client)
@@ -579,7 +604,7 @@ def main():
 
     new_pages = fetch_new_pages(WIKIPEDIA_API, since_ts)
     deletions, restores = fetch_delete_log(WIKIPEDIA_API, since_ts)
-    draft_deletions, draft_restores = fetch_delete_log(WIKIPEDIA_API, since_ts, namespace=118)
+    draft_deletions, draft_restores = fetch_delete_log(WIKIPEDIA_API, since_ts, namespace=WIKIPEDIA_DRAFT_NAMESPACE)
     for d in draft_deletions:
         d["reason"] = "log_event"
     moves = fetch_move_log(WIKIPEDIA_API, since_ts)
@@ -651,9 +676,8 @@ def main():
         return
 
     try:
-        # History includes namespace moves and draft lifecycle; mainspace application stays scoped.
-        write_delta_tables(client, all_creations + draft_restores,
-                           all_deletions + draft_deletions, moves)
+        write_delta_tables(client, all_creations, all_deletions, renames)
+        write_move_maintenance_events(client, moves, draft_deletions, draft_restores)
         apply_core(client, all_creations, all_deletions, renames)
         write_changed_ids_file(all_creations, all_deletions, renames)
 
