@@ -327,9 +327,9 @@ def fetch_new_pages(api_url, since_ts):
     return results
 
 
-def fetch_delete_log(api_url, since_ts):
+def fetch_delete_log(api_url, since_ts, namespace=0):
     """
-    list=logevents, letype=delete, lenamespace=0, ledir=newer,
+    list=logevents, letype=delete, lenamespace=namespace (ברירת מחדל 0), ledir=newer,
     lestart=since_ts. lestart הוא חובה (לא ברירת מחדל) - בלעדיו
     ledir=newer מחזיר מתחילת היומן ההיסטורי (2014), לא "מעכשיו" -
     אושר בבדיקת ההיתכנות החיה.
@@ -356,7 +356,7 @@ def fetch_delete_log(api_url, since_ts):
             "action": "query",
             "list": "logevents",
             "letype": "delete",
-            "lenamespace": 0,
+            "lenamespace": namespace,
             "ledir": "newer",
             "lestart": since_ts,
             "leprop": "ids|title|timestamp|type",

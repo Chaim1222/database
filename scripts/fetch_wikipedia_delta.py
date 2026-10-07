@@ -16,7 +16,7 @@ sync_watermarks) - יש להריץ אותה לפני שימוש ראשון בס�
 ל-ns=0 בשני הצדדים (מקור ויעד) - שינוי שם בתוך מרחב השם הראשי בלבד.
 תזוזה מ/אל מרחב שם אחר מטופלת כיצירה/מחיקה-כמו (ראו סיווג_תזוזות
 למטה), לא כשינוי שם - כי הדף בפועל נכנס/יוצא ממרחב הערכים שהפרויקט
-עוקב אחריו.
+עוקב אחריו. ההיסטוריה נשמרת לכל מרחבי השמות לצורך דוח העברות לטיוטה.
 
 עדכון wikipedia_pages בפועל (בשונה מריקון+מילוי-מלא): יצירות/שחזורים
 מ-upsert-ים רק את id/title/checked_at - שאר עמודות ההעשרה (wikidata_desc,
@@ -553,12 +553,25 @@ def main():
             "מקדם אותו אחרי שהתאמה (match.py --scoped) הצליחה. ראו delta_watermark.py."
         ),
     )
+    parser.add_argument("--move-history-only", action="store_true",
+                        help="השלמת היסטוריית העברות ומחיקות/שחזורי טיוטה בלבד; דורש --since, בלי מראה או watermark")
     args = parser.parse_args()
+    if args.move_history_only and not args.since:
+        parser.error("--move-history-only requires --since")
 
     if args.dry_run and not args.since:
         raise SystemExit("--dry-run דורש גם --since (אין קריאת watermark בלי חיבור לסופרבייס)")
 
     client = None if (args.dry_run and args.since) else get_client()
+    if args.move_history_only:
+        moves = fetch_move_log(WIKIPEDIA_API, args.since)
+        deletions, restores = fetch_delete_log(WIKIPEDIA_API, args.since, namespace=118)
+        for d in deletions:
+            d["reason"] = "log_event"
+        if not args.dry_run:
+            write_delta_tables(client, restores, deletions, moves)
+        log(f"Move history | moves={len(moves)} | draft_deletes={len(deletions)} | draft_restores={len(restores)} | dry_run={args.dry_run}")
+        return
     since_ts = args.since or get_watermark(client)
     run_started_at = datetime.now(timezone.utc).isoformat()
 
@@ -566,6 +579,9 @@ def main():
 
     new_pages = fetch_new_pages(WIKIPEDIA_API, since_ts)
     deletions, restores = fetch_delete_log(WIKIPEDIA_API, since_ts)
+    draft_deletions, draft_restores = fetch_delete_log(WIKIPEDIA_API, since_ts, namespace=118)
+    for d in draft_deletions:
+        d["reason"] = "log_event"
     moves = fetch_move_log(WIKIPEDIA_API, since_ts)
     renames, move_creations, move_deletions = classify_moves(moves)
     for d in deletions:
@@ -635,7 +651,9 @@ def main():
         return
 
     try:
-        write_delta_tables(client, all_creations, all_deletions, renames)
+        # History includes namespace moves and draft lifecycle; mainspace application stays scoped.
+        write_delta_tables(client, all_creations + draft_restores,
+                           all_deletions + draft_deletions, moves)
         apply_core(client, all_creations, all_deletions, renames)
         write_changed_ids_file(all_creations, all_deletions, renames)
 
