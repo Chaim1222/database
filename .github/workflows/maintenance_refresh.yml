@@ -17,6 +17,10 @@ name: רענון נתוני התחזוקה (ידני)
 on:
   workflow_dispatch:
     inputs:
+      move_history_since:
+        description: "השלמת יומן העברות קודם מתאריך ISO (ריק: ללא השלמה)"
+        default: ""
+        type: string
       cleanup:
         description: "גם למחוק שורות תחזוקה שהתיישנו ולתקן נעילות שהוסרו (בלי זה: דוח בלבד)"
         default: true
@@ -60,6 +64,12 @@ jobs:
       - name: סימון התחלה
         working-directory: scripts
         run: python maintenance_refresh_state.py running
+
+      - name: השלמת היסטוריית העברות
+        if: ${{ inputs.move_history_since != '' }}
+        env:
+          MOVE_HISTORY_SINCE: ${{ inputs.move_history_since }}
+        run: python scripts/fetch_wikipedia_delta.py --move-history-only --since "$MOVE_HISTORY_SINCE"
 
       - name: עדכון מצטבר - מכלול
         run: python scripts/fetch_mechalol_delta.py --defer-watermark
