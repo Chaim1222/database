@@ -236,7 +236,92 @@ select c.mechalol_id as id,
 from rev_link_check c
 join mechalol_pages m on m.id = c.mechalol_id
 left join wikipedia_pages w on w.id = m.wikipedia_id
-where not exists (select 1 from manual_matches mm where mm.mechalol_page_id = c.mechalol_id);
+where c.rev_id is not distinct from m.sort_template_rev
+  and not exists (select 1 from manual_matches mm where mm.mechalol_page_id = c.mechalol_id);
 
-revoke all on report_rev_tasks from anon, authenticated;
+revoke all on report_rev_tasks from public, anon, authenticated;
 grant select on report_rev_tasks to anon, authenticated, service_role;
+
+-- דוחות ההעברה שהוחלו בייצור ב-6–7.10.2026; דורשים את טבלאות התחזוקה שב-schema.sql.
+create or replace view public.report_wikipedia_move_candidates with (security_invoker = true) as
+WITH last_move AS (
+         SELECT DISTINCT ON (r.page_id, r.title) r.page_id,
+            r.title AS old_title,
+            r.event_at AS renamed_at
+           FROM maintenance_wikipedia_events r
+          WHERE r.kind = 'move'::text AND r.page_id > 0
+          ORDER BY r.page_id, r.title, r.event_at DESC
+        ), latest_move AS (
+         SELECT DISTINCT ON (r.page_id) r.page_id,
+            r.target_title AS new_title,
+            r.target_namespace,
+            r.event_at AS renamed_at
+           FROM maintenance_wikipedia_events r
+          WHERE r.kind = 'move'::text AND r.page_id > 0
+          ORDER BY r.page_id, r.event_at DESC, r.id DESC
+        ), current_source AS (
+         SELECT lm.page_id,
+            COALESCE(w_1.title, lm.new_title) AS title
+           FROM latest_move lm
+             LEFT JOIN wikipedia_pages w_1 ON w_1.id = lm.page_id
+          WHERE w_1.id IS NOT NULL OR lm.target_namespace = 118 AND NOT (EXISTS ( SELECT
+                   FROM maintenance_wikipedia_events d
+                  WHERE d.kind = 'delete'::text AND d.namespace = 118 AND d.title = lm.new_title AND d.event_at >= lm.renamed_at AND NOT (EXISTS ( SELECT
+                           FROM maintenance_wikipedia_events c
+                          WHERE c.kind = 'restore'::text AND c.namespace = 118 AND c.page_id = lm.page_id AND c.title = lm.new_title AND c.event_at > d.event_at))))
+        ), tpl AS (
+         SELECT m_1.id,
+            m_1.template_referenced_title
+           FROM mechalol_pages m_1
+          WHERE m_1.template_referenced_title IS NOT NULL AND m_1.status <> 'נשמר במכלול למרות מחיקה בוויקיפדיה'::text
+        ), hits AS (
+         SELECT m_1.id,
+            'title'::text AS via,
+            lm.page_id,
+            lm.old_title,
+            lm.renamed_at
+           FROM last_move lm
+             JOIN mechalol_pages m_1 ON m_1.title = lm.old_title
+        UNION ALL
+         SELECT t.id,
+            'template'::text AS text,
+            lm.page_id,
+            lm.old_title,
+            lm.renamed_at
+           FROM last_move lm
+             JOIN tpl t ON t.template_referenced_title = lm.old_title
+        )
+ SELECT h.id,
+    m.title,
+    w.title AS wikipedia_title,
+    h.old_title,
+    h.renamed_at,
+    h.via,
+    m.status,
+    h.page_id AS wikipedia_id
+   FROM hits h
+     JOIN mechalol_pages m ON m.id = h.id
+     JOIN current_source w ON w.page_id = h.page_id
+  WHERE m.title <> w.title;
+revoke all on public.report_wikipedia_move_candidates from public, anon, authenticated;
+grant select on public.report_wikipedia_move_candidates to anon, authenticated, service_role;
+
+create or replace view public.report_wikipedia_moves with (security_invoker = true) as
+SELECT DISTINCT ON (h.id) h.id,
+    h.title,
+    h.wikipedia_title,
+    h.old_title,
+    h.renamed_at,
+    h.via,
+    h.status,
+    h.wikipedia_id
+   FROM report_wikipedia_move_candidates h
+     JOIN mechalol_pages m ON m.id = h.id
+  WHERE NOT (EXISTS ( SELECT
+           FROM manual_matches mm
+          WHERE mm.mechalol_page_id = h.id AND mm.wikipedia_page_id <> h.wikipedia_id)) AND NOT (EXISTS ( SELECT
+           FROM maintenance_move_sources e
+          WHERE e.mechalol_id = h.id AND e.mechalol_rev_id = m.rev_id AND m.sort_template_parsed_rev = m.rev_id AND e.source_rev_id = m.sort_template_rev AND e.source_wikipedia_id <> h.wikipedia_id))
+  ORDER BY h.id, (h.via = 'title'::text) DESC, h.renamed_at DESC;
+revoke all on public.report_wikipedia_moves from public, anon, authenticated;
+grant select on public.report_wikipedia_moves to anon, authenticated, service_role;

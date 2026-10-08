@@ -555,3 +555,54 @@ create policy "קריאה ציבורית" on rev_link_check for select to anon, 
 revoke all on rev_link_check from anon, authenticated;
 grant select on rev_link_check to anon, authenticated;
 grant select, insert, update, delete on rev_link_check to service_role;
+
+-- שכבת תחזוקה שנבדקה בייצור ב-2026-10-08 (PR 103 ו-104).
+create table if not exists public.maintenance_move_sources (
+    mechalol_id bigint primary key,
+    mechalol_rev_id bigint,
+    source_rev_id bigint,
+    source_wikipedia_id bigint,
+    checked_at timestamptz not null default now(),
+    check (source_wikipedia_id is null or
+           (mechalol_rev_id is not null and source_rev_id is not null
+            and mechalol_rev_id > 0 and source_rev_id > 1))
+);
+alter table public.maintenance_move_sources enable row level security;
+revoke all on public.maintenance_move_sources from public, anon, authenticated;
+grant select on public.maintenance_move_sources to anon, authenticated;
+grant select, insert, update, delete on public.maintenance_move_sources to service_role;
+do $$ begin
+    if not exists (select from pg_policies where schemaname='public'
+                   and tablename='maintenance_move_sources' and policyname='Public read') then
+        create policy "Public read" on public.maintenance_move_sources
+            for select to anon, authenticated using (true);
+    end if;
+end $$;
+
+create table if not exists public.maintenance_wikipedia_events (
+    id bigserial primary key,
+    kind text not null check (kind in ('move','delete','restore')),
+    page_id bigint not null,
+    title text not null,
+    namespace integer not null,
+    target_title text not null default '',
+    target_namespace integer,
+    event_at timestamptz not null,
+    fetched_at timestamptz not null default now(),
+    unique (kind, title, target_title, event_at),
+    check (kind <> 'move' or (target_title <> '' and target_namespace is not null))
+);
+create index if not exists maintenance_wiki_events_page_time_idx
+    on public.maintenance_wikipedia_events(page_id, event_at desc, id desc);
+create index if not exists maintenance_wiki_events_lifecycle_idx
+    on public.maintenance_wikipedia_events(kind, title, event_at) where kind in ('delete','restore');
+alter table public.maintenance_wikipedia_events enable row level security;
+revoke all on public.maintenance_wikipedia_events from public, anon, authenticated;
+grant select on public.maintenance_wikipedia_events to anon, authenticated;
+grant select, insert, update, delete on public.maintenance_wikipedia_events to service_role;
+grant usage, select on sequence public.maintenance_wikipedia_events_id_seq to service_role;
+do $$ begin
+    if not exists(select from pg_policies where schemaname='public' and tablename='maintenance_wikipedia_events' and policyname='Public read') then
+        create policy "Public read" on public.maintenance_wikipedia_events for select to anon, authenticated using (true);
+    end if;
+end $$;
