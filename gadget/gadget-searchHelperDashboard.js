@@ -1,14 +1,63 @@
 (function () {
 	'use strict';
 
+	// זרימה: בחירת מסד קבועה לטעינה -> הרשאות -> דוחות/סינון -> פירוט -> פעולה באתר או במסד שנבחר.
+	// מעבר V1/V2 טוען את הדף מחדש; אין העברת טוקנים, מונים או בקשות בין הפרויקטים.
 	// ===== זיהוי העמוד - רק מיוחד:דף ריק/ניהול ייבוא, לא בשום עמוד אחר =====
 	if (mw.config.get('wgCanonicalSpecialPageName') !== 'Blankpage') return;
 	var wgPageName = mw.config.get('wgPageName') || '';
-	if (!/\/ניהול_ייבוא$/.test(wgPageName)) return;
+	if (!/\/(?:ניהול_ייבוא|database|database-v2)$/.test(wgPageName)) return;
 
-	// ===== הגדרות חיבור - לערוך כאן אם צריך =====
-	var SUPABASE_URL = 'https://hgsyzaghedqsypisbvev.supabase.co';
-	var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhnc3l6YWdoZWRxc3lwaXNidmV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzNTY2ODgsImV4cCI6MjEwMTkzMjY4OH0.eDPO3n3OHvmndWDvgF-istBP2NhY5W20erG3zztm7vs';
+	// ===== backend-start: הגדרת חיבור אחת; החלטות התאמה נשארות במסדים =====
+	var DATABASES = {
+		v1: { url: 'https://hgsyzaghedqsypisbvev.supabase.co', schema: 'public', anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhnc3l6YWdoZWRxc3lwaXNidmV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzNTY2ODgsImV4cCI6MjEwMTkzMjY4OH0.eDPO3n3OHvmndWDvgF-istBP2NhY5W20erG3zztm7vs', adminRpc: 'is_manual_match_admin', maintenance: true },
+		v2: { url: 'https://ukzijtrpchvmoxlslxpz.supabase.co', schema: 'api', anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVremlqdHJwY2h2bW94bHNseHB6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEyMTU1MzMsImV4cCI6MjEwNjc5MTUzM30.QCUKSOb1oOSwUPurOOhubPJFoSrQCUsClCSHEBp0BH8', adminRpc: 'is_admin', maintenance: false }
+	};
+	function databaseId(search, pageName) {
+		var selected = new URLSearchParams(search).get('mchlDb');
+		return selected === 'v1' || selected === 'v2' ? selected : (/\/database-v2$/.test(pageName) ? 'v2' : 'v1');
+	}
+	function databaseHeaders(cfg, token, extra) {
+		var headers = { apikey: cfg.anonKey, Authorization: 'Bearer ' + (token || cfg.anonKey), 'Accept-Profile': cfg.schema, 'Content-Profile': cfg.schema };
+		Object.keys(extra || {}).forEach(function (key) { headers[key] = extra[key]; });
+		return headers;
+	}
+	function sessionUserId(session) {
+		if (session && session.user_id) return session.user_id;
+		try { return JSON.parse(atob(session.access_token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).sub || null; } catch (e) { return null; }
+	}
+	function databaseWrite(cfg, action, data) {
+		if (cfg.schema === 'public') {
+			if (action === 'manual') return { path: 'manual_matches', method: 'POST', body: { mechalol_page_id: data.mechId, wikipedia_page_id: data.wikiId } };
+			if (action === 'feedback') return { path: 'word_filter_feedback?on_conflict=wikipedia_id,match_key,user_id', method: 'POST', body: data, prefer: 'resolution=merge-duplicates,return=minimal' };
+			if (action === 'unmark') {
+				var q = new URLSearchParams({ wikipedia_id: 'eq.' + data.wikipedia_id, match_key: 'eq.' + data.match_key });
+				return { path: 'word_filter_feedback?' + q.toString(), method: 'DELETE' };
+			}
+		} else {
+			if (action === 'exclude') return { path: 'rpc/add_exclusion', method: 'POST', body: { p_kind: 'import_excluded', p_wiki_id: data.wikiId, p_title: data.title, p_reason: null } };
+			if (action === 'manual') return { path: 'rpc/set_manual_link', method: 'POST', body: { p_mech_id: data.mechId, p_wiki_id: data.wikiId, p_reason: null } };
+			if (action === 'unmark') return { path: 'rpc/unmark_feedback', method: 'POST', body: { p_wiki_id: data.wikipedia_id, p_match_key: data.match_key } };
+			if (action === 'feedback') return { path: 'rpc/mark_feedback', method: 'POST', body: {
+				p_wiki_id: data.wikipedia_id, p_match_key: data.match_key, p_word: data.word, p_entries: data.entries, p_label: data.label,
+				p_topic: data.topic, p_hidden: data.hidden, p_level: data.level, p_lists_version: data.lists_version,
+				p_before: data.before, p_after: data.after
+			} };
+		}
+		throw new Error('Unsupported database action: ' + action);
+	}
+	// ===== backend-end =====
+	var DB_ID = databaseId(window.location.search, wgPageName);
+	var DB = DATABASES[DB_ID];
+	var SUPABASE_URL = DB.url, SUPABASE_ANON_KEY = DB.anonKey;
+	function sendDatabaseWrite(action, data) {
+		var req = databaseWrite(DB, action, data);
+		return fetch(SUPABASE_URL + '/rest/v1/' + req.path, {
+			method: req.method,
+			headers: authHeaders({ 'Content-Type': 'application/json', Prefer: req.prefer || 'return=minimal' }),
+			body: req.body ? JSON.stringify(req.body) : undefined
+		});
+	}
 
 	var NEW_ARTICLE_CUTOFF_DAYS = 14;
 	function newArticleCutoffIso() {
@@ -25,12 +74,11 @@
 		match_type: 'סוג התאמה', wikipedia_id: 'קישור לוויקיפדיה', checked_at: 'נבדק בתאריך',
 		wikidata_desc: 'תיאור (ויקינתונים)', created_at: 'תאריך יצירה בוויקיפדיה',
 		mechalol_redirect_exists: 'קיים במכלול כהפניה', task_type: 'סוג משימה', old_title: 'השם הקודם בוויקיפדיה', renamed_at: 'הועבר בתאריך', via: 'זוהה לפי', rev_page_title: 'הדף של הגרסה', linked_title: 'מקושר היום',
-		manual_match_action: 'שיוך ידני',
+		manual_match_action: 'שיוך ידני', exclude_action: 'החרגה', outcome: 'מצב', template_ref: 'כותרת בתבנית', kind: 'סוג', health: 'מצב', last_success_at: 'הצלחה אחרונה', error: 'שגיאה',
 		wikipedia_title: 'ערך בוויקיפדיה', mechalol_title: 'דף מקביל במכלול',
 		mechalol_status: 'סטטוס במכלול', candidate_count: 'מספר מועמדים',
 		mechalol_id: 'מזהה מכלול', lock_level: 'סוג נעילה', lock_source: 'איך זוהה', detected_at: 'זוהה בתאריך',
-		update_date: 'עודכן לאחרונה', update_bucket: 'טווח עדכון',
-		update_change: 'שינוי בוויקיפדיה', update_action: '', fix_source_action: '',
+		fix_source_action: '',
 		sort_template_date: 'עודכן לאחרונה (חודש)', sort_template_rev: 'גרסת הבסיס',
 		verdict: 'רמת תוכן', has_images: 'תמונות', topic: 'נושא', wf_matches: 'מילים', import_action: '', expand: ''
 	};
@@ -46,14 +94,15 @@
 		review: { label: 'לבדיקה', cls: 'mchl-review' },
 		wording: { label: 'דורש ניסוח', cls: 'mchl-neutral' },
 		clean: { label: 'נקי', cls: 'mchl-wiki' },
-		names: { label: 'שמות הקודש', cls: 'mchl-neutral' }
+		names: { label: 'שמות הקודש', cls: 'mchl-neutral' },
+		stale: { label: 'תוצאה ישנה', cls: 'mchl-review' }
 	};
 	var WF_TOPICS = { modesty: 'צניעות', age: 'גיל העולם', names: 'שמות הקודש', faith: 'אמונה ונצרות', dating: 'תיארוך ומדע', wiki: 'שאריות מוויקיפדיה' };
 	var wfMode = 'a'; // a = רשימות מאושרות, s = כולל הצעות
 	// שיטה: ctx = לפי הקשר (רמות חשד בתוך "לבדיקה" - המילה והמשפט שלה, ראו
 	// word-filter/analysis/word-rates.md); list = לפי הרמה שברשימה בלבד.
 	var wfMethod = 'ctx';
-	var wfLevelChoice = 'clean';
+	var wfLevelChoice = DB_ID === 'v2' ? '' : 'clean';
 	var wfDetailsCache = new Map();
 	var wfSummary = null; // שורות report_missing_word_filter_summary (למחוון)
 	// רשת ביטחון: התאמות בקוד שהקורא לא רואה (יעד קישור, הערה מוסתרת, קובץ...).
@@ -102,6 +151,8 @@
 	// הרמה של שורה (בעמודות ה-view) לפי השיטה והרשימות שנבחרו:
 	// problem / high / medium / low / review (בשיטת הרשימה) / wording / clean / null.
 	function wfRowLevel(row) {
+		if (DB_ID === 'v2' && row.scan_state === 'stale') return 'stale';
+		if (DB_ID === 'v2' && row.scan_state === 'not_scanned') return null;
 		var level = row[wfColumn()];
 		if (level === 'review' && wfMethod === 'ctx') return row[wfSuspicionColumn()] || 'review';
 		return level || null;
@@ -162,30 +213,26 @@
 			baseFilters: [['mechalol_redirect_exists', 'is.true']],
 			titleLink: 'edit', wikidata: true, easyImport: true, manualMatch: true
 		},
-		// ערכים שוויקיפדיה התקדמה בהם מאז העדכון האחרון (source_state = 'ahead', ראו
-		// SOURCE_TRACKING_NOTES.md). זה גבול עליון: גם שחזור או עריכה קטנה נספרים, ולכן
-		// כל שורה מקושרת להשוואת גרסאות בוויקיפדיה. הממוין לפי חודש העדכון המתועד
-		// (`תאריך=`), הישנים קודם. שובר שוויון לפי id, כי החודש לא ייחודי והעימוד יקפוץ בלעדיו.
-		update: {
-			view: 'report_source_update', label: 'עדכון',
-			columns: ['title', 'sort_template_date', 'update_bucket', 'sort_template_rev', 'wikipedia_id'],
-			displayColumns: ['title', 'update_date', 'update_change', 'update_action'],
-			filters: [{
-				key: 'update_bucket', label: 'עודכן',
-				options: ['בשנה האחרונה', 'לפני שנה עד שנתיים', '2020 עד לפני שנתיים', 'לפני 2020', 'ללא תאריך']
-			}],
-			order: 'sort_template_date.asc.nullslast,id.asc', titleLink: 'edit', freshness: true, liveChange: true,
-			group: 'wikiupdate',
-			// זמני: מוצג רק למי שמחובר עם משתמש וסיסמה (פאנל הניהול), כמו שיוך כותרות. להסרה: למחוק את השורה.
-			requiresLogin: true
-		},
 		// דפים נעולים שהמערכת יודעת עליהם: נעולים לקריאה (בדיקת התבנית נדחתה, או שזוהו בבדיקת החסרים) ונעולים
 		// ליצירה (הרשימה השחורה). ה-view: report_locked_pages (migrations/migration_add_locked_pages_report.sql).
+		system: {
+			view: 'v_sync_status', label: 'מצב המערכת', backend: 'v2',
+			columns: ['kind', 'health', 'status', 'last_success_at', 'error'], filters: [],
+			keyColumns: ['kind'], exportIdColumns: [], countColumn: 'kind', rowId: function (r) { return r.kind; }, searchColumn: 'kind', titleColumn: 'kind', order: 'kind.asc'
+		},
+		template: {
+			view: 'v_template_issues', label: 'בעיות תבנית', backend: 'v2',
+			columns: ['title', 'outcome', 'template_ref', 'checked_at'],
+			filters: [{ key: 'outcome', label: 'מצב', options: ['unresolved', 'denied'], display: { unresolved: 'כותרת לא קיימת', denied: 'דף נעול' } }],
+			order: 'title.asc,id.asc', titleLink: 'mechalol-read'
+		},
 		locked: {
 			view: 'report_locked_pages', label: 'נעולים',
 			columns: ['title', 'lock_level', 'lock_source', 'wikipedia_id', 'detected_at'],
 			filters: [{ key: 'lock_level', label: 'סוג נעילה', options: ['נעול לקריאה', 'נעול ליצירה'] }],
-			order: 'lock_level.asc,title.asc', titleLink: 'mechalol-read',
+			keyColumns: DB_ID === 'v2' ? ['site', 'id', 'title'] : ['id'],
+			exportIdColumns: DB_ID === 'v2' ? ['site', 'id', 'mechalol_id'] : ['id'],
+			order: 'lock_level.asc,title.asc', titleLink: 'mechalol-read', rowId: function (r) { return r.site ? r.site + ':' + r.id + ':' + r.title : r.id; },
 			// נעולים לקריאה - פתוח לכולם; נעולים ליצירה (הרשימה השחורה) - רק למי שמחובר עם משתמש וסיסמה (פאנל הניהול).
 			// בצד הלקוח בלבד, כמו requiresLogin: הנתונים עצמם קריאים ל-anon.
 			loginOnly: { key: 'lock_level', values: ['נעול ליצירה'] }
@@ -196,6 +243,7 @@
 		rav: {
 			view: 'report_rav_prefix_normalization', label: 'התאמות "הרב/רבי" לבדיקה',
 			columns: ['wikipedia_title', 'mechalol_title', 'mechalol_status', 'candidate_count'], filters: [],
+			keyColumns: ['wikipedia_id', 'mechalol_id'],
 			rowId: function (r) { return r.wikipedia_id + '-' + r.mechalol_id; },
 			countColumn: 'wikipedia_id', searchColumn: 'wikipedia_title', titleColumn: 'wikipedia_title',
 			order: 'wikipedia_title.asc', exportIdColumns: ['wikipedia_id', 'mechalol_id']
@@ -210,14 +258,14 @@
 	// הטאבים בשתי שורות: קבוצה, ומתחתיה הטאבים שלה.
 	var TAB_GROUPS = [
 		{ key: 'import', label: 'ייבוא', tabs: ['missing', 'requests', 'missing_redirect', 'rav', 'culture'] },
-		{ key: 'update', label: 'עדכון', tabs: ['update'] },
-		{ key: 'maint', label: 'תחזוקה', tabs: ['moved', 'redirect', 'badrev', 'deletedrev', 'undoc', 'locked'] },
+		{ key: 'maint', label: 'תחזוקה', tabs: ['system', 'template', 'moved', 'redirect', 'badrev', 'deletedrev', 'undoc', 'locked'] },
 		{ key: 'stats', label: 'נתונים סטטיסטיים', tabs: ['stats'] }
 	];
 	// טאב עם group (ב-VIEWS) מוצג רק למי שדרגתו לפחות כדרגת הקבוצה. זו בדיקת נראות בצד
 	// הלקוח בלבד, לא הגנה: הנתונים עצמם קריאים ל-anon.
 	function tabAllowed(key) {
 		var v = VIEWS[key];
+		if (v && v.backend && v.backend !== DB_ID) return false;
 		if (v && v.requiresLogin && !serviceKeyConnected) return false;
 		return !(v && v.group && userLevel < (GROUP_LEVELS[v.group] || Infinity));
 	}
@@ -268,7 +316,7 @@
 	// מקרה לקרוא אותה ולצרף ידנית לכותרת Authorization, בדיוק כמו
 	// sessionStorage - בלי שום יתרון, ועם המגבלות של עוגייה (גודל,
 	// שליחה אוטומטית ללא-קשר לבקשות אחרות) בלי סיבה.
-	var SESSION_STORAGE_KEY = 'mchl-auth-session';
+	var SESSION_STORAGE_KEY = 'mchl-auth-session' + (DB_ID === 'v2' ? ':ukzijtrpchvmoxlslxpz' : '');
 	var serviceKeyConnected = false;
 
 	function $id(id) { return document.getElementById(id); }
@@ -343,7 +391,7 @@
 	// עובד תקין אחרי קידוד URL רגיל על ידי URLSearchParams, בדיוק כמו
 	// שסופרבייס-js עצמו עושה).
 	function pgHeaders(extra) {
-		var h = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY };
+		var h = databaseHeaders(DB);
 		if (extra) for (var k in extra) h[k] = extra[k];
 		return h;
 	}
@@ -362,7 +410,7 @@
 				if (parsed && parsed.access_token) token = parsed.access_token;
 			}
 		} catch (e) { /* מתעלמים - נופל בחזרה למפתח ה-anon */ }
-		var h = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + token };
+		var h = databaseHeaders(DB, token);
 		if (extra) for (var k in extra) h[k] = extra[k];
 		return h;
 	}
@@ -391,6 +439,13 @@
 	// ומסתמך על כותרת Content-Range לספירה, כדי לא למשוך נתונים מיותרים.
 	// estimated: הערכה מהמתכנן (Prefer: count=estimated) במקום ספירה מדויקת - לטבלאות הגדולות, שם ספירה מדויקת לוקחת שניות.
 	function pgCount(table, rawFilterParams, countColumn, estimated) {
+		if (DB_ID === 'v2' && !rawFilterParams && (table === 'wikipedia_pages' || table === 'mechalol_pages')) {
+			var key = table === 'wikipedia_pages' ? 'wiki_pages' : 'mech_pages';
+			return pgSelect('v_counts', { filterParams: [['key', 'eq.' + key]], from: 0, to: 0 }).then(function (res) {
+				if (!res.data[0] || !Number.isFinite(Number(res.data[0].n))) throw new Error('Missing counter: ' + key);
+				return Number(res.data[0].n);
+			});
+		}
 		return withRetry(function () {
 			var params = new URLSearchParams();
 			params.set('select', countColumn || 'id');
@@ -429,8 +484,10 @@
 	}
 	function stableOrder(cfg) {
 		var order = cfg.order || 'title.asc';
-		var tie = cfg.rowId ? 'mechalol_id.asc' : 'id.asc';
-		return order.indexOf(tie.split('.')[0] + '.') >= 0 ? order : order + ',' + tie;
+		(cfg.keyColumns || ['id']).forEach(function (key) {
+			if (!order.split(',').some(function (part) { return part.split('.')[0] === key; })) order += ',' + key + '.asc';
+		});
+		return order;
 	}
 
 	function pgSelect(view, opts) {
@@ -685,7 +742,7 @@
 		groupsRow.className = 'mchl-tab-groups';
 		nav.appendChild(groupsRow);
 		TAB_GROUPS.forEach(function (g) {
-			if (!g.tabs.some(tabAllowed)) return; // קבוצה בלי לשוניות מותרות (למשל "עדכון" למי שלא מחובר) לא מוצגת
+			if (!g.tabs.some(tabAllowed)) return; // קבוצה בלי לשוניות מותרות  לא מוצגת
 			var gb = document.createElement('button');
 			gb.type = 'button';
 			gb.className = 'mchl-tab-group';
@@ -693,7 +750,7 @@
 			gb.textContent = g.label;
 			gb.addEventListener('click', function () {
 				var last = uiPrefs['lastTab:' + g.key];
-				switchTab(g.tabs.indexOf(last) >= 0 && tabAllowed(last) ? last : g.tabs[0]);
+				switchTab(g.tabs.indexOf(last) >= 0 && tabAllowed(last) ? last : g.tabs.filter(tabAllowed)[0]);
 			});
 			groupsRow.appendChild(gb);
 			// הטאבים של הקבוצה - תמיד ב-DOM (המונים שלהם מתעדכנים גם כשהקבוצה סגורה).
@@ -1244,6 +1301,10 @@
 			['review', 'לבדיקה', '#D9B44A'], ['problem', 'בעיה ודאית', '#C1634A'], ['unscanned', 'טרם נסרק', '#3A4A52']]
 	};
 	var WF_LEVEL_LABELS = { review_medium_up: 'חשד בינוני וגבוה' };
+	if (DB_ID === 'v2') {
+		WF_LEVEL_OPTIONS.ctx.push(['stale', 'תוצאה ישנה']);
+		WF_LEVEL_OPTIONS.list.push(['stale', 'תוצאה ישנה']);
+	}
 	WF_LEVEL_OPTIONS.ctx.concat(WF_LEVEL_OPTIONS.list).forEach(function (o) { WF_LEVEL_LABELS[o[0]] = o[1]; });
 
 	function buildEasyImportFilters(side, cfg) {
@@ -1471,7 +1532,7 @@
 		wfSummary.forEach(function (r) {
 			if (wfSummaryPasses(r, 'level')) WF_LEVEL_OPTIONS[wfMethod].forEach(function (o) { if (wfLevelMatches(r, o[0])) add('level:' + o[0], r.n); });
 			if (wfSummaryPasses(r, 'dict')) add('dict:' + (r.dictionary ? 'only' : 'without'), r.n);
-			if (wfSummaryPasses(r, 'img')) add('img:' + (r.has_images ? 'with' : 'without'), r.n);
+			if (r.has_images !== null && r.has_images !== undefined && wfSummaryPasses(r, 'img')) add('img:' + (r.has_images ? 'with' : 'without'), r.n);
 			if (wfSummaryPasses(r, 'topic') && r.topic) {
 				add('topic:' + r.topic, r.n);
 				WF_TOPIC_GROUPS.forEach(function (g, gi) { if (g.items.some(function (it) { return it[0] === r.topic; })) add('tgroup:' + gi, r.n); });
@@ -1526,7 +1587,7 @@
 
 	function applyContentLevelFilter() {
 		['verdict', 'verdict_suggested', 'ctx_verdict', 'ctx_verdict_suggested', 'ctx_suspicion', 'ctx_suspicion_suggested',
-			'hidden_count', 'hidden_count_suggested', 'names_count', 'names_count_suggested', 'dictionary', 'topic', 'has_images', 'created_at', 'mechalol_redirect_exists', 'easy_import_length']
+			'scan_state', 'hidden_count', 'hidden_count_suggested', 'names_count', 'names_count_suggested', 'dictionary', 'topic', 'has_images', 'created_at', 'mechalol_redirect_exists', 'easy_import_length']
 			.forEach(function (c) { delete activeFilters[c]; });
 		if (wfTopicChoice.length) activeFilters.topic = { op: 'in', value: '(' + wfTopicChoice.join(',') + ')' };
 		if (wfDictChoice) activeFilters.dictionary = { op: wfDictChoice === 'only' ? 'not.is' : 'is', value: 'null' };
@@ -1540,6 +1601,10 @@
 		var col = wfColumn(), v = wfLevelChoice;
 		if (!v) return;
 		var sub = /^review_(high|medium|low|medium_up)$/.exec(v);
+		if (DB_ID === 'v2') {
+			if (v === 'unscanned' || v === 'stale') { activeFilters.scan_state = { op: 'eq', value: v === 'unscanned' ? 'not_scanned' : 'stale' }; return; }
+			activeFilters.scan_state = { op: 'eq', value: 'scanned' };
+		}
 		if (v === 'unscanned') activeFilters[col] = { op: 'is', value: 'null' };
 		else if (v === 'clean_wording') activeFilters[col] = { op: 'in', value: '(clean,wording)' };
 		else if (sub) {
@@ -1563,12 +1628,14 @@
 		{ key: null, label: 'טרם נסרק', color: '#3A4A52', filter: 'unscanned' }
 	];
 
+	if (DB_ID === 'v2') WF_METER_SEGMENTS.push({ key: 'stale', label: 'תוצאה ישנה', color: '#7C8C99', filter: 'stale' });
+
 	function loadWfSummary(force) {
 		if (wfSummary && !force) return Promise.resolve(wfSummary);
 		// בדפים של 1,000 שורות - סופבייס מגביל תשובה אחת (max rows).
 		var rows = [];
 		function page(from) {
-			return pgSelect('report_missing_word_filter_summary', { filterParams: [], order: 'n.desc,redirect.asc,has_images.asc,verdict.asc,verdict_suggested.asc,ctx_verdict.asc,ctx_suspicion.asc,ctx_verdict_suggested.asc,ctx_suspicion_suggested.asc,dictionary.asc,topic.asc', from: from, to: from + 999 })
+			return pgSelect('report_missing_word_filter_summary', { filterParams: [], order: 'n.desc,redirect.asc,has_images.asc,verdict.asc,verdict_suggested.asc,ctx_verdict.asc,ctx_suspicion.asc,ctx_verdict_suggested.asc,ctx_suspicion_suggested.asc,dictionary.asc,topic.asc' + (DB_ID === 'v2' ? ',scan_state.asc' : ''), from: from, to: from + 999 })
 				.then(function (res) {
 					var data = res.data || [];
 					rows = rows.concat(data);
@@ -1669,7 +1736,6 @@
 		var btn = $id('mchl-refresh-btn');
 		// רענון מלא: גם הפרטים שנטענו (הקשר, הפניות) נשלפים מחדש.
 		wfDetailsCache.clear();
-		if (updateMod) updateMod.clear();
 		mechalolRedirectTargetCache.clear();
 		btn.classList.add('mchl-spinning');
 		wfSummary = null;
@@ -1688,6 +1754,7 @@
 	}
 
 	function fetchLastSyncTime() {
+		if (DB_ID === 'v2') return pgSelect('v_sync_status', { filterParams: [['kind', 'eq.sync']], from: 0, to: 0 }).then(function (res) { return res.data[0] ? res.data[0].last_success_at : null; });
 		return withRetry(function () {
 			// זמן הריצה האחרונה של העדכון הלילי (sync_watermarks, שתי שורות).
 			// קודם: מיון כל wikipedia_pages לפי checked_at - סריקה מלאה של
@@ -1723,7 +1790,7 @@
 	// ===== ספירות: רק לקבוצה הפעילה, והערך האחרון השמור מוצג עד הרענון =====
 	// פתיחת הדשבורד לא סופרת עוד את כל הלשוניות: ספירות של קבוצה נטענות כשהיא נפתחת (switchTab), ורענון סופר רק את הפעילה.
 	// הערך האחרון נשמר ב-localStorage (בדפדפן של כל משתמש) ומוצג מיד, מעומעם ועם זמן העדכון, עד שהספירה החיה חוזרת.
-	var COUNTS_CACHE_KEY = 'mchl-counts-cache';
+	var COUNTS_CACHE_KEY = 'mchl-counts-cache:' + DB_ID;
 	var countsLoaded = {}; // group key -> true אחרי שנטענו הספירות שלה במחזור הנוכחי
 	function readCountCache() { try { return JSON.parse(localStorage.getItem(COUNTS_CACHE_KEY) || '{}') || {}; } catch (e) { return {}; } }
 	function writeCountCache(id, val) {
@@ -1764,8 +1831,8 @@
 			return pgCount(d.table, viewCfg ? baseFiltersOf(viewCfg) : null, undefined, d.estimated).then(function (val) {
 				statValues[d.key] = val;
 				// ספירה משוערת (מהמתכנן) מסומנת ב-~ ובתיאור.
-				$id(d.statId).textContent = (d.estimated ? '~' : '') + val.toLocaleString('he-IL');
-				$id(d.statId).title = d.estimated ? 'ספירה משוערת' : '';
+				$id(d.statId).textContent = (d.estimated && DB_ID === 'v1' ? '~' : '') + val.toLocaleString('he-IL');
+				$id(d.statId).title = d.estimated && DB_ID === 'v1' ? 'ספירה משוערת' : '';
 				if (d.tabCount) setCountBadge(d.tabCount, val);
 			}).catch(function (e) {
 				statValues[d.key] = null;
@@ -1792,7 +1859,7 @@
 			});
 		});
 		var fns = jobs;
-		if (isStats) {
+		if (isStats && DB_ID === 'v1') {
 			// "תואמים" = דפי מכלול עם קישור לוויקיפדיה, *פחות* אלה שגם מופיעים
 			// במשימות הגרסה (למשל "העברת שם" - מקושרים אבל עדיין משימה),
 			// אחרת הם נספרים פעמיים בפס.
@@ -1801,7 +1868,7 @@
 			fns = [matchedJob, tasksLinkedJob].concat(jobs);
 		}
 		return runLimited(fns, STATS_CONCURRENCY).then(function (results) {
-			if (!isStats) return;
+			if (!isStats || DB_ID === 'v2') return;
 			var matched = (results[0] != null && results[1] != null) ? results[0] - results[1] : null;
 			var tasks = statValues.tasks, missing = statValues.missing;
 			if (matched != null && tasks != null && missing != null) {
@@ -1822,7 +1889,7 @@
 		$id('mchl-pager').style.display = 'none';
 		var cfg = VIEWS[activeTab];
 		var from = currentPage * pageSize, to = from + pageSize - 1;
-		return pgSelect(cfg.view, { filterParams: buildFilterParams(), order: cfg.order || 'title.asc', from: from, to: to }).then(function (res) {
+		return pgSelect(cfg.view, { filterParams: buildFilterParams(), order: stableOrder(cfg), from: from, to: to }).then(function (res) {
 			if (myRequestId !== loadRequestId) return;
 			currentPageRows = res.data || [];
 			countUnknown = res.count == null;
@@ -1836,7 +1903,6 @@
 			loadWikidataDescriptionsForCurrentPage();
 			loadRedirectTargetsForCurrentPage();
 			markExistingInMechalol();
-			ensureUpdateForTab(cfg);
 		}).catch(function (e) {
 			if (myRequestId !== loadRequestId) return;
 			// אם זו שגיאה שנראית כמו חלון העדכון השבועי ועוד לא ניסינו
@@ -2034,7 +2100,7 @@
 
 	// ===== קביעת גרסת מקור מתוך הדשבורד =====
 	// הלוגיקה (איתור תבנית, חישוב השינוי, חיפוש הגרסה בוויקיפדיה) היא של הסקריפט "משתמש:גאון הירדן/הוספת תאריך למיון ויקיפדיה.js"
-	// (עותק בריפו: gadget/gadget-sortTemplateFix.js). הדשבורד לא מעתיק אותה: הוא טוען את הסקריפט מהאתר כמו את מודול העדכון,
+	// (עותק בריפו: gadget/gadget-sortTemplateFix.js). הדשבורד לא מעתיק אותה: הוא טוען את הסקריפט מהאתר.
 	// והסקריפט חושף אותה ב-mw.sortTemplateFix. כאן רק הממשק: היסטוריית הערך, בחירת שורת הייבוא, תצוגה מקדימה ושמירה באישור.
 	var SORT_FIX_SCRIPT_PAGE = 'משתמש:גאון הירדן/הוספת תאריך למיון ויקיפדיה.js';
 	var sortFixPromise = null;
@@ -2273,7 +2339,8 @@
 	function effectiveColumns(cfg) {
 		// עמודת השיוך הידני מתווספת רק בטאב "חסר במכלול", ורק כש-
 		// יש חיבור פעיל - לא כל מבקר בטאב הזה אמור לראות אותה בכלל.
-		var cols = cfg.displayColumns || cfg.columns;
+		var cols = (cfg.displayColumns || cfg.columns).slice();
+		if (DB_ID === 'v2' && cfg.manualMatch && serviceKeyConnected) cols.push('exclude_action');
 		if (VIEWS[activeTab] && VIEWS[activeTab].manualMatch && serviceKeyConnected) {
 			var at = cols.indexOf('import_action');
 			return at < 0 ? cols.concat(['manual_match_action']) : cols.slice(0, at).concat(['manual_match_action'], cols.slice(at));
@@ -2281,65 +2348,23 @@
 		return cols;
 	}
 
-	// ===== טאב "עדכון": הקוד ב-gadget-searchHelperDashboard-update.js, נטען כשנפתח הטאב =====
-	// המודול קורא את מה שהדשבורד חושף ב-window.mchlDash, ורושם בו את mchlDash.update.
-	var UPDATE_MODULE_PAGE = 'משתמש:בוט גאון הירדן/dashboard.js/update.js';
-	var updateMod = null;
-	var updateModPromise = null;
-	function loadUpdateModule() {
-		if (!updateModPromise) {
-			window.mchlDash = {
-				escapeHtml: escapeHtml, withRetry: withRetry, batches: batches, mwApiFetch: mwApiFetch, mechalolEditUrl: mechalolEditUrl,
-				pgHeaders: pgHeaders, $id: $id, SUPABASE_URL: SUPABASE_URL, getImportReplacements: getImportReplacements,
-				activeTab: function () { return activeTab; }, cfg: function () { return VIEWS[activeTab]; }, rows: function () { return currentPageRows; }
-			};
-			updateModPromise = Promise.resolve(mw.loader.getScript(mw.util.wikiScript('index') + '?title=' + encodeURIComponent(UPDATE_MODULE_PAGE) + '&action=raw&ctype=text/javascript')).then(function () {
-				if (!window.mchlDash.update) throw new Error('המודול נטען אבל לא נרשם');
-				return (updateMod = window.mchlDash.update);
-			});
-			updateModPromise.catch(function () { updateModPromise = null; });
-		}
-		return updateModPromise;
-	}
-	// בפתיחת טאב שזקוק למודול: טוענים, מציירים מחדש (כותרת ותאים מלאים) ומפעילים את המידע החי.
-	function ensureUpdateForTab(cfg) {
-		if (!cfg.liveChange && !cfg.freshness) return;
-		var myTab = activeTab, wasLoaded = !!updateMod;
-		loadUpdateModule().then(function (mod) {
-			if (activeTab !== myTab) return;
-			if (!wasLoaded) renderTable();
-			if (cfg.freshness) mod.loadFreshness();
-			mod.loadInfo();
-		}, function (e) {
-			var el = $id('mchl-update-fresh');
-			if (el) el.innerHTML = '<span class="mchl-badge mchl-alert">מודול העדכון לא נטען: ' + escapeHtml(e && e.message ? e.message : e) + '</span>';
-		});
-	}
-	function updateRowIsSame(row) { return updateMod ? updateMod.isSame(row) : false; }
-	function renderUpdateChange(row) { return updateMod ? updateMod.renderChange(row) : '<span class="mchl-skeleton" style="display:inline-block;height:12px;width:70%;">&nbsp;</span>'; }
-	function updateBannerHtml(cfg) {
-		if (updateMod) return updateMod.bannerHtml(cfg);
-		return cfg.freshness ? '<div class="mchl-update-note"><span id="mchl-update-fresh"><span class="mchl-muted">טוען את מודול העדכון…</span></span></div>' : '';
-	}
-	function toggleUpdatePanel(btn) { if (updateMod) updateMod.togglePanel(btn); }
-	function openUpdateMerge(btn) { if (updateMod) updateMod.openMerge(btn); }
 	function renderTable() {
 		var cfg = VIEWS[activeTab];
 		var columns = effectiveColumns(cfg);
-		var banner = updateBannerHtml(cfg);
+		var banner = '';
 		if (currentPageRows.length === 0) {
 			$id('mchl-table-target').innerHTML = banner + '<div class="mchl-state"><div class="mchl-big">אין תוצאות</div>אין שורות התואמות לסינון הנוכחי.</div>';
 			return;
 		}
 		var allOnPageSelected = currentPageRows.every(function (r) { return selectedRows.has(rowKey(r)); });
 		var thead = '<tr><th class="mchl-chk-col"><input type="checkbox" data-action="toggle-page-selection" ' + (allOnPageSelected ? 'checked' : '') + '></th>' +
-			columns.map(function (c) { return '<th' + (c === 'import_action' || c === 'expand' || c === 'update_action' || c === 'fix_source_action' ? ' class="mchl-narrow-col"' : '') + '>' + escapeHtml(c in COLUMN_LABELS ? COLUMN_LABELS[c] : c) + '</th>'; }).join('') + '</tr>';
+			columns.map(function (c) { return '<th' + (c === 'import_action' || c === 'expand' || c === 'fix_source_action' ? ' class="mchl-narrow-col"' : '') + '>' + escapeHtml(c in COLUMN_LABELS ? COLUMN_LABELS[c] : c) + '</th>'; }).join('') + '</tr>';
 		var tbody = currentPageRows.map(function (r) {
 			var selected = selectedRows.has(rowKey(r));
 			var expandable = columns.indexOf('expand') >= 0 && wfHasDetails(r);
-			return '<tr class="' + (selected ? 'mchl-selected' : '') + (expandable ? ' mchl-expandable' : '') + (updateRowIsSame(r) ? ' mchl-upd-same' : '') + '">' +
+			return '<tr class="' + (selected ? 'mchl-selected' : '') + (expandable ? ' mchl-expandable' : '') + '">' +
 				'<td class="mchl-chk-col" data-label=""><input type="checkbox" data-action="toggle-row-selection" data-row-id="' + escapeHtml(rowIdOf(r)) + '" ' + (selected ? 'checked' : '') + '></td>' +
-				columns.map(function (c) { return '<td data-label="' + escapeHtml(COLUMN_LABELS[c] || c) + '">' + renderCell(c, r) + '</td>'; }).join('') + '</tr>';
+				columns.map(function (c) { return '<td data-label="' + escapeHtml(c in COLUMN_LABELS ? COLUMN_LABELS[c] : c) + '">' + renderCell(c, r) + '</td>'; }).join('') + '</tr>';
 		}).join('');
 		$id('mchl-table-target').innerHTML = banner + '<table><thead>' + thead + '</thead><tbody>' + tbody + '</tbody></table>';
 		paintExisting();
@@ -2350,7 +2375,8 @@
 		if (col === 'title') {
 			var linkMode = VIEWS[activeTab].titleLink;
 			// בקריאה, לא בעריכה: לפי מזהה דף המכלול; בטאב "נעולים" לפי mechalol_id, ודף שעוד לא קיים (נעול ליצירה) לפי הכותרת
-			var url = linkMode === 'edit' ? mechalolEditUrl(val)
+			var url = row.site === 'wikipedia' ? (row.wikipedia_id ? wikipediaUrl(row.wikipedia_id) : 'https://he.wikipedia.org/wiki/' + encodeURIComponent(val))
+				: linkMode === 'edit' ? mechalolEditUrl(val)
 				: linkMode === 'mechalol-read' ? (row.mechalol_id ? mechalolUrl(row.mechalol_id) : mechalolReadUrl(val))
 				: mechalolUrl(row.id);
 			var link = '<span class="mchl-title"><a href="' + url + '" target="_blank" rel="noopener">' + escapeHtml(val) + '</a></span>';
@@ -2358,6 +2384,9 @@
 			if (VIEWS[activeTab].displayColumns && VIEWS[activeTab].wikidata) link += '<div class="mchl-row-desc">' + renderCell('wikidata_desc', row) + '</div>';
 			return link;
 		}
+		if (col === 'health') return escapeHtml(({ ok: 'תקין', stale: 'ישן', stuck: 'תקוע', never: 'טרם רץ' })[val] || val || '');
+		if (col === 'outcome') return escapeHtml(({ unresolved: 'כותרת לא קיימת', denied: 'דף נעול' })[val] || val || '');
+		if (col === 'exclude_action') return '<button class="mchl-export-btn" data-action="exclude" data-id="' + row.id + '">החרגה</button>';
 		if (col === 'topic') {
 			if (row.dictionary) return '<span class="mchl-badge mchl-neutral" title="' + escapeHtml('מועמד לייבוא מילוני: ' + (row.dictionary_why || '')) + '">מילוני: ' + escapeHtml(row.dictionary) + '</span>';
 			return row.topic && WF_TOPIC_LABELS[row.topic] ? '<span class="mchl-topic-cell">' + escapeHtml(WF_TOPIC_LABELS[row.topic]) + '</span>' : '<span class="mchl-muted">—</span>';
@@ -2375,15 +2404,7 @@
 		if (col === 'expand') {
 			return wfHasDetails(row) ? '<button type="button" class="mchl-expand-btn" data-action="wf-details" data-id="' + row.id + '" title="פרטים: המילים במשפט שלהן, הקוד המוסתר והתמונות" aria-expanded="false">▾</button>' : '';
 		}
-		if (col === 'update_date') {
-			if (!row.sort_template_date) return '<span class="mchl-muted">ללא תאריך</span>';
-			var updDate = new Date(row.sort_template_date + 'T00:00:00');
-			return '<span class="mchl-num-cell" title="חודש העדכון המתועד בתבנית {{מיון ויקיפדיה}} (תאריך=)">' +
-				escapeHtml(updDate.toLocaleDateString('he-IL', { month: 'long', year: 'numeric' })) + '</span>';
-		}
-		if (col === 'update_change') return renderUpdateChange(row);
 		if (col === 'fix_source_action') return '<button type="button" class="mchl-import-btn" data-action="fix-source-open" data-title="' + escapeHtml(row.title) + '" title="פותח כאן את היסטוריית הערך: בוחרים את שורת הייבוא והכלי קובע גרסה ותאריך (נשמר רק באישור)">קבע גרסה</button>';
-		if (col === 'update_action') return '<button type="button" class="mchl-import-btn" data-action="update-open" data-id="' + row.id + '" title="השוואה ומיזוג של מה שהתחדש בוויקיפדיה, ופתיחת טופס העריכה במכלול">עדכן</button>';
 		if (col === 'wikipedia_title') return '<span class="mchl-title"><a href="' + wikipediaUrl(row.wikipedia_id) + '" target="_blank" rel="noopener">' + escapeHtml(val) + '</a></span>';
 		if (col === 'mechalol_title') return '<a href="' + mechalolUrl(row.mechalol_id) + '" target="_blank" rel="noopener">' + escapeHtml(val) + '</a>';
 		if (col === 'mechalol_status') return '<span class="mchl-badge mchl-neutral">' + escapeHtml(val) + '</span>';
@@ -2513,7 +2534,7 @@
 		var row = currentPageRows.find(function (r) { return String(r.id) === id; });
 		loadContentDetails(id).then(function (d) {
 			// מנהל מחובר - גם הסימונים שלו (✗/✓), כדי להציג אותם ליד כל מילה.
-			return (serviceKeyConnected ? loadWfFeedback(id).catch(function () { return null; }) : Promise.resolve(null))
+			return (serviceKeyConnected ? loadWfFeedback(id) : Promise.resolve(null))
 				.then(function () { return d; });
 		}).then(function (d) {
 			box.classList.remove('mchl-muted');
@@ -2551,9 +2572,17 @@
 	function wfMatchKey(m) { return m.line + ':' + m.x + ':' + (m.e || []).slice().sort().join(','); }
 	function loadWfFeedback(id) {
 		var params = new URLSearchParams();
+		if (DB_ID === 'v1') {
+			var session = null;
+			try { session = JSON.parse(sessionStorage.getItem(SESSION_STORAGE_KEY)); } catch (e) { /* handled below */ }
+			var userId = sessionUserId(session);
+			if (!userId) return Promise.reject(new Error('פג תוקף ההתחברות - יש להתחבר מחדש בפאנל הניהול.'));
+			params.set('user_id', 'eq.' + userId);
+		}
 		params.set('select', 'match_key,label');
 		params.set('wikipedia_id', 'eq.' + id);
-		return fetch(SUPABASE_URL + '/rest/v1/word_filter_feedback?' + params.toString(), { headers: authHeaders() })
+		function send() { return fetch(SUPABASE_URL + '/rest/v1/word_filter_feedback?' + params.toString(), { headers: authHeaders() }); }
+		return send().then(function (res) { return res.status === 401 ? refreshAuthSession().then(send) : res; })
 			.then(function (res) {
 				if (!res.ok) return res.text().then(function (t) { throw makePgError(res.status, t); });
 				return res.json();
@@ -2588,22 +2617,10 @@
 		var mode = wfMode;
 		var level = m.h ? m[mode] : (wfMethod === 'ctx' && m['c' + mode] != null ? m['c' + mode] : m[mode]);
 		var send = function () {
-			if (unmark) {
-				var q = new URLSearchParams();
-				q.set('wikipedia_id', 'eq.' + id);
-				q.set('match_key', 'eq.' + key);
-				return fetch(SUPABASE_URL + '/rest/v1/word_filter_feedback?' + q.toString(), {
-					method: 'DELETE', headers: authHeaders({ Prefer: 'return=minimal' })
-				});
-			}
-			return fetch(SUPABASE_URL + '/rest/v1/word_filter_feedback?on_conflict=wikipedia_id,match_key,user_id', {
-				method: 'POST',
-				headers: authHeaders({ 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' }),
-				body: JSON.stringify({
-					wikipedia_id: Number(id), title: row ? row.title : null, match_key: key, word: m.x, entries: m.e || [],
-					topic: m.t || null, hidden: m.h || null, label: label, level: level || null,
-					before: m.b || null, after: m.f || null, lists_version: d.lists_version || null
-				})
+			return sendDatabaseWrite(unmark ? 'unmark' : 'feedback', {
+				wikipedia_id: Number(id), title: row ? row.title : null, match_key: key, word: m.x, entries: m.e || [],
+				topic: m.t || null, hidden: m.h || null, label: label, level: level || null,
+				before: m.b || null, after: m.f || null, lists_version: d.lists_version || null
 			});
 		};
 		var group = btn.parentNode;
@@ -2612,7 +2629,7 @@
 			if (res.status !== 401) return res;
 			return refreshAuthSession().then(send);
 		}).then(function (res) {
-			if (res.status === 403) throw new Error('החשבון המחובר אינו ברשימת המורשים (manual_match_admins).');
+			if (res.status === 403) throw new Error(DB_ID === 'v2' ? 'אין לך הרשאות לגשת לכלי זה.' : 'החשבון המחובר אינו ברשימת המורשים (manual_match_admins).');
 			if (!res.ok) return res.text().then(function (t) { throw new Error('HTTP ' + res.status + ': ' + t); });
 			if (unmark) delete marks[key]; else marks[key] = label;
 			wfFeedbackCache.set(String(id), marks);
@@ -2841,7 +2858,7 @@
 			linkBtn.style.display = 'none';
 		}
 		// כפתור הנעילה רלוונטי רק בטאב "חסר במכלול", וגם רק כשיש "חיבור"
-		// (ראו saveServiceKey - עדיין לא אימות אמיתי, רק שער נראות)
+		// לאחר בדיקת הרשאות מול המסד; הנראות אינה תחליף לאכיפה בצד השרת.
 		// - בלי מפתח שמור, הכפתור לא מוצג בכלל, גם אם יש שורות נבחרות.
 		var lockBtn = $id('mchl-lock-titles-btn');
 		lockBtn.style.display = (n > 0 && VIEWS[activeTab] && VIEWS[activeTab].lockable && serviceKeyConnected) ? 'inline' : 'none';
@@ -3104,13 +3121,7 @@
 		// (authHeaders), לא מפתח ה-anon. שני ה-id-ים כבר ידועים (מהשורה
 		// עצמה + מההצעה שנבחרה) - בניגוד לגרסה הישנה, אין כאן שלב חיפוש
 		// נפרד לפני הכתיבה.
-		var postMatch = function () {
-			return fetch(SUPABASE_URL + '/rest/v1/manual_matches', {
-				method: 'POST',
-				headers: authHeaders({ 'Content-Type': 'application/json', Prefer: 'return=minimal' }),
-				body: JSON.stringify({ mechalol_page_id: mechalolId, wikipedia_page_id: wikipediaId })
-			});
-		};
+		var postMatch = function () { return sendDatabaseWrite('manual', { mechId: mechalolId, wikiId: wikipediaId }); };
 		// טוקן הגישה של Supabase Auth פג אחרי שעה - על 401 מחדשים פעם
 		// אחת עם ה-refresh_token השמור ומנסים שוב.
 		postMatch().then(function (res) {
@@ -3118,7 +3129,7 @@
 			return refreshAuthSession().then(postMatch);
 		}).then(function (res) {
 			if (res.status === 403) {
-				throw new Error('החשבון המחובר אינו ברשימת המורשים לשיוך ידני (manual_match_admins).');
+				throw new Error(DB_ID === 'v2' ? 'אין לך הרשאות לגשת לכלי זה.' : 'החשבון המחובר אינו ברשימת המורשים לשיוך ידני (manual_match_admins).');
 			}
 			if (!res.ok) return res.text().then(function (t) { throw new Error('HTTP ' + res.status + ': ' + t); });
 			cell.innerHTML = '<span class="mchl-badge mchl-wiki">✓ שויך ל-"' + escapeHtml(mechalolTitle) + '"</span>' +
@@ -3147,7 +3158,7 @@
 	var maintPolling = false;
 	function syncMaintRow() {
 		var row = $id('mchl-maint-row');
-		if (row) row.style.display = serviceKeyConnected ? '' : 'none';
+		if (row) row.style.display = serviceKeyConnected && DB.maintenance ? '' : 'none';
 	}
 	function maintRpc(name) {
 		var send = function () {
@@ -3159,12 +3170,13 @@
 			if (res.status !== 401) return res;
 			return refreshAuthSession().then(send);
 		}).then(function (res) {
-			if (res.status === 403 || res.status === 401) throw new Error('החשבון המחובר אינו ברשימת המורשים (manual_match_admins).');
+			if (res.status === 403 || res.status === 401) throw new Error(DB_ID === 'v2' ? 'אין לך הרשאות לגשת לכלי זה.' : 'החשבון המחובר אינו ברשימת המורשים (manual_match_admins).');
 			if (!res.ok) return res.text().then(function (t) { throw makePgError(res.status, t); });
 			return res.json();
 		});
 	}
 	function maintRefresh(btn) {
+		if (!DB.maintenance || !serviceKeyConnected) return;
 		if (maintPolling) return;
 		var statusEl = $id('mchl-admin-status');
 		var original = btn.textContent;
@@ -3238,23 +3250,25 @@
 			sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({
 				access_token: result.data.access_token,
 				refresh_token: result.data.refresh_token,
+				user_id: result.data.user && result.data.user.id,
 				email: email
 			}));
-			serviceKeyConnected = true;
-			statusEl.textContent = 'התחברות בוצעה בהצלחה.';
-			syncMaintRow();
-			statusEl.className = 'mchl-muted mchl-success';
-			updateSelectionBar();
-			syncAuthTabs();
-			// אם כבר נמצאים בטאב עם עמודת שיוך ידני ("חסר במכלול"/"קיים כהפניה") - מרעננים
-			// כדי שעמודת השיוך הידני תופיע בלי לחכות למעבר טאב.
-			if (VIEWS[activeTab] && VIEWS[activeTab].manualMatch) renderTable();
-			// נסגר לבד אחרי שהמחוון הראה הצלחה לרגע - לא נשאר פתוח סתם.
-			sleep(1200).then(function () { $id('mchl-admin-panel').style.display = 'none'; });
-		}).catch(function () {
+			return checkAdminSession().then(function () {
+				statusEl.textContent = 'התחברות בוצעה בהצלחה.';
+				syncMaintRow();
+				statusEl.className = 'mchl-muted mchl-success';
+				updateSelectionBar();
+				syncAuthTabs();
+				// אם כבר נמצאים בטאב עם עמודת שיוך ידני ("חסר במכלול"/"קיים כהפניה") - מרעננים
+				// כדי שעמודת השיוך הידני תופיע בלי לחכות למעבר טאב.
+				if (VIEWS[activeTab] && VIEWS[activeTab].manualMatch) renderTable();
+				// נסגר לבד אחרי שהמחוון הראה הצלחה לרגע - לא נשאר פתוח סתם.
+				sleep(1200).then(function () { $id('mchl-admin-panel').style.display = 'none'; });
+			});
+		}).catch(function (e) {
 			btn.disabled = false;
 			serviceKeyConnected = false;
-			statusEl.textContent = 'שגיאת רשת בהתחברות - נסה שוב.';
+			statusEl.textContent = e.message || 'שגיאת רשת בהתחברות - נסה שוב.';
 			statusEl.className = 'mchl-muted mchl-alert';
 			updateSelectionBar();
 			syncAuthTabs();
@@ -3286,25 +3300,44 @@
 			sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({
 				access_token: result.data.access_token,
 				refresh_token: result.data.refresh_token,
+				user_id: (result.data.user && result.data.user.id) || sessionUserId(stored),
 				email: stored.email
 			}));
 		});
 	}
 
-	// בדיקה בטעינת הדף אם כבר יש סשן שמור מקודם באותו טאב (sessionStorage
-	// לא מאומת מחדש מול השרת כאן - רק "יש טוקן שמור"; אם פג תוקפו, הקריאה
-	// הראשונה שתשתמש בו תחדש אותו דרך refreshAuthSession).
+	function checkAdminSession() {
+		serviceKeyConnected = false;
+		return maintRpc(DB.adminRpc).then(function (allowed) {
+			serviceKeyConnected = allowed === true;
+			syncMaintRow(); updateSelectionBar(); syncAuthTabs();
+			if (VIEWS[activeTab] && VIEWS[activeTab].manualMatch) renderTable();
+			if (!allowed) throw new Error('אין לך הרשאות לגשת לכלי זה.');
+		});
+	}
 	function restoreAuthSession() {
 		try {
 			var raw = sessionStorage.getItem(SESSION_STORAGE_KEY);
-			if (!raw) return;
-			var parsed = JSON.parse(raw);
-			if (parsed && parsed.access_token) serviceKeyConnected = true;
-		} catch (e) {
-			// שריד פגום ב-sessionStorage - מתעלמים, לא מחוברים.
-		}
+			if (!raw || !JSON.parse(raw).access_token) return;
+		} catch (e) { return; }
+		checkAdminSession().catch(function (e) {
+			serviceKeyConnected = false;
+			$id('mchl-admin-status').textContent = e.message;
+			syncMaintRow(); updateSelectionBar();
+		});
 	}
 
+	function excludeFromImport(btn) {
+		if (DB_ID !== 'v2' || !serviceKeyConnected) return;
+		var row = currentPageRows.filter(function (r) { return String(r.id) === btn.getAttribute('data-id'); })[0];
+		if (!row || !window.confirm('להחריג את "' + row.title + '" מהרשימה?')) return;
+		btn.disabled = true;
+		function send() { return sendDatabaseWrite('exclude', { wikiId: row.id, title: row.title }); }
+		send().then(function (res) { return res.status === 401 ? refreshAuthSession().then(send) : res; }).then(function (res) {
+			if (!res.ok) return res.text().then(function (text) { throw new Error(text); });
+			refreshAll();
+		}).catch(function (e) { btn.disabled = false; window.alert('ההחרגה נכשלה: ' + e.message); });
+	}
 
 	function wireEvents(root) {
 		root.addEventListener('click', function (e) {
@@ -3329,15 +3362,14 @@
 			else if (action === 'culture-back') { cultureState.selected = null; renderCulturePicker(); }
 			else if (action === 'culture-load-more') { if (!cultureState.loading) loadCultureMembers(); }
 			else if (action === 'lock-titles') lockSelectedTitles(el);
+			else if (action === 'exclude') excludeFromImport(el);
 			else if (action === 'assign-manual-match') assignManualMatch(el);
 			else if (action === 'pick-manual-match-suggestion') pickManualMatchSuggestion(el);
 			else if (action === 'toggle-admin-panel') toggleAdminPanel();
 			else if (action === 'auth-login') authLogin();
 			else if (action === 'maint-refresh') maintRefresh(el);
 			else if (action === 'wf-details') toggleContentDetails(el);
-			else if (action === 'update-open') toggleUpdatePanel(el);
 			else if (action === 'fix-source-open') fixSrc.toggle(el);
-			else if (action === 'update-merge-open') openUpdateMerge(el);
 			else if (action === 'import') importFromDashboard(el);
 			else if (action === 'req-filter') { requestsState.filter = el.getAttribute('data-v'); renderRequests(); }
 			else if (action === 'req-reply') replyToRequest(el);
@@ -3378,11 +3410,10 @@
         return Math.max(...groups.map(g => GROUP_LEVELS[g] || 0), 0);
       }
 
-	// דרגת ההרשאה הנדרשת כדי לראות את פאנל הניהול בכלל (מפתח סרוויס +
-	// עריכת התאמות ידניות בעתיד) - מעל sysop(20) ו-bot(18) בלבד. זו רק
+	// דרגת ההרשאה הנדרשת כדי לראות את פאנל הניהול - מעל sysop(20) ו-bot(18) בלבד. זו רק
 	// בדיקת-נראות בצד הלקוח (UX, "מי בכלל אמור לראות את זה") - היא
 	// *לא* שכבת אבטחה: כל מי שפותח כלי מפתחים יכול לעקוף אותה. ההגנה
-	// האמיתית (אם/כשתיבנה) חייבת לבוא מהמסד עצמו, לא מכאן.
+	// האמיתית נאכפת במסד ובבדיקת RPC לאחר ההתחברות.
 	var ADMIN_LEVEL_THRESHOLD = 17;
 	// ===== העיצוב: gadget-searchHelperDashboard.css, נטען מדף באתר =====
 	var CSS_PAGE = 'משתמש:בוט גאון הירדן/dashboard.css';
@@ -3403,6 +3434,7 @@
 		'<div class="mchl-top-title"><div class="mchl-h1">ויקיפדיה העברית <span class="mchl-arrow">↔</span> <span class="mchl-mch">המכלול</span></div>' +
 		'<div class="mchl-sync-note" id="mchl-sync-note">נבדק לאחרונה —</div></div>' +
 		'<div class="mchl-top-actions">' +
+		'<select id="mchl-db-select" class="mchl-page-size"><option value="v1">V1</option><option value="v2">V2</option></select>' +
 		'<button type="button" class="mchl-refresh" id="mchl-admin-toggle-btn" data-action="toggle-admin-panel" style="display:none;">⚙ ניהול</button>' +
 		'<button type="button" class="mchl-refresh" id="mchl-refresh-btn" data-action="refresh"><span class="mchl-dot"></span> רענון</button></div>' +
 		'</header>' +
@@ -3472,6 +3504,7 @@
 		'<footer class="mchl-footer">הנתונים מתעדכנים אוטומטית כל לילה (עדכון מצטבר) ובכל מוצאי שבת (סנכרון מלא)</footer>';
 
 	function init() {
+		if (document.getElementById('mchl-dash')) return;
     	var groups = mw.config.get('wgUserGroups') || [];
     	var level = getLevel(groups);
     	userLevel = level;
@@ -3488,10 +3521,21 @@
 		contentEl.innerHTML = '';
 		contentEl.appendChild(container);
 		applyTheme();
+		$id('mchl-db-select').value = DB_ID;
+		$id('mchl-db-select').addEventListener('change', function (e) {
+			var url = new URL(window.location.href);
+			url.searchParams.set('mchlDb', e.target.value);
+			window.location.assign(url.href);
+		});
+		if (DB_ID === 'v2') {
+			$id('mchl-ledger-bar').style.display = 'none';
+			container.querySelector('.mchl-ledger-legend').style.display = 'none';
+			container.querySelector('.mchl-footer').textContent = 'V2';
+		}
 		container.style.visibility = 'hidden';
 		loadDashboardCss(function () { container.style.visibility = ''; });
 
-		// פאנל הניהול (מפתח סרוויס + בעתיד עריכת התאמות ידניות) - הכפתור
+		// פאנל הניהול (התחברות ופעולות מורשות) - הכפתור
 		// שפותח אותו קיים ב-HTML הסטטי עם display:none, ורק כאן, לפי
 		// level בפועל, הופך גלוי. זו עדיין רק בדיקת-נראות בצד הלקוח
 		// (מי שבודק את קוד המקור/ה-DOM עם כלי מפתחים יראה את זה בכל
