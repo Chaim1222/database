@@ -1,0 +1,21 @@
+name: Shared dashboard tests
+on:
+  pull_request:
+    paths:
+      - 'gadget/**'
+      - 'word-filter/**'
+      - '.github/workflows/dashboard_tests.yml'
+permissions:
+  contents: read
+jobs:
+  dashboard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - run: node --test gadget/tests/*.test.js word-filter/tests/*.test.js
+      - run: npm install --no-save --package-lock=false playwright@1.62.1
+      - run: npx playwright install --with-deps chromium
+      - run: node gadget/tests/dashboardBrowser.cjs
