@@ -22,7 +22,7 @@ from config import MECHALOL_API, WIKIPEDIA_API
 from delta_api import fetch_edited_page_ids
 from fetch_sort_templates import chunks, new_stats, pending_pages, process_pages
 from fetch_wikipedia_revisions import Writer, api_batch, collect_changes
-from mechalol_api import log, login
+from mechalol_api import log, login, session, api_get_with_retry
 
 OVERLAP = timedelta(minutes=5)
 PENDING_CAP = 2000
@@ -74,7 +74,7 @@ def save_failure(client, stream, error):
 
 def mechalol_step(client, since, batch):
     from supabase_client import execute_with_retry
-    edited = fetch_edited_page_ids(MECHALOL_API, iso(since - OVERLAP))
+    edited = fetch_edited_page_ids(MECHALOL_API, iso(since - OVERLAP), api_get=api_get_with_retry)
     edited_ids = sorted({row["page_id"] for row in edited})
     in_scope = []
     for chunk in chunks(edited_ids, LOOKUP_CHUNK):
@@ -147,9 +147,14 @@ def main():
 
     started = datetime.now(timezone.utc)
 
+    if not login():
+        raise SystemExit("העדכון השעתי נעצר: נדרשת התחברות למכלול")
+    # Reject expired sessions at the API, including recentchanges and content reads.
+    session.params["assert"] = "user"
+
     if args.dry_run:
         since = started - timedelta(minutes=args.since_minutes)
-        m_edits = fetch_edited_page_ids(MECHALOL_API, iso(since))
+        m_edits = fetch_edited_page_ids(MECHALOL_API, iso(since), api_get=api_get_with_retry)
         w_latest, w_edits = collect_changes(iso(since))
         log(f"DRY-RUN | מכלול: {len(m_edits)} עריכות ({len({r['page_id'] for r in m_edits})} דפים) | "
             f"ויקיפדיה: {w_edits} עריכות ({len(w_latest)} דפים) | מ-{iso(since)}")
@@ -157,7 +162,6 @@ def main():
 
     from supabase_client import get_client
     client = get_client()
-    login()
     failures = []
 
     for stream, step in (

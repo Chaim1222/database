@@ -51,7 +51,7 @@ def _api_get_with_retry(api_url, params, description):
             time.sleep(min(2 ** (attempt - 1), 30))
 
 
-def fetch_edited_page_ids(api_url, since_ts):
+def fetch_edited_page_ids(api_url, since_ts, *, api_get=None):
     """
     list=recentchanges, rcnamespace=0, rctype=edit (לא new/log) -
     כל עריכה "רגילה" (לא יצירה/מחיקה/העברה) בטווח. לשימוש בזיהוי שני
@@ -92,7 +92,10 @@ def fetch_edited_page_ids(api_url, since_ts):
         if rccontinue:
             params["rccontinue"] = rccontinue
 
-        data = _api_get_with_retry(api_url, params, "recentchanges (עריכות)")
+        data = (api_get(params, "recentchanges (עריכות)") if api_get is not None
+                else _api_get_with_retry(api_url, params, "recentchanges (עריכות)"))
+        if "error" in data:
+            raise RuntimeError(f"שגיאת API בגוף התשובה: {data['error']}")
 
         for rc in data.get("query", {}).get("recentchanges", []):
             results.append({"page_id": rc["pageid"], "title": rc["title"]})
