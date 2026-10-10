@@ -88,7 +88,10 @@ def api_get_with_retry(params, description):
         try:
             response = session.get(MECHALOL_API, params=params, timeout=(15, 60))
             response.raise_for_status()
-            return response.json()
+            data = response.json()
+            if data.get("error", {}).get("code") == "assertuserfailed":
+                raise RuntimeError("החיבור למכלול פג; הבקשה נעצרה")
+            return data
         except (requests.RequestException, ValueError) as exc:
             if attempt >= MAX_RETRIES:
                 log(f"ERROR | {description} | נכשל אחרי {MAX_RETRIES}: {exc}")

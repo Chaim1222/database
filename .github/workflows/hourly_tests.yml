@@ -1,0 +1,19 @@
+name: Hourly authentication tests
+on:
+  pull_request:
+    paths:
+      - 'scripts/**'
+      - 'requirements.txt'
+      - '.github/workflows/hourly_tests.yml'
+permissions:
+  contents: read
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - run: python -m unittest discover -s scripts/tests
