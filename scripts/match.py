@@ -17,6 +17,9 @@ normalization_checked, אין should_reexamine - כל אלה התייתרו לג
 2. נרמול סמנטי (מכלול -> ויקיפדיה בלבד, ראו normalize.py).
 3. {{מיון ויקיפדיה|דף=...}} - קריאת API באצוות, מוצא אחרון בלבד.
 
+אחרי ההתאמה: חישוב חסרים → עיבוד תור המחיקות ואישור כל אצווה אטומית → source_state.
+התור מעובד רק בטבלה הפעילה, ולא בזמן בניית המראה השבועית.
+
 חשוב: fetch_mechalol.py לא שולח match_type בעדכונים שוטפים (רק ב-INSERT
 ראשוני), כדי לא לדרוס התאמות שכבר בוצעו כאן.
 """
@@ -521,6 +524,23 @@ def _load_changed_ids(filename):
 # עיקרי
 # ---------------------------------------------------------------------------
 
+def drain_released_pages(client):
+    """Each RPC recomputes and acknowledges one durable deletion batch atomically."""
+    total = 0
+    while True:
+        result = execute_with_retry(
+            lambda: client.rpc("recompute_released_mechalol_pages").execute(),
+            "RECOMPUTE_RELEASED_MECHALOL_PAGES",
+        )
+        count = result.data
+        if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+            raise RuntimeError("Invalid released-page acknowledgement")
+        total += count
+        if count == 0:
+            return total
+        log(f"מחיקות מתמשכות | אושרו {count} שורות, סך הכול {total}")
+
+
 def main():
     import argparse
 
@@ -925,6 +945,10 @@ def main():
             lambda: client.rpc(rpc_name("recompute_missing_flag")).execute(),
             "RECOMPUTE_MISSING_FLAG",
         )
+
+    if table_name("mechalol_pages") == "mechalol_pages":
+        released_count = drain_released_pages(client)
+        log(f"מחיקות מתמשכות | חושבו ואושרו {released_count} שורות")
 
     recompute_elapsed = time.monotonic() - recompute_started
     log(f"שלב 2 הושלם | {recompute_elapsed:.1f} שנ'")

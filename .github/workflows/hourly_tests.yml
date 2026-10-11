@@ -4,6 +4,7 @@ on:
     paths:
       - 'scripts/**'
       - 'requirements.txt'
+      - 'migrations/20261011110000_delta_release_queue.sql'
       - '.github/workflows/hourly_tests.yml'
 permissions:
   contents: read
@@ -17,3 +18,20 @@ jobs:
           python-version: '3.12'
       - run: pip install -r requirements.txt
       - run: python -m unittest discover -s scripts/tests
+
+  delta_sql:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: PostgreSQL deletion/replay integration
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q postgresql
+          sudo systemctl start postgresql
+          sudo -u postgres createuser --superuser "$USER"
+          createdb -h /var/run/postgresql delta_release_test
+          DELTA_TEST_DB_URL="postgresql:///delta_release_test?host=/var/run/postgresql" python -m unittest discover -s scripts/tests -p test_delta_release_sql.py
+          dropdb -h /var/run/postgresql delta_release_test
