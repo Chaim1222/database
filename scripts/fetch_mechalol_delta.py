@@ -85,10 +85,10 @@ def find_tracked_ids(client, candidate_ids):
     return found
 
 
-def detect_edited_tracked_changes(client, since_ts, already_handled_ids, tagged=None):
+def detect_edited_tracked_changes(client, since_ts, already_handled_ids, tagged=None, renames=None):
     """
-    מזהה שני סוגי שינוי בדפי מכלול *במעקב אצלנו* שנערכו (לא נוצרו/
-    נמחקו/הועברו) - הפער המתועד בתכנון: "עריכה רגילה יכולה להפוך
+    מזהה שני סוגי שינוי בדפי מכלול *במעקב אצלנו* שנערכו או הועברו
+    (דפים שנוצרו או נמחקו מטופלים בנפרד) - הפער המתועד בתכנון: "עריכה רגילה יכולה להפוך
     ערך להפניה, או לתקן/להוסיף את תבנית {{מיון ויקיפדיה}}, בלי שום
     אירוע יצירה/מחיקה/העברה נלווה" (ראו fetch_edited_page_ids ב-
     delta_api.py):
@@ -111,6 +111,8 @@ def detect_edited_tracked_changes(client, since_ts, already_handled_ids, tagged=
     edited = fetch_edited_page_ids(MECHALOL_API, since_ts)
     # תגית mw-new-redirect (tagged) מצטרפת לסריקת כל העריכות, לא מחליפה אותה; "מהתגית בלבד" הוא מדד לכיסוי נוסף.
     edited, tag_only = union_candidates(edited, tagged or [])
+    # A move may change classification even without an edit event; use its final title.
+    edited += [{"page_id": i, "title": t} for i, t in final_titles_by_id(renames or []).items()]
     log(f"עריכות במעקב | מועמדים: {len(edited)} (מהתגית בלבד: {tag_only})")
     candidate_ids = {e["page_id"] for e in edited} - already_handled_ids
     if not candidate_ids:
@@ -647,10 +649,9 @@ def main():
         {c["page_id"] for c in all_creations if c.get("page_id")}
         | {d["page_id"] for d in deletions if d.get("page_id")}
         | {d["page_id"] for d in move_deletion_events if d.get("page_id")}
-        | {mv["page_id"] for mv in renames if mv.get("page_id")}
     )
     became_redirect, status_updates = detect_edited_tracked_changes(
-        client, since_ts, already_handled_ids, tagged=added_redirect
+        client, since_ts, already_handled_ids, tagged=added_redirect, renames=renames
     )
 
     all_deletions = deletions + move_deletion_events + became_redirect
