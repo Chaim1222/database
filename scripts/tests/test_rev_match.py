@@ -132,7 +132,8 @@ class ResolveTest(unittest.TestCase):
             revs = [int(r) for r in params["revids"].split("|")]
             calls.append(len(revs))
             pages = [{"pageid": r, "ns": 0, "title": f"p{r}", "revisions": [{"revid": r}]} for r in revs if r != 3]
-            return {"query": {"pages": pages}}
+            missing = {"3": {"revid": 3, "missing": True}} if 3 in revs else {}
+            return {"query": {"pages": pages, "badrevids": missing}}
 
         resolved = rm.resolve_many(fake_get, list(range(1, 121)), workers=3)
         self.assertEqual(sorted(calls), [20, 50, 50])

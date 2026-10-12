@@ -1,6 +1,7 @@
 import os
 import sys
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 os.environ.setdefault("SUPABASE_URL", "http://localhost")
@@ -62,6 +63,31 @@ def finding(mid, task, rev, linked, page_id, title):
 
 
 class ScanTest(unittest.TestCase):
+    def test_partial_reply_stops_before_writes_or_cleanup(self):
+        store = FakeStore(previous={99: finding(99, "bad_rev", 1, None, None, None)})
+        def incomplete(params):
+            return fake_get(params) if "revids" not in params else {"query": {}}
+        with self.assertRaises(RuntimeError):
+            rls.scan(store, incomplete, {100}, iter([[mrow(1, "חי", 100)]]), False, None, 1)
+        self.assertEqual((store.upserts, store.deletes), ([], set()))
+
+    def test_failed_later_batch_preserves_cleanup_until_successful_rerun(self):
+        store = FakeStore(previous={99: finding(99, "bad_rev", 1, None, None, None)})
+        rows = [[mrow(1, "שגוי", 1)], [mrow(2, "חי", 100)]]
+        def incomplete(params):
+            return fake_get(params) if "revids" not in params else {"query": {}}
+        with self.assertRaises(RuntimeError):
+            rls.scan(store, incomplete, {180218}, iter(rows), False, None, 1)
+        self.assertEqual([r["mechalol_id"] for r in store.upserts], [1])
+        self.assertEqual(store.deletes, set())
+        store._previous[1] = {k: store.upserts[0][k] for k in rls.FINDING_FIELDS}
+        store.upserts.clear()
+        with patch.object(rls.rev_match, "REQUEST_DELAY_SECONDS", 0):
+            _, complete = rls.scan(store, fake_get, {180218}, iter(rows), False, None, 1)
+        self.assertTrue(complete)
+        self.assertEqual(store.upserts, [])
+        self.assertEqual(store.deletes, {99})
+
     # שמות התבנית שנקראים לערכים שהכותרת שלהם לא תואמת לכותרת הנוכחית
     TEMPLATES = {1: "דהוכ", 2: "הטבח במסיבת הטבע ליד רעים", 3: "אחר", 7: "דהוכ (מחוז)", 8: "חדש", 9: "ישן"}
 
