@@ -1,6 +1,7 @@
 import os
 import sys
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 os.environ.setdefault("SUPABASE_URL", "http://localhost")
@@ -62,6 +63,33 @@ def finding(mid, task, rev, linked, page_id, title):
 
 
 class ScanTest(unittest.TestCase):
+    def test_partial_reply_preserves_rows_and_reports_incomplete(self):
+        store = FakeStore(previous={99: finding(99, "bad_rev", 1, None, None, None)})
+        def incomplete(params):
+            return fake_get(params) if "revids" not in params else {"query": {}}
+        stats, complete = rls.scan(store, incomplete, {100}, iter([[mrow(1, "חי", 100)]]), False, None, 1)
+        self.assertFalse(complete)
+        self.assertEqual(stats["failed"], 1)
+        self.assertEqual((store.upserts, store.deletes), ([], set()))
+
+    def test_failed_later_batch_preserves_cleanup_until_successful_rerun(self):
+        store = FakeStore(previous={99: finding(99, "bad_rev", 1, None, None, None)})
+        rows = [[mrow(1, "שגוי", 1)], [mrow(2, "חי", 100)]]
+        def incomplete(params):
+            return fake_get(params) if "revids" not in params else {"query": {}}
+        stats, complete = rls.scan(store, incomplete, {180218}, iter(rows), False, None, 1)
+        self.assertFalse(complete)
+        self.assertEqual(stats["failed"], 1)
+        self.assertEqual([r["mechalol_id"] for r in store.upserts], [1])
+        self.assertEqual(store.deletes, set())
+        store._previous[1] = {k: store.upserts[0][k] for k in rls.FINDING_FIELDS}
+        store.upserts.clear()
+        with patch.object(rls.rev_match, "REQUEST_DELAY_SECONDS", 0):
+            _, complete = rls.scan(store, fake_get, {180218}, iter(rows), False, None, 1)
+        self.assertTrue(complete)
+        self.assertEqual(store.upserts, [])
+        self.assertEqual(store.deletes, {99})
+
     # שמות התבנית שנקראים לערכים שהכותרת שלהם לא תואמת לכותרת הנוכחית
     TEMPLATES = {1: "דהוכ", 2: "הטבח במסיבת הטבע ליד רעים", 3: "אחר", 7: "דהוכ (מחוז)", 8: "חדש", 9: "ישן"}
 
@@ -119,3 +147,46 @@ class ScanTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RecoveryTest(unittest.TestCase):
+    @patch.object(rls.rev_match, 'REQUEST_DELAY_SECONDS', 0)
+    def test_middle_api_failure_keeps_old_row_and_checks_later_rows(self):
+        old = {2: finding(2, 'bad_rev', 200, None, None, None)}
+        store = FakeStore(previous=old)
+        calls = []
+        def get(params):
+            if params.get('revids') == '200':
+                calls.append(200)
+                return {'query': {}}
+            return fake_get(params)
+        rows = [mrow(1, 'דהוכ (מחוז)', 100), mrow(2, 'הטבח בפסטיבל נובה', 200), mrow(3, 'שגוי', 1)]
+        with patch.object(rls.rev_match, 'API_BATCH', 1):
+            stats, complete = rls.scan(store, get, {180218, 555}, iter([rows]), False, None, 2)
+        self.assertFalse(complete)
+        self.assertEqual(calls, [200, 200])
+        self.assertEqual([r['mechalol_id'] for r in store.upserts], [3])
+        self.assertNotIn(2, store.deletes)
+        self.assertEqual(stats['checked'], 2)
+
+    @patch.object(rls.rev_match, 'REQUEST_DELAY_SECONDS', 0)
+    def test_unreadable_template_preserves_previous_finding(self):
+        store = FakeStore(previous={1: finding(1, 'redirect', 300, 9, 777, 'יעד')})
+        with patch.object(rls, 'fetch_template_names', return_value={}):
+            stats, complete = rls.scan(store, fake_get, {9}, iter([[mrow(1, 'אחר', 300, wikipedia_id=9)]]), False, None, 1)
+        self.assertFalse(complete)
+        self.assertEqual(stats['failed'], 1)
+        self.assertEqual((store.upserts, store.deletes), ([], set()))
+
+    @patch.object(rls.rev_match, 'REQUEST_DELAY_SECONDS', 0)
+    def test_write_failure_does_not_stop_next_page(self):
+        class Store(FakeStore):
+            def upsert(self, rows):
+                if rows and rows[0]['mechalol_id'] == 1: raise RuntimeError('write unavailable')
+                super().upsert(rows)
+        store = Store(previous={99: finding(99, 'bad_rev', 1, None, None, None)})
+        stats, complete = rls.scan(store, fake_get, set(), iter([[mrow(1, 'א', 1)], [mrow(2, 'ב', 1)]]), False, None, 1)
+        self.assertFalse(complete)
+        self.assertEqual([r['mechalol_id'] for r in store.upserts], [2])
+        self.assertEqual(stats['write_failed'], 1)
+        self.assertEqual(store.deletes, set())

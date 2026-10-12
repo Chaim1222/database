@@ -117,7 +117,7 @@ def fetch_template_names(ids):
         fetched = fetch_contents(part)
         for page_id in part:
             item = fetched.get(page_id)
-            if item is DENIED:
+            if item is DENIED or page_id not in fetched:
                 continue
             parsed = parse_sort_template(item["content"]) if item else None
             names[page_id] = parsed["title"] if parsed else None
@@ -158,21 +158,45 @@ def scan(store, wikipedia_get, existing_ids, pages, dry_run, deadline, workers):
     max_rev = rev_match.fetch_max_rev(wikipedia_get)
     log(f"הגרסה האחרונה בוויקיפדיה: {max_rev:,} | שיוכים ידניים: {len(manual):,} | בטבלה היום: {len(previous):,}")
 
+    # Read → validate each API batch → preserve failed rows → write verified results.
+    # No persistent cursor: a full rerun revisits every skipped row.
     stats, seen, complete = Counter(), set(), True
     for rows in pages:
         revs = [r["sort_template_rev"] for r in rows if rev_match.valid_rev(r.get("sort_template_rev"))]
-        resolved = rev_match.resolve_many(wikipedia_get, revs, workers)
+        seen.update(row["id"] for row in rows)
+        resolved = rev_match.resolve_many(wikipedia_get, revs, workers,
+            on_error=lambda ids, exc: log(f"גרסאות לא הושלמו | {ids} | {type(exc).__name__}; ניסיון חוזר בסריקה הבאה"))
+        failed = [row for row in rows if resolved.get(row.get("sort_template_rev")) is rev_match.UNKNOWN]
+        if failed:
+            complete = False
+            stats["failed"] += len(failed)
+        rows = [row for row in rows if resolved.get(row.get("sort_template_rev")) is not rev_match.UNKNOWN]
         changed, healed = [], []
         decided = decide_rows(rows, resolved, existing_ids, max_rev, manual, {})
         redirect_rows = {row["id"]: resolved[row["sort_template_rev"]]["title"]
                          for row, decision in decided if decision.needs_redirect}
         need = sorted({row["id"] for row, decision in decided if decision.needs_template} | set(redirect_rows))
         if need:
-            names = fetch_template_names(need)
-            found = rev_match.resolve_redirect_targets(wikipedia_get, redirect_rows.values()) if redirect_rows else {}
-            decided = decide_rows(rows, resolved, existing_ids, max_rev, manual,
-                                  {page_id: names.get(page_id) for page_id in need},
-                                  {page_id: found.get(title) for page_id, title in redirect_rows.items()})
+            names, found = {}, {}
+            for part in chunks(need, rev_match.API_BATCH):
+                try:
+                    names.update(fetch_template_names(part))
+                except Exception as exc:
+                    log(f"קריאת תבניות לא הושלמה | {part} | {type(exc).__name__}")
+            for part in chunks(set(redirect_rows.values()), rev_match.API_BATCH):
+                try:
+                    found.update(rev_match.resolve_redirect_targets(wikipedia_get, part))
+                except Exception as exc:
+                    log(f"קריאת יעדי הפניות לא הושלמה | {type(exc).__name__}")
+            failed_ids = set(need) - set(names)
+            failed_ids.update(mid for mid, title in redirect_rows.items() if title not in found)
+            if failed_ids:
+                complete = False
+                stats["failed"] += len(failed_ids)
+                log(f"נשמר הממצא הקודם; יש לבדוק שוב | {sorted(failed_ids)}")
+            rows = [row for row in rows if row["id"] not in failed_ids]
+            decided = decide_rows(rows, resolved, existing_ids, max_rev, manual, names,
+                                  {mid: found[title] for mid, title in redirect_rows.items() if title in found})
         for row, decision in decided:
             stats["checked"] += 1
             seen.add(row["id"])
@@ -186,11 +210,16 @@ def scan(store, wikipedia_get, existing_ids, pages, dry_run, deadline, workers):
                 changed.append(finding)
                 log(f"ממצא | {decision.task} | מכלול {row['id']} \"{row['title']}\" | גרסה {row['sort_template_rev']} | "
                     f"מקושר {row.get('wikipedia_id')} | הדף {decision.page_id} \"{decision.page_title}\"")
-        stats["written"] += len(changed)
-        stats["healed"] += len(healed)
-        if not dry_run:
-            store.upsert(changed)
-            store.delete(healed)
+        try:
+            if not dry_run:
+                store.upsert(changed)
+                store.delete(healed)
+            stats["written"] += len(changed)
+            stats["healed"] += len(healed)
+        except Exception as exc:
+            complete = False
+            stats["write_failed"] += len(changed) + len(healed)
+            log(f"כתיבה לא הושלמה | {type(exc).__name__}; יש להריץ שוב את הסריקה")
         log(f"התקדמות | {dict(stats)}")
         if deadline and time.time() > deadline:
             log("עוצר: תקציב הזמן נגמר. הסריקה לא הושלמה; ריצה חוזרת סורקת מההתחלה")
@@ -232,3 +261,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

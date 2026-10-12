@@ -128,7 +128,10 @@ def resolve_revisions(wikipedia_get, rev_ids):
     {rev_id: {"page_id", "title", "ns", "redirect"} | None (הגרסה לא קיימת)} לבקשה אחת (עד 50).
     בקשה אחת מחזירה גם pageid וגם redirect (prop=revisions|info).
     """
-    result = {rev: None for rev in rev_ids}
+    # Only explicit badrevids means missing; incomplete replies stop before writes.
+    asked = set(rev_ids)
+    if not asked:
+        return {}
     data = wikipedia_get({
         "action": "query",
         "revids": "|".join(str(r) for r in rev_ids),
@@ -136,15 +139,36 @@ def resolve_revisions(wikipedia_get, rev_ids):
         "rvprop": "ids",
         "formatversion": "2",
     })
-    for page in data.get("query", {}).get("pages", []):
-        info = {
-            "page_id": page.get("pageid"),
-            "title": page.get("title"),
-            "ns": page.get("ns"),
-            "redirect": bool(page.get("redirect")),
-        }
-        for revision in page.get("revisions") or []:
-            result[revision["revid"]] = info
+    query = data.get("query") if isinstance(data, dict) else None
+    if not isinstance(query, dict) or "error" in data or "continue" in data:
+        raise RuntimeError("תשובת גרסאות חסרה או לא הושלמה")
+    pages, missing = query.get("pages", []), query.get("badrevids", {})
+    if isinstance(missing, dict):
+        missing = list(missing.values())
+    if not isinstance(pages, list) or not isinstance(missing, list):
+        raise RuntimeError("מבנה תשובת גרסאות לא תקין")
+    result = {}
+    for item in missing:
+        if (not isinstance(item, dict) or item.get("missing") is not True
+                or type(item.get("revid")) is not int or item["revid"] not in asked
+                or item["revid"] in result):
+            raise RuntimeError("מזהה גרסה חסרה לא תקין או כפול")
+        result[item["revid"]] = None
+    for page in pages:
+        if (not isinstance(page, dict) or type(page.get("pageid")) is not int
+                or page["pageid"] <= 0 or type(page.get("ns")) is not int
+                or not isinstance(page.get("title"), str) or not page["title"]
+                or not isinstance(page.get("revisions"), list) or not page["revisions"]):
+            raise RuntimeError("תשובת גרסאות ללא זהות דף תקינה")
+        info = {"page_id": page["pageid"], "title": page["title"],
+                "ns": page["ns"], "redirect": bool(page.get("redirect"))}
+        for revision in page["revisions"]:
+            rev = revision.get("revid") if isinstance(revision, dict) else None
+            if type(rev) is not int or rev not in asked or rev in result:
+                raise RuntimeError("מזהה גרסה לא צפוי או כפול")
+            result[rev] = info
+    if set(result) != asked:
+        raise RuntimeError("תשובת גרסאות חלקית; אין להסיק שהגרסאות החסרות נמחקו")
     if REQUEST_DELAY_SECONDS:
         time.sleep(REQUEST_DELAY_SECONDS)
     return result
@@ -172,15 +196,25 @@ def resolve_redirect_targets(wikipedia_get, titles):
     return result
 
 
-def resolve_many(wikipedia_get, rev_ids, workers=4):
+def resolve_many(wikipedia_get, rev_ids, workers=4, on_error=None):
     """resolve_revisions לרשימה ארוכה, באצוות של 50 במקביל (מגביל את הזמן בריצה השבועית)."""
     unique = sorted(set(rev_ids))
     batches = [unique[i:i + API_BATCH] for i in range(0, len(unique), API_BATCH)]
     resolved = {}
     if not batches:
         return resolved
+    def resolve_batch(batch):
+        for attempt in range(2 if on_error else 1):
+            try:
+                return resolve_revisions(wikipedia_get, batch)
+            except Exception as exc:
+                if on_error is None:
+                    raise
+                if attempt == 1:
+                    on_error(batch, exc)
+                    return {rev: UNKNOWN for rev in batch}
     with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
-        for part in pool.map(lambda batch: resolve_revisions(wikipedia_get, batch), batches):
+        for part in pool.map(resolve_batch, batches):
             resolved.update(part)
     return resolved
 
@@ -192,3 +226,4 @@ def fetch_max_rev(wikipedia_get):
     })
     changes = data.get("query", {}).get("recentchanges") or []
     return max((c["revid"] for c in changes), default=0)
+

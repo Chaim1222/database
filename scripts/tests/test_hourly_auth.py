@@ -17,12 +17,28 @@ class HourlyAuthTests(unittest.TestCase):
         self.old_params = dict(mechalol_api.session.params)
         self.addCleanup(lambda: setattr(mechalol_api.session, 'params', self.old_params))
 
-    def test_failed_login_stops_normal_and_dry_run_before_reads_or_database(self):
-        for argv in (['hourly'], ['hourly', '--dry-run']):
-            with self.subTest(argv=argv), patch.object(sys, 'argv', argv), patch.object(hourly, 'login', return_value=False), patch.object(hourly, 'fetch_edited_page_ids') as read, patch('supabase_client.get_client') as db:
-                with self.assertRaises(SystemExit): hourly.main()
-                read.assert_not_called()
-                db.assert_not_called()
+    def test_failed_login_preserves_mechalol_and_continues_wikipedia(self):
+        with ExitStack() as stack:
+            stack.enter_context(patch.object(sys, 'argv', ['hourly']))
+            stack.enter_context(patch.object(hourly, 'login', return_value=False))
+            stack.enter_context(patch('supabase_client.get_client', return_value=Mock()))
+            stack.enter_context(patch.object(hourly, 'read_since', return_value=datetime.now(timezone.utc)))
+            mech = stack.enter_context(patch.object(hourly, 'mechalol_step'))
+            wiki = stack.enter_context(patch.object(hourly, 'wikipedia_step'))
+            success = stack.enter_context(patch.object(hourly, 'save_success'))
+            failure = stack.enter_context(patch.object(hourly, 'save_failure'))
+            with self.assertRaises(SystemExit): hourly.main()
+            mech.assert_not_called()
+            wiki.assert_called_once()
+            self.assertEqual(success.call_args.args[1], 'wikipedia_changes')
+            self.assertEqual(failure.call_args.args[1], 'mechalol_changes')
+
+    def test_failed_login_dry_run_still_reads_wikipedia_without_database(self):
+        with patch.object(sys, 'argv', ['hourly', '--dry-run']), patch.object(hourly, 'login', return_value=False), patch.object(hourly, 'fetch_edited_page_ids') as mech, patch.object(hourly, 'collect_changes', return_value=({}, 0)) as wiki, patch('supabase_client.get_client') as db:
+            with self.assertRaises(SystemExit): hourly.main()
+            mech.assert_not_called()
+            wiki.assert_called_once()
+            db.assert_not_called()
 
     def test_successful_dry_run_uses_authenticated_reader(self):
         with patch.object(sys, 'argv', ['hourly', '--dry-run']), patch.object(hourly, 'login', return_value=True), patch.object(hourly, 'fetch_edited_page_ids', return_value=[]) as read, patch.object(hourly, 'collect_changes', return_value=({}, 0)):
@@ -80,3 +96,4 @@ class HourlyAuthTests(unittest.TestCase):
         with patch.object(delta_api, '_api_get_with_retry', return_value={'query': {'recentchanges': []}}) as read:
             self.assertEqual(delta_api.fetch_edited_page_ids(MECHALOL_API, 't'), [])
             self.assertEqual(read.call_args.args[0], MECHALOL_API)
+
