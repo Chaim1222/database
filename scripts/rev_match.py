@@ -196,15 +196,25 @@ def resolve_redirect_targets(wikipedia_get, titles):
     return result
 
 
-def resolve_many(wikipedia_get, rev_ids, workers=4):
+def resolve_many(wikipedia_get, rev_ids, workers=4, on_error=None):
     """resolve_revisions לרשימה ארוכה, באצוות של 50 במקביל (מגביל את הזמן בריצה השבועית)."""
     unique = sorted(set(rev_ids))
     batches = [unique[i:i + API_BATCH] for i in range(0, len(unique), API_BATCH)]
     resolved = {}
     if not batches:
         return resolved
+    def resolve_batch(batch):
+        for attempt in range(2 if on_error else 1):
+            try:
+                return resolve_revisions(wikipedia_get, batch)
+            except Exception as exc:
+                if on_error is None:
+                    raise
+                if attempt == 1:
+                    on_error(batch, exc)
+                    return {rev: UNKNOWN for rev in batch}
     with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
-        for part in pool.map(lambda batch: resolve_revisions(wikipedia_get, batch), batches):
+        for part in pool.map(resolve_batch, batches):
             resolved.update(part)
     return resolved
 
@@ -216,3 +226,4 @@ def fetch_max_rev(wikipedia_get):
     })
     changes = data.get("query", {}).get("recentchanges") or []
     return max((c["revid"] for c in changes), default=0)
+

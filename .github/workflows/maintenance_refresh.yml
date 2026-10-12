@@ -8,7 +8,7 @@ name: רענון נתוני התחזוקה (ידני)
 #   ניקוי שורות שהתיישנו                                    - refresh_maintenance_tables (חייבת מיגרציה: migration_add_refresh_maintenance_tables.sql)
 #   אימות נעילות (טאב "נעולים")                             - verify_locked_pages.py --apply (חייבת migrations/migration_add_page_lock_levels.sql):
 #                                                             רושם רמות (נעול למחצה מוסתר מהטאב) ומתקן נעילות שהוסרו; עם מעקה. רץ כשלב עם
-#                                                             continue-on-error: כשל או עצירת המעקה לא הופכים את כל הרענון לכושל (רואים בלוג)
+#                                                             continue-on-error: כשל או עצירת המעקה אינם עוצרים את יתר העבודה; סיכום הסיום מציין אי־השלמה
 # הסדר חשוב: הבדיקה מחדש והניקוי נשענים על כותרת וגרסה שכבר עודכנו. לא מוצאת ערכים חדשים בעייתיים (זה הסריקה החודשית).
 # אותה קבוצת concurrency כמו שאר ה-workflows שכותבים למסד: אם הדלתא הלילית או הסנכרון השבועי רצים, ממתין בתור.
 # מופעל גם מכפתור בדשבורד (request_maintenance_refresh, migrations/migration_add_trigger_maintenance_refresh.sql).
@@ -88,6 +88,7 @@ jobs:
         run: python sort_template_hourly.py
 
       - name: אימות מקור למועמדי העברה
+        id: move_sources
         # אימות משני: כשל משאיר מועמדים ללא הוכחה תקפה גלויים, ולא עוצר את יתר הרענון.
         continue-on-error: true
         working-directory: scripts
@@ -107,8 +108,9 @@ jobs:
           fi
 
       # אימות מחדש מול ה-API של כל הדפים בטאב "נעולים" (דקה בערך). continue-on-error: המעקה (מעל 20% "פתוחים") או תקלת API
-      # לא אמורים לסמן את כל הרענון ככושל, כי שאר השלבים כבר הצליחו; הכשל נראה בלוג של השלב הזה.
+      # אינם עוצרים את הרענון; התוצאות המוצלחות נשמרות והכשל מופיע בסיכום ובמצב הסיום.
       - name: אימות נעילות
+        id: locks
         continue-on-error: true
         working-directory: scripts
         run: |
@@ -121,7 +123,25 @@ jobs:
       - name: סימון סיום
         if: always()
         working-directory: scripts
-        run: python maintenance_refresh_state.py ${{ job.status == 'success' && 'success' || 'failed' }}
+        env:
+          REFRESH_JOB_STATUS: ${{ job.status }}
+          MOVE_SOURCES_OUTCOME: ${{ steps.move_sources.outcome }}
+          LOCKS_OUTCOME: ${{ steps.locks.outcome }}
+        run: |
+          status=failed
+          if [ "$REFRESH_JOB_STATUS" = success ] && [ "$MOVE_SOURCES_OUTCOME" = success ] && [ "$LOCKS_OUTCOME" = success ]; then
+            status=success
+          fi
+          {
+            echo "Maintenance completion: $status"
+            echo "- Main flow: $REFRESH_JOB_STATUS"
+            echo "- Move-source verification: $MOVE_SOURCES_OUTCOME"
+            echo "- Lock verification: $LOCKS_OUTCOME"
+            if [ "$status" != success ]; then
+              echo "Incomplete work: rerun maintenance refresh after resolving the reported error. Completed effects can be safely replayed."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          python maintenance_refresh_state.py "$status"
 
       - name: פתיחת Issue בעת כישלון
         if: failure()
@@ -136,3 +156,4 @@ jobs:
               body: `פרטי הריצה: ${runUrl}`,
               labels: ["automation-failure"],
             });
+

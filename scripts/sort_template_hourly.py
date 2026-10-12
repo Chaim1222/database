@@ -147,21 +147,10 @@ def main():
 
     started = datetime.now(timezone.utc)
 
-    if not login():
-        raise SystemExit("העדכון השעתי נעצר: נדרשת התחברות למכלול")
-    # Reject expired sessions at the API, including recentchanges and content reads.
-    session.params["assert"] = "user"
-
-    if args.dry_run:
-        since = started - timedelta(minutes=args.since_minutes)
-        m_edits = fetch_edited_page_ids(MECHALOL_API, iso(since), api_get=api_get_with_retry)
-        w_latest, w_edits = collect_changes(iso(since))
-        log(f"DRY-RUN | מכלול: {len(m_edits)} עריכות ({len({r['page_id'] for r in m_edits})} דפים) | "
-            f"ויקיפדיה: {w_edits} עריכות ({len(w_latest)} דפים) | מ-{iso(since)}")
-        return
-
-    from supabase_client import get_client
-    client = get_client()
+    client = None
+    if not args.dry_run:
+        from supabase_client import get_client
+        client = get_client()
     failures = []
 
     for stream, step in (
@@ -169,15 +158,28 @@ def main():
         ("wikipedia_changes", lambda since: wikipedia_step(client, since)),
     ):
         try:
-            since = read_since(client, stream)
+            if stream == "mechalol_changes":
+                if not login():
+                    raise RuntimeError("נדרשת התחברות למכלול; הזרם יושלם בריצה הבאה")
+                session.params["assert"] = "user"
+            since = (started - timedelta(minutes=args.since_minutes)) if args.dry_run else read_since(client, stream)
             lag = started - since
             log(f"START | {stream} | מאז {iso(since)} (פער {int(lag.total_seconds() // 60)} דקות)")
-            step(since)
-            save_success(client, stream, started)
+            if args.dry_run:
+                if stream == "mechalol_changes":
+                    edits = fetch_edited_page_ids(MECHALOL_API, iso(since), api_get=api_get_with_retry)
+                    log(f"DRY-RUN | מכלול: {len(edits)} עריכות")
+                else:
+                    _, edits = collect_changes(iso(since))
+                    log(f"DRY-RUN | ויקיפדיה: {edits} עריכות")
+            else:
+                step(since)
+                save_success(client, stream, started)
         except Exception as exc:  # noqa: BLE001 - מתעדים וממשיכים לזרם השני
             log(f"ERROR | {stream} | {type(exc).__name__}: {exc}")
             try:
-                save_failure(client, stream, exc)
+                if not args.dry_run:
+                    save_failure(client, stream, exc)
             except Exception as inner:  # noqa: BLE001
                 log(f"ERROR | לא ניתן לשמור כשל ב-{stream}: {inner}")
             failures.append(stream)
@@ -190,3 +192,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
