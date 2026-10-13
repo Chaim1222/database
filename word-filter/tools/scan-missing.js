@@ -70,12 +70,18 @@ const log = (msg) => console.log(new Date().toISOString().slice(0, 19).replace('
 // ===== רשימות =====
 
 // גרסת הרשימות, המנוע, כללי הערך המילוני והנושאים: שינוי באחד מהם מחייב סריקה מחדש של הכל.
+// מקובץ הגאדג'ט נספר רק המנוע - שינוי בממשק שבאתר (מ"===== ממשק" והלאה) לא משנה תוצאות.
 function listsVersion() {
 	const hash = crypto.createHash('sha1');
 	for (const file of [path.join(LISTS_DIR, 'words.json'), path.join(LISTS_DIR, 'allow.json'), path.join(LISTS_DIR, 'usage.json'), path.join(LISTS_DIR, 'context.json'),
-		path.join(__dirname, '..', 'Gadget-wikitextWordCheck.js'), path.join(__dirname, '..', 'dictionary.js'), path.join(__dirname, '..', 'topics.js')]) hash.update(fs.readFileSync(file));
+		path.join(__dirname, '..', 'dictionary.js'), path.join(__dirname, '..', 'topics.js')]) hash.update(fs.readFileSync(file));
+	const engine = fs.readFileSync(path.join(__dirname, '..', 'Gadget-wikitextWordCheck.js'), 'utf8');
+	const ui = engine.indexOf(UI_MARKER);
+	if (ui < 0) throw new Error('UI marker not found in Gadget-wikitextWordCheck.js');
+	hash.update(engine.slice(0, ui));
 	return hash.digest('hex').slice(0, 12);
 }
+const UI_MARKER = '// ===== ממשק - רק בתוך מדיה ויקי';
 
 function compileBoth() {
 	const words = readJson('words.json'), allow = readJson('allow.json'), context = readJson('context.json');

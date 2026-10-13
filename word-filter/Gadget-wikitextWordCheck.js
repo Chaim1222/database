@@ -697,130 +697,283 @@
 	};
 
 	// ===== ממשק - רק בתוך מדיה ויקי, בדף עריכה =====
+	// גאדג'ט ברירת מחדל לכל העורכים (MediaWiki:Gadgets-definition, ראו README): כפתור "בדיקת מילים"
+	// ליד "הצגת שינויים". הבדיקה מציגה את הרמה לפי ההקשר (כמו בדשבורד), את המילים במשפט שלהן,
+	// וצובעת אותן בתצוגה המקדימה ובטבלת ההבדלים, אם הן על הדף.
+	// הרשימות נטענות רק בלחיצה, מהגאדג'ט המוסתר wikitextWordCheck-data (ResourceLoader - עוקף נעילת
+	// קריאה של דפי הרשימות). כסקריפט אישי: window.wikitextWordCheckPages, דרך ה-API.
 
 	if (typeof mw === 'undefined') {
 		if (typeof module !== 'undefined') module.exports = core;
 		return;
 	}
-	// חשיפה לכלים אחרים באתר (טאב "עדכון" בדשבורד), גם מחוץ לדף עריכה: המנוע וטעינת הרשימות.
-	// loadLists מוגדרת למטה; הצהרות פונקציה מורמות, ולכן אפשר להפנות אליה כאן.
-	mw.wikitextWordCheck = { core: core, loadLists: function () { return loadLists(); } };
+
+	var DATA_MODULE = 'ext.gadget.wikitextWordCheck-data';
+	var dataPromise = null;
+	// {lists, usage, clues} - מוכן לסריקה. usage ו-clues לא חובה (בלעדיהם: רמת הרשימה).
+	function loadData() {
+		if (!dataPromise) {
+			var source = PAGES.words ? fromPages() : mw.loader.using(DATA_MODULE).then(function (require) { return require(DATA_MODULE); });
+			var suggested = !!window.wikitextWordCheckSuggested;
+			dataPromise = source.then(function (d) {
+				if (!d || !d.words) throw new Error('רשימת המילים לא נמצאה');
+				return {
+					lists: compileLists(d.words, d.allow, { suggested: suggested }),
+					usage: d.usage || null,
+					clues: d.context ? compileClues(d.context, { suggested: suggested }) : null
+				};
+			});
+			dataPromise.then(null, function () { dataPromise = null; });
+		}
+		return dataPromise;
+	}
+
+	function fromPages() {
+		var names = { words: PAGES.words, allow: PAGES.allow, usage: PAGES.usage, context: PAGES.context };
+		var titles = Object.keys(names).map(function (k) { return names[k]; }).filter(Boolean);
+		return new mw.Api().get({
+			action: 'query', prop: 'revisions', rvprop: 'content', rvslots: 'main', titles: titles.join('|'), formatversion: 2
+		}).then(function (data) {
+			var byTitle = {}, out = {};
+			data.query.pages.forEach(function (page) {
+				if (page.revisions) byTitle[page.title] = JSON.parse(page.revisions[0].slots.main.content);
+			});
+			Object.keys(names).forEach(function (k) { if (names[k]) out[k] = byTitle[mw.Title.newFromText(names[k]).getPrefixedText()]; });
+			return out;
+		});
+	}
+
+	// חשיפה לכלים אחרים באתר (סקריפט הייבוא, הדשבורד): המנוע, טעינת הרשימות והבדיקה.
+	mw.wikitextWordCheck = { core: core, loadLists: loadData, run: run };
 	if (['edit', 'submit'].indexOf(mw.config.get('wgAction')) < 0) return;
 
-	var listsPromise = null;
-	function loadLists() {
-		if (!listsPromise) {
-			listsPromise = new mw.Api().get({
-				action: 'query', prop: 'revisions', rvprop: 'content', rvslots: 'main',
-				titles: [WORDS_PAGE, ALLOW_PAGE].join('|'), formatversion: 2
-			}).then(function (data) {
-				var json = {};
-				data.query.pages.forEach(function (page) {
-					if (page.revisions) json[page.title] = JSON.parse(page.revisions[0].slots.main.content);
-				});
-				if (!json[WORDS_PAGE]) throw new Error('הדף ' + WORDS_PAGE + ' לא נמצא');
-				return compileLists(json[WORDS_PAGE], json[ALLOW_PAGE], { suggested: !!window.wikitextWordCheckSuggested });
-			});
-			listsPromise.fail(function () { listsPromise = null; });
-		}
-		return listsPromise;
-	}
+	// ===== תצוגה =====
+	// כרטיס לעורך מן השורה (החלטת חיים 2026-10-13: "כמה שפחות הגדרות שרק אני ואתה מכירים"):
+	// כותרת עם שורת מסקנה, ומילים בקבוצות בשפה פשוטה - יש לתקן / כדאי לבדוק / ניסוח, וקבוצות משניות מקופלות.
+	// בלי רמות חשד, מילות הקשר או מזהי רשומות: הם קובעים את הקבוצה ואת הסדר (החשוד ביותר ראשון), ולא מוצגים.
+	// צבעי הכרטיס מ-Codex (משתני CSS של האתר - מתאימים את עצמם למצב כהה); צבעי הסימון קבועים, עם טקסט כהה.
+	// הנוסחים - אושרו על ידי חיים (2026-10-13).
+	var GROUPS = {
+		problem: { label: 'יש לתקן', color: '#ff9a9a', open: true },
+		review: { label: 'כדאי לבדוק', color: '#ffe066', open: true },
+		wording: { label: 'לשים לב לניסוח', color: '#cfdcf2' },
+		names: { label: 'שמות קודש', color: '#e4d6f6' },
+		hidden: { label: 'בקוד שלא מוצג בערך', color: '#e0e0e0' }
+	};
+	var VERDICTS = {
+		problem: 'נמצאו מילים שיש לתקן',
+		review: 'נמצאו מילים שכדאי לבדוק',
+		wording: 'כדאי לבדוק את הניסוח',
+		clean: 'לא נמצאו מילים בעייתיות'
+	};
+	var PAGE_SIZE = 25;
+	var CSS = [
+		'.wwc{border:1px solid var(--border-color-base,#a2a9b1);border-radius:4px;background:var(--background-color-base,#fff);color:var(--color-base,#202122);margin:.6em 0;font-size:.875rem;line-height:1.5}',
+		'.wwc-head{display:flex;flex-wrap:wrap;align-items:center;gap:.4em .7em;padding:.45em .8em;background:var(--background-color-interactive-subtle,#f8f9fa);border-bottom:1px solid var(--border-color-subtle,#c8ccd1);border-radius:4px 4px 0 0}',
+		'.wwc-title{font-weight:bold}',
+		'.wwc-verdict{padding:.05em .75em;border-radius:1em;font-weight:bold;color:#202122}',
+		'.wwc-actions{margin-inline-start:auto;display:flex;gap:.2em}',
+		'.wwc-btn{background:none;border:1px solid transparent;border-radius:2px;cursor:pointer;color:var(--color-progressive,#36c);padding:0 .45em;font:inherit;line-height:1.8}',
+		'.wwc-btn:hover{background:var(--background-color-interactive,#eaecf0)}',
+		'.wwc-summary{display:flex;flex-wrap:wrap;gap:.35em;padding:.55em .8em 0}',
+		'.wwc-chip{display:inline-flex;align-items:center;gap:.35em;padding:0 .55em;border-radius:1em;border:1px solid var(--border-color-subtle,#c8ccd1);font-size:.9em;white-space:nowrap;background:var(--background-color-base,#fff);color:inherit}',
+		'button.wwc-chip{cursor:pointer;font-family:inherit}',
+		'button.wwc-chip:hover{border-color:var(--border-color-progressive,#36c)}',
+		'.wwc-dot{width:.75em;height:.75em;border-radius:50%;flex:none;box-shadow:inset 0 0 0 1px rgba(0,0,0,.2)}',
+		'.wwc-body{padding:.2em .8em .6em}',
+		'.wwc-group{margin-top:.5em;border-top:1px solid var(--border-color-subtle,#eaecf0);padding-top:.3em}',
+		'.wwc-group>summary{cursor:pointer;font-weight:bold;padding:.15em 0;display:flex;align-items:center;gap:.4em}',
+		'.wwc-group>summary::-webkit-details-marker{display:none}',
+		'.wwc-group>summary::before{content:"\\25C2";color:var(--color-subtle,#72777d);transition:transform .15s}',
+		'.wwc-group[open]>summary::before{transform:rotate(-90deg)}',
+		'.wwc-list{list-style:none;margin:.15em 0 0;padding:0}',
+		'.wwc-row{display:flex;flex-wrap:wrap;align-items:baseline;gap:.15em .6em;padding:.3em .4em;border-radius:3px}',
+		'.wwc-row:hover{background:var(--background-color-interactive-subtle,#f8f9fa)}',
+		'.wwc-line{flex:none;min-width:4.2em;font-size:.85em;color:var(--color-progressive,#36c);cursor:pointer;text-decoration:none}',
+		'.wwc-line:hover{text-decoration:underline}',
+		'.wwc-text{flex:1 1 20em;min-width:0}',
+		'.wwc-code{font-family:monospace;font-size:.9em;color:var(--color-subtle,#54595d);unicode-bidi:plaintext}',
+		'mark.wwc-mark,span.wwc-mark{color:#202122;border-radius:2px;padding:0 .12em}',
+		'.wwc-more{margin:.2em .4em}',
+		'.wwc-loading{color:var(--color-subtle,#72777d)}',
+		'.wwc-error{padding:.6em .8em;background:var(--background-color-error-subtle,#ffe9e5);color:var(--color-error,#d72d1b)}',
+		'.wwc-foot{padding:.4em .8em;font-size:.8em;color:var(--color-subtle,#54595d);border-top:1px solid var(--border-color-subtle,#eaecf0)}'
+	].join('\n');
 
-	function el(tag, text, css) {
+	function el(tag, cls, text) {
 		var $e = $('<' + tag + '>');
+		if (cls) $e.addClass(cls);
 		if (text != null) $e.text(text);
-		if (css) $e.css(css);
 		return $e;
 	}
+	function dot(color) { return el('span', 'wwc-dot').css('background', color); }
 
-	function swatch(color) {
-		return el('span', null, { display: 'inline-block', width: '0.9em', height: '0.9em', background: color,
-			marginLeft: '0.4em', verticalAlign: 'middle', border: '1px solid #a2a9b1' });
+	var counted = function (m) { return VERDICT_TOPICS.indexOf(m.topic) >= 0; };
+	// הקבוצה של התאמה בכרטיס (problem / review / wording / names): לפי ההקשר כשיש (contextLevels), אחרת לפי הרשימה.
+	function shownLevel(m) {
+		if (isSeparate(m)) return 'names';
+		if (!counted(m)) return 'wording';
+		return m.context ? m.context.level : m.level;
 	}
 
-	function render($box, $panel, matches, lists, hidden) {
-		var text = $box.textSelection('getContents');
-		var level = verdict(matches);
-		var $head = el('div', null, { fontWeight: 'bold', marginBottom: '0.5em' })
-			.append(swatch(LEVEL_COLORS[level]), 'בדיקת מילים חשודות: ' + LEVEL_LABELS[level]);
-		$panel.empty().append($head);
+	function scanText(text, data) {
+		var options = { allow: window.wikitextWordCheckAllow || [] };
+		var matches = scan(text, data.lists, options);
+		if (data.usage) contextLevels(text, matches, data.usage, data.clues);
+		var withAllow = { patterns: data.lists.patterns, allow: data.lists.allow.concat(options.allow.map(function (p) {
+			return { regex: new RegExp(p, 'gi'), kind: 'hide', entry: null };
+		})), problems: data.lists.problems };
+		return { matches: matches, hidden: scanHidden(text, withAllow, matches) };
+	}
 
-		var counted = function (m) { return VERDICT_TOPICS.indexOf(m.topic) >= 0; };
-		var groups = [
-			{ label: LEVEL_LABELS.problem, color: LEVEL_COLORS.problem, items: matches.filter(function (m) { return counted(m) && m.level === 'problem'; }) },
-			{ label: LEVEL_LABELS.review, color: LEVEL_COLORS.review, items: matches.filter(function (m) { return counted(m) && m.level === 'review'; }) },
-			{ label: 'הערות ניסוח (אמונה, תיארוך, ויקיפדיה)', color: '#c9d3e8', items: matches.filter(function (m) { return !counted(m) && !isSeparate(m); }) },
-			{ label: 'שמות הקודש - לא משפיעים על הרמה', color: '#e3d7f3', items: matches.filter(isSeparate) },
-			{ label: 'בקוד שהקורא לא רואה - לא נספר ברמה (יעד קישור, הערה, קובץ, תבנית, כתובת)', color: '#ffffff',
-				items: (hidden || []).filter(counted), hidden: true }
-		];
-		groups.forEach(function (g) {
-			var items = g.items;
-			if (!items.length) return;
-			$panel.append(el('div', g.label + ' (' + items.length + ')', { fontWeight: 'bold', marginTop: '0.5em' })
-				.prepend(swatch(g.color)));
-			var $ul = el('ul');
-			items.forEach(function (m) {
-				var ctx = g.hidden ? { before: text.slice(Math.max(0, m.start - 40), m.start), text: m.text, after: text.slice(m.end, m.end + 40) }
-					: contextOf(text, m, 80);
-				var tip = m.entries.map(function (e) {
-					return e.pattern + (e.note ? ' - ' + e.note : '') + (e.status === 'suggested' ? ' (הצעה)' : '');
-				}).concat(m.demotedBy.map(function (e) {
-					return 'ירד לבדיקה - שימוש תמים אפשרי: ' + (e.note || e.pattern);
-				})).join('\n');
-				var $link = el('a', 'שורה ' + m.line, { cursor: 'pointer' }).attr('title', tip);
-				$link.on('click', function (e) {
-					e.preventDefault();
-					$box.trigger('focus')
-						.textSelection('setSelection', { start: m.start, end: m.end })
-						.textSelection('scrollToCaretPosition');
-				});
-				$ul.append(el('li').append($link, ' [' + (g.hidden ? HIDDEN_KINDS[m.hidden] + ', ' : '') + (TOPIC_LABELS[m.topic] || m.topic) + ']: ',
-					document.createTextNode(ctx.before), el('mark', ctx.text, { background: counted(m) ? LEVEL_COLORS[m.level] : g.color }),
-					document.createTextNode(ctx.after)));
-			});
-			$panel.append($ul);
+	// הקוד סביב התאמה בקוד המוסתר: באותה שורה בלבד, עד 30 תווים לכל צד.
+	function codeAround(text, m) {
+		var from = Math.max(text.lastIndexOf('\n', m.start - 1) + 1, m.start - 30);
+		var nl = text.indexOf('\n', m.end), to = Math.min(nl < 0 ? text.length : nl, m.end + 30);
+		return { before: (from > 0 && text[from - 1] !== '\n' ? '…' : '') + text.slice(from, m.start), text: text.slice(m.start, m.end),
+			after: text.slice(m.end, to) + (to < text.length && text[to] !== '\n' ? '…' : '') };
+	}
+
+	function row($box, text, m, hidden) {
+		var ctx = hidden ? codeAround(text, m) : contextOf(text, m, 80);
+		var $line = el('a', 'wwc-line', 'שורה ' + m.line).attr({ href: '#', title: 'סימון המילה בתיבת העריכה' });
+		$line.on('click', function (e) {
+			e.preventDefault();
+			$box.trigger('focus').textSelection('setSelection', { start: m.start, end: m.end }).textSelection('scrollToCaretPosition');
 		});
-
-		if (lists.problems.length) {
-			var $details = el('details', null, { marginTop: '0.7em', fontSize: '90%' });
-			$details.append(el('summary', 'תבניות לא תקינות ברשימות (' + lists.problems.length + ')'));
-			var $ul = el('ul');
-			lists.problems.forEach(function (p) {
-				$ul.append(el('li').append(el('code', p.pattern), ' (' + p.id + '): ' + p.message));
-			});
-			$panel.append($details.append($ul));
-		}
+		var $text = el('span', 'wwc-text' + (hidden ? ' wwc-code' : '')).append(document.createTextNode(ctx.before),
+			el('mark', 'wwc-mark', ctx.text).css('background', GROUPS[hidden ? 'hidden' : shownLevel(m)].color), document.createTextNode(ctx.after));
+		return el('li', 'wwc-row').append($line, $text);
 	}
 
+	function render($box, $panel, result, data) {
+		var text = $box.textSelection('getContents');
+		var matches = result.matches;
+		var page = data.usage ? contextVerdict(matches).level : verdict(matches);
+		// בתוך "כדאי לבדוק": החשוד ביותר ראשון
+		var bySuspicion = function (a, b) {
+			return (SUSPICION_RANK[(b.context || {}).suspicion] || 0) - (SUSPICION_RANK[(a.context || {}).suspicion] || 0) || a.start - b.start;
+		};
+		var items = {
+			problem: matches.filter(function (m) { return shownLevel(m) === 'problem'; }),
+			review: matches.filter(function (m) { return shownLevel(m) === 'review'; }).sort(bySuspicion),
+			wording: matches.filter(function (m) { return shownLevel(m) === 'wording'; }),
+			names: matches.filter(isSeparate),
+			hidden: (result.hidden || []).filter(counted)
+		};
+		var ids = Object.keys(GROUPS).filter(function (id) { return items[id].length; });
+
+		var $actions = el('span', 'wwc-actions').append(
+			el('button', 'wwc-btn', '↻ בדיקה חוזרת').attr({ type: 'button', title: 'בדיקה של הטקסט הנוכחי' }).on('click', run),
+			el('button', 'wwc-btn', '✕').attr({ type: 'button', title: 'סגירה', 'aria-label': 'סגירה' }).on('click', function () { $panel.remove(); }));
+		$panel.empty().append(el('div', 'wwc-head').append(el('span', 'wwc-title', 'בדיקת מילים'),
+			el('span', 'wwc-verdict', VERDICTS[page])
+				.css('background', page === 'clean' ? 'var(--background-color-success-subtle,#dff2eb)' : GROUPS[page].color),
+			$actions));
+
+		if (!ids.length) return;
+		var $summary = el('div', 'wwc-summary');
+		var $body = el('div', 'wwc-body');
+		ids.forEach(function (id) {
+			var g = GROUPS[id], list = items[id], shown = 0;
+			var $details = el('details', 'wwc-group').prop('open', !!g.open);
+			$details.append(el('summary').append(dot(g.color), document.createTextNode(g.label + ' (' + list.length + ')')));
+			var $list = el('ul', 'wwc-list');
+			var more = function () {
+				list.slice(shown, shown + PAGE_SIZE).forEach(function (m) { $list.append(row($box, text, m, id === 'hidden')); });
+				shown = Math.min(list.length, shown + PAGE_SIZE);
+				$details.find('> .wwc-more').remove();
+				if (shown < list.length) {
+					$details.append(el('button', 'wwc-btn wwc-more', 'הצגת עוד ' + (list.length - shown)).attr('type', 'button').on('click', more));
+				}
+			};
+			$details.append($list);
+			more();
+			$body.append($details);
+			$summary.append(el('button', 'wwc-chip').attr('type', 'button')
+				.append(dot(g.color), document.createTextNode(g.label + ' ' + list.length))
+				.on('click', function () { $details.prop('open', true)[0].scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }));
+		});
+		$panel.append($summary, $body);
+
+		// תבנית שבורה ברשימות - לתחזוקה, לא לעורך
+		var problems = data.lists.problems.concat((data.clues && data.clues.problems) || []);
+		if (problems.length && window.console) console.warn('wikitextWordCheck: תבניות לא תקינות ברשימות', problems);
+	}
+
+	// צביעה בתצוגה המקדימה ובשורות שנוספו בטבלת ההבדלים. כל צומת טקסט נסרק במנוע עצמו
+	// (אותן תבניות והיתרים); הצבע - לפי הרמה של אותה מילה בבדיקת הקוד, ואם אינה שם, לפי הרשימה.
+	// מחזיר את מספר המילים שנצבעו.
+	var PAINTED = 'wikitextWordCheck-mark';
+	function paint(result, data) {
+		var keyByText = {}, painted = 0;
+		result.matches.forEach(function (m) { if (!keyByText[m.text]) keyByText[m.text] = shownLevel(m); });
+		$('#wikiPreview .mw-parser-output, td.diff-addedline, td.diff-side-added').each(function () {
+			var walker = document.createTreeWalker(this, NodeFilter.SHOW_TEXT, null), nodes = [], node;
+			while ((node = walker.nextNode())) {
+				if (!$(node.parentNode).closest('.' + PAINTED + ', style, script, .mw-editsection').length) nodes.push(node);
+			}
+			nodes.forEach(function (n) {
+				var text = n.nodeValue, found = scan(text, data.lists, { allow: window.wikitextWordCheckAllow || [] })
+					.sort(function (a, b) { return a.start - b.start; });
+				if (!found.length) return;
+				var frag = document.createDocumentFragment(), at = 0;
+				found.forEach(function (m) {
+					if (m.start < at) return;
+					var key = keyByText[m.text] || shownLevel(m);
+					frag.appendChild(document.createTextNode(text.slice(at, m.start)));
+					frag.appendChild(el('span', PAINTED + ' wwc-mark', text.slice(m.start, m.end))
+						.css('background', GROUPS[key].color).attr('title', 'בדיקת מילים: ' + GROUPS[key].label)[0]);
+					painted++;
+					at = m.end;
+				});
+				frag.appendChild(document.createTextNode(text.slice(at)));
+				n.parentNode.replaceChild(frag, n);
+			});
+		});
+		return painted;
+	}
+
+	var cssAdded = false;
 	function run() {
+		if (!cssAdded) { mw.util.addCSS(CSS); cssAdded = true; }
 		var $box = $('#wpTextbox1');
 		var $panel = $('#wikitextWordCheck');
 		if (!$panel.length) {
-			$panel = el('div', null, { border: '1px solid #a2a9b1', padding: '0.5em 1em', margin: '0.5em 0' })
-				.attr('id', 'wikitextWordCheck');
-			$('.editOptions').before($panel);
+			$panel = el('div', 'wwc').attr({ id: 'wikitextWordCheck', dir: 'rtl' });
+			$('.editOptions').first().before($panel);
 		}
-		$panel.text('טוען את רשימות המילים…');
-		loadLists().then(function (lists) {
-			var text = $box.textSelection('getContents');
-			var options = { allow: window.wikitextWordCheckAllow || [] };
-			var matches = scan(text, lists, options);
-			var withAllow = { patterns: lists.patterns, allow: lists.allow.concat(options.allow.map(function (p) {
-				return { regex: new RegExp(p, 'gi'), kind: 'hide', entry: null };
-			})), problems: lists.problems };
-			render($box, $panel, matches, lists, scanHidden(text, withAllow, matches));
+		$panel.empty().append(el('div', 'wwc-head').append(el('span', 'wwc-title', 'בדיקת מילים'), el('span', 'wwc-loading', 'בודק…')));
+		return loadData().then(function (data) {
+			var result = scanText($box.textSelection('getContents'), data);
+			render($box, $panel, result, data);
+			var painted = paint(result, data);
+			if (painted) $panel.append(el('div', 'wwc-foot', 'המילים סומנו גם בתצוגה המקדימה.'));
+			return result;
 		}, function (err) {
-			$panel.text('שגיאה בטעינת רשימות המילים' + (err && err.message ? ': ' + err.message : '.'));
+			$panel.append(el('div', 'wwc-error', 'הבדיקה לא הצליחה. אפשר לנסות שוב בעוד רגע.'));
+			if (window.console) console.error('wikitextWordCheck:', err);
 		});
 	}
 
-	$.when(mw.loader.using(['mediawiki.api', 'mediawiki.util', 'jquery.textSelection']), $.ready).then(function () {
-		var link = mw.util.addPortletLink('p-cactions', '#', 'בדיקת מילים חשודות בקוד', 'ca-wikitextWordCheck',
-			'סריקת הוויקיטקסט לפי רשימות המילים החשודות');
-		$(link).on('click', function (e) {
-			e.preventDefault();
-			run();
-		});
+	function addButton($form) {
+		if ($('#wikitextWordCheckButton').length) return;
+		var $diff = ($form || $(document)).find('#wpDiffWidget');
+		if ($diff.length) {
+			var button = new OO.ui.ButtonInputWidget({ label: 'בדיקת מילים', title: 'בדיקת מילים חשודות בקוד הערך', id: 'wikitextWordCheckButton' });
+			button.on('click', run);
+			$diff.after(button.$element);
+		} else {
+			$(mw.util.addPortletLink('p-cactions', '#', 'בדיקת מילים חשודות בקוד', 'wikitextWordCheckButton',
+				'סריקת הוויקיטקסט לפי רשימות המילים החשודות')).on('click', function (e) {
+				e.preventDefault();
+				run();
+			});
+		}
+	}
+
+	$.when(mw.loader.using(['mediawiki.api', 'mediawiki.util', 'mediawiki.Title', 'jquery.textSelection', 'oojs-ui-core']), $.ready).then(function () {
+		addButton();
+		mw.hook('wikipage.editform').add(addButton);
 	});
 }());
