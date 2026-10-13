@@ -14,4 +14,5 @@
 - בסוף כל סשן שבו השתנה משהו מהותי ב-word-filter: לעדכן את `word-filter/NOTES.md` (מצב, החלטות, ממצאים, היסטוריה) ולבצע commit - הקונטיינר נמחק, ורק מה שבריפו נשמר.
 - מבנה הקוד: ב-word-filter - JavaScript בלבד (המנוע הוא קובץ הגאדג'ט, והכלים ב-Node משתמשים בו). הצינור בפייתון (`scripts/`) שייך לפרויקט ההשוואה.
 - פרויקט סופרבייס: `hgsyzaghedqsypisbvev` (גישה דרך כלי ה-MCP; לא נגיש ישירות מהקונטיינר).
-- רשת: נדרשים `www.hamichlol.org.il` ו-`he.wikipedia.org` ברשימת הדומיינים המותרים של הסביבה.
+- רשת: נדרשים `www.hamichlol.org.il` ו-`he.wikipedia.org` ברשימת הדומיינים המותרים של הסביבה. ה-Cloudflare של המכלול מחזיר 403 (`cf-mitigated: challenge`) לבקשה בלי User-Agent של בוט; להשתמש ב-`USER_AGENT` מ-`scripts/config.py`.
+- **המצב הנוכחי של V1 ושל הרכיבים המשותפים עם V2 (מה מוחל, מה בענף, מה פתוח): `STATUS.md`.** מצב V2: `STATUS.md` בריפו `database_V2`.
