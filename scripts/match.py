@@ -16,6 +16,8 @@ normalization_checked, אין should_reexamine - כל אלה התייתרו לג
    את הכותרת המאוחסנת).
 2. נרמול סמנטי (מכלול -> ויקיפדיה בלבד, ראו normalize.py).
 3. {{מיון ויקיפדיה|דף=...}} - קריאת API באצוות, מוצא אחרון בלבד.
+   שם בתבנית שאינו כותרת חיה נבדק גם מול השמות הקודמים של דפים שהועברו בוויקיפדיה
+   (load_moved_titles): הזהות נשמרת במזהה הדף, והערך לא נחשב חסר בגלל ההעברה.
 
 אחרי ההתאמה: חישוב חסרים → עיבוד תור המחיקות ואישור כל אצווה אטומית → source_state.
 התור מעובד רק בטבלה הפעילה, ולא בזמן בניית המראה השבועית.
@@ -120,6 +122,43 @@ def load_wikipedia_map(client):
         log(f"WARNING | {collisions:,} התנגשויות מפתח היגיינה בוויקיפדיה (דולגו)")
 
     return title_map, existing_ids
+
+
+def load_moved_titles(client, title_map, existing_ids):
+    """
+    {hygiene(שם קודם): page_id} לדפי ויקיפדיה שהועברו (maintenance_wikipedia_events). התבנית במכלול נשארת
+    עם השם הקודם, והוא כבר לא במפת הכותרות; הזהות נשמרת במזהה הדף. נכלל רק כשהשם הקודם אינו של דף חי
+    אחר (key לא ב-title_map), הוא של מזהה אחד בלבד, והמזהה עדיין חי במרחב הערכים.
+    """
+    ids_by_key = {}
+    last_id = 0
+    while True:
+        result = execute_with_retry(
+            lambda last_id=last_id: (
+                client.table("maintenance_wikipedia_events")
+                .select("id, page_id, title")
+                .eq("kind", "move")
+                .eq("namespace", 0)
+                .gt("page_id", 0)
+                .gt("id", last_id)
+                .order("id")
+                .limit(BATCH_SIZE)
+                .execute()
+            ),
+            f"MOVED_TITLES after_id={last_id}",
+        )
+        rows = result.data or []
+        for row in rows:
+            if row.get("title"):
+                ids_by_key.setdefault(hygiene(row["title"]), set()).add(row["page_id"])
+        if len(rows) < BATCH_SIZE:
+            break
+        last_id = rows[-1]["id"]
+    return {
+        key: next(iter(ids))
+        for key, ids in ids_by_key.items()
+        if len(ids) == 1 and key not in title_map and next(iter(ids)) in existing_ids
+    }
 
 
 def load_manual_matches(client):
@@ -263,9 +302,11 @@ def fetch_template_titles(titles):
     return result
 
 
-def resolve_pending_via_template(pending, wikipedia_map):
+def resolve_pending_via_template(pending, wikipedia_map, moved_map=None):
     """
     pending: [(row, title), ...]
+    moved_map: {hygiene(שם קודם): page_id} מ-load_moved_titles - שם בתבנית של דף שהועבר בוויקיפדיה
+    מתאים למזהה הדף, ולא נחשב "בעיה בשם".
     מחזיר {row_id: result}, כאשר result אחד מ:
     - None - לא הצלחנו לבדוק בכלל (חסימת גישה), או שאין תבנית בעמוד
     - (wikipedia_id, template_value) - הצלחה, השם בתבנית נמצא בפועל
@@ -301,6 +342,8 @@ def resolve_pending_via_template(pending, wikipedia_map):
 
             key = hygiene(template_value)
             wikipedia_id = wikipedia_map.get(key)
+            if wikipedia_id is None:
+                wikipedia_id = (moved_map or {}).get(key)
 
             if wikipedia_id is not None:
                 resolved[row["id"]] = (wikipedia_id, template_value)
@@ -651,6 +694,7 @@ def main():
     # ב---scoped (ראו שלב 2).
     scoped_titles = set()
     template_check_deferred = 0
+    moved_map = None  # נטען רק כשיש ממתינים לבדיקת תבנית
 
     log("שלב 1 | מתאים כותרות מכלול...")
 
@@ -759,7 +803,10 @@ def main():
         if args.skip_template_check:
             template_check_deferred += len(pending)
         elif pending:
-            resolved = resolve_pending_via_template(pending, wikipedia_map)
+            if moved_map is None:
+                moved_map = load_moved_titles(client, wikipedia_map, wikipedia_existing_ids)
+                log(f"שלב 3 | {len(moved_map):,} שמות קודמים של דפים שהועברו")
+            resolved = resolve_pending_via_template(pending, wikipedia_map, moved_map)
 
             for row, title in pending:
                 if row["id"] not in resolved:

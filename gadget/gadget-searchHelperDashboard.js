@@ -151,8 +151,9 @@
 	// הרמה של שורה (בעמודות ה-view) לפי השיטה והרשימות שנבחרו:
 	// problem / high / medium / low / review (בשיטת הרשימה) / wording / clean / null.
 	function wfRowLevel(row) {
-		if (DB_ID === 'v2' && row.scan_state === 'stale') return 'stale';
-		if (DB_ID === 'v2' && row.scan_state === 'not_scanned') return null;
+		// תוקף התוצאה (scan_state בשני המסדים): ישנה = נסרקה גרסה קודמת לגרסה שבמראה
+		if (row.scan_state === 'stale') return 'stale';
+		if (row.scan_state === 'not_scanned') return null;
 		var level = row[wfColumn()];
 		if (level === 'review' && wfMethod === 'ctx') return row[wfSuspicionColumn()] || 'review';
 		return level || null;
@@ -1301,10 +1302,8 @@
 			['review', 'לבדיקה', '#D9B44A'], ['problem', 'בעיה ודאית', '#C1634A'], ['unscanned', 'טרם נסרק', '#3A4A52']]
 	};
 	var WF_LEVEL_LABELS = { review_medium_up: 'חשד בינוני וגבוה' };
-	if (DB_ID === 'v2') {
-		WF_LEVEL_OPTIONS.ctx.push(['stale', 'תוצאה ישנה']);
-		WF_LEVEL_OPTIONS.list.push(['stale', 'תוצאה ישנה']);
-	}
+	WF_LEVEL_OPTIONS.ctx.push(['stale', 'תוצאה ישנה']);
+	WF_LEVEL_OPTIONS.list.push(['stale', 'תוצאה ישנה']);
 	WF_LEVEL_OPTIONS.ctx.concat(WF_LEVEL_OPTIONS.list).forEach(function (o) { WF_LEVEL_LABELS[o[0]] = o[1]; });
 
 	function buildEasyImportFilters(side, cfg) {
@@ -1601,12 +1600,9 @@
 		var col = wfColumn(), v = wfLevelChoice;
 		if (!v) return;
 		var sub = /^review_(high|medium|low|medium_up)$/.exec(v);
-		if (DB_ID === 'v2') {
-			if (v === 'unscanned' || v === 'stale') { activeFilters.scan_state = { op: 'eq', value: v === 'unscanned' ? 'not_scanned' : 'stale' }; return; }
-			activeFilters.scan_state = { op: 'eq', value: 'scanned' };
-		}
-		if (v === 'unscanned') activeFilters[col] = { op: 'is', value: 'null' };
-		else if (v === 'clean_wording') activeFilters[col] = { op: 'in', value: '(clean,wording)' };
+		if (v === 'unscanned' || v === 'stale') { activeFilters.scan_state = { op: 'eq', value: v === 'unscanned' ? 'not_scanned' : 'stale' }; return; }
+		activeFilters.scan_state = { op: 'eq', value: 'scanned' };
+		if (v === 'clean_wording') activeFilters[col] = { op: 'in', value: '(clean,wording)' };
 		else if (sub) {
 			activeFilters[col] = { op: 'eq', value: 'review' };
 			// בשיטת הרשימה אין רמות חשד - "לבדיקה" כולו.
@@ -1628,14 +1624,14 @@
 		{ key: null, label: 'טרם נסרק', color: '#3A4A52', filter: 'unscanned' }
 	];
 
-	if (DB_ID === 'v2') WF_METER_SEGMENTS.push({ key: 'stale', label: 'תוצאה ישנה', color: '#7C8C99', filter: 'stale' });
+	WF_METER_SEGMENTS.push({ key: 'stale', label: 'תוצאה ישנה', color: '#7C8C99', filter: 'stale' });
 
 	function loadWfSummary(force) {
 		if (wfSummary && !force) return Promise.resolve(wfSummary);
 		// בדפים של 1,000 שורות - סופבייס מגביל תשובה אחת (max rows).
 		var rows = [];
 		function page(from) {
-			return pgSelect('report_missing_word_filter_summary', { filterParams: [], order: 'n.desc,redirect.asc,has_images.asc,verdict.asc,verdict_suggested.asc,ctx_verdict.asc,ctx_suspicion.asc,ctx_verdict_suggested.asc,ctx_suspicion_suggested.asc,dictionary.asc,topic.asc' + (DB_ID === 'v2' ? ',scan_state.asc' : ''), from: from, to: from + 999 })
+			return pgSelect('report_missing_word_filter_summary', { filterParams: [], order: 'n.desc,redirect.asc,has_images.asc,verdict.asc,verdict_suggested.asc,ctx_verdict.asc,ctx_suspicion.asc,ctx_verdict_suggested.asc,ctx_suspicion_suggested.asc,dictionary.asc,topic.asc,scan_state.asc', from: from, to: from + 999 })
 				.then(function (res) {
 					var data = res.data || [];
 					rows = rows.concat(data);

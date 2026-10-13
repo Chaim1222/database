@@ -5,6 +5,7 @@ on:
       - 'scripts/**'
       - 'requirements.txt'
       - 'migrations/20261011110000_delta_release_queue.sql'
+      - 'migrations/20261013200000_scan_state_freshness.sql'
       - '.github/workflows/hourly_tests.yml'
 permissions:
   contents: read
@@ -33,5 +34,5 @@ jobs:
           sudo systemctl start postgresql
           sudo -u postgres createuser --superuser "$USER"
           createdb -h /var/run/postgresql delta_release_test
-          DELTA_TEST_DB_URL="postgresql:///delta_release_test?host=/var/run/postgresql" python -m unittest discover -s scripts/tests -p test_delta_release_sql.py
+          DELTA_TEST_DB_URL="postgresql:///delta_release_test?host=/var/run/postgresql" python -m unittest discover -s scripts/tests -p "test_*_sql.py"
           dropdb -h /var/run/postgresql delta_release_test
