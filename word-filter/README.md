@@ -33,6 +33,7 @@
 | `tools/scan-missing.js` | סינון כל רשימת "חסר במכלול" ושמירה בסופבייס (`word_filter_results`) - לדשבורד. רץ ב-GitHub Actions (`word_filter_scan.yml`). |
 | `tools/evaluate.js` | מדידה מול ערכים אמיתיים (ראו למטה). |
 | `tools/apply-decisions.js` | מחיל את ההחלטות מדף הסקירה על קובצי ה-JSON. |
+| `tools/build-site.js`, `site/` | העותק לאתר: דפי הגאדג'ט והרשימות (סעיף "הגאדג'ט באתר"). |
 | `tools/build-lists.js` | ההסבה החד-פעמית מהדפים הקיימים ל-JSON - לתיעוד. |
 | `sources/` | העותקים של הדפים המקוריים ושל ההצעות, שמהם נבנה ה-JSON. |
 | `review/` | דף הסקירה המשותף (`index.html`), הנתונים שלו ו-`build-data.js` שמרכיב אותם. |
@@ -64,19 +65,35 @@
 
 ## הגאדג'ט באתר
 
-1. להעלות את `Gadget-wikitextWordCheck.js` כגאדג'ט.
-2. ליצור שני דפי JSON (מודל תוכן JSON): `מדיה ויקי:Gadget-wikitextWordCheck-words.json` ו-`מדיה ויקי:Gadget-wikitextWordCheck-allow.json`, עם התוכן של `lists/`. (דפי מרחב "מדיה ויקי" ניתנים לעריכה רק למנהלי ממשק. אם עדיף שעורכים רגילים יתחזקו את הרשימות - אפשר דף במרחב אחר עם שינוי מודל תוכן, ולעדכן את `WORDS_PAGE`/`ALLOW_PAGE` בראש הקובץ.)
-3. בדף עריכה מופיע "בדיקת מילים חשודות בקוד" בתפריט הפעולות.
+**החלטת חיים (2026-10-13):** גאדג'ט לכל העורכים, ברירת מחדל, והרשימות במרחב "מדיה ויקי". הקבצים להעתקה ב-`site/`:
 
-**כסקריפט אישי** (בלי גאדג'ט ובלי הרשאות מנהל ממשק): להעתיק את הקובץ לדף משתמש, למשל `משתמש:X/wordcheck.js`, ואת שתי הרשימות לדפים `משתמש:X/words.json` ו-`משתמש:X/allow.json` (דף משתמש שמסתיים ב-`.json` מקבל אוטומטית מודל תוכן JSON, ורק בעל החשבון ומנהלי ממשק יכולים לערוך אותו). ב-`משתמש:X/common.js`:
+| דף באתר | קובץ בריפו |
+|---|---|
+| `מדיה ויקי:Gadget-wikitextWordCheck.js` | `Gadget-wikitextWordCheck.js` |
+| `מדיה ויקי:Gadget-wikitextWordCheck-data.js` | `site/Gadget-wikitextWordCheck-data.js` |
+| `מדיה ויקי:Gadget-wikitextWordCheck-words.json` (וגם `-allow`, `-usage`, `-context`) | `site/Gadget-wikitextWordCheck-*.json` |
+| שתי שורות ב-`מדיה ויקי:Gadgets-definition` (סעיף "עריכה") | `site/Gadgets-definition.txt` |
+| `משתמש:גאון הירדן/בדיקת מילים חשודות.js` | `site/import-script.js` |
+
+- **הגאדג'ט** (`wikitextWordCheck`) נטען רק בעריכה (`actions=edit,submit`). הוא מוסיף כפתור "בדיקת מילים" ליד "הצגת שינויים"; בלי הכפתור הזה בדף - קישור בתפריט "עוד".
+- **הלחיצה** מציגה את רמת הדף לפי ההקשר, כמו בדשבורד. ליד כל מילה מוצגים המשפט שלה, רמת החשד ומילת ההקשר, וקישור "שורה" שמסמן אותה בתיבת העריכה. בנוסף היא צובעת את המילים בתצוגה המקדימה ובשורות שנוספו בטבלת ההבדלים, אם הן בדף. הצבע הוא של אותה מילה בבדיקת הקוד.
+- **הרשימות** נמצאות בגאדג'ט מוסתר (`wikitextWordCheck-data`, מסוג package), ונטענות רק בלחיצה. ResourceLoader מצרף את דפי ה-JSON בצד השרת, ולכן הם זמינים לכל עורך גם אם הדפים ננעלים לקריאה (כמו `Gadget-checkWords.json`).
+- **דפי ה-JSON באתר הם עותק**, ואין לערוך אותם שם. המקור הוא `lists/`, וממנו קוראת גם הסריקה של הדשבורד. אחרי כל שינוי ברשימות: `node word-filter/tools/build-site.js` ולהעתיק את קובצי `site/*.json`. העותק מכיל רק רשומות פעילות והצעות, ורק את השדות שהמנוע קורא; `tests/site.test.js` בודק שהוא מעודכן ושהוא סורק בדיוק כמו `lists/`.
+- **סקריפט הייבוא** (`site/import-script.js`): הבדיקה הישנה לפי "המכלול:בודק מילים חשודות" והצביעה לפי "המכלול:בדיקת מילים חשודות" הוסרו. אחרי ייבוא או עדכון הסקריפט מריץ את הגאדג'ט. "תצוגת הבדלים מתקדמת" (החזרת שורות שנמחקו) נשארה.
+- **דפי במח ובומח** לא שונו. הגאדג'ט לא משתמש בהם.
+
+**כסקריפט אישי** (בלי גאדג'ט ובלי הרשאות מנהל ממשק): להעתיק את הקובץ לדף משתמש, למשל `משתמש:X/wordcheck.js`, ואת הרשימות לדפים `משתמש:X/words.json` וכו' (דף משתמש שמסתיים ב-`.json` מקבל מודל תוכן JSON). ב-`משתמש:X/common.js`:
 ```
-window.wikitextWordCheckPages = { words: 'משתמש:X/words.json', allow: 'משתמש:X/allow.json' };
+window.wikitextWordCheckPages = { words: 'משתמש:X/words.json', allow: 'משתמש:X/allow.json', usage: 'משתמש:X/usage.json', context: 'משתמש:X/context.json' };
 mw.loader.load('/w/index.php?title=משתמש:X/wordcheck.js&action=raw&ctype=text/javascript');
 ```
+`usage` ו-`context` אינם חובה; בלעדיהם הרמה נקבעת לפי הרשימה בלבד.
 
-**בדיקת תוכן בטאב "עדכון" בדשבורד:** אותו קובץ מנוע ואותם דפי רשימות משמשים גם שם, בלי גאדג'ט. מגדירים ב-`common.js`: `window.mchlWordCheck = { script: 'משתמש:X/wordcheck.js', words: 'משתמש:X/words.json', allow: 'משתמש:X/allow.json' }` (הקובץ חושף את המנוע כ-`mw.wikitextWordCheck`). הדשבורד בודק רק התאמות חדשות שהעדכון מכניס.
+**לכלים אחרים באתר:** `mw.wikitextWordCheck = { core, loadLists, run }`. `loadLists()` מחזיר `{lists, usage, clues}`, ו-`run()` מריץ את הבדיקה על תיבת העריכה.
 
 הגדרות אישיות (common.js): `window.wikitextWordCheckSuggested = true` - לכלול הצעות שלא אושרו; `window.wikitextWordCheckAllow = ['...']` - ביטויים מותרים נוספים.
+
+בדיקות: `node --test word-filter/tests/*.test.js`, ובדפדפן `node word-filter/tests/gadgetBrowser.cjs` (דורש `playwright` ו-`jquery`; רץ ב-`dashboard_tests.yml`).
 
 ## בדיקה ומדידה
 

@@ -1,0 +1,4 @@
+# שתי שורות להוספה ל"מדיה ויקי:Gadgets-definition" (בסעיף "עריכה"). מנהל ממשק בלבד.
+# הראשונה: הגאדג'ט, ברירת מחדל לכולם, נטען רק בעריכה. השנייה: הרשימות, מוסתר, נטען רק בלחיצה.
+* wikitextWordCheck[ResourceLoader|default|actions=edit,submit|dependencies=mediawiki.api,mediawiki.util,mediawiki.Title,jquery.textSelection,oojs-ui-core]|wikitextWordCheck.js
+* wikitextWordCheck-data[ResourceLoader|hidden|package]|wikitextWordCheck-data.js|wikitextWordCheck-words.json|wikitextWordCheck-allow.json|wikitextWordCheck-usage.json|wikitextWordCheck-context.json
