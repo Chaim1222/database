@@ -6,11 +6,11 @@ const source = fs.readFileSync(path.join(__dirname, '../gadget-searchHelperDashb
 const block = source.slice(source.indexOf('// ===== backend-start'), source.indexOf('// ===== backend-end'));
 const { DATABASES, databaseId, databaseHeaders, databaseWrite, sessionUserId } = new Function(block + '\nreturn {DATABASES,databaseId,databaseHeaders,databaseWrite,sessionUserId};')();
 
-test('page default and explicit backend selection', () => {
- assert.equal(databaseId('', 'מיוחד:דף_ריק/database'), 'v1');
+test('V2 by default on every page; V1 only explicitly', () => {
+ assert.equal(databaseId('', 'מיוחד:דף_ריק/database'), 'v2');
  assert.equal(databaseId('', 'מיוחד:דף_ריק/database-v2'), 'v2');
- assert.equal(databaseId('?mchlDb=v1', 'מיוחד:דף_ריק/database-v2'), 'v1');
- assert.equal(databaseId('?mchlDb=invalid', 'מיוחד:דף_ריק/database'), 'v1');
+ assert.equal(databaseId('?mchlDb=v1', 'מיוחד:דף_ריק/database'), 'v1');
+ assert.equal(databaseId('?mchlDb=invalid', 'מיוחד:דף_ריק/database'), 'v2');
 });
 for (const id of ['v1','v2']) test(id + ' scopes REST reads/writes to its project schema', () => {
  const cfg = DATABASES[id], h = databaseHeaders(cfg, 'session-' + id, {'Content-Type':'application/json'});

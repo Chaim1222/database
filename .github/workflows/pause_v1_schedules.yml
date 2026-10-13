@@ -1,5 +1,5 @@
 name: "השהיית התזמונים של המערכת הישנה (בעת המעבר ל-v2)"
-# ידני. מכבה (או מחזיר) את ארבעת ה-workflows המתוזמנים של v1. הקבצים והנתונים נשארים; הפעולה הפיכה (resume).
+# ידני. מכבה (או מחזיר) את ה-workflows האוטומטיים של v1: ארבעת המתוזמנים ושניים שמופעלים מהם או מ-push. הקבצים והנתונים נשארים; הפעולה הפיכה (resume).
 # שימוש: Run workflow, action=pause במעבר ל-v2; action=resume לחזרה ל-v1.
 on:
   workflow_dispatch:
@@ -23,7 +23,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ACTION: ${{ inputs.action }}
         run: |
-          for wf in nightly_delta.yml rev_link_scan.yml sort_template_hourly.yml weekly_full_reconciliation.yml; do
+          for wf in nightly_delta.yml rev_link_scan.yml sort_template_hourly.yml weekly_full_reconciliation.yml word_filter_scan.yml enrichment_after_reconciliation.yml; do
             if [ "$ACTION" = "pause" ]; then gh workflow disable "$wf" --repo "$GITHUB_REPOSITORY"; else gh workflow enable "$wf" --repo "$GITHUB_REPOSITORY"; fi
             echo "$ACTION $wf"
           done

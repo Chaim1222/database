@@ -13,9 +13,10 @@
 		v1: { url: 'https://hgsyzaghedqsypisbvev.supabase.co', schema: 'public', anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhnc3l6YWdoZWRxc3lwaXNidmV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzNTY2ODgsImV4cCI6MjEwMTkzMjY4OH0.eDPO3n3OHvmndWDvgF-istBP2NhY5W20erG3zztm7vs', adminRpc: 'is_manual_match_admin', maintenance: true },
 		v2: { url: 'https://ukzijtrpchvmoxlslxpz.supabase.co', schema: 'api', anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVremlqdHJwY2h2bW94bHNseHB6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEyMTU1MzMsImV4cCI6MjEwNjc5MTUzM30.QCUKSOb1oOSwUPurOOhubPJFoSrQCUsClCSHEBp0BH8', adminRpc: 'is_admin', maintenance: false }
 	};
-	function databaseId(search, pageName) {
+	// V2 בכל הדפים (המעבר, 13.10.2026); ?mchlDb=v1 פותח את V1 המושהה לצפייה או לחזרה.
+	function databaseId(search) {
 		var selected = new URLSearchParams(search).get('mchlDb');
-		return selected === 'v1' || selected === 'v2' ? selected : (/\/database-v2$/.test(pageName) ? 'v2' : 'v1');
+		return selected === 'v1' ? 'v1' : 'v2';
 	}
 	function databaseHeaders(cfg, token, extra) {
 		var headers = { apikey: cfg.anonKey, Authorization: 'Bearer ' + (token || cfg.anonKey), 'Accept-Profile': cfg.schema, 'Content-Profile': cfg.schema };
@@ -47,7 +48,7 @@
 		throw new Error('Unsupported database action: ' + action);
 	}
 	// ===== backend-end =====
-	var DB_ID = databaseId(window.location.search, wgPageName);
+	var DB_ID = databaseId(window.location.search);
 	var DB = DATABASES[DB_ID];
 	var SUPABASE_URL = DB.url, SUPABASE_ANON_KEY = DB.anonKey;
 	function sendDatabaseWrite(action, data) {
