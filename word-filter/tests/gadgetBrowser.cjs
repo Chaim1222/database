@@ -60,17 +60,15 @@ function stubs({ action, data }) {
 	await page.click('#wikitextWordCheckButton');
 	await page.waitForSelector('#wikitextWordCheck li');
 	const panel = await page.textContent('#wikitextWordCheck');
-	assert.equal(await page.textContent('.wwc-verdict'), 'בעיה ודאית');
-	assert.match(panel, /מילת הקשר: הורשע/);          // מילות ההקשר (context.json) נטענו
-	// הערת ניסוח בלי רמת חשד; "בעיה ודאית" ו"לבדיקה" פתוחות, השאר סגורות
-	const groups = await page.evaluate(() => $('.wwc-group').map((i, d) => [[$(d).children('summary').text(), d.open, $(d).find('.wwc-meta').text()]]).get());
-	assert.deepEqual(groups.map((g) => g[1]), [true, true, false, false], JSON.stringify(groups));
-	assert.match(groups[2][0], /^הערות ניסוח \(1\)/);
-	assert.doesNotMatch(groups[2][2], /חשד/);
-	assert.match(groups[3][2], /הערה מוסתרת/);       // הקוד המוסתר: סוג הקוד, ורק השורה עצמה
-	assert.equal(await page.evaluate(() => $('.wwc-group').eq(3).find('.wwc-text').text()), '<!-- סקס -->');
-	assert.match(panel, /חשד נמוך/);                  // "מין של חרק" - רמות החשד (usage.json)
-	assert.match(panel, /בקוד שהקורא לא רואה/);       // "סקס" בהערה
+	assert.equal(await page.textContent('.wwc-verdict'), 'נמצאו מילים שיש לתקן');
+	// בשפה פשוטה: בלי רמות חשד, מילות הקשר, הצעות וסוגי קוד
+	assert.doesNotMatch(panel, /חשד|מילת הקשר|הצעה|ודאית|הערה מוסתרת|תבניות/);
+	const groups = await page.evaluate(() => $('.wwc-group').map((i, d) => [[$(d).children('summary').text(), d.open, $(d).find('.wwc-text').text()]]).get());
+	assert.deepEqual(groups.map((g) => g[0]), ['יש לתקן (2)', 'כדאי לבדוק (1)', 'לשים לב לניסוח (1)', 'בקוד שלא מוצג בערך (1)']);
+	assert.deepEqual(groups.map((g) => g[1]), [true, true, false, false]);
+	assert.match(groups[0][2], /הורשע באונס/);        // מילת ההקשר (context.json) העלתה ל"יש לתקן"
+	assert.match(groups[1][2], /מין של חרק/);          // רמות החשד (usage.json): נשאר "כדאי לבדוק"
+	assert.equal(groups[3][2], '<!-- סקס -->');         // הקוד המוסתר: רק השורה עצמה
 	assert.ok(!(await page.evaluate(() => $('#wikitextWordCheck mark').map((i, e) => e.textContent).get())).some((t) => /^האל/.test(t))); // "האל" במילה שלמה בלבד
 	assert.equal(await page.evaluate(() => testState.usings.flat().filter((m) => m === 'ext.gadget.wikitextWordCheck-data').length), 1);
 	assert.ok(await page.evaluate(() => $('#wikitextWordCheck').next().is('.editOptions')), 'panel above the edit options');
@@ -89,11 +87,10 @@ function stubs({ action, data }) {
 
 	if (process.env.SCREENSHOT) await page.screenshot({ path: process.env.SCREENSHOT, fullPage: true });
 
-	// שורת הסיכום פותחת קבוצה סגורה; המקרא; הערת הצביעה
+	// שורת הסיכום פותחת קבוצה סגורה; הערת הצביעה
 	await page.click('.wwc-summary .wwc-chip:nth-child(3)');
 	assert.equal(await page.evaluate(() => $('.wwc-group')[2].open), true);
-	assert.match(await page.textContent('.wwc-legend'), /חשד גבוה.*חשד בינוני.*חשד נמוך/);
-	assert.match(await page.textContent('.wwc-foot'), /סומנו \d+ מילים/);
+	assert.equal(await page.textContent('.wwc-foot'), 'המילים סומנו גם בתצוגה המקדימה.');
 
 	// בדיקה חוזרת (גם מהכפתור שבכרטיס): לא כפילות בצביעה ובפאנל
 	await page.click('.wwc-actions .wwc-btn');
@@ -111,8 +108,9 @@ function stubs({ action, data }) {
 	// ערך נקי; ערך עם הרבה מופעים - 25 ראשונים ו"הצגת עוד"
 	await page.evaluate(() => { document.getElementById('wpTextbox1').value = 'ערך על גאומטריה ומספרים.'; });
 	await page.click('#wikitextWordCheckButton');
-	await page.waitForSelector('.wwc-clean');
-	assert.equal(await page.textContent('.wwc-verdict'), 'נקי');
+	await page.waitForSelector('.wwc-verdict');
+	assert.equal(await page.textContent('.wwc-verdict'), 'לא נמצאו מילים בעייתיות');
+	assert.equal(await page.evaluate(() => $('.wwc-group').length), 0);
 	await page.evaluate(() => { document.getElementById('wpTextbox1').value = Array(30).fill('שחקנית פורנו.').join('\n'); });
 	await page.click('#wikitextWordCheckButton');
 	await page.waitForSelector('.wwc-more');

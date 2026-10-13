@@ -748,12 +748,24 @@
 	if (['edit', 'submit'].indexOf(mw.config.get('wgAction')) < 0) return;
 
 	// ===== תצוגה =====
-	// כרטיס מעל שורת התקציר: כותרת עם רמת הדף, שורת סיכום (לחיצה פותחת את הקבוצה), מקרא צבעים,
-	// וקבוצות מתקפלות - "בעיה ודאית" ו"לבדיקה" פתוחות, השאר סגורות. צבעי המסגרת מ-Codex
-	// (משתני CSS של האתר - מתאימים את עצמם למצב כהה); צבעי הסימון קבועים, עם טקסט כהה, כמו מרקר.
-	var MARK = { problem: '#ff9a9a', high: '#ffbe73', medium: '#ffe066', low: '#fff1b8', wording: '#cfdcf2', names: '#e4d6f6', hidden: '#e0e0e0' };
-	var MARK_LABELS = { problem: 'בעיה ודאית', high: SUSPICION_LABELS.high, medium: SUSPICION_LABELS.medium, low: SUSPICION_LABELS.low,
-		wording: 'ניסוח', names: 'שמות הקודש' };
+	// כרטיס לעורך מן השורה (החלטת חיים 2026-10-13: "כמה שפחות הגדרות שרק אני ואתה מכירים"):
+	// כותרת עם שורת מסקנה, ומילים בקבוצות בשפה פשוטה - יש לתקן / כדאי לבדוק / ניסוח, וקבוצות משניות מקופלות.
+	// בלי רמות חשד, מילות הקשר או מזהי רשומות: הם קובעים את הקבוצה ואת הסדר (החשוד ביותר ראשון), ולא מוצגים.
+	// צבעי הכרטיס מ-Codex (משתני CSS של האתר - מתאימים את עצמם למצב כהה); צבעי הסימון קבועים, עם טקסט כהה.
+	// הנוסחים - הצעה של Claude, ממתינים לאישור חיים.
+	var GROUPS = {
+		problem: { label: 'יש לתקן', color: '#ff9a9a', open: true },
+		review: { label: 'כדאי לבדוק', color: '#ffe066', open: true },
+		wording: { label: 'לשים לב לניסוח', color: '#cfdcf2' },
+		names: { label: 'שמות קודש', color: '#e4d6f6' },
+		hidden: { label: 'בקוד שלא מוצג בערך', color: '#e0e0e0' }
+	};
+	var VERDICTS = {
+		problem: 'נמצאו מילים שיש לתקן',
+		review: 'נמצאו מילים שכדאי לבדוק',
+		wording: 'כדאי לבדוק את הניסוח',
+		clean: 'לא נמצאו מילים בעייתיות'
+	};
 	var PAGE_SIZE = 25;
 	var CSS = [
 		'.wwc{border:1px solid var(--border-color-base,#a2a9b1);border-radius:4px;background:var(--background-color-base,#fff);color:var(--color-base,#202122);margin:.6em 0;font-size:.875rem;line-height:1.5}',
@@ -768,15 +780,12 @@
 		'button.wwc-chip{cursor:pointer;font-family:inherit}',
 		'button.wwc-chip:hover{border-color:var(--border-color-progressive,#36c)}',
 		'.wwc-dot{width:.75em;height:.75em;border-radius:50%;flex:none;box-shadow:inset 0 0 0 1px rgba(0,0,0,.2)}',
-		'.wwc-legend{display:flex;flex-wrap:wrap;gap:.2em .8em;padding:.4em .8em 0;font-size:.8em;color:var(--color-subtle,#54595d)}',
-		'.wwc-legend span{display:inline-flex;align-items:center;gap:.3em}',
 		'.wwc-body{padding:.2em .8em .6em}',
 		'.wwc-group{margin-top:.5em;border-top:1px solid var(--border-color-subtle,#eaecf0);padding-top:.3em}',
 		'.wwc-group>summary{cursor:pointer;font-weight:bold;padding:.15em 0;display:flex;align-items:center;gap:.4em}',
 		'.wwc-group>summary::-webkit-details-marker{display:none}',
 		'.wwc-group>summary::before{content:"\\25C2";color:var(--color-subtle,#72777d);transition:transform .15s}',
 		'.wwc-group[open]>summary::before{transform:rotate(-90deg)}',
-		'.wwc-note{font-weight:normal;color:var(--color-subtle,#72777d);font-size:.85em}',
 		'.wwc-list{list-style:none;margin:.15em 0 0;padding:0}',
 		'.wwc-row{display:flex;flex-wrap:wrap;align-items:baseline;gap:.15em .6em;padding:.3em .4em;border-radius:3px}',
 		'.wwc-row:hover{background:var(--background-color-interactive-subtle,#f8f9fa)}',
@@ -784,11 +793,9 @@
 		'.wwc-line:hover{text-decoration:underline}',
 		'.wwc-text{flex:1 1 20em;min-width:0}',
 		'.wwc-code{font-family:monospace;font-size:.9em;color:var(--color-subtle,#54595d);unicode-bidi:plaintext}',
-		'.wwc-meta{display:flex;flex-wrap:wrap;gap:.3em}',
-		'.wwc-meta .wwc-chip{font-size:.8em;color:var(--color-subtle,#54595d)}',
 		'mark.wwc-mark,span.wwc-mark{color:#202122;border-radius:2px;padding:0 .12em}',
 		'.wwc-more{margin:.2em .4em}',
-		'.wwc-clean{display:flex;align-items:center;gap:.5em;padding:.6em .8em;background:var(--background-color-success-subtle,#dff2eb);border-radius:0 0 4px 4px}',
+		'.wwc-loading{color:var(--color-subtle,#72777d)}',
 		'.wwc-error{padding:.6em .8em;background:var(--background-color-error-subtle,#ffe9e5);color:var(--color-error,#d72d1b)}',
 		'.wwc-foot{padding:.4em .8em;font-size:.8em;color:var(--color-subtle,#54595d);border-top:1px solid var(--border-color-subtle,#eaecf0)}'
 	].join('\n');
@@ -800,20 +807,13 @@
 		return $e;
 	}
 	function dot(color) { return el('span', 'wwc-dot').css('background', color); }
-	function chip(color, text) { return el('span', 'wwc-chip').append(color ? dot(color) : null, document.createTextNode(text)); }
 
 	var counted = function (m) { return VERDICT_TOPICS.indexOf(m.topic) >= 0; };
-	// הרמה של התאמה לתצוגה: לפי ההקשר כשיש (contextLevels), אחרת לפי הרשימה.
+	// הקבוצה של התאמה בכרטיס (problem / review / wording / names): לפי ההקשר כשיש (contextLevels), אחרת לפי הרשימה.
 	function shownLevel(m) {
 		if (isSeparate(m)) return 'names';
 		if (!counted(m)) return 'wording';
 		return m.context ? m.context.level : m.level;
-	}
-	// מפתח הצבע: problem, high/medium/low (לבדיקה לפי החשד), wording, names.
-	function markOf(m) {
-		var level = shownLevel(m);
-		if (level === 'review') return (m.context && m.context.suspicion) || 'medium';
-		return level;
 	}
 
 	function scanText(text, data) {
@@ -835,7 +835,6 @@
 	}
 
 	function row($box, text, m, hidden) {
-		var key = hidden ? 'hidden' : markOf(m);
 		var ctx = hidden ? codeAround(text, m) : contextOf(text, m, 80);
 		var $line = el('a', 'wwc-line', 'שורה ' + m.line).attr({ href: '#', title: 'סימון המילה בתיבת העריכה' });
 		$line.on('click', function (e) {
@@ -843,87 +842,63 @@
 			$box.trigger('focus').textSelection('setSelection', { start: m.start, end: m.end }).textSelection('scrollToCaretPosition');
 		});
 		var $text = el('span', 'wwc-text' + (hidden ? ' wwc-code' : '')).append(document.createTextNode(ctx.before),
-			el('mark', 'wwc-mark', ctx.text).css('background', MARK[key]), document.createTextNode(ctx.after));
-		var $meta = el('span', 'wwc-meta');
-		if (hidden) $meta.append(chip(null, HIDDEN_KINDS[m.hidden] || 'קוד'));
-		if (m.topic !== 'modesty') $meta.append(chip(null, TOPIC_LABELS[m.topic] || m.topic));
-		if (!hidden && shownLevel(m) === 'review') $meta.append(chip(MARK[key], MARK_LABELS[key]));
-		if (!hidden && m.context && m.context.clueWords) $meta.append(chip(null, 'מילת הקשר: ' + m.context.clueWords.join(', ')));
-		if (m.entries.some(function (e) { return e.status === 'suggested'; })) $meta.append(chip(null, 'הצעה'));
-		var tip = m.entries.map(function (e) { return e.pattern + (e.note ? ' - ' + e.note : ''); })
-			.concat(m.demotedBy.map(function (e) { return 'ירד לבדיקה - שימוש תמים אפשרי: ' + (e.note || e.pattern); })).join('\n');
-		return el('li', 'wwc-row').attr('title', tip).append($line, $text, $meta);
+			el('mark', 'wwc-mark', ctx.text).css('background', GROUPS[hidden ? 'hidden' : shownLevel(m)].color), document.createTextNode(ctx.after));
+		return el('li', 'wwc-row').append($line, $text);
 	}
 
 	function render($box, $panel, result, data) {
 		var text = $box.textSelection('getContents');
 		var matches = result.matches;
-		var page = data.usage ? contextVerdict(matches) : { level: verdict(matches), suspicion: null };
-		var pageKey = page.level === 'review' ? (page.suspicion || 'medium') : page.level === 'clean' ? null : page.level;
+		var page = data.usage ? contextVerdict(matches).level : verdict(matches);
+		// בתוך "כדאי לבדוק": החשוד ביותר ראשון
 		var bySuspicion = function (a, b) {
 			return (SUSPICION_RANK[(b.context || {}).suspicion] || 0) - (SUSPICION_RANK[(a.context || {}).suspicion] || 0) || a.start - b.start;
 		};
-		var groups = [
-			{ id: 'problem', label: LEVEL_LABELS.problem, color: MARK.problem, open: true,
-				items: matches.filter(function (m) { return shownLevel(m) === 'problem'; }) },
-			{ id: 'review', label: LEVEL_LABELS.review, color: MARK.medium, open: true,
-				items: matches.filter(function (m) { return shownLevel(m) === 'review'; }).sort(bySuspicion) },
-			{ id: 'wording', label: 'הערות ניסוח', note: 'אמונה, תיארוך, ויקיפדיה - לא משפיעות על הרמה', color: MARK.wording,
-				items: matches.filter(function (m) { return shownLevel(m) === 'wording'; }) },
-			{ id: 'names', label: 'שמות הקודש', note: 'לא משפיעים על הרמה', color: MARK.names, items: matches.filter(isSeparate) },
-			{ id: 'hidden', label: 'בקוד שהקורא לא רואה', note: 'יעד קישור, הערה, קובץ, תבנית, כתובת - לא נספר ברמה', color: MARK.hidden,
-				items: (result.hidden || []).filter(counted), hidden: true }
-		].filter(function (g) { return g.items.length; });
+		var items = {
+			problem: matches.filter(function (m) { return shownLevel(m) === 'problem'; }),
+			review: matches.filter(function (m) { return shownLevel(m) === 'review'; }).sort(bySuspicion),
+			wording: matches.filter(function (m) { return shownLevel(m) === 'wording'; }),
+			names: matches.filter(isSeparate),
+			hidden: (result.hidden || []).filter(counted)
+		};
+		var ids = Object.keys(GROUPS).filter(function (id) { return items[id].length; });
 
 		var $actions = el('span', 'wwc-actions').append(
 			el('button', 'wwc-btn', '↻ בדיקה חוזרת').attr({ type: 'button', title: 'בדיקה של הטקסט הנוכחי' }).on('click', run),
 			el('button', 'wwc-btn', '✕').attr({ type: 'button', title: 'סגירה', 'aria-label': 'סגירה' }).on('click', function () { $panel.remove(); }));
-		var $head = el('div', 'wwc-head').append(el('span', 'wwc-title', 'בדיקת מילים חשודות'),
-			el('span', 'wwc-verdict', LEVEL_LABELS[page.level] + (page.suspicion ? ' · ' + SUSPICION_LABELS[page.suspicion] : ''))
-				.css('background', pageKey ? MARK[pageKey] : 'var(--background-color-success-subtle,#dff2eb)'),
-			$actions);
-		$panel.empty().append($head);
+		$panel.empty().append(el('div', 'wwc-head').append(el('span', 'wwc-title', 'בדיקת מילים'),
+			el('span', 'wwc-verdict', VERDICTS[page])
+				.css('background', page === 'clean' ? 'var(--background-color-success-subtle,#dff2eb)' : GROUPS[page].color),
+			$actions));
 
-		if (!groups.length) {
-			$panel.append(el('div', 'wwc-clean', '✓ לא נמצאו מילים חשודות בקוד הערך.'));
-		} else {
-			var $summary = el('div', 'wwc-summary');
-			var $body = el('div', 'wwc-body');
-			groups.forEach(function (g) {
-				var $details = el('details', 'wwc-group').prop('open', !!g.open);
-				$details.append(el('summary').append(dot(g.color), document.createTextNode(g.label + ' (' + g.items.length + ')'),
-					g.note ? el('span', 'wwc-note', '- ' + g.note) : null));
-				var $list = el('ul', 'wwc-list');
-				var shown = 0;
-				var more = function () {
-					g.items.slice(shown, shown + PAGE_SIZE).forEach(function (m) { $list.append(row($box, text, m, g.hidden)); });
-					shown = Math.min(g.items.length, shown + PAGE_SIZE);
-					$details.find('> .wwc-more').remove();
-					if (shown < g.items.length) {
-						$details.append(el('button', 'wwc-btn wwc-more', 'הצגת עוד ' + (g.items.length - shown)).attr('type', 'button').on('click', more));
-					}
-				};
-				$details.append($list);
-				more();
-				$body.append($details);
-				$summary.append(el('button', 'wwc-chip').attr({ type: 'button', title: 'מעבר לקבוצה' })
-					.append(dot(g.color), document.createTextNode(g.label + ' ' + g.items.length))
-					.on('click', function () { $details.prop('open', true)[0].scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }));
-			});
-			var $legend = el('div', 'wwc-legend').append(el('span', null, 'צבע הסימון:'));
-			['problem', 'high', 'medium', 'low', 'wording', 'names'].forEach(function (k) {
-				$legend.append(el('span').append(dot(MARK[k]), document.createTextNode(MARK_LABELS[k])));
-			});
-			$panel.append($summary, $legend, $body);
-		}
+		if (!ids.length) return;
+		var $summary = el('div', 'wwc-summary');
+		var $body = el('div', 'wwc-body');
+		ids.forEach(function (id) {
+			var g = GROUPS[id], list = items[id], shown = 0;
+			var $details = el('details', 'wwc-group').prop('open', !!g.open);
+			$details.append(el('summary').append(dot(g.color), document.createTextNode(g.label + ' (' + list.length + ')')));
+			var $list = el('ul', 'wwc-list');
+			var more = function () {
+				list.slice(shown, shown + PAGE_SIZE).forEach(function (m) { $list.append(row($box, text, m, id === 'hidden')); });
+				shown = Math.min(list.length, shown + PAGE_SIZE);
+				$details.find('> .wwc-more').remove();
+				if (shown < list.length) {
+					$details.append(el('button', 'wwc-btn wwc-more', 'הצגת עוד ' + (list.length - shown)).attr('type', 'button').on('click', more));
+				}
+			};
+			$details.append($list);
+			more();
+			$body.append($details);
+			$summary.append(el('button', 'wwc-chip').attr('type', 'button')
+				.append(dot(g.color), document.createTextNode(g.label + ' ' + list.length))
+				.on('click', function () { $details.prop('open', true)[0].scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }));
+		});
+		$panel.append($summary, $body);
 
+		// תבנית שבורה ברשימות - לתחזוקה, לא לעורך
 		var problems = data.lists.problems.concat((data.clues && data.clues.problems) || []);
-		if (problems.length) {
-			var $bad = el('details', 'wwc-group wwc-foot').append(el('summary', null, 'תבניות לא תקינות ברשימות (' + problems.length + ')'));
-			var $ul = el('ul');
-			problems.forEach(function (p) { $ul.append(el('li').append(el('code', null, p.pattern), document.createTextNode(' (' + p.id + '): ' + p.message))); });
-			$panel.append($bad.append($ul));
-		}
+		if (problems.length && window.console) console.warn('wikitextWordCheck: תבניות לא תקינות ברשימות', problems);
 	}
 
 	// צביעה בתצוגה המקדימה ובשורות שנוספו בטבלת ההבדלים. כל צומת טקסט נסרק במנוע עצמו
@@ -932,7 +907,7 @@
 	var PAINTED = 'wikitextWordCheck-mark';
 	function paint(result, data) {
 		var keyByText = {}, painted = 0;
-		result.matches.forEach(function (m) { if (!keyByText[m.text]) keyByText[m.text] = markOf(m); });
+		result.matches.forEach(function (m) { if (!keyByText[m.text]) keyByText[m.text] = shownLevel(m); });
 		$('#wikiPreview .mw-parser-output, td.diff-addedline, td.diff-side-added').each(function () {
 			var walker = document.createTreeWalker(this, NodeFilter.SHOW_TEXT, null), nodes = [], node;
 			while ((node = walker.nextNode())) {
@@ -945,10 +920,10 @@
 				var frag = document.createDocumentFragment(), at = 0;
 				found.forEach(function (m) {
 					if (m.start < at) return;
-					var key = keyByText[m.text] || markOf(m);
+					var key = keyByText[m.text] || shownLevel(m);
 					frag.appendChild(document.createTextNode(text.slice(at, m.start)));
 					frag.appendChild(el('span', PAINTED + ' wwc-mark', text.slice(m.start, m.end))
-						.css('background', MARK[key]).attr('title', 'בדיקת מילים: ' + MARK_LABELS[key])[0]);
+						.css('background', GROUPS[key].color).attr('title', 'בדיקת מילים: ' + GROUPS[key].label)[0]);
 					painted++;
 					at = m.end;
 				});
@@ -968,15 +943,16 @@
 			$panel = el('div', 'wwc').attr({ id: 'wikitextWordCheck', dir: 'rtl' });
 			$('.editOptions').first().before($panel);
 		}
-		$panel.empty().append(el('div', 'wwc-head').append(el('span', 'wwc-title', 'בדיקת מילים חשודות'), el('span', 'wwc-note', 'טוען את רשימות המילים…')));
+		$panel.empty().append(el('div', 'wwc-head').append(el('span', 'wwc-title', 'בדיקת מילים'), el('span', 'wwc-loading', 'בודק…')));
 		return loadData().then(function (data) {
 			var result = scanText($box.textSelection('getContents'), data);
 			render($box, $panel, result, data);
 			var painted = paint(result, data);
-			if (painted) $panel.append(el('div', 'wwc-foot', 'סומנו ' + painted + ' מילים בתצוגה המקדימה ובהבדלים.'));
+			if (painted) $panel.append(el('div', 'wwc-foot', 'המילים סומנו גם בתצוגה המקדימה.'));
 			return result;
 		}, function (err) {
-			$panel.append(el('div', 'wwc-error', 'שגיאה בטעינת רשימות המילים' + (err && err.message ? ': ' + err.message : '.')));
+			$panel.append(el('div', 'wwc-error', 'הבדיקה לא הצליחה. אפשר לנסות שוב בעוד רגע.'));
+			if (window.console) console.error('wikitextWordCheck:', err);
 		});
 	}
 

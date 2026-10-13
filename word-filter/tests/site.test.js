@@ -96,3 +96,14 @@ test('scan version covers the engine and stops at the UI marker', () => {
 	assert.ok(src.indexOf(marker) < src.indexOf("if (typeof mw === 'undefined')"));
 	assert.match(require('../tools/scan-missing.js').listsVersion(), /^[0-9a-f]{12}$/);
 });
+
+// הממשק והמנוע באותה פונקציה: הצהרה בממשק בשם של פונקציה במנוע דורסת אותה גם בסריקה (כך קרה ל-groupOf).
+test('the UI does not redeclare engine names', () => {
+	const src = fs.readFileSync(path.join(__dirname, '..', 'Gadget-wikitextWordCheck.js'), 'utf8');
+	const cut = src.indexOf('// ===== ממשק - רק בתוך מדיה ויקי');
+	// שמות ברמה העליונה של הקובץ (טאב אחד) - משתנים מקומיים בתוך פונקציות לא דורסים זה את זה
+	const names = (t) => new Set([...t.matchAll(/^\t(?:function|var|const|let)\s+([A-Za-z_$][\w$]*)/gm)].map((m) => m[1]));
+	const engineNames = names(src.slice(0, cut));
+	const clash = [...names(src.slice(cut))].filter((n) => engineNames.has(n));
+	assert.deepStrictEqual(clash, []);
+});
