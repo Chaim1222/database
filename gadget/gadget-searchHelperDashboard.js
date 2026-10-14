@@ -352,8 +352,9 @@
 		function attempt() {
 			i++;
 			return fn().catch(function (e) {
-				// timeout של השרת (57014): ניסיון חוזר רק מכפיל את העומס על אותו מסד איטי, ולכן לא מנסים שוב.
-				if (i < attempts && !(e && e.code === '57014')) return sleep(RETRY_DELAY_MS * i).then(attempt);
+				// timeout של השרת (57014): ניסיון חוזר אחד בלבד. בטעינה ראשונה אחרי שקט המסד (Nano, swap) איטי, והניסיון השני
+				// מוצא את הנתונים כבר בזיכרון (נמדד 14.10: 2-3.3 שניות קר, 0.26 חם); יותר מזה רק מוסיף עומס.
+				if (i < attempts && !(isTimeoutError(e) && i > 1)) return sleep(RETRY_DELAY_MS * i).then(attempt);
 				throw e;
 			});
 		}
@@ -369,8 +370,8 @@
 	 * חתימות ידועות לשגיאה זמנית:
 	 * - HTTP 503 - PostgREST באמצע בניית מטמון סכימה מחדש
 	 * - קוד PGRST002 - "Could not query the database for the schema cache"
-	 * - SQLSTATE 55P03 (lock_not_available) / 57014 (query_canceled) -
-	 *   בדיוק התרחיש של lock_timeout על ALTER TABLE RENAME תוך כדי swap
+	 * - SQLSTATE 55P03 (lock_not_available) - בדיוק התרחיש של lock_timeout על ALTER TABLE RENAME תוך כדי swap
+	 * 57014 (statement timeout) אינו עדכון תקופתי אלא מסד עמוס - isTimeoutError, עם הודעה משלו (dbErrorText).
 	 * שים לב: זיהוי משוער לפי מיטב הידיעה על צורת השגיאות של Supabase/
 	 * PostgREST - אם מתגלה בעתיד תבנית נוספת שמעידה על אותה תופעה, יש
 	 * להוסיף אותה כאן.
@@ -382,10 +383,15 @@
 		return status === 503
 			|| code === 'PGRST002'
 			|| code === '55P03'
-			|| code === '57014'
 			|| msg.indexOf('schema cache') !== -1
 			|| msg.indexOf('lock') !== -1;
 	}
+
+	function isTimeoutError(e) { return !!e && e.code === '57014'; }
+	var DB_BUSY_TEXT = 'המסד עמוס כרגע והבקשה לא הסתיימה בזמן. כדאי לנסות שוב בעוד רגע.';
+	var DB_MAINT_TEXT = 'המסד באמצע עדכון תקופתי כרגע - נסה שוב בעוד רגע.';
+	// הודעה למשתמש: עומס / עדכון תקופתי / fallback (שגיאה אחרת)
+	function dbErrorText(e, fallback) { return isTimeoutError(e) ? DB_BUSY_TEXT : isTransientMaintenanceError(e) ? DB_MAINT_TEXT : fallback; }
 
 	// ===== שכבת גישה ל-PostgREST של סופרבייס - במקום ספריית supabase-js =====
 	// משכפלת בכוונה את אותה תחביר בדיוק שה-URL שסופרבייס-js היה שולח,
@@ -448,6 +454,15 @@
 				return Number(res.data[0].n);
 			});
 		}
+		// V2: מוני "חסר במכלול" / "קיים כהפניה" מהסיכום (report_missing_word_filter_summary, מחושב מראש - 0043) ולא בספירה
+		// נוספת על אותם 26 אלף ערכים. redirect בסיכום = coalesce(mechalol_redirect_exists, false), כלומר is.true / not.is.true.
+		if (DB_ID === 'v2' && (table === 'report_missing_word_filter' || table === 'report_missing_from_mechalol') && rawFilterParams &&
+			rawFilterParams.length === 1 && rawFilterParams[0][0] === 'mechalol_redirect_exists' && /^(not\.)?is\.true$/.test(rawFilterParams[0][1])) {
+			var redirect = rawFilterParams[0][1] === 'is.true';
+			return loadWfSummary().then(function (rows) {
+				return rows.reduce(function (sum, r) { return sum + (r.redirect === redirect ? r.n : 0); }, 0);
+			});
+		}
 		return withRetry(function () {
 			var params = new URLSearchParams();
 			params.set('select', countColumn || 'id');
@@ -472,7 +487,8 @@
 	function pgSelectAll(view, opts, onProgress) {
 		var rows = [], expected = null;
 		function next() {
-			return pgSelect(view, { filterParams: opts.filterParams, order: opts.order, from: rows.length, to: rows.length + PG_CHUNK - 1 }).then(function (res) {
+			// ספירה מדויקת רק במנה הראשונה - בכל מנה היא חישוב מלא של אותה שאילתה
+			return pgSelect(view, { filterParams: opts.filterParams, order: opts.order, from: rows.length, to: rows.length + PG_CHUNK - 1, count: !rows.length }).then(function (res) {
 				var data = res.data || [];
 				if (res.count != null) expected = res.count;
 				rows = rows.concat(data);
@@ -499,7 +515,7 @@
 			(opts.filterParams || []).forEach(function (pair) { params.append(pair[0], pair[1]); });
 			if (opts.order) params.set('order', opts.order);
 			var url = SUPABASE_URL + '/rest/v1/' + view + '?' + params.toString();
-			var headers = pgHeaders({ Range: opts.from + '-' + opts.to, 'Range-Unit': 'items', Prefer: 'count=exact' });
+			var headers = pgHeaders(opts.count === false ? { Range: opts.from + '-' + opts.to, 'Range-Unit': 'items' } : { Range: opts.from + '-' + opts.to, 'Range-Unit': 'items', Prefer: 'count=exact' });
 			return fetch(url, { headers: headers }).then(function (res) {
 				if (!res.ok) return res.text().then(function (t) { throw makePgError(res.status, t); });
 				var cr = res.headers.get('Content-Range') || '';
@@ -1627,8 +1643,13 @@
 
 	WF_METER_SEGMENTS.push({ key: 'stale', label: 'תוצאה ישנה', color: '#7C8C99', filter: 'stale' });
 
-	function loadWfSummary(force) {
-		if (wfSummary && !force) return Promise.resolve(wfSummary);
+	// בקשה אחת משותפת: בפתיחה גם פאנל הצד וגם refreshAll ומוני הלשוניות מבקשים את הסיכום. בכישלון - הבקשה הבאה מנסה שוב.
+	var wfSummaryLoad = null;
+	function loadWfSummary() {
+		if (!wfSummaryLoad) wfSummaryLoad = fetchWfSummary().catch(function (e) { wfSummaryLoad = null; throw e; });
+		return wfSummaryLoad;
+	}
+	function fetchWfSummary() {
 		// בדפים של 1,000 שורות - סופבייס מגביל תשובה אחת (max rows).
 		var rows = [];
 		function page(from) {
@@ -1716,7 +1737,7 @@
 	function onPageSizeChange() {
 		pageSize = parseInt($id('mchl-page-size').value, 10);
 		currentPage = 0;
-		loadActiveView();
+		loadActiveView(false, true);
 	}
 
 	function loadCurrentTab() {
@@ -1735,7 +1756,8 @@
 		wfDetailsCache.clear();
 		mechalolRedirectTargetCache.clear();
 		btn.classList.add('mchl-spinning');
-		wfSummary = null;
+		// רענון: סיכום שכבר נטען נשלף מחדש; בקשה שעוד בדרך (בפתיחה) משמשת כמו שהיא.
+		if (wfSummary) { wfSummary = null; wfSummaryLoad = null; }
 		countsLoaded = {}; // רענון סופר מחדש רק את הקבוצה הפעילה
 		if (VIEWS[activeTab] && VIEWS[activeTab].easyImport) renderWfMeter();
 		return Promise.all([loadStats(), loadCurrentTab(), fetchLastSyncTime().catch(function () { return undefined; })]).then(function (results) {
@@ -1835,9 +1857,7 @@
 				statValues[d.key] = null;
 				var w = $id(d.warnId);
 				w.style.display = 'inline';
-				w.title = isTransientMaintenanceError(e)
-					? 'המסד באמצע עדכון תקופתי - ינסה שוב אוטומטית ברענון הבא'
-					: d.warnMsg + ' (' + (e.message || e) + ')';
+				w.title = dbErrorText(e, d.warnMsg + ' (' + (e.message || e) + ')');
 			}).finally(function () {
 				$id(d.spinId).style.display = 'none';
 			});
@@ -1879,16 +1899,19 @@
 		});
 	}
 
-	function loadActiveView(isAutoRetry) {
+	// keepCount: מעבר עמוד או שינוי גודל עמוד - אותו סינון, ולכן הספירה הידועה נשארת ולא נשלחת שוב.
+	function loadActiveView(isAutoRetry, keepCount) {
 		var myRequestId = ++loadRequestId;
+		var knownTotal = keepCount && !countUnknown ? totalRows : null;
 		var target = $id('mchl-table-target');
 		target.innerHTML = skeletonRows();
 		$id('mchl-pager').style.display = 'none';
 		var cfg = VIEWS[activeTab];
 		var from = currentPage * pageSize, to = from + pageSize - 1;
-		return pgSelect(cfg.view, { filterParams: buildFilterParams(), order: stableOrder(cfg), from: from, to: to }).then(function (res) {
+		return pgSelect(cfg.view, { filterParams: buildFilterParams(), order: stableOrder(cfg), from: from, to: to, count: knownTotal == null }).then(function (res) {
 			if (myRequestId !== loadRequestId) return;
 			currentPageRows = res.data || [];
+			if (knownTotal != null) res.count = knownTotal;
 			countUnknown = res.count == null;
 			// ספירה לא ידועה: מאפשרים "הבא" רק אם הדף מלא.
 			totalRows = countUnknown ? from + currentPageRows.length + (currentPageRows.length === pageSize ? 1 : 0) : res.count;
@@ -1908,9 +1931,9 @@
 			// חלון ה-swap עצמו קצר מאוד (lock_timeout של כמה שניות לכל
 			// היותר) - סביר שהניסיון הזה יצליח בשקט, בלי שהמשתמש בכלל
 			// יבחין שהיה עיכוב.
-			if (!isAutoRetry && isTransientMaintenanceError(e) && e.code !== '57014') {
+			if (!isAutoRetry && isTransientMaintenanceError(e)) {
 				sleep(4000).then(function () {
-					if (myRequestId === loadRequestId) loadActiveView(true);
+					if (myRequestId === loadRequestId) loadActiveView(true, keepCount);
 				});
 				return;
 			}
@@ -1936,8 +1959,9 @@
 			return;
 		}
 		$id('mchl-table-target').innerHTML =
-			'<div class="mchl-state mchl-error"><div class="mchl-big">שגיאה בטעינת הנתונים</div>' +
-			'<div>נכשלו כמה ניסיונות חיבור ברצף. יש לבדוק חסימת CSP, ואת ה-RLS/הרשאות הקריאה על הטבלאות והתצוגות.</div>' +
+			'<div class="mchl-state mchl-error"><div class="mchl-big">' + (isTimeoutError(e) ? 'המסד עמוס כרגע' : 'שגיאה בטעינת הנתונים') + '</div>' +
+			'<div>' + (isTimeoutError(e) ? 'הבקשה לא הסתיימה בזמן, גם בניסיון חוזר. בדרך כלל ניסיון נוסף בעוד רגע מצליח.'
+				: 'נכשלו כמה ניסיונות חיבור ברצף. יש לבדוק חסימת CSP, ואת ה-RLS/הרשאות הקריאה על הטבלאות והתצוגות.') + '</div>' +
 			'<pre>' + escapeHtml(e && e.message ? e.message : JSON.stringify(e)) + '</pre>' +
 			'<button type="button" class="mchl-refresh" data-action="retry" style="margin:16px auto 0;"><span class="mchl-dot"></span> ניסיון נוסף</button></div>';
 	}
@@ -2807,7 +2831,7 @@
 	function goPage(p) {
 		if (p < 0 || p > totalPages - 1) return;
 		currentPage = p;
-		loadActiveView();
+		loadActiveView(false, true);
 	}
 
 	function toggleRowSelection(id, checked) {
@@ -2880,9 +2904,7 @@
 		}).catch(function (e) {
 			btn.disabled = false;
 			btn.textContent = originalText;
-			alert(isTransientMaintenanceError(e)
-				? 'המסד באמצע עדכון תקופתי כרגע - נסה שוב בעוד רגע.'
-				: 'שגיאה בטעינת כל התוצאות, גם אחרי כמה ניסיונות:\n' + (e.message || e) + '\n\nניתן לנסות שוב.');
+			alert(dbErrorText(e, 'שגיאה בטעינת כל התוצאות, גם אחרי כמה ניסיונות:\n' + (e.message || e) + '\n\nניתן לנסות שוב.'));
 		});
 	}
 
@@ -2912,9 +2934,7 @@
 			if (!res.complete && !confirm('נטענו ' + res.data.length.toLocaleString('he-IL') + ' מתוך ' + res.expected.toLocaleString('he-IL') + ' ערכים. לייצא בכל זאת?')) return null;
 			return res.data;
 		}).catch(function (e) {
-			alert(isTransientMaintenanceError(e)
-				? 'המסד באמצע עדכון תקופתי כרגע - נסה שוב בעוד רגע.'
-				: 'שגיאה בהבאת הנתונים לייצוא, גם אחרי כמה ניסיונות:\n' + (e.message || e));
+			alert(dbErrorText(e, 'שגיאה בהבאת הנתונים לייצוא, גם אחרי כמה ניסיונות:\n' + (e.message || e)));
 			return null;
 		});
 	}

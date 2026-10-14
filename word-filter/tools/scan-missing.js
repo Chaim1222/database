@@ -135,6 +135,8 @@ function supabaseV2() {
 		setTopic: (id, topic) => rpc('scan_set_topic', { p_id: id, p_topic: topic }),
 		upsert: (rows) => rpc('sync_apply_scan', { p_rows: rows }),
 		remove: (ids) => rpc('scan_prune', { p_ids: ids }),
+		// סיכום "חסר" בדשבורד מחושב מראש (0043): בלי רענון הוא נופל לחישוב החי, האיטי, עד הסנכרון הבא
+		finish: () => rpc('maintenance_refresh_counts'),
 	};
 }
 
@@ -475,6 +477,7 @@ async function main() {
 		}
 	}
 	await flush();
+	if (db && db.finish) await db.finish();
 	if (out) out.end();
 	log('סיום: ' + JSON.stringify(stats));
 	if (failed.length) {
