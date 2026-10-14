@@ -119,6 +119,27 @@ function stubs({ action, data }) {
 	assert.equal(await page.evaluate(() => $('.wwc-group').eq(0).find('li').length), 30);
 	assert.equal(await page.evaluate(() => $('.wwc-more').length), 0);
 
+	// סקריפט אישי (ניסיון): הרשימות מדפי משתמש דרך ה-API, ושם כפתור שונה
+	const personal = await browser.newPage();
+	await personal.setContent(PAGE);
+	await personal.addScriptTag({ content: jquery });
+	await personal.evaluate(stubs, { action: 'edit', data });
+	await personal.evaluate((data) => {
+		const names = { words: 'משתמש:X/words.json', allow: 'משתמש:X/allow.json', usage: 'משתמש:X/usage.json', context: 'משתמש:X/context.json' };
+		window.wikitextWordCheckPages = names;
+		mw.Api = function () { this.get = (q) => { testState.apiTitles = q.titles; return $.Deferred().resolve({ query: { pages: Object.keys(names).map((k) => ({
+			title: names[k], revisions: [{ slots: { main: { content: JSON.stringify(data[k]) } } }] })) } }).promise(); }; };
+		document.getElementById('wpTextbox1').value = 'הוא הורשע באונס ונידון למאסר.';
+	}, data);
+	await personal.addScriptTag({ content: gadget });
+	await personal.waitForSelector('#wikitextWordCheckButton');
+	assert.equal(await personal.textContent('#wikitextWordCheckButton'), 'בדיקת מילים (ניסיון)');
+	await personal.click('#wikitextWordCheckButton');
+	await personal.waitForSelector('#wikitextWordCheck li');
+	assert.equal(await personal.textContent('.wwc-verdict'), 'נמצאו מילים שיש לתקן'); // usage + context נטענו מהדפים
+	assert.equal(await personal.evaluate(() => testState.usings.flat().filter((m) => m === 'ext.gadget.wikitextWordCheck-data').length), 0);
+	assert.equal((await personal.evaluate(() => testState.apiTitles)).split('|').length, 4);
+
 	// דף שאינו עריכה: אין כפתור, אבל המנוע חשוף לכלים אחרים
 	const view = await browser.newPage();
 	await view.setContent(PAGE);

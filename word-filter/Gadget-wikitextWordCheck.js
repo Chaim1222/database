@@ -960,7 +960,9 @@
 		if ($('#wikitextWordCheckButton').length) return;
 		var $diff = ($form || $(document)).find('#wpDiffWidget');
 		if ($diff.length) {
-			var button = new OO.ui.ButtonInputWidget({ label: 'בדיקת מילים', title: 'בדיקת מילים חשודות בקוד הערך', id: 'wikitextWordCheckButton' });
+			// כסקריפט אישי (ניסיון לפני העלאה כגאדג'ט) - שם שונה, כדי להבדיל מהכפתור של הסקריפט הקיים
+			var button = new OO.ui.ButtonInputWidget({ label: PAGES.words ? 'בדיקת מילים (ניסיון)' : 'בדיקת מילים',
+				title: 'בדיקת מילים חשודות בקוד הערך', id: 'wikitextWordCheckButton' });
 			button.on('click', run);
 			$diff.after(button.$element);
 		} else {
