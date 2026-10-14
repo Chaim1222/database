@@ -37,7 +37,7 @@ function fixture({ backend, admin = true, failure = '', expired = false }) {
   ] : [{ id: 10, title: 'ערך במכלול', mechalol_id: 10, lock_level: 'נעול לקריאה', lock_source: 'test', detected_at: now }],
   v_template_issues: [{ id: 10, title: 'בעיית תבנית', outcome: 'unresolved', checked_at: now }],
   v_sync_status: [{ kind: 'sync', health: 'ok', status: 'success', last_success_at: now, error: null }],
-  sync_watermarks: [{ last_synced_ts: now }], v_counts: [{ key: 'wiki_pages', n: 100 }, { key: 'mech_pages', n: 90 }]
+  sync_watermarks: [{ last_synced_ts: now }], v_counts: [{ key: 'wiki_pages', n: 100 }, { key: 'mech_pages', n: 90 }, { key: 'rev_tasks', n: 7 }]
  };
  const columns = {
   report_missing_word_filter: ['id','title','checked_at','wikidata_desc','easy_import_length','created_at','mechalol_redirect_exists','verdict','verdict_suggested','ctx_verdict','ctx_verdict_suggested','ctx_suspicion','ctx_suspicion_suggested','scan_state','has_images','photo_count','matches_total','counts','dictionary','topic','hidden_count','names_count'],
@@ -185,6 +185,10 @@ function fixture({ backend, admin = true, failure = '', expired = false }) {
   const list=await page.evaluate(n=>testState.requests.slice(n).filter(r=>r.url.includes('/report_missing_word_filter?')),before);
   assert.equal(list.length,1);assert.equal(list[0].headers.Prefer,undefined);
   assert.equal(await page.locator('#mchl-chips-total').innerText(),'3 ערכים');
+  // סטטיסטיקה: משימות גרסה מהמספר השמור, בלי ספירה חיה
+  const beforeStats=await page.evaluate(()=>testState.requests.length);
+  await page.locator('#mchl-tab-stats').evaluate(el=>el.click());await page.waitForFunction(()=>document.getElementById('mchl-stat-tasks').textContent==='7');
+  assert.equal(await page.evaluate(n=>testState.requests.slice(n).filter(r=>/\/report_rev_tasks\?/.test(r.url)).length,beforeStats),0);
   await page.close();console.log('PASS v2 request diet');
  }
  // timeout (57014): ניסיון חוזר אחד שמצליח; וכשגם הוא נכשל - הודעת עומס, לא "עדכון תקופתי" ולא בדיקת הרשאות
