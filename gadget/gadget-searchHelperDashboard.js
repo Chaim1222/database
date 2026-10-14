@@ -447,8 +447,10 @@
 	// ומסתמך על כותרת Content-Range לספירה, כדי לא למשוך נתונים מיותרים.
 	// estimated: הערכה מהמתכנן (Prefer: count=estimated) במקום ספירה מדויקת - לטבלאות הגדולות, שם ספירה מדויקת לוקחת שניות.
 	function pgCount(table, rawFilterParams, countColumn, estimated) {
-		if (DB_ID === 'v2' && !rawFilterParams && (table === 'wikipedia_pages' || table === 'mechalol_pages')) {
-			var key = table === 'wikipedia_pages' ? 'wiki_pages' : 'mech_pages';
+		// V2: מספרים שמורים (ops.dashboard_counts, מתרעננים בסוף כל ריצה של הקולקטור ובשינוי ידני). משימות גרסה: 0.66 שניות חיות על מכונת Nano.
+		var STORED_COUNTS = { wikipedia_pages: 'wiki_pages', mechalol_pages: 'mech_pages', report_rev_tasks: 'rev_tasks' };
+		if (DB_ID === 'v2' && !rawFilterParams && STORED_COUNTS[table]) {
+			var key = STORED_COUNTS[table];
 			return pgSelect('v_counts', { filterParams: [['key', 'eq.' + key]], from: 0, to: 0 }).then(function (res) {
 				if (!res.data[0] || !Number.isFinite(Number(res.data[0].n))) throw new Error('Missing counter: ' + key);
 				return Number(res.data[0].n);
