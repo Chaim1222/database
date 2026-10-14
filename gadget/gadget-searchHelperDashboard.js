@@ -36,7 +36,6 @@
 				return { path: 'word_filter_feedback?' + q.toString(), method: 'DELETE' };
 			}
 		} else {
-			if (action === 'exclude') return { path: 'rpc/add_exclusion', method: 'POST', body: { p_kind: 'import_excluded', p_wiki_id: data.wikiId, p_title: data.title, p_reason: null } };
 			if (action === 'manual') return { path: 'rpc/set_manual_link', method: 'POST', body: { p_mech_id: data.mechId, p_wiki_id: data.wikiId, p_reason: null } };
 			if (action === 'unmark') return { path: 'rpc/unmark_feedback', method: 'POST', body: { p_wiki_id: data.wikipedia_id, p_match_key: data.match_key } };
 			if (action === 'feedback') return { path: 'rpc/mark_feedback', method: 'POST', body: {
@@ -75,7 +74,7 @@
 		match_type: 'סוג התאמה', wikipedia_id: 'קישור לוויקיפדיה', checked_at: 'נבדק בתאריך',
 		wikidata_desc: 'תיאור (ויקינתונים)', created_at: 'תאריך יצירה בוויקיפדיה',
 		mechalol_redirect_exists: 'קיים במכלול כהפניה', task_type: 'סוג משימה', old_title: 'השם הקודם בוויקיפדיה', renamed_at: 'הועבר בתאריך', via: 'זוהה לפי', rev_page_title: 'הדף של הגרסה', linked_title: 'מקושר היום',
-		manual_match_action: 'שיוך ידני', exclude_action: 'החרגה', outcome: 'מצב', template_ref: 'כותרת בתבנית', kind: 'סוג', health: 'מצב', last_success_at: 'הצלחה אחרונה', error: 'שגיאה',
+		manual_match_action: 'שיוך ידני', outcome: 'מצב', template_ref: 'כותרת בתבנית', kind: 'סוג', health: 'מצב', last_success_at: 'הצלחה אחרונה', error: 'שגיאה',
 		wikipedia_title: 'ערך בוויקיפדיה', mechalol_title: 'דף מקביל במכלול',
 		mechalol_status: 'סטטוס במכלול', candidate_count: 'מספר מועמדים',
 		mechalol_id: 'מזהה מכלול', lock_level: 'סוג נעילה', lock_source: 'איך זוהה', detected_at: 'זוהה בתאריך',
@@ -206,7 +205,7 @@
 			baseFilters: [['mechalol_redirect_exists', 'not.is.true']],
 			// הישנים קודם (תאריך יצירה בוויקיפדיה); בלי תאריך (כ-9%) בסוף; id לסדר יציב בדפדוף. הייצוא משתמש באותו סדר.
 			order: 'created_at.asc.nullslast,id.asc',
-			titleLink: 'edit', wikidata: true, easyImport: true, redirectFilter: true, lockable: true, manualMatch: true
+			titleLink: 'edit', wikidata: true, easyImport: true, redirectFilter: true, lockable: true
 		},
 		missing_redirect: {
 			view: 'report_missing_word_filter', label: 'קיים במכלול כהפניה',
@@ -633,8 +632,8 @@
 		fetchWikidataDescriptions(need);
 	}
 
-	// ===== הצעה אוטומטית לשיוך ידני, מהפניה קיימת במכלול (לטבלת "חסר
-	// במכלול" בלבד, ורק כש-serviceKeyConnected - אין טעם לבדוק בכלל אם
+	// ===== הצעה אוטומטית לשיוך ידני, מהפניה קיימת במכלול (לטבלת "קיים
+	// במכלול כהפניה" בלבד, ורק כש-serviceKeyConnected - אין טעם לבדוק בכלל אם
 	// עמודת השיוך הידני עצמה לא מוצגת) =====
 	function loadRedirectTargetsForCurrentPage() {
 		if (!VIEWS[activeTab] || !VIEWS[activeTab].manualMatch || !serviceKeyConnected) return;
@@ -2360,10 +2359,8 @@
 	})();
 
 	function effectiveColumns(cfg) {
-		// עמודת השיוך הידני מתווספת רק בטאב "חסר במכלול", ורק כש-
-		// יש חיבור פעיל - לא כל מבקר בטאב הזה אמור לראות אותה בכלל.
+		// עמודת השיוך הידני: רק בטאב "קיים במכלול כהפניה" (החלטת חיים, 14.10), ורק כשיש חיבור פעיל.
 		var cols = (cfg.displayColumns || cfg.columns).slice();
-		if (DB_ID === 'v2' && cfg.manualMatch && serviceKeyConnected) cols.push('exclude_action');
 		if (VIEWS[activeTab] && VIEWS[activeTab].manualMatch && serviceKeyConnected) {
 			var at = cols.indexOf('import_action');
 			return at < 0 ? cols.concat(['manual_match_action']) : cols.slice(0, at).concat(['manual_match_action'], cols.slice(at));
@@ -2409,7 +2406,6 @@
 		}
 		if (col === 'health') return escapeHtml(({ ok: 'תקין', stale: 'ישן', stuck: 'תקוע', never: 'טרם רץ' })[val] || val || '');
 		if (col === 'outcome') return escapeHtml(({ unresolved: 'כותרת לא קיימת', denied: 'דף נעול' })[val] || val || '');
-		if (col === 'exclude_action') return '<button class="mchl-export-btn" data-action="exclude" data-id="' + row.id + '">החרגה</button>';
 		if (col === 'topic') {
 			if (row.dictionary) return '<span class="mchl-badge mchl-neutral" title="' + escapeHtml('מועמד לייבוא מילוני: ' + (row.dictionary_why || '')) + '">מילוני: ' + escapeHtml(row.dictionary) + '</span>';
 			return row.topic && WF_TOPIC_LABELS[row.topic] ? '<span class="mchl-topic-cell">' + escapeHtml(WF_TOPIC_LABELS[row.topic]) + '</span>' : '<span class="mchl-muted">—</span>';
@@ -3346,18 +3342,6 @@
 		});
 	}
 
-	function excludeFromImport(btn) {
-		if (DB_ID !== 'v2' || !serviceKeyConnected) return;
-		var row = currentPageRows.filter(function (r) { return String(r.id) === btn.getAttribute('data-id'); })[0];
-		if (!row || !window.confirm('להחריג את "' + row.title + '" מהרשימה?')) return;
-		btn.disabled = true;
-		function send() { return sendDatabaseWrite('exclude', { wikiId: row.id, title: row.title }); }
-		send().then(function (res) { return res.status === 401 ? refreshAuthSession().then(send) : res; }).then(function (res) {
-			if (!res.ok) return res.text().then(function (text) { throw new Error(text); });
-			refreshAll();
-		}).catch(function (e) { btn.disabled = false; window.alert('ההחרגה נכשלה: ' + e.message); });
-	}
-
 	function wireEvents(root) {
 		root.addEventListener('click', function (e) {
 			var el = e.target.closest('[data-action]');
@@ -3381,7 +3365,6 @@
 			else if (action === 'culture-back') { cultureState.selected = null; renderCulturePicker(); }
 			else if (action === 'culture-load-more') { if (!cultureState.loading) loadCultureMembers(); }
 			else if (action === 'lock-titles') lockSelectedTitles(el);
-			else if (action === 'exclude') excludeFromImport(el);
 			else if (action === 'assign-manual-match') assignManualMatch(el);
 			else if (action === 'pick-manual-match-suggestion') pickManualMatchSuggestion(el);
 			else if (action === 'toggle-admin-panel') toggleAdminPanel();
