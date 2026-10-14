@@ -76,6 +76,10 @@ function fixture({ backend, admin = true, failure = '', expired = false }) {
    if(t.failure==='feedback')return response({message:'feedback unavailable'},403);
    return response(Object.entries(t.feedback).map(([match_key,label])=>({match_key,label})),200);
   }
+  if(table==='report_missing_word_filter'&&(t.failure==='timeout'||t.failure==='timeout-once')){
+   if(t.failure==='timeout-once')t.failure='';
+   return response({code:'57014',message:'canceling statement due to statement timeout'},500);
+  }
   if(table==='word_filter_results') {
    if(t.failure==='details')return response({message:'detail unavailable'},403);
    return response([{wikipedia_id:1,lists_version:'v',images:[],matches_total:1,matches:[{x:'מילה',e:['entry'],line:1,b:'לפני ',f:' אחרי',a:'problem',s:'problem',ca:'problem'}]}]);
@@ -104,7 +108,7 @@ function fixture({ backend, admin = true, failure = '', expired = false }) {
 
 (async () => {
  const browser = await chromium.launch({ headless: true, ...(process.env.CHROMIUM_EXECUTABLE ? { executablePath: process.env.CHROMIUM_EXECUTABLE, args: ['--no-sandbox','--disable-dev-shm-usage'] } : {}) });
- async function open(backend, options = {}) {
+ async function open(backend, options = {}, ready = '#mchl-table-target tbody') {
   const page=await browser.newPage({viewport:{width:1440,height:1000}});page.errors=[];page.on('pageerror',e=>page.errors.push(e.message));
   await page.route('**/*',route=>{
    const u=new URL(route.request().url());
@@ -113,7 +117,7 @@ function fixture({ backend, admin = true, failure = '', expired = false }) {
    return route.fulfill({contentType:'text/html',body:'<!doctype html><html dir="rtl"><meta charset="utf-8"><body><div id="mw-content-text"></div><script src="/dashboard.js"></script><script>startDashboard();</script></body></html>'});
   });
   await page.addInitScript(fixture,{backend,...options});await page.goto('https://dashboard.test/?mchlDb='+backend);
-  await page.waitForSelector('#mchl-table-target tbody');return page;
+  await page.waitForSelector(ready);return page;
  }
  async function clickTab(page,key){await page.locator('#mchl-tab-'+key).evaluate(el=>el.click());await page.waitForFunction(()=>!document.querySelector('#mchl-table-target .mchl-skeleton'));}
  for(const backend of ['v1','v2']){
@@ -167,6 +171,32 @@ function fixture({ backend, admin = true, failure = '', expired = false }) {
   const failed=await open(backend,{failure:'feedback'});await failed.locator('[data-action="wf-details"]').first().click();await failed.waitForSelector('.mchl-wf-box .mchl-alert');assert.equal(await failed.locator('[data-action="wf-feedback"]').count(),0);await failed.close();console.log('PASS failed feedback read '+backend);
   const writeFailed=await open(backend,{failure:'write'});await writeFailed.locator('[data-action="wf-details"]').first().click();await writeFailed.waitForSelector('[data-action="wf-feedback"]');await writeFailed.locator('[data-action="wf-feedback"]').first().click();
   await writeFailed.waitForFunction(()=>testState.alerts.length>0);assert.equal(await writeFailed.locator('.mchl-on-false,.mchl-on-true').count(),0);await writeFailed.close();console.log('PASS rejected write '+backend);
+ }
+ // V2: בפתיחה הסיכום נשלף פעם אחת, ומוני "חסר" / "קיים כהפניה" נגזרים ממנו (בלי ספירה נוספת)
+ {
+  const page=await open('v2');await page.waitForFunction(()=>/\d/.test(document.getElementById('mchl-tab-count-missing').textContent));
+  const rest=await page.evaluate(()=>testState.requests.filter(r=>r.url.includes('/rest/v1/')).map(r=>({path:new URL(r.url).pathname.split('/').pop(),prefer:r.headers.Prefer||''})));
+  assert.equal(rest.filter(r=>r.path==='report_missing_word_filter_summary').length,1,JSON.stringify(rest));
+  assert.equal(rest.filter(r=>r.path==='report_missing_from_mechalol').length,0,JSON.stringify(rest));
+  assert.equal(await page.locator('#mchl-tab-count-missing').innerText(),'3');
+  // שינוי גודל עמוד: אותו סינון - בלי ספירה מחדש, והמספר נשאר
+  const before=await page.evaluate(()=>testState.requests.length);
+  await page.selectOption('#mchl-page-size','25');await page.waitForFunction(()=>!document.querySelector('#mchl-table-target .mchl-skeleton'));
+  const list=await page.evaluate(n=>testState.requests.slice(n).filter(r=>r.url.includes('/report_missing_word_filter?')),before);
+  assert.equal(list.length,1);assert.equal(list[0].headers.Prefer,undefined);
+  assert.equal(await page.locator('#mchl-chips-total').innerText(),'3 ערכים');
+  await page.close();console.log('PASS v2 request diet');
+ }
+ // timeout (57014): ניסיון חוזר אחד שמצליח; וכשגם הוא נכשל - הודעת עומס, לא "עדכון תקופתי" ולא בדיקת הרשאות
+ {
+  const once=await open('v2',{failure:'timeout-once'});
+  assert.equal(await once.evaluate(()=>testState.requests.filter(r=>r.url.includes('/report_missing_word_filter?')).length),2);
+  await once.close();
+  const always=await open('v2',{failure:'timeout'},'#mchl-table-target .mchl-error');
+  assert.equal(await always.evaluate(()=>testState.requests.filter(r=>r.url.includes('/report_missing_word_filter?')).length),2);
+  const text=await always.locator('#mchl-table-target').innerText();
+  assert(text.includes('המסד עמוס כרגע'),text);assert(!/CSP|עדכון תקופתי/.test(text),text);
+  await always.close();console.log('PASS timeout retry');
  }
  await browser.close();
 })().catch(e=>{console.error(e);process.exit(1);});
