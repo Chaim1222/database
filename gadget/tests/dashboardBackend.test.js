@@ -30,8 +30,8 @@ test('feedback retains context and composite identity on both backends', () => {
  assert.deepEqual(databaseWrite(DATABASES.v2,'unmark',data).body,{p_wiki_id:1,p_match_key:'a&b'});
 });
 test('V2 exclusion retains the established exclusion kind',()=>{
- const req=databaseWrite(DATABASES.v2,'exclude',{wikiId:1,title:'title'});assert.equal(req.path,'rpc/add_exclusion');assert.equal(req.body.p_kind,'import_excluded');
- assert.throws(()=>databaseWrite(DATABASES.v1,'exclude',{wikiId:1,title:'title'}));
+ // החרגה הוסרה מהממשק (החלטת חיים, 14.10)
+ assert.throws(()=>databaseWrite(DATABASES.v2,'exclude',{wikiId:1,title:'title'}));
 });
 
 test('feedback identity supports existing JWT sessions and rejects missing identity', () => {

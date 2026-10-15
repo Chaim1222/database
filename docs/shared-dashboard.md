@@ -10,9 +10,9 @@
 |---|---|---|
 | דוחות | public.report_* | api.report_* |
 | בדיקת מנהל | is_manual_match_admin | is_admin |
-| שיוך ידני | manual_matches | set_manual_link |
+| שיוך ידני (רק בטאב "קיים כהפניה", החלטת חיים 14.10) | manual_matches | set_manual_link |
 | משוב / ביטול | word_filter_feedback | mark_feedback / unmark_feedback |
-| החרגה | אינה קיימת בממשק | add_exclusion |
+| החרגה | אינה קיימת בממשק | הוסרה מהממשק (החלטת חיים, 14.10); `add_exclusion` נשארה במסד |
 | רענון תחזוקה | request_maintenance_refresh | אינו מוצג |
 | בעיות תבנית ומצב מערכת | אינם מוצגים | v_template_issues / v_sync_status |
 

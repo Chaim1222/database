@@ -21,7 +21,8 @@ function fixture({ backend, admin = true, failure = '', expired = false }) {
  const rows = [
   { id: 1, title: 'ערך לבדיקה', verdict: 'clean', ctx_verdict: 'clean', scan_state: 'scanned', has_images: true, photo_count: 1, matches_total: 1, counts: { a: { problem: 1 } }, created_at: '2020-01-01', mechalol_redirect_exists: false, wikidata_desc: 'תיאור לדוגמה' },
   { id: 2, title: 'ערך ישן', verdict: 'clean', ctx_verdict: 'clean', scan_state: 'stale', has_images: null, mechalol_redirect_exists: null },
-  { id: 3, title: 'ערך ללא סריקה', scan_state: 'not_scanned', has_images: null, mechalol_redirect_exists: null }
+  { id: 3, title: 'ערך ללא סריקה', scan_state: 'not_scanned', has_images: null, mechalol_redirect_exists: null },
+  { id: 4, title: 'ערך כהפניה', verdict: 'clean', ctx_verdict: 'clean', scan_state: 'scanned', has_images: null, mechalol_redirect_exists: true }
  ];
  const tables = {
   report_missing_word_filter: rows, report_missing_from_mechalol: rows,
@@ -93,7 +94,7 @@ function fixture({ backend, admin = true, failure = '', expired = false }) {
    return response(null);
   }
   if(backend==='v1' && /^v_/.test(table)){t.failures.push('V2 view on V1: '+table);return response({message:'wrong backend'},404);}
-  let data = table==='report_missing_word_filter_summary' ? rows.map(r=>({...r,n:1,redirect:false,dictionary:false})) : tables[table];
+  let data = table==='report_missing_word_filter_summary' ? rows.map(r=>({...r,n:1,redirect:r.mechalol_redirect_exists===true,dictionary:false})) : tables[table];
   if(!data){t.failures.push('Unknown view: '+table);return response({message:'unknown view'},404);}
   const known=columns[table]||Object.keys(data[0]||{});
   for(const col of (u.searchParams.get('order')||'').split(',').filter(Boolean).map(p=>p.split('.')[0])){
@@ -146,13 +147,15 @@ function fixture({ backend, admin = true, failure = '', expired = false }) {
   assert.deepEqual(await page.evaluate(()=>testState.failures),[]);assert.deepEqual(page.errors,[]);
   const requests=await page.evaluate(()=>testState.requests.filter(r=>r.url.includes('/rest/v1/')));
   requests.forEach(r=>{assert(r.url.includes(backend==='v2'?'ukzijtrpchvmoxlslxpz':'hgsyzaghedqsypisbvev'));assert.equal(r.headers['Accept-Profile'],backend==='v2'?'api':'public');assert(!r.headers.Authorization.includes('token-'+(backend==='v2'?'v1':'v2')));});
+  // שיוך ידני רק בטאב "קיים כהפניה"; בלי עמודת החרגה (החלטת חיים, 14.10)
   await clickTab(page,'missing');await page.waitForTimeout(30);
+  assert.equal(await page.locator('.mchl-manual-match-input').count(),0);assert.equal(await page.locator('[data-action="exclude"]').count(),0);
+  await clickTab(page,'missing_redirect');await page.waitForTimeout(30);
   const input=page.locator('.mchl-manual-match-input').first();await input.fill('ערך');await page.waitForSelector('[data-action="pick-manual-match-suggestion"]');
   await page.locator('[data-action="pick-manual-match-suggestion"]').first().click();await page.locator('[data-action="assign-manual-match"]').first().click();
   await page.waitForFunction(b=>testState.requests.some(r=>r.method==='POST'&&r.url.endsWith(b==='v2'?'/rpc/set_manual_link':'/manual_matches')),backend);
-  if(backend==='v2'){
-   await page.locator('[data-action="exclude"]').first().click();await page.waitForFunction(()=>testState.requests.some(r=>r.url.endsWith('/rpc/add_exclusion')));
-  }
+  assert.equal(await page.locator('[data-action="exclude"]').count(),0);
+  await clickTab(page,'missing');await page.waitForTimeout(30);
   // תוקף תוצאת הסינון (scan_state) זהה בשני המסדים: "נקי" רק מתוך scanned
   for(const [choice,state] of [['stale','stale'],['unscanned','not_scanned'],['clean','scanned']]){
    await page.locator('[data-side="level"][data-v="'+choice+'"]').click();await page.waitForTimeout(30);
@@ -167,7 +170,7 @@ function fixture({ backend, admin = true, failure = '', expired = false }) {
   assert(afterSwitch.length);afterSwitch.forEach(r=>{assert(r.url.includes(other==='v2'?'ukzijtrpchvmoxlslxpz':'hgsyzaghedqsypisbvev'));assert(!r.headers.Authorization.includes('token-'+backend));});
   await page.close();console.log('PASS browser workflows and backend switch '+backend);
   const denied=await open(backend,{admin:false});assert.equal(await denied.locator('[data-action="assign-manual-match"]').count(),0);assert.equal(await denied.locator('[data-action="exclude"]').count(),0);await denied.close();console.log('PASS denied admin '+backend);
-  const expired=await open(backend,{expired:true});await expired.waitForSelector('[data-action="assign-manual-match"]');assert(await expired.evaluate(()=>testState.requests.some(r=>r.url.includes('grant_type=refresh_token'))));await expired.close();console.log('PASS expired session '+backend);
+  const expired=await open(backend,{expired:true});await clickTab(expired,'missing_redirect');await expired.waitForSelector('[data-action="assign-manual-match"]');assert(await expired.evaluate(()=>testState.requests.some(r=>r.url.includes('grant_type=refresh_token'))));await expired.close();console.log('PASS expired session '+backend);
   const failed=await open(backend,{failure:'feedback'});await failed.locator('[data-action="wf-details"]').first().click();await failed.waitForSelector('.mchl-wf-box .mchl-alert');assert.equal(await failed.locator('[data-action="wf-feedback"]').count(),0);await failed.close();console.log('PASS failed feedback read '+backend);
   const writeFailed=await open(backend,{failure:'write'});await writeFailed.locator('[data-action="wf-details"]').first().click();await writeFailed.waitForSelector('[data-action="wf-feedback"]');await writeFailed.locator('[data-action="wf-feedback"]').first().click();
   await writeFailed.waitForFunction(()=>testState.alerts.length>0);assert.equal(await writeFailed.locator('.mchl-on-false,.mchl-on-true').count(),0);await writeFailed.close();console.log('PASS rejected write '+backend);
@@ -194,6 +197,8 @@ function fixture({ backend, admin = true, failure = '', expired = false }) {
  // timeout (57014): ניסיון חוזר אחד שמצליח; וכשגם הוא נכשל - הודעת עומס, לא "עדכון תקופתי" ולא בדיקת הרשאות
  {
   const once=await open('v2',{failure:'timeout-once'});
+  // הניסיון החוזר יוצא אחרי השהיה; מחכים לשורת הנתונים (לא לשלד הטעינה)
+  await once.waitForSelector('#mchl-table-target tbody tr td a');
   assert.equal(await once.evaluate(()=>testState.requests.filter(r=>r.url.includes('/report_missing_word_filter?')).length),2);
   await once.close();
   const always=await open('v2',{failure:'timeout'},'#mchl-table-target .mchl-error');
