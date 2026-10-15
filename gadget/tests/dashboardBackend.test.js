@@ -40,3 +40,9 @@ test('feedback identity supports existing JWT sessions and rejects missing ident
  assert.equal(sessionUserId({user_id:'user-2'}),'user-2');
  assert.equal(sessionUserId({access_token:'invalid'}),null);
 });
+
+test('dashboard run buttons: V1 keeps its maintenance refresh, V2 runs only its two workflows', () => {
+ assert.deepEqual(DATABASES.v1.runs.map(r => [r.request, r.status]), [['request_maintenance_refresh', 'maintenance_refresh_status']]);
+ assert.deepEqual(DATABASES.v2.runs.map(r => [r.request, r.status, r.body.p_workflow]), [['request_run', 'run_status', 'sync.yml'], ['request_run', 'run_status', 'maintenance.yml']]);
+ for (const r of DATABASES.v1.runs.concat(DATABASES.v2.runs)) { assert.ok(r.label && r.hint); assert.ok(r.runMin > 0); }
+});

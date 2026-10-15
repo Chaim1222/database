@@ -10,8 +10,14 @@
 
 	// ===== backend-start: הגדרת חיבור אחת; החלטות התאמה נשארות במסדים =====
 	var DATABASES = {
-		v1: { url: 'https://hgsyzaghedqsypisbvev.supabase.co', schema: 'public', anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhnc3l6YWdoZWRxc3lwaXNidmV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzNTY2ODgsImV4cCI6MjEwMTkzMjY4OH0.eDPO3n3OHvmndWDvgF-istBP2NhY5W20erG3zztm7vs', adminRpc: 'is_manual_match_admin', maintenance: true },
-		v2: { url: 'https://ukzijtrpchvmoxlslxpz.supabase.co', schema: 'api', anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVremlqdHJwY2h2bW94bHNseHB6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEyMTU1MzMsImV4cCI6MjEwNjc5MTUzM30.QCUKSOb1oOSwUPurOOhubPJFoSrQCUsClCSHEBp0BH8', adminRpc: 'is_admin', maintenance: false }
+		v1: { url: 'https://hgsyzaghedqsypisbvev.supabase.co', schema: 'public', anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhnc3l6YWdoZWRxc3lwaXNidmV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzNTY2ODgsImV4cCI6MjEwMTkzMjY4OH0.eDPO3n3OHvmndWDvgF-istBP2NhY5W20erG3zztm7vs', adminRpc: 'is_manual_match_admin', runs: [
+			{ request: 'request_maintenance_refresh', status: 'maintenance_refresh_status', body: {}, runMin: 40, label: 'רענן נתוני תחזוקה', hint: 'מביא את מצב המכלול האמיתי ומנקה שורות שהתיישנו. לוקח כמה דקות.' }
+		] },
+		v2: { url: 'https://ukzijtrpchvmoxlslxpz.supabase.co', schema: 'api', anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVremlqdHJwY2h2bW94bHNseHB6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEyMTU1MzMsImV4cCI6MjEwNjc5MTUzM30.QCUKSOb1oOSwUPurOOhubPJFoSrQCUsClCSHEBp0BH8', adminRpc: 'is_admin', runs: [
+			// הפעלת workflows של V2 (0046 בריפו database_V2); runMin מעל משך הריצה המרבי ב-GitHub.
+			{ request: 'request_run', status: 'run_status', body: { p_workflow: 'sync.yml' }, runMin: 240, label: 'סנכרון, העשרה וסריקה', hint: 'שינויים משני האתרים, השלמת פרטים לחסרים וסריקת התוכן.' },
+			{ request: 'request_run', status: 'run_status', body: { p_workflow: 'maintenance.yml' }, runMin: 30, label: 'ניקיון וחישוב מחדש', hint: 'חישוב מחדש של "חסר במכלול" והמספרים, וניקוי נתונים ישנים.' }
+		] }
 	};
 	// V2 בכל הדפים (המעבר, 13.10.2026); ?mchlDb=v1 פותח את V1 המושהה לצפייה או לחזרה.
 	function databaseId(search) {
@@ -3168,21 +3174,21 @@
 		syncMaintRow();
 	}
 
-	// ===== רענון נתוני התחזוקה =====
-	// הכפתור מפעיל דרך המסד (request_maintenance_refresh, pg_net) את ה-workflow maintenance_refresh.yml, שמביא את מצב
-	// המכלול האמיתי (דלתא, התאמה ממוקדת, עדכון שעתי, בדיקת גרסאות מחדש, ניקוי), ומחכה לסיומו (maintenance_refresh_status).
-	// כשהוא מסתיים הדשבורד נטען מחדש. הרשאה נאכפת במסד (manual_match_admins); הכפתור מוצג רק למחוברים.
-	// migrations/migration_add_trigger_maintenance_refresh.sql
-	var MAINT_POLL_MS = 10000, MAINT_START_TIMEOUT_MS = 4 * 60 * 1000, MAINT_RUN_TIMEOUT_MS = 40 * 60 * 1000;
+	// ===== הפעלת ריצות מהדשבורד (DB.runs) =====
+	// כל כפתור מפעיל דרך המסד (pg_net) workflow ב-GitHub ומחכה לסיומו; כשהוא מסתיים הדשבורד נטען מחדש. הרשאה נאכפת במסד;
+	// הכפתורים מוצגים רק למחוברים. V1: request_maintenance_refresh / maintenance_refresh_status, ה-workflow
+	// maintenance_refresh.yml (migrations/migration_add_trigger_maintenance_refresh.sql). V2: request_run / run_status עם
+	// p_workflow (sync.yml, maintenance.yml), מיגרציה 0046 בריפו database_V2. שני המסדים מחזירים אותו מבנה מצב.
+	var MAINT_POLL_MS = 10000, MAINT_START_TIMEOUT_MS = 4 * 60 * 1000;
 	var maintPolling = false;
 	function syncMaintRow() {
 		var row = $id('mchl-maint-row');
-		if (row) row.style.display = serviceKeyConnected && DB.maintenance ? '' : 'none';
+		if (row) row.style.display = serviceKeyConnected && DB.runs.length ? '' : 'none';
 	}
-	function maintRpc(name) {
+	function maintRpc(name, body) {
 		var send = function () {
 			return fetch(SUPABASE_URL + '/rest/v1/rpc/' + name, {
-				method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: '{}'
+				method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(body || {})
 			});
 		};
 		return send().then(function (res) {
@@ -3195,7 +3201,8 @@
 		});
 	}
 	function maintRefresh(btn) {
-		if (!DB.maintenance || !serviceKeyConnected) return;
+		var run = DB.runs[Number(btn.getAttribute('data-run'))];
+		if (!run || !serviceKeyConnected) return;
 		if (maintPolling) return;
 		var statusEl = $id('mchl-admin-status');
 		var original = btn.textContent;
@@ -3205,11 +3212,11 @@
 		btn.disabled = true;
 		btn.textContent = 'מרענן…';
 		show('מפעיל רענון…');
-		maintRpc('request_maintenance_refresh').then(function (res) {
+		maintRpc(run.request, run.body).then(function (res) {
 			var requestedAt = new Date(res.requested_at).getTime();
 			if (!res.started) show('רענון כבר רץ, ממתין לסיומו…');
 			var poll = function () {
-				return maintRpc('maintenance_refresh_status').then(function (st) {
+				return maintRpc(run.status, run.body).then(function (st) {
 					var elapsed = Date.now() - requestedAt;
 					if (st.dispatch_error) return finish('ההפעלה נדחתה: ' + st.dispatch_error, 'mchl-alert');
 					var finishedAt = st.finished_at ? new Date(st.finished_at).getTime() : 0;
@@ -3219,7 +3226,7 @@
 					}
 					if (st.status === 'failed' && finishedAt >= requestedAt) return finish('הרענון נכשל. פרטים ב-GitHub Actions (נפתח Issue).', 'mchl-alert');
 					if (st.status === 'requested' && elapsed > MAINT_START_TIMEOUT_MS) return finish('הריצה לא התחילה תוך כמה דקות. בדוק ב-GitHub Actions.', 'mchl-alert');
-					if (elapsed > MAINT_RUN_TIMEOUT_MS) return finish('הרענון נמשך זמן רב מהצפוי. בדוק ב-GitHub Actions.', 'mchl-alert');
+					if (elapsed > run.runMin * 60000) return finish('הרענון נמשך זמן רב מהצפוי. בדוק ב-GitHub Actions.', 'mchl-alert');
 					show(st.status === 'running' ? 'הרענון רץ (' + Math.round(elapsed / 60000) + ' דק׳)…' : 'ממתין שהריצה תתחיל…');
 					return sleep(MAINT_POLL_MS).then(poll);
 				});
@@ -3466,8 +3473,10 @@
 		'</div>' +
 		'<div class="mchl-muted" id="mchl-admin-status" style="font-size:12.5px;margin-top:8px;">טרם התחברת - כפתור נעילת הכותרות בטאב "חסר במכלול" יופיע רק אחרי התחברות מוצלחת.</div>' +
 		'<div class="mchl-admin-row" id="mchl-maint-row" style="display:none;margin-top:12px;">' +
-		'<button type="button" class="mchl-export-btn" id="mchl-maint-btn" data-action="maint-refresh">רענן נתוני תחזוקה</button>' +
-		'<span class="mchl-muted" style="font-size:12.5px;">מביא את מצב המכלול האמיתי ומנקה שורות שהתיישנו. לוקח כמה דקות.</span>' +
+		DB.runs.map(function (run, i) {
+			return '<div style="flex-basis:100%;"><button type="button" class="mchl-export-btn" data-action="maint-refresh" data-run="' + i + '">' + escapeHtml(run.label) + '</button> ' +
+				'<span class="mchl-muted" style="font-size:12.5px;">' + escapeHtml(run.hint) + '</span></div>';
+		}).join('') +
 		'</div>' +
 		'</section>' +
 		'<nav class="mchl-tabs" id="mchl-tabs"></nav>' +
