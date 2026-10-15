@@ -494,7 +494,8 @@ create table if not exists word_filter_results (
     -- והסיבה ("תבנית סינגל"). סימון נפרד, לא משפיע על הרמה.
     dictionary text,
     dictionary_why text,
-    -- נושא הערך (word-filter/topics.js): 'people_congress', 'art', 'sensitive', 'years', 'disambig', 'dictionary', 'other'...
+    -- נושא הערך (word-filter/topics.js): 'people_congress', 'art', 'music', 'film_tv', 'sensitive', 'years', 'disambig', 'other'...
+    -- (עד 2026-10-15 גם 'dictionary'; מאז הסימון המילוני רק בעמודה dictionary, והנושא לפי סוג הייבוא)
     topic text,
     -- שמות הקודש (נושא names) - קטגוריה נפרדת, לא נספרת ברמה (migration_add_word_filter_names.sql)
     names_count integer,

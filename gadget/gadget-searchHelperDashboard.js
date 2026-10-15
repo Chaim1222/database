@@ -127,13 +127,16 @@
 	// נושא הערך (עמודת topic - word-filter/topics.js). בחירה של כמה נושאים; ריק = הכול.
 	// הקודים והשמות - אותו סדר כמו TOPICS ב-topics.js.
 	var WF_TOPIC_GROUPS = [
+		// "ערך מילוני" אינו נושא אלא צורת ייבוא (חיים, 2026-10-15) - יש לו מסנן משלו (wfDictChoice).
 		{ label: 'מיוחדים', items: [['disambig', 'פירושונים'], ['years', 'ערכי שנים ותאריכים'], ['lists', 'רשימות'],
-			['dictionary', 'ערך מילוני'], ['sensitive', 'נושאים בעייתיים']] },
+			['sensitive', 'נושאים בעייתיים']] },
 		{ label: 'אישים', items: [['people_science', 'מדע, רפואה ואקדמיה'], ['people_politics', 'פוליטיקה, ממשל ואצולה'], ['people_congress', 'חברי קונגרס אמריקאים'],
 			['people_art', 'אמנות חזותית ואדריכלות'], ['people_literature', 'ספרות ועיתונות'], ['people_stage', 'קולנוע, במה ובידור'],
+			['people_music', 'מוזיקה'], ['people_sport', 'ספורט'],
 			['people_military', 'צבא וביטחון'], ['people_public', 'חינוך ופעילות ציבורית'], ['people_rabbis', 'רבנים ואישי יהדות'],
 			['people_clergy', 'אנשי דת אחרים'], ['people_business', 'עסקים'], ['people_law', 'משפט'], ['people_crime', 'פשע'], ['people_other', 'אחר']] },
-		{ label: 'יצירות ותרבות', items: [['art', 'יצירות אמנות'], ['culture', 'תרבות, ספורט ופרסים']] },
+		{ label: 'יצירות ותרבות', items: [['music', 'מוזיקה'], ['film_tv', 'קולנוע וטלוויזיה'], ['literature', 'ספרות וספרים'], ['sport', 'ספורט'],
+			['games', 'משחקים'], ['art', 'יצירות אמנות'], ['culture', 'תרבות, פרסים ובידור']] },
 		{ label: 'מקומות ומבנים', items: [['geo', 'גאוגרפיה ומקומות'], ['buildings', 'מבנים ואתרים']] },
 		{ label: 'היסטוריה וחברה', items: [['history', 'היסטוריה וצבא'], ['politics', 'פוליטיקה, משפט וכלכלה'], ['religion', 'דת ואמונה'],
 			['orgs', 'ארגונים, מוסדות וחברות'], ['society', 'חברה, שפה ואורח חיים']] },
@@ -2417,8 +2420,10 @@
 		if (col === 'outcome') return escapeHtml(({ unresolved: 'כותרת לא קיימת', denied: 'דף נעול' })[val] || val || '');
 		if (col === 'exclude_action') return '<button class="mchl-export-btn" data-action="exclude" data-id="' + row.id + '">החרגה</button>';
 		if (col === 'topic') {
-			if (row.dictionary) return '<span class="mchl-badge mchl-neutral" title="' + escapeHtml('מועמד לייבוא מילוני: ' + (row.dictionary_why || '')) + '">מילוני: ' + escapeHtml(row.dictionary) + '</span>';
-			return row.topic && WF_TOPIC_LABELS[row.topic] ? '<span class="mchl-topic-cell">' + escapeHtml(WF_TOPIC_LABELS[row.topic]) + '</span>' : '<span class="mchl-muted">—</span>';
+			// הנושא, ולצידו (לא במקומו) סימון הייבוא המילוני
+			var topicHtml = row.topic && WF_TOPIC_LABELS[row.topic] ? '<span class="mchl-topic-cell">' + escapeHtml(WF_TOPIC_LABELS[row.topic]) + '</span>' : '<span class="mchl-muted">—</span>';
+			if (row.dictionary) topicHtml += ' <span class="mchl-badge mchl-neutral" title="' + escapeHtml('מועמד לייבוא מילוני: ' + (row.dictionary_why || '')) + '">מילוני: ' + escapeHtml(row.dictionary) + '</span>';
+			return topicHtml;
 		}
 		if (col === 'wf_matches') return renderWfMatches(row);
 		if (col === 'import_action') {
@@ -2922,7 +2927,7 @@
 			var level = wfRowLevel(row);
 			return level ? (WF_SUSPICION[level] || WF_LEVELS[level]).label : 'טרם נסרק';
 		}
-		if (col === 'topic') return row.dictionary ? 'מילוני: ' + row.dictionary : (WF_TOPIC_LABELS[row.topic] || row.topic || '');
+		if (col === 'topic') return (WF_TOPIC_LABELS[row.topic] || row.topic || '') + (row.dictionary ? ' (מילוני: ' + row.dictionary + ')' : '');
 		return row[col];
 	}
 
