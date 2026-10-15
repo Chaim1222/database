@@ -63,7 +63,13 @@ test('resultRow: topic from the title, the infobox and the categories', () => {
 		revisions: [{ revid: 1, slots: { main: { content } } }] }, lists, 'v1').topic;
 	assert.strictEqual(row('1999 בספורט', 'שנה.'), 'years');
 	assert.strictEqual(row('מרקורי', '{{פירושונים}}\n* מרקורי (אל)'), 'disambig');
-	assert.strictEqual(row('Falling Down', '{{סינגל\n|שם=א}}'), 'dictionary');
+	// "מילוני" אינו נושא (צורת ייבוא, בעמודה dictionary): הנושא לפי סוג הייבוא, ואדם - לפי העיסוק.
+	assert.strictEqual(row('Falling Down', '{{סינגל\n|שם=א}}'), 'music');
+	assert.strictEqual(row('א', '{{סרט\n|שם=א}}'), 'film_tv');
+	assert.strictEqual(row('א', '{{מוזיקאי\n|שם=א}}\n[[קטגוריה:זמרות פופ אמריקאיות]]\n[[קטגוריה:אמריקאיות שנולדו ב-1990]]'), 'people_music');
+	assert.strictEqual(row('א', '{{מידע}}\n[[קטגוריה:כדורגלנים ישראלים]]\n[[קטגוריה:ישראלים שנולדו ב-1990]]'), 'people_sport');
+	assert.strictEqual(row('א', '{{מידע}}\n[[קטגוריה:קבוצות כדורגל בישראל]]'), 'sport');
+	assert.strictEqual(row('סול גודמן', '{{דמות בדיונית\n|שם=א}}\n[[קטגוריה:עורכי דין בדיוניים]]\n[[קטגוריה:שובר שורות - דמויות]]'), 'film_tv');
 	assert.strictEqual(row('ג', 'מדינאי.\n[[קטגוריה:חברי בית הנבחרים של ארצות הברית]]\n[[קטגוריה:אמריקאים שנולדו ב-1900]]'), 'people_congress');
 	const R = (t, cats, ib) => row(t, (ib ? '{{' + ib + '}}\n' : '') + cats.map((c) => '[[קטגוריה:' + c + ']]').join('\n'));
 	assert.strictEqual(R('הבמה', ['אתרי אינטרנט בישראל', 'תרבות בישראל']), 'orgs'); // לא טכנולוגיה
@@ -74,6 +80,12 @@ test('resultRow: topic from the title, the infobox and the categories', () => {
 	assert.strictEqual(R('דייוויד יאנג (פוליטיקאי)', ['חברי בית הנבחרים של ארצות הברית מאיווה', 'אמריקאים ילידי איווה']), 'people_congress');
 	assert.strictEqual(row('ד', 'ציור.\n[[קטגוריה:ציורי עירום]]'), 'sensitive');
 	assert.strictEqual(row('ה', '{{עיר\n|שם=ה}}'), 'geo');
+	// עיסוק בהצבעה: שירות צבאי (חצי קול) לא גובר על תבנית המידע ועל קטגוריית העיסוק (חיים, 2026-10-15)
+	assert.strictEqual(R('טלי וייס', ['משוררות ישראליות', 'עורכות ספרותיות ישראליות', 'חיילי חיל החינוך והנוער', 'ישראליות שנולדו ב-1977'], 'סופר'), 'people_literature');
+	assert.strictEqual(R('דן נמט', ['רופאי ילדים ישראלים', 'סגני-אלופים בצה"ל', 'בעלי תואר דוקטור לרפואה מאוניברסיטת בן-גוריון בנגב', 'ישראלים שנולדו ב-1964'], 'רופא'), 'people_science');
+	assert.strictEqual(R('אסתר רמון', ['גנאלוגים יהודים', 'לוחמות הפלמ"ח', 'לוחמי הפלמ"ח', 'מורות בישראל', 'ישראליות שנולדו ב-1924'], 'מדען'), 'people_science');
+	assert.strictEqual(R('יארמו לינדברג', ['גנרלים פינים', 'טייסים צבאיים', 'פינים שנולדו ב-1959'], 'נושא משרה'), 'people_military');
+	assert.strictEqual(R('אליזבת לופקה', ['נשות סגל מחנות ריכוז והשמדה', 'פושעות מלחמה נאציות שהוצאו להורג', 'גרמניות שנולדו ב-1921']), 'people_crime');
 });
 
 test('resultRow: dictionary-import candidate from the infobox or the categories', () => {
