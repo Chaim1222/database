@@ -161,6 +161,13 @@ function fixture({ backend, admin = true, failure = '', expired = false }) {
    await page.locator('[data-side="level"][data-v="'+choice+'"]').click();await page.waitForTimeout(30);
    const req=await page.evaluate(()=>testState.requests.filter(r=>r.url.includes('/report_missing_word_filter?')).at(-1));assert.equal(new URL(req.url).searchParams.get('scan_state'),'eq.'+state);assert.equal(await page.locator('#mchl-table-target tbody tr').count(),1);
   }
+  // מיון לפי תאריך יצירה: הכיוון נשלח למסד (המיון על כל הרשימה), ותגית "מהחדש לישן" מחזירה לברירת המחדל
+  const lastOrder=()=>page.evaluate(()=>new URL(testState.requests.filter(r=>r.url.includes('/report_missing_word_filter?')).at(-1).url).searchParams.get('order'));
+  assert.equal(await lastOrder(),'created_at.asc.nullslast,id.asc');
+  await page.locator('[data-side="sort"][data-v="desc"]').click();await page.waitForTimeout(30);
+  assert.equal(await lastOrder(),'created_at.desc.nullslast,id.desc');
+  await page.locator('[data-action="chip-remove"][data-chip="sort"]').click();await page.waitForTimeout(30);
+  assert.equal(await lastOrder(),'created_at.asc.nullslast,id.asc');
   if(process.env.DASHBOARD_SCREENSHOTS){await page.screenshot({path:path.join(process.env.DASHBOARD_SCREENSHOTS,backend+'-desktop.png'),fullPage:true});await page.setViewportSize({width:390,height:844});await page.screenshot({path:path.join(process.env.DASHBOARD_SCREENSHOTS,backend+'-mobile.png'),fullPage:true});}
   assert.deepEqual(await page.evaluate(()=>testState.failures),[]);assert.deepEqual(page.errors,[]);
   const other=backend==='v1'?'v2':'v1';

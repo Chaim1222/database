@@ -218,8 +218,8 @@
 			columns: ['title', 'verdict', 'topic', 'has_images', 'created_at', 'mechalol_redirect_exists', 'checked_at', 'wikidata_desc'], filters: [],
 			displayColumns: ['title', 'topic', 'verdict', 'wf_matches', 'has_images', 'created_at', 'import_action', 'expand'],
 			baseFilters: [['mechalol_redirect_exists', 'not.is.true']],
-			// הישנים קודם (תאריך יצירה בוויקיפדיה); בלי תאריך (כ-9%) בסוף; id לסדר יציב בדפדוף. הייצוא משתמש באותו סדר.
-			order: 'created_at.asc.nullslast,id.asc',
+			// לפי תאריך היצירה בוויקיפדיה, בכיוון שנבחר (viewOrder); בלי תאריך בסוף; id לסדר יציב בדפדוף. הייצוא משתמש באותו סדר.
+			createdSort: true,
 			titleLink: 'edit', wikidata: true, easyImport: true, redirectFilter: true, lockable: true
 		},
 		missing_redirect: {
@@ -519,8 +519,13 @@
 		}
 		return next();
 	}
+	// סדר הטאב: "חסר במכלול" לפי תאריך היצירה, בכיוון שנבחר בפאנל המסננים (wfSortDir). המיון במסד, על כל הרשימה המסוננת.
+	function viewOrder(cfg) {
+		if (cfg.createdSort) return wfSortDir === 'desc' ? 'created_at.desc.nullslast,id.desc' : 'created_at.asc.nullslast,id.asc';
+		return cfg.order;
+	}
 	function stableOrder(cfg) {
-		var order = cfg.order || 'title.asc';
+		var order = viewOrder(cfg) || 'title.asc';
 		(cfg.keyColumns || ['id']).forEach(function (key) {
 			if (!order.split(',').some(function (part) { return part.split('.')[0] === key; })) order += ',' + key + '.asc';
 		});
@@ -1328,6 +1333,7 @@
 	var wfExcludeNew = true; // בלי ערכים שנוצרו בשבועיים האחרונים
 	var wfRedirectChoice = ''; // '' / 'absent' / 'unchecked' (רק בטאב "חסר במכלול")
 	var wfMaxLen = '';
+	var wfSortDir = uiPrefs.missingSort === 'desc' ? 'desc' : 'asc'; // מיון לפי תאריך יצירה; נשמר בדפדפן
 	var wfSettingsOpen = false;
 	var wfTopicOpen = { 0: true, 1: false, 2: true }; // אילו קבוצות נושא פתוחות
 	var WF_LEVEL_OPTIONS = {
@@ -1381,6 +1387,11 @@
 				'</div>';
 		}
 		html += '</div>';
+		// מיון לפי תאריך היצירה בוויקיפדיה (רק בטאב שממוין לפיו)
+		if (cfg.createdSort) {
+			html += '<div class="mchl-side-sec"><div class="mchl-side-h">מיון לפי תאריך יצירה</div>' +
+				segHtml('sort', wfSortDir, [['asc', 'מהישן לחדש'], ['desc', 'מהחדש לישן']]) + '</div>';
+		}
 		// רמת תוכן
 		html += '<div class="mchl-side-sec"><div class="mchl-side-h">רמת תוכן' +
 			(wfLevelChoice ? ' <button type="button" class="mchl-link" data-side="level" data-v="">הכול</button>' : '') + '</div>';
@@ -1458,6 +1469,7 @@
 		else if (kind === 'names') wfNamesChoice = v;
 		else if (kind === 'redirect') wfRedirectChoice = v;
 		else if (kind === 'topic-none') wfTopicChoice = [];
+		else if (kind === 'sort') { wfSortDir = v; uiPrefs.missingSort = v; saveUiPrefs(); }
 		else return;
 		onEasyChange();
 	}
@@ -1597,6 +1609,7 @@
 		if (wfRedirectChoice) chips.push(['redirect', wfRedirectChoice === 'absent' ? 'נבדק - אין הפניה' : 'הפניה - טרם נבדק']);
 		if (wfMaxLen) chips.push(['maxlen', 'עד ' + Number(wfMaxLen).toLocaleString('he-IL') + ' בתים']);
 		if (wfExcludeNew) chips.push(['new', 'בלי ערכים חדשים']);
+		if (cfg.createdSort && wfSortDir === 'desc') chips.push(['sort', 'מיון: מהחדש לישן']);
 		var search = ($id('mchl-search-input').value || '').trim();
 		if (search) chips.push(['search', 'חיפוש: ' + search]);
 		host.style.display = 'flex';
@@ -1616,6 +1629,7 @@
 		else if (kind === 'redirect') wfRedirectChoice = '';
 		else if (kind === 'maxlen') wfMaxLen = '';
 		else if (kind === 'new') wfExcludeNew = false;
+		else if (kind === 'sort') { wfSortDir = 'asc'; uiPrefs.missingSort = 'asc'; saveUiPrefs(); }
 		else if (kind === 'search') $id('mchl-search-input').value = '';
 		onEasyChange();
 	}
