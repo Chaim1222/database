@@ -1,19 +1,39 @@
 /*
  * נושא הערך - למסנן "נושאים" בדשבורד (בחירה של כמה נושאים). לכל ערך נושא אחד (קוד):
  *
- *   topicOf(wikitext, title) -> 'people_politics' / 'art' / 'sensitive' / 'years' / ...
+ *   topicOf(wikitext, title, wd) -> 'people_politics' / 'art' / 'sensitive' / 'years' / ...
  *
- * לפי הכותרת, תבנית המידע והקטגוריות שבוויקיטקסט, בלי קריאות רשת (כמו dictionary.js).
+ * לפי הכותרת, תבנית המידע והקטגוריות שבוויקיטקסט, ולפי ויקינתונים אם יש: wd = {P31, P279, P106: [QID]}
+ * ("מופע של", "תת-מחלקה של", "עיסוק"; הסורק מביא אותם). QID -> [נושא, עומק]: wikidata.json (tools/build-wikidata-map.js).
+ * עומק = כמה צעדי "תת-מחלקה של" עד מחלקת-השורש. קרוב (WD_NEAR) - אמין יותר מהקטגוריות; רחוק - רק כשהן לא הכריעו.
  * הכלל הראשון שמתאים קובע, לפי הסדר:
  *   1. פירושונים (תבנית {{פירושונים}}), ערכי שנים ("1999 בספורט", "שנות ה-80"), רשימות.
  *   2. נושאים בעייתיים (מין, גוף, להט"ב, תחרויות יופי, עירום באמנות) - קבוצה אחת, בלי פירוט.
  *   3. ערך מילוני (dictionary.js) - הנושא לפי סוג הייבוא המילוני (מוזיקה, סרטים, ספורט...) ולפי האם זה אדם.
  *      "מילוני" עצמו אינו נושא אלא צורת ייבוא (חיים, 2026-10-15) - הוא בעמודה נפרדת (dictionary).
- *   4. טקסונים, יצירות אמנות, אישים (לפי העיסוק, בהצבעה), ושאר הנושאים; 'other' - כל השאר.
+ *   4. אדם (תבנית/קטגוריות, או "מופע של: אדם" בוויקינתונים) - לפי העיסוק, בהצבעה של הקטגוריות, התבנית והעיסוקים בוויקינתונים.
+ *   5. דבר שה"מופע של" שלו ממופה בקרוב - הנושא לפי ויקינתונים. מילים בקטגוריות טועות כאן ("איים" בתוך "אירופאיים").
+ *   6. שאר הנושאים לפי הקטגוריות; אחר כך ויקינתונים רחוק (גם "תת-מחלקה של"); 'other' - כל השאר.
  * הבסיס והמדידה: analysis/missing-groups.md. שינוי כאן משנה את lists_version בסריקה.
  */
 'use strict';
 const { dictionaryOf, infoboxOf, categoriesOf } = require('./dictionary');
+const WD = require('./wikidata.json');
+const WD_NEAR = 1, WD_VOTE = 1;
+// הנושא לפי מחלקות qids (עד עומק maxDepth; extra - צעד נוסף, ל"תת-מחלקה של" של הערך): הנושא של רוב המחלקות,
+// ובשוויון - של הקרובה ביותר. גשר שהוא "גשר כביש", "גשר קשת" ו"רחוב" - מבנה. null אם אין.
+function wdTopic(map, qids, maxDepth, extra = 0) {
+	const score = new Map();
+	for (const q of qids || []) {
+		const hit = map[q];
+		if (!hit || hit[1] + extra > maxDepth) continue;
+		const [n, d] = score.get(hit[0]) || [0, Infinity];
+		score.set(hit[0], [n + 1, Math.min(d, hit[1] + extra)]);
+	}
+	let best = null;
+	for (const [t, [n, d]] of score) if (!best || n > best[1] || (n === best[1] && d < best[2])) best = [t, n, d];
+	return best && best[0];
+}
 
 // קוד -> שם לתצוגה (גם הגאדג'ט מחזיק עותק של השמות).
 const TOPICS = {
@@ -67,12 +87,12 @@ const SPORT_PERSON_IB = /^(אישיות (כדורגל|כדורסל|כדורעף|
 const SENSITIVE = /(מיניות|התנהגות מינית|הפרעות בתפקוד המיני|שפיכה|אורגזמה|פטישיזם|הלבשה תחתונה|בגדי ים|טרום נישואים|פוריות|היריון|הריון|(?:(?<![א-ת])[הובלכמש]?לידה(?![א-ת]))|סרטן השד|(?:(?<![א-ת])[הובלכמש]?זנות)|פורנוגרפ|להט"ב|טרנסג'נדר|הומוסקסואל|לסבית|ביסקסואל|דראג|שירי אהבה|רומנטיקה|קורטזנות|מגדר|בריאות האישה|שירותים מיניים|אמצעי מניעה|עירום|מלכת היופי|מלכות יופי|תחרויות יופי|מורשעים בעבירות מין|עבירות מין|קאקולד)/;
 const ART = /(^ציורים|ציורי |ציורים |פסלים ב|פסלי |יצירות אמנות|דיוקנאות|: ציורים|: פסלים|עירום באמנות)/;
 const PEOPLE = [
-	['people_congress', /(חברי בית הנבחרים של ארצות הברית|חברי הסנאט של ארצות הברית)/],
+	['people_congress', /(חבר(?:י|ות) בית הנבחרים של ארצות הברית|חבר(?:י|ות) הסנאט של ארצות הברית)/],
 	['people_crime', /(קורבנות|רוצחים|מורשעים|פושעים|פושעות|שנעלמו|שהוצאו להורג|מחבלים|טרוריסטים|מאפיונרים)/],
 	['people_politics', /(רוזנים|רוזנות|דוכסים|דוכסיות|אצולה|ראשי מועצות|חברי (בית הנבחרים|הסנאט|הכנסת|הפרלמנט|מועצת|האספה|הבונדסטאג|בית הלורדים)|ראשי ממשל|נשיאי |שרי |שגרירי|דיפלומטים|פוליטיקאים|פוליטיקאיות|ראשי ערים|ראשי עיריות|מושלי|מלכי |מלכות |נסיכ|אצילים|קיסרי|שליטי|מנהיגי|פעילים פוליטיים|שופטים)/],
 	['people_military', /(קציני|אלופים ב|גנרלים|אדמירלים|לוחמי|טייסים|אנשי צבא|אנשי המוסד|אנשי השב"כ|חיילי|משתתפי מלחמת|מפקדי)/],
-	['people_rabbis', /(רבנים|רבני |אדמו"רי|ראשי ישיבות|פוסקים|חסידות|פרשני המקרא|מקובלים|דיינים|אחרונים|ראשונים|תנאים|אמוראים|חזנים|אישים בתנ"ך|דמויות מקראיות)/],
-	['people_clergy', /(כמרים|בישופים|אפיפיורים|קדושים נוצרים|נזירים|נזירות|תאולוגים|אנשי דת|אימאמים|מיסיונרים|קרדינלים)/],
+	['people_rabbis', /(רבנים|רבני |אדמו"רי|ראשי ישיבות|פוסקים|חסידות|פרשני המקרא|מקובלים|דיינים|אחרונים|ראשונים|תנאים|אמוראי|חזנים|אישים בתנ"ך|דמויות מקראיות)/],
+	['people_clergy', /(כמרים|בישופים|אפיפיורים|קדושים נוצרים|נזירים|נזירות|תאולוגים|אנשי דת|אימאמים|מיסיונרים|קרדינלים|חשמנים)/],
 	['people_science', /(מדענים|מדעניות|פיזיקאים|כימאים|ביולוגים|מתמטיקאים|אסטרונומים|גאולוגים|רופאים|רופאות|מהנדסים|ממציאים|ממציאות|כלכלנים|היסטוריונים|היסטוריוניות|אסטרונאוט|אוצרים|אוצרות|פילוסופים|סוציולוגים|פסיכולוגים|בלשנים|ארכאולוגים|חוקרי|חוקרות|סגל (?!ה?מחנ)|פרופסורים|זוכי פרס נובל|חברי האקדמיה|בעלי תואר דוקטור|מדעני)/],
 	['people_literature', /(סופרים|סופרות|משוררים|משוררות|עיתונאים|עיתונאיות|עורכי עיתונים|מתרגמים|מחזאים|מחברי|כותבי|פובליציסטים|מבקרי)/],
 	['people_law', /(עורכי דין|עורכות דין|משפטנים|משפטניות|פרקליטים)/],
@@ -90,7 +110,7 @@ const PEOPLE_IB = [
 	['people_music', /^(מוזיקאי)$/], ['people_stage', /^(אישיות משחק|דוגמן|דוגמנית)$/], ['people_sport', SPORT_PERSON_IB],
 ];
 // תבנית מידע כללית ("נושא משרה", "מנהיג", "אמן" - גם לרקדנים ולשחקנים) - אומרת פחות על העיסוק מתבנית ספציפית (מדען, סופר, רופא).
-const GENERIC_PERSON_IB = /^(מנהיג|נושא משרה|אמן)$/;
+const GENERIC_PERSON_IB = /^(מנהיג|נושא משרה|אמן|סופר)$/;
 // שירות צבאי (חיילי..., לוחמי הפלמ"ח, משתתפי מלחמת...) - כמעט כל ישראלי; לא עיסוק. חצי קול.
 const MILITARY_SERVICE = /^(חיילי|חיילות|לוחמי|לוחמות|משתתפי מלחמת|אנשי ההגנה|חברי ההגנה|אנשי הפלמ"ח|חברי הפלמ"ח|חברי האצ"ל|חברי הלח"י|סגני-אלופים|רב-סרנים|סרנים)/;
 // נושאים שאינם אישים. כל קטגוריה מצביעה לנושא הראשון (לפי הסדר כאן) שהביטוי שלה מתאים לו, ותבנית המידע מצביעה
@@ -203,6 +223,8 @@ const TITLE_PAREN = [
 	['religion', /^(דת|אל|אלה|מיתולוגיה|תנ"ך)$/],
 	['history', /^(קרב|מלחמה|פיגוע|אירוע|מבצע|מהפכה|שושלת)$/],
 ];
+// עיטור ומסדר אבירות ("מפקדים בלגיון הכבוד", "קציני מסדר האימפריה הבריטית") - כבוד, לא שירות צבאי: לא מצביע על עיסוק.
+const HONOR_CAT = /(לגיון הכבוד|(?:מפקדי|מפקדים|קציני|אבירי) מסדר)/;
 const NOISE_CAT = /(^דפים עם|^ויקיפדיה:|^ערכים ללא|^ערכים שבהם|^מדיה ויקי|^תבניות|^עמודים|קישורים שבורים|^ערכים )/;
 
 // קטגוריה שמתחילה בעיסוק בריבוי ("פיזיקאים הודים", "יזמים אמריקאים") היא קטגוריית אנשים, גם בלי קטגוריית לידה.
@@ -216,18 +238,19 @@ const isOccupationCat = (c) => !NOT_OCC.test(c) && OCC_START.some((re) => re.tes
 // או מהקצרמר - 3 קולות (תבנית כללית כמו "נושא משרה" - חצי קול); שירות צבאי - חצי קול. בשוויון - הקודם ב-PEOPLE.
 // כך "חיילי חיל החינוך" לא גובר על {{סופר}} ו"משוררות" (עד 2026-10-15 העיסוק הראשון שהופיע קבע).
 // חברי קונגרס - קבוצה מיוחדת: הקטגוריה קובעת תמיד.
-function classifyPerson(cats, ib, hint) {
+function classifyPerson(cats, ib, hint, occupations) {
 	if (cats.some((c) => PEOPLE[0][1].test(c))) return PEOPLE[0][0];
 	const votes = new Map();
 	const vote = (code, w) => votes.set(code, (votes.get(code) || 0) + w);
 	for (const c of cats) {
-		if (NOISE_CAT.test(c)) continue;
+		if (NOISE_CAT.test(c) || HONOR_CAT.test(c)) continue;
 		const hit = PEOPLE.find(([, re]) => re.test(c));
 		if (hit) vote(hit[0], hit[0] === 'people_military' && MILITARY_SERVICE.test(c) ? 0.5 : 1);
 	}
 	const ibHit = ib && PEOPLE_IB.find(([, re]) => re.test(ib));
 	if (ibHit) vote(ibHit[0], GENERIC_PERSON_IB.test(ib) ? 0.5 : 3);
 	if (hint) vote(hint, 3);
+	for (const t of new Set(occupations || [])) vote(t, OCCUPATION_VOTE[t] || 1);
 	let best = 'people_other', bestN = 0;
 	for (const [code] of PEOPLE) {
 		const n = votes.get(code) || 0;
@@ -237,6 +260,9 @@ function classifyPerson(cats, ib, hint) {
 }
 
 // ערך מילוני: הנושא לפי סוג הייבוא (dictionary.js), ואדם - לפי העיסוק שהסוג מרמז עליו.
+// משקל עיסוק מוויקינתונים בהצבעה (קטגוריה = 1). "עורך דין" מופיע אצל כמעט כל חבר קונגרס - חצי.
+const OCCUPATION_VOTE = { people_law: 0.5 };
+
 const DICT_TOPIC = {
 	'מוזיקה': ['music', 'people_music'], 'מוזיקאים': ['people_music', 'people_music'], 'שחקנים': ['people_stage', 'people_stage'],
 	'ספורט': ['sport', 'people_sport'], 'סרטים': ['film_tv', 'people_stage'], 'טלוויזיה': ['film_tv', 'people_stage'],
@@ -244,9 +270,11 @@ const DICT_TOPIC = {
 };
 
 // הצבעה: כל קטגוריה (או החלק שאחרי ה-":") לנושא אחד; תבנית המידע - קול כפול.
-function subjectOf(cats, ib, stubs) {
+function subjectOf(cats, ib, stubs, wd) {
 	const votes = new Map();
 	const vote = (code, w) => votes.set(code, (votes.get(code) || 0) + w);
+	const wdT = wd && (wdTopic(WD.classes, wd.P31, WD_NEAR) || wdTopic(WD.classes, wd.P279, WD_NEAR, 1));
+	if (wdT) vote(wdT, WD_VOTE);
 	for (const raw of cats) {
 		if (NOISE_CAT.test(raw)) continue;
 		const c = raw.includes(': ') ? raw.split(': ').pop() : raw;
@@ -280,27 +308,29 @@ function classify(page) {
 	const personHint = (hint && hint[0].startsWith('people_') ? hint[0] : null) || stubPerson;
 	// קטגוריית עיסוק ("פיזיקאים הודים", "יזמים אמריקאים") בלי קטגוריית לידה - עדיין אדם
 	const fictional = ib === 'דמות בדיונית' || (!cat(PERSON_CAT) && cat(FICTIONAL_CAT));
-	const isPerson = !fictional && (PERSON_IB.test(ib) || SPORT_PERSON_IB.test(ib) || cat(PERSON_CAT) || cats.some(isOccupationCat) || !!personHint);
+	const wd = page.wd || null, wdHuman = !!wd && (wd.P31 || []).includes('Q5');
+	const isPerson = wdHuman || (!fictional && (PERSON_IB.test(ib) || SPORT_PERSON_IB.test(ib) || cat(PERSON_CAT) || cats.some(isOccupationCat) || !!personHint));
+	const occupations = wdHuman ? (wd.P106 || []).map((q) => WD.occupations[q] && WD.occupations[q][0]).filter(Boolean) : [];
 	const dictCls = typeof page.dict === 'string' ? page.dict : page.dict && page.dict.cls;
 	if (dictCls && DICT_TOPIC[dictCls]) {
 		const [thing, person] = DICT_TOPIC[dictCls];
 		if (!isPerson) return thing;
 		// אדם: העיסוק לפי הקטגוריות והתבנית, ואם לא ברור - לפי סוג הייבוא
-		const code = classifyPerson(cats, ib, personHint);
+		const code = classifyPerson(cats, ib, personHint, occupations);
 		return code === 'people_other' ? person : code;
 	}
 	if (ib === 'מיון') return 'nature';
 	if (ib === 'יצירת אמנות' || cat(ART)) return 'art';
-	if (isPerson) return classifyPerson(cats, ib, personHint);
+	if (isPerson) return classifyPerson(cats, ib, personHint, occupations);
 	if (hint) return hint[0];
-	return subjectOf(cats, ib, stubs) || 'other';
+	return subjectOf(cats, ib, stubs, wd) || (wd && (wdTopic(WD.classes, wd.P31, Infinity) || wdTopic(WD.classes, wd.P279, Infinity, 1))) || 'other';
 }
 
 const DISAMBIG = /\{\{\s*(פירושונים|פירוש|disambig)\s*[|}]/i;
 
-function topicOf(text, title) {
+function topicOf(text, title, wd) {
 	text = text || '';
-	return classify({ t: title, ib: topicInfoboxOf(text), cats: categoriesOf(text), stubs: stubsOf(text), disamb: DISAMBIG.test(text), dict: dictionaryOf(text) });
+	return classify({ t: title, ib: topicInfoboxOf(text), cats: categoriesOf(text), stubs: stubsOf(text), disamb: DISAMBIG.test(text), dict: dictionaryOf(text), wd });
 }
 
 // ===== נושא לפי התיאור (ויקינתונים / "מתוך הפתיח") =====

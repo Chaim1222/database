@@ -74,7 +74,7 @@ const log = (msg) => console.log(new Date().toISOString().slice(0, 19).replace('
 function listsVersion() {
 	const hash = crypto.createHash('sha1');
 	for (const file of [path.join(LISTS_DIR, 'words.json'), path.join(LISTS_DIR, 'allow.json'), path.join(LISTS_DIR, 'usage.json'), path.join(LISTS_DIR, 'context.json'),
-		path.join(__dirname, '..', 'dictionary.js'), path.join(__dirname, '..', 'topics.js')]) hash.update(fs.readFileSync(file));
+		path.join(__dirname, '..', 'dictionary.js'), path.join(__dirname, '..', 'topics.js'), path.join(__dirname, '..', 'wikidata.json')]) hash.update(fs.readFileSync(file));
 	const engine = fs.readFileSync(path.join(__dirname, '..', 'Gadget-wikitextWordCheck.js'), 'utf8');
 	const ui = engine.indexOf(UI_MARKER);
 	if (ui < 0) throw new Error('UI marker not found in Gadget-wikitextWordCheck.js');
@@ -327,6 +327,21 @@ function scanPage(text, lists) {
 // את ה-JSON ללא תקין בעיני PostgREST ("PGRST102 Empty or invalid json") והאצווה
 // כולה נכשלת. מסירים כל חצי כזה מכל מחרוזת בשורה. הביטוי נבנה מקודי התווים,
 // כי כלי הכתיבה ממיר רצפי \u לתווים עצמם (NOTES, מלכודות).
+// "מופע של" (P31), "תת-מחלקה של" (P279) ו"עיסוק" (P106) לכל פריט, לסיווג הנושא (topics.js). פריט חסר או מחוק - לא במפה.
+// כישלון רשת זורק (apiGet מנסה 8 פעמים): ערך שנסרק בלי ויקינתונים היה נשמר בנושא חלקי עם אותה lists_version, ולא נסרק שוב.
+async function wikidataOf(qids) {
+	const out = new Map();
+	for (let i = 0; i < qids.length; i += API_BATCH) {
+		const data = await apiGet('wikidata', { action: 'wbgetentities', ids: qids.slice(i, i + API_BATCH).join('|'), props: 'claims' });
+		for (const [q, e] of Object.entries(data.entities || {})) {
+			if (!e.claims) continue;
+			const ids = (p) => (e.claims[p] || []).map((st) => st.mainsnak.datavalue && st.mainsnak.datavalue.value.id).filter(Boolean);
+			out.set(q, { P31: ids('P31'), P279: ids('P279'), P106: ids('P106') });
+		}
+	}
+	return out;
+}
+
 const HI = String.fromCharCode(0xD800) + '-' + String.fromCharCode(0xDBFF);
 const LO = String.fromCharCode(0xDC00) + '-' + String.fromCharCode(0xDFFF);
 const LONE_SURROGATE = new RegExp('[' + HI + '](?![' + LO + '])|(?<![' + HI + '])[' + LO + ']', 'g');
@@ -341,7 +356,7 @@ function wellFormed(value) {
 	return value;
 }
 
-function resultRow(page, lists, version, desc) {
+function resultRow(page, lists, version, desc, wd) {
 	const rev = page.revisions && page.revisions[0];
 	const text = rev ? rev.slots.main.content : '';
 	const images = imagesOf(page, text);
@@ -360,7 +375,7 @@ function resultRow(page, lists, version, desc) {
 		dictionary: dictionary ? dictionary.cls : null,
 		dictionary_why: dictionary ? dictionary.why : null,
 		// 'other' מקבל נושא לפי התיאור הקצר (ויקינתונים / "מתוך הפתיח"); "דף פירושונים" בתיאור גובר תמיד.
-		topic: topicWithDescription(topicOf(text, page.title), desc),
+		topic: topicWithDescription(topicOf(text, page.title, wd || null), desc),
 		lists_version: version,
 		scanned_at: new Date().toISOString(),
 	});
@@ -456,12 +471,14 @@ async function main() {
 		}
 		if (!todo.length) continue;
 		const pages = await queryPages({
-			pageids: todo.join('|'), prop: 'info|revisions|images|pageimages', rvprop: 'ids|content', rvslots: 'main',
-			imlimit: 'max', piprop: 'name', pilicense: 'any', pilimit: 'max', formatversion: '2',
+			pageids: todo.join('|'), prop: 'info|revisions|images|pageimages|pageprops', rvprop: 'ids|content', rvslots: 'main',
+			imlimit: 'max', piprop: 'name', pilicense: 'any', pilimit: 'max', ppprop: 'wikibase_item', formatversion: '2',
 		});
+		const qidOf = (p) => p.pageprops && p.pageprops.wikibase_item;
+		const wd = await wikidataOf([...new Set(pages.map(qidOf).filter(Boolean))]);
 		for (const page of pages) {
 			if (page.missing || !page.revisions) { stats.gone++; continue; }
-			const row = resultRow(page, lists, version, descOf.get(page.pageid));
+			const row = resultRow(page, lists, version, descOf.get(page.pageid), wd.get(qidOf(page)));
 			stats.scanned++;
 			stats[row.verdict_suggested]++;
 			const ck = 'ctx:' + row.ctx_verdict_suggested + (row.ctx_suspicion_suggested ? ':' + row.ctx_suspicion_suggested : '');

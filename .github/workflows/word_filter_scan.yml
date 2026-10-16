@@ -25,6 +25,7 @@ on:
       - "word-filter/Gadget-wikitextWordCheck.js"
       - "word-filter/dictionary.js"
       - "word-filter/topics.js"
+      - "word-filter/wikidata.json"
       - "word-filter/tools/scan-missing.js"
   workflow_dispatch:
     inputs:
