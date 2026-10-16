@@ -36,7 +36,7 @@ function fixture({ backend, admin = true, failure = '', expired = false }) {
    { id: 1, site: 'mechalol', title: 'ערך במכלול', wikipedia_id: null, mechalol_id: 1, lock_level: 'נעול לקריאה', lock_source: 'test', detected_at: now },
    { id: 0, site: 'mechalol', title: 'כותרת נעולה', lock_level: 'נעול ליצירה', lock_source: 'exclusion', detected_at: now }
   ] : [{ id: 10, title: 'ערך במכלול', mechalol_id: 10, lock_level: 'נעול לקריאה', lock_source: 'test', detected_at: now }],
-  v_template_issues: [{ id: 10, title: 'בעיית תבנית', outcome: 'unresolved', checked_at: now }],
+  v_template_issues: [{ id: 10, title: 'בעיית תבנית', outcome: 'unresolved', checked_at: now }, { id: 11, title: 'אותו שם', outcome: 'template_vs_title', template_ref: 'יעד', wikipedia_id: 2, wikipedia_title: 'אותו שם', checked_at: now }],
   v_sync_status: [{ kind: 'sync', health: 'ok', status: 'success', last_success_at: now, error: null }],
   sync_watermarks: [{ last_synced_ts: now }], v_counts: [{ key: 'wiki_pages', n: 100 }, { key: 'mech_pages', n: 90 }, { key: 'rev_tasks', n: 7 }]
  };
@@ -45,7 +45,7 @@ function fixture({ backend, admin = true, failure = '', expired = false }) {
   report_missing_from_mechalol: ['id','title','mechalol_redirect_exists'],
   report_missing_word_filter_summary: ['n','redirect','has_images','verdict','verdict_suggested','ctx_verdict','ctx_verdict_suggested','ctx_suspicion','ctx_suspicion_suggested','dictionary','topic','scan_state'],
   report_rev_tasks: ['id','title','rev_task','wikipedia_id'], report_locked_pages: ['id','title','lock_level','wikipedia_id','mechalol_id','site'],
-  v_template_issues: ['id','title','outcome'], v_sync_status: ['kind','last_success_at']
+  v_template_issues: ['id','title','outcome','template_ref','wikipedia_id','wikipedia_title','checked_at'], v_sync_status: ['kind','last_success_at']
  };
  function response(data, status = 200, count) { return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json', ...(count == null ? {} : { 'Content-Range': '0-' + Math.max(0,count-1) + '/' + count }) } }); }
  function passes(row, key, value) {
