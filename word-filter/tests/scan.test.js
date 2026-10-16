@@ -90,6 +90,11 @@ test('resultRow: topic from the title, the infobox and the categories', () => {
 	assert.notStrictEqual(R('ח', ['מלחיני קטעי חזנות', 'אמריקאים שנולדו ב-1900']), 'sensitive');
 	assert.strictEqual(R('ז', ['היסטוריה של הזנות']), 'sensitive');
 	assert.strictEqual(R('ה', ['היריון ולידה']), 'sensitive');
+	// "איים" רק כמילה: לא בתוך "אירופאיים"; "פרסים" הוא תרבות; קטגוריות של פיזיקת חלקיקים (חיים, 2026-10-16)
+	assert.strictEqual(R('דרך האמנות - לשלום והבנה הדדית', ['סלביאנסקי באזאר', 'פרסים אירופאיים']), 'culture');
+	assert.strictEqual(R('א', ['איים בים התיכון']), 'geo');
+	assert.strictEqual(R('באריון אומגה', ['באריונים']), 'nature');
+	assert.strictEqual(require('../topics.js').topicFromDescription('משפחה של הדרונים תת-אטומים (בריונים) המיוצגים על ידי הסמל Ω'), 'nature');
 	assert.strictEqual(R('אליזבת לופקה', ['נשות סגל מחנות ריכוז והשמדה', 'פושעות מלחמה נאציות שהוצאו להורג', 'גרמניות שנולדו ב-1921']), 'people_crime');
 });
 
