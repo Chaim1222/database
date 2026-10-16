@@ -1,0 +1,64 @@
+From 7ffe78b01e5e1d3eb0f562004a04671fcdb171e6 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 15 Oct 2026 22:13:02 +0000
+Subject: [PATCH] =?UTF-8?q?templates:=20interwiki=20title=20in=20=D7=93?=
+ =?UTF-8?q?=D7=A3=3D=20is=20unresolved,=20not=20an=20incomplete=20response?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Wikipedia returns 'en:X' under query.interwiki, not query.pages. The resolver
+raised RuntimeError, failing the mechalol sync; the watermark does not advance,
+so every following sync would fail on the same page.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_012FCjftP2GAWra2SnnfwzKm
+---
+ collector/templates.py  |  6 ++++++
+ tests/test_collector.py | 11 +++++++++++
+ 2 files changed, 17 insertions(+)
+
+diff --git a/collector/templates.py b/collector/templates.py
+index 3b39828..777a20c 100644
+--- a/collector/templates.py
++++ b/collector/templates.py
+@@ -152,8 +152,14 @@ def resolve_wiki_titles(wiki_mw, titles):
+             forward[item["from"]] = item["to"]
+         redirects = {item["from"]: item["to"] for item in query.get("redirects", [])}
+         pages = {p["title"]: p for p in query.get("pages", [])}
++        # קידומת בינוויקי ("en:X"): ה-API מחזיר אותה תחת interwiki ולא תחת pages. זו תשובה מלאה (אין דף כזה בוויקיפדיה),
++        # ולא תשובה חסרה - בלי זה הסנכרון נכשל, החלון לא מתקדם, וכל ריצה נתקעת על אותו ערך.
++        interwiki = {item["title"] for item in query.get("interwiki", [])}
+         for title in part:
+             current = forward.get(title, title)
++            if current in interwiki:
++                result[title] = None
++                continue
+             for _ in range(3):
+                 current = redirects.get(current, current)
+             if current not in pages:
+diff --git a/tests/test_collector.py b/tests/test_collector.py
+index 8e58ac5..7eb65c5 100644
+--- a/tests/test_collector.py
++++ b/tests/test_collector.py
+@@ -477,6 +477,17 @@ class TemplateTests(unittest.TestCase):
+         with self.assertRaises(RuntimeError):
+             resolve_wiki_titles(Mw(), ["כותרת"])
+ 
++    def test_interwiki_title_is_unresolved_not_a_failure(self):
++        # דף=en:X: ויקיפדיה מחזירה את הכותרת תחת interwiki (נבדק מול he.wikipedia, 16.10). זו "לא קיים", לא תשובה חסרה.
++        from collector.templates import resolve_wiki_titles
++
++        class Mw:
++            def get(self, params):
++                return {"query": {"normalized": [{"from": "en:foo", "to": "en:Foo"}],
++                                  "interwiki": [{"title": "en:Foo", "iw": "en"}],
++                                  "pages": [{"pageid": 5, "ns": 0, "title": "ישראל"}]}}
++        self.assertEqual(resolve_wiki_titles(Mw(), ["en:foo", "ישראל"]), {"en:foo": None, "ישראל": 5})
++
+ 
+ class EnrichTests(unittest.TestCase):
+     class Mw:
+-- 
+2.43.0
+

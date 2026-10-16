@@ -80,7 +80,7 @@
 		match_type: 'סוג התאמה', wikipedia_id: 'קישור לוויקיפדיה', checked_at: 'נבדק בתאריך',
 		wikidata_desc: 'תיאור (ויקינתונים)', created_at: 'תאריך יצירה בוויקיפדיה',
 		mechalol_redirect_exists: 'קיים במכלול כהפניה', task_type: 'סוג משימה', old_title: 'השם הקודם בוויקיפדיה', renamed_at: 'הועבר בתאריך', via: 'זוהה לפי', rev_page_title: 'הדף של הגרסה', linked_title: 'מקושר היום',
-		manual_match_action: 'שיוך ידני', outcome: 'מצב', template_ref: 'כותרת בתבנית', kind: 'סוג', health: 'מצב', last_success_at: 'הצלחה אחרונה', error: 'שגיאה',
+		manual_match_action: 'שיוך ידני', outcome: 'סוג', template_ref: 'כותרת בתבנית', kind: 'סוג', health: 'מצב', last_success_at: 'הצלחה אחרונה', error: 'שגיאה',
 		wikipedia_title: 'ערך בוויקיפדיה', mechalol_title: 'דף מקביל במכלול',
 		mechalol_status: 'סטטוס במכלול', candidate_count: 'מספר מועמדים',
 		mechalol_id: 'מזהה מכלול', lock_level: 'סוג נעילה', lock_source: 'איך זוהה', detected_at: 'זוהה בתאריך',
@@ -173,6 +173,12 @@
 		var cfg = VIEWS[activeTab];
 		return String(cfg && cfg.rowId ? cfg.rowId(row) : row.id);
 	}
+	// סוגי השורות בטאב "בעיות בתבנית" (הנוסח זמני, לאישור חיים)
+	var TEMPLATE_OUTCOMES = {
+		unresolved: 'השם בתבנית לא קיים בוויקיפדיה',
+		template_vs_title: 'התבנית מצביעה לדף אחר מהכותרת',
+		disambig_same_title: 'פירושון במכלול, באותו שם בוויקיפדיה'
+	};
 	var VIEWS = {
 		// ארבעת טאבי הגרסה: סינון של report_rev_tasks לפי rev_task, ש-match.py מחשב לפי `גרסה=` בתבנית
 		// (scripts/rev_match.py; migrations/migration_add_rev_task.sql). ההחלטות לפי כללי חיים (2026-10-01).
@@ -230,10 +236,13 @@
 			columns: ['kind', 'health', 'status', 'last_success_at', 'error'], filters: [],
 			keyColumns: ['kind'], exportIdColumns: [], countColumn: 'kind', rowId: function (r) { return r.kind; }, searchColumn: 'kind', titleColumn: 'kind', order: 'kind.asc'
 		},
+		// בלי נעולים (בטאב "נעולים") ובלי שנמחקו לפי גרסה (בטאב "נמחקו לפי גרסה"); עם התנגשויות ההתאמה - מיגרציה 0048 בריפו
+		// database_V2 (חיים, 16.10). ההתנגשויות מחושבות מראש, ו-checked_at שלהן הוא זמן החישוב.
 		template: {
-			view: 'v_template_issues', label: 'בעיות תבנית', backend: 'v2',
-			columns: ['title', 'outcome', 'template_ref', 'checked_at'],
-			filters: [{ key: 'outcome', label: 'מצב', options: ['unresolved', 'denied'], display: { unresolved: 'כותרת לא קיימת', denied: 'דף נעול' } }],
+			view: 'v_template_issues', label: 'בעיות בתבנית', backend: 'v2',
+			columns: ['title', 'outcome', 'template_ref', 'wikipedia_title', 'checked_at'],
+			filters: [{ key: 'outcome', label: 'סוג', options: Object.keys(TEMPLATE_OUTCOMES), display: TEMPLATE_OUTCOMES }],
+			keyColumns: ['id', 'outcome'], rowId: function (r) { return r.id + ':' + r.outcome; },
 			order: 'title.asc,id.asc', titleLink: 'mechalol-read'
 		},
 		locked: {
@@ -2414,7 +2423,7 @@
 			return link;
 		}
 		if (col === 'health') return escapeHtml(({ ok: 'תקין', stale: 'ישן', stuck: 'תקוע', never: 'טרם רץ' })[val] || val || '');
-		if (col === 'outcome') return escapeHtml(({ unresolved: 'כותרת לא קיימת', denied: 'דף נעול' })[val] || val || '');
+		if (col === 'outcome') return escapeHtml(TEMPLATE_OUTCOMES[val] || val || '');
 		if (col === 'topic') {
 			// הנושא, ולצידו (לא במקומו) סימון הייבוא המילוני
 			var topicHtml = row.topic && WF_TOPIC_LABELS[row.topic] ? '<span class="mchl-topic-cell">' + escapeHtml(WF_TOPIC_LABELS[row.topic]) + '</span>' : '<span class="mchl-muted">—</span>';
@@ -2435,6 +2444,7 @@
 			return wfHasDetails(row) ? '<button type="button" class="mchl-expand-btn" data-action="wf-details" data-id="' + row.id + '" title="פרטים: המילים במשפט שלהן, הקוד המוסתר והתמונות" aria-expanded="false">▾</button>' : '';
 		}
 		if (col === 'fix_source_action') return '<button type="button" class="mchl-import-btn" data-action="fix-source-open" data-title="' + escapeHtml(row.title) + '" title="פותח כאן את היסטוריית הערך: בוחרים את שורת הייבוא והכלי קובע גרסה ותאריך (נשמר רק באישור)">קבע גרסה</button>';
+		if (col === 'wikipedia_title' && !row.wikipedia_id) return '<span class="mchl-muted">—</span>';
 		if (col === 'wikipedia_title') return '<span class="mchl-title"><a href="' + wikipediaUrl(row.wikipedia_id) + '" target="_blank" rel="noopener">' + escapeHtml(val) + '</a></span>';
 		if (col === 'mechalol_title') return '<a href="' + mechalolUrl(row.mechalol_id) + '" target="_blank" rel="noopener">' + escapeHtml(val) + '</a>';
 		if (col === 'mechalol_status') return '<span class="mchl-badge mchl-neutral">' + escapeHtml(val) + '</span>';
