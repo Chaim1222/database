@@ -14,6 +14,7 @@ const CORPUS_DIR = path.join(ROOT, '..', '.word-filter-corpus');
 const APIS = {
 	wikipedia: 'https://he.wikipedia.org/w/api.php',
 	mechalol: 'https://www.hamichlol.org.il/w/api.php',
+	wikidata: 'https://www.wikidata.org/w/api.php',
 };
 const USER_AGENT = 'MechalolWikipediaCompareBot/1.0 (https://www.hamichlol.org.il/; bot@hamichlol.org.il)';
 
