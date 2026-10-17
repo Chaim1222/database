@@ -4,6 +4,7 @@
  * מידע בלי תמונה, וקטגוריות.
  *
  *   dictionaryOf(wikitext) -> { cls: 'ספורט' | 'מוזיקה' | ..., why: 'תבנית סינגל' } או null
+ *   dictionaryFromTopic(topic, label, wikitext) - כשהכללים לא תפסו: לפי הנושא (topics.js). הסורק משתמש בשניהם.
  *
  * לפי הוויקיטקסט בלבד (תבנית המידע והקטגוריות שבקוד), בלי קריאות רשת, כדי שיוכל
  * לרוץ גם בגאדג'ט. הכללים נבנו ונמדדו מול תבניות הבוט במכלול ({{בוט ספורט}},
@@ -68,4 +69,20 @@ function classify(page) {
 
 const dictionaryOf = (text) => classify({ ib: infoboxOf(text || ''), cats: categoriesOf(text || '') });
 
-module.exports = { dictionaryOf, classify, infoboxOf, categoriesOf };
+// ערך שהכללים למעלה לא תפסו (אין תבנית מהרשימה, אין קטגוריה מתאימה), אבל הנושא שלו (topics.js) בידור, ספורט או ספרות:
+// גם מילוני (חיים, 2026-10-17: "כן להכל" - כולל פרסים וטקסים, ספרים, וערכים כלליים על התחום). ההחרגות (EXCLUDE,
+// INFOBOX_NOT) חלות גם כאן. הסוג - לפי שמות הסוגים למעלה; 'תרבות ובידור' - סוג הבוט במכלול לפרסים, דמויות וכו'.
+const TOPIC_DICT = {
+	music: 'מוזיקה', people_music: 'מוזיקאים', sport: 'ספורט', people_sport: 'ספורט', film_tv: 'סרטים וטלוויזיה',
+	people_stage: 'שחקנים', literature: 'ספרות', games: 'תרבות ובידור', culture: 'תרבות ובידור',
+};
+// topic - קוד הנושא, label - שמו לתצוגה (לסיבה). -> { cls, why: 'נושא <שם>' } או null
+function dictionaryFromTopic(topic, label, text) {
+	const cls = TOPIC_DICT[topic];
+	if (!cls) return null;
+	const ib = infoboxOf(text || '');
+	if (categoriesOf(text || '').some((c) => EXCLUDE.test(c)) || (ib && INFOBOX_NOT.test(ib))) return null;
+	return { cls, why: 'נושא ' + label };
+}
+
+module.exports = { dictionaryOf, dictionaryFromTopic, classify, infoboxOf, categoriesOf };

@@ -36,8 +36,8 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { engine, readJson, apiGet, LISTS_DIR } = require('./lib');
-const { dictionaryOf } = require('../dictionary');
-const { topicOf, topicWithDescription } = require('../topics');
+const { dictionaryOf, dictionaryFromTopic } = require('../dictionary');
+const { topicOf, topicWithDescription, TOPICS } = require('../topics');
 
 const TABLE = 'word_filter_results';
 const REPORT = 'report_missing_from_mechalol';
@@ -360,7 +360,10 @@ function resultRow(page, lists, version, desc, wd) {
 	const rev = page.revisions && page.revisions[0];
 	const text = rev ? rev.slots.main.content : '';
 	const images = imagesOf(page, text);
-	const dictionary = dictionaryOf(text);
+	// 'other' מקבל נושא לפי התיאור הקצר (ויקינתונים / "מתוך הפתיח"); "דף פירושונים" בתיאור גובר תמיד.
+	const topic = topicWithDescription(topicOf(text, page.title, wd || null), desc);
+	// מילוני: לפי התבנית/הקטגוריות, ואם לא - לפי הנושא
+	const dictionary = dictionaryOf(text) || dictionaryFromTopic(topic, TOPICS[topic], text);
 	return wellFormed({
 		wikipedia_id: page.pageid,
 		title: page.title,
@@ -374,8 +377,7 @@ function resultRow(page, lists, version, desc, wd) {
 		images: images.photos.slice(0, MAX_IMAGES),
 		dictionary: dictionary ? dictionary.cls : null,
 		dictionary_why: dictionary ? dictionary.why : null,
-		// 'other' מקבל נושא לפי התיאור הקצר (ויקינתונים / "מתוך הפתיח"); "דף פירושונים" בתיאור גובר תמיד.
-		topic: topicWithDescription(topicOf(text, page.title, wd || null), desc),
+		topic,
 		lists_version: version,
 		scanned_at: new Date().toISOString(),
 	});

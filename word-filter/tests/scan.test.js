@@ -141,6 +141,16 @@ test('resultRow: dictionary-import candidate from the infobox or the categories'
 	// תבנית מידע שאינה בידור גוברת על קטגוריה; תרבות חרדית מוחרגת.
 	assert.strictEqual(row('{{מדען\n|שם=א}}\n[[קטגוריה:פסנתרנים ישראלים]]').dictionary, null);
 	assert.strictEqual(row('{{מוזיקאי\n|שם=א}}\n[[קטגוריה:זמרי מוזיקה חסידית]]').dictionary, null);
+	// כשהכללים לא תפסו - לפי הנושא (חיים, 2026-10-17): פרס, דף דמויות, תחרות ספורט; הסיבה "נושא <שם>"
+	const prize = row('פרס.\n[[קטגוריה:פרסים אירופאיים]]');
+	assert.strictEqual(prize.topic, 'culture');
+	assert.strictEqual(prize.dictionary, 'תרבות ובידור');
+	assert.strictEqual(prize.dictionary_why, 'נושא תרבות, פרסים ובידור');
+	assert.strictEqual(row('דמויות.\n[[קטגוריה:דמויות טלוויזיוניות]]\n[[קטגוריה:סדרות טלוויזיה אמריקאיות]]').dictionary, 'סרטים וטלוויזיה');
+	// ההחרגות חלות גם כאן; נושא שאינו בידור - לא מילוני
+	assert.strictEqual(row('פיוט.\n[[קטגוריה:פיוטים לסוכות]]\n[[קטגוריה:שירים בעברית]]').dictionary, null);
+	assert.strictEqual(row('עיר.\n[[קטגוריה:איראן: ערים]]').dictionary, null);
+	assert.strictEqual(row('{{מנהיג\n|שם=א}}\n[[קטגוריה:זמרים אמריקאים]]').dictionary, null);
 });
 
 test('scanPage: context verdict and per-match suspicion', () => {

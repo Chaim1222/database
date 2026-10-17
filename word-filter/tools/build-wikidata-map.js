@@ -70,6 +70,8 @@ const OCCUPATION_ROOTS = [
 // "מופע של" (P31) של ערך שאינו אדם. להקה - כמו קודם, "אישים: מוזיקה".
 const CLASS_ROOTS = [
 	['Q215380', 'people_music', 'musical group'],
+	// תחרויות יופי - "נושאים בעייתיים" (הכרעת חיים); topics.js בודק את זה לפני הקטגוריות
+	['Q62391930', 'sensitive', 'beauty pageant edition'],
 	['Q13406463', 'lists', 'Wikimedia list article'], ['Q18340514', 'years', 'events in a specific year or time period'],
 	['Q4167410', 'disambig', 'Wikimedia disambiguation page'],
 	['Q105543609', 'music', 'musical work/composition'], ['Q482994', 'music', 'album'], ['Q134556', 'music', 'single'], ['Q7366', 'music', 'song'],
