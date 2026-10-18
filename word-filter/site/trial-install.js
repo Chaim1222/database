@@ -1,23 +1,26 @@
 // התקנת ניסיון של גאדג'ט בדיקת המילים כסקריפט אישי (README, "הגאדג'ט באתר" - "ניסיון לפני העלאה").
-// להדביק פעם אחת בקונסולת הדפדפן (F12) בכל דף במכלול, כשמחוברים. יוצר או מעדכן את דפי המשתמש
-// (wordcheck.js ו-4 קובצי JSON) מהגרסה ב-main, ומוסיף ל-common.js את שתי השורות של הניסיון.
+// הכל בחשבון "בוט גאון הירדן" (החלטת חיים, 2026-10-18), כמו הדשבורד. להדביק פעם אחת בקונסולת הדפדפן (F12)
+// בכל דף במכלול, כשמחוברים כבוט. יוצר או מעדכן את "בדיקת מילים.js" ואת 4 קובצי ה-JSON שתחתיו
+// מהגרסה ב-main, ומוסיף ל-common.js של הבוט את שתי השורות של הניסיון.
 // הרצה חוזרת = עדכון לגרסה האחרונה. להפסקה: למחוק מ-common.js את השורות שבין סימוני wikitextWordCheck.
 (function () {
 	var RAW = 'https://raw.githubusercontent.com/Chaim1222/database/main/word-filter/';
-	var user = mw.config.get('wgUserName');
-	if (!user) { console.error('יש להתחבר לפני ההתקנה'); return; }
-	var base = 'משתמש:' + user + '/';
+	var USER = 'בוט גאון הירדן';
+	if (mw.config.get('wgUserName') !== USER) { console.error('יש להתחבר כ"' + USER + '" לפני ההתקנה'); return; }
+	var base = 'משתמש:' + USER + '/';
+	var script = 'בדיקת מילים.js';
 	var files = {
-		'wordcheck.js': 'Gadget-wikitextWordCheck.js',
-		'words.json': 'site/Gadget-wikitextWordCheck-words.json',
-		'allow.json': 'site/Gadget-wikitextWordCheck-allow.json',
-		'usage.json': 'site/Gadget-wikitextWordCheck-usage.json',
-		'context.json': 'site/Gadget-wikitextWordCheck-context.json'
+		'': 'Gadget-wikitextWordCheck.js',
+		'/words.json': 'site/Gadget-wikitextWordCheck-words.json',
+		'/allow.json': 'site/Gadget-wikitextWordCheck-allow.json',
+		'/usage.json': 'site/Gadget-wikitextWordCheck-usage.json',
+		'/context.json': 'site/Gadget-wikitextWordCheck-context.json'
 	};
+	var list = base + script;
 	var START = '// wikitextWordCheck - ניסיון (start)', END = '// wikitextWordCheck - ניסיון (end)';
 	var block = [START,
-		"window.wikitextWordCheckPages = { words: '" + base + "words.json', allow: '" + base + "allow.json', usage: '" + base + "usage.json', context: '" + base + "context.json' };",
-		"mw.loader.load('/w/index.php?title=' + encodeURIComponent('" + base + "wordcheck.js') + '&action=raw&ctype=text/javascript');",
+		"window.wikitextWordCheckPages = { words: '" + list + "/words.json', allow: '" + list + "/allow.json', usage: '" + list + "/usage.json', context: '" + list + "/context.json' };",
+		"mw.loader.load('/w/index.php?title=' + encodeURIComponent('" + list + "') + '&action=raw&ctype=text/javascript');",
 		END].join('\n');
 	var api;
 	var summary = 'גאדג\'ט בדיקת המילים - ניסיון כסקריפט אישי';
@@ -30,8 +33,8 @@
 					if (!r.ok) throw new Error(files[page] + ': ' + r.status);
 					return r.text();
 				}).then(function (text) {
-					return api.postWithEditToken({ action: 'edit', title: base + page, text: text, summary: summary });
-				}).then(function () { console.log('נשמר: ' + base + page); });
+					return api.postWithEditToken({ action: 'edit', title: list + page, text: text, summary: summary });
+				}).then(function () { console.log('נשמר: ' + list + page); });
 			});
 		}, $.Deferred().resolve().promise());
 	}).then(function () {
